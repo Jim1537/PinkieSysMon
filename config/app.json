@@ -1,0 +1,33 @@
+﻿{
+  "Dashboard": {
+    "Active": "Default"
+  },
+  "Display": {
+    "RefreshIntervalMs": 1000
+  },
+  "Outputs": {
+    "Targets": [
+      {
+        "Id": "screen-1",
+        "Name": "Thermalright Trofeo Vision 9.16",
+        "Transport": "trofeo",
+        "DeviceId": ""
+      }
+    ]
+  },
+  "Renderer": {
+    "JpegQuality": 92
+  },
+  "Usb": {
+    "RetryIntervalMs": 3000,
+    "TransferTimeoutMs": 3000
+  },
+  "Media": {
+    "EndpointTypeOverrides": {}
+  },
+  "MetricProviders": {
+    "system": true,
+    "lhm": false,
+    "icue": false
+  }
+}

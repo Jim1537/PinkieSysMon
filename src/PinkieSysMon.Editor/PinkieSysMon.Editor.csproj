@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\..\PinkieSysMon\PinkieSysMon.ico')">..\PinkieSysMon\PinkieSysMon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>PinkieSysMon.Editor</AssemblyName>
+    <AssemblyTitle>PinkieSysMon Dashboard Editor</AssemblyTitle>
+    <Description>PinkieSysMon dashboard editor</Description>
+    <RootNamespace>PinkieSysMon.Editor</RootNamespace>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\PinkieSysMon\PinkieSysMon.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\PinkieSysMon\PinkieSysMon.ico')" Link="PinkieSysMon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- build.ps1 publishes the runtime first. Compile against that implementation
+         assembly and copy/list it as an editor runtime dependency as well. -->
+    <Reference Include="PinkieSysMon">
+      <HintPath>$(PinkiePublishPath)\PinkieSysMon.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <PackageReference Include="SkiaSharp" Version="4.152.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+    <!-- PinkieSysMon.dll references System.Management. A raw assembly Reference does
+         not propagate transitive NuGet dependencies into PinkieSysMon.Editor.deps.json. -->
+    <PackageReference Include="System.Management" Version="10.0.12" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+  </ItemGroup>
+</Project>

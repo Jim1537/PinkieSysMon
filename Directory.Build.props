@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <Company>PinkieSysMon Project</Company>
+    <Product>PinkieSysMon</Product>
+    <Authors>PinkieSysMon Project</Authors>
+    <Copyright>Copyright © 2026 PinkieSysMon Project</Copyright>
+    <Version>1.19.0</Version>
+    <AssemblyVersion>1.19.0.0</AssemblyVersion>
+    <FileVersion>1.19.0.0</FileVersion>
+    <InformationalVersion>1.19.0</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <SatelliteResourceLanguages>en;en-US</SatelliteResourceLanguages>
+    <Deterministic>true</Deterministic>
+
+    <!-- Keep all SDK-generated build/intermediate output out of src/ and tests/. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+
+    <!-- Runtime is published first; Editor and regression checks compile against
+         the exact implementation assembly that will be deployed/tested. -->
+    <PinkiePublishPath>$(ArtifactsPath)\publish</PinkiePublishPath>
+  </PropertyGroup>
+</Project>

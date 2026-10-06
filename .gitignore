@@ -1,0 +1,46 @@
+# Build/test output
+**/bin/
+**/obj/
+/artifacts/
+/release/
+
+# IDE/user state
+.vs/
+*.user
+*.suo
+
+# Runtime/local state must never enter the public repository
+/logs/
+/config/editor.json
+/config/telemetry.json
+/External/
+
+# Private/local product material
+/dashboards/PinkiePie_Vertical/
+/dashboards/PinkiePie_Vertical_*.zip
+/assets/fonts/Equestria/
+/assets/icons/Bootstrap/
+/assets/icons/Phosphor_duotone/
+/assets/icons/Tabler/
+/assets/icons/MLP app icons/
+/assets/icons/MLP folder icons/
+/assets/icons/PinkieSysMon/
+
+# Secrets / signing material
+*.pfx
+*.p12
+*.p8
+*.key
+*.pem
+*.snk
+
+# Local migration/audit dumps
+/project_tree.txt
+/project_inventory.csv
+/project_root_sizes.txt
+
+# Miscellaneous local OS/editor noise
+*.log
+Thumbs.db
+.DS_Store
+/config/*.local.json

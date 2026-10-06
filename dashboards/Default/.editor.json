@@ -1,0 +1,37 @@
+{
+  "GroupDefinitions": [
+    {
+      "Id": "group-1",
+      "Name": "Clock",
+      "ParentGroupId": null
+    },
+    {
+      "Id": "group-2",
+      "Name": "Status",
+      "ParentGroupId": null
+    },
+    {
+      "Id": "group-3",
+      "Name": "Uptime",
+      "ParentGroupId": "group-2"
+    },
+    {
+      "Id": "group-4",
+      "Name": "Network",
+      "ParentGroupId": "group-2"
+    }
+  ],
+  "WidgetGroupIds": {
+    "text-title": "group-1",
+    "clock-time": "group-1",
+    "clock-date": "group-1",
+    "text-local": "group-1",
+    "text-uptime-label": "group-3",
+    "uptime": "group-3",
+    "text-uptime-note": "group-3",
+    "text-network-label": "group-4",
+    "network-status": "group-4",
+    "text-network-note": "group-4",
+    "text-system-only": "group-4"
+  }
+}

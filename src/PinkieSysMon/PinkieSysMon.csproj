@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="Exists('$(MSBuildProjectDirectory)\PinkieSysMon.ico')">PinkieSysMon.ico</ApplicationIcon>
+    <AssemblyName>PinkieSysMon</AssemblyName>
+    <AssemblyTitle>PinkieSysMon</AssemblyTitle>
+    <Description>PinkieSysMon workstation telemetry runtime</Description>
+    <RootNamespace>PinkieSysMon</RootNamespace>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.152.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+    <PackageReference Include="System.Management" Version="10.0.12" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="PinkieSysMon.ico" Condition="Exists('$(MSBuildProjectDirectory)\PinkieSysMon.ico')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- Tombstones for widget types removed from the dashboard contract.
+       Compile exclusions make source refreshes safe when an archive is unpacked
+       over an older working tree; the build target also removes those stale files. -->
+  <ItemGroup>
+    <Compile Remove="Widgets\GridWidgetRenderer.cs" />
+    <Compile Remove="Widgets\RectWidgetRenderer.cs" />
+    <Compile Remove="Widgets\GraphWidgetRenderer.cs" />
+  </ItemGroup>
+
+  <Target Name="RemoveObsoleteWidgetRendererSources" BeforeTargets="BeforeBuild">
+    <Delete Files="$(MSBuildProjectDirectory)\Widgets\GridWidgetRenderer.cs;$(MSBuildProjectDirectory)\Widgets\RectWidgetRenderer.cs;$(MSBuildProjectDirectory)\Widgets\GraphWidgetRenderer.cs" />
+  </Target>
+
+</Project>
