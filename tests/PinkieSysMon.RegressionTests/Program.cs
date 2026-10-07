@@ -28,6 +28,8 @@ internal static class Program
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Trofeo wire framing contract", TrofeoWireFramingContract),
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
+            ("USB diagnostic config contract", UsbDiagnosticConfigContract),
+            ("USB diagnostic journal contract", UsbDiagnosticJournalContract),
             ("Output session manager lifecycle", OutputSessionManagerLifecycle),
             ("Output session manager reconfiguration", OutputSessionManagerReconfiguration),
             ("Output session manager transactional preparation", OutputSessionManagerTransactionalPreparation),
@@ -524,6 +526,101 @@ internal static class Program
             "An 8192-byte Trofeo wire frame must preserve two 4096-byte transfers.");
         Assert(Segment(10240).SequenceEqual(new[] { 4096, 4096, 2048 }),
             "A 10240-byte Trofeo wire frame must preserve repeated 4096-byte transfers plus the tail.");
+    }
+
+    private static void UsbDiagnosticConfigContract()
+    {
+        var config = new AppConfig();
+        Assert(!config.Usb.DiagnosticJournalEnabled,
+            "USB diagnostic journal must remain opt-in by default.");
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "PinkieSysMon-usb-diagnostic-config-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var configPath = Path.Combine(tempRoot, "app.json");
+            var log = new FileLogger(Path.Combine(tempRoot, "runtime.log"));
+
+            config.Usb.DiagnosticJournalEnabled = true;
+            config.Save(configPath);
+            var persisted = AppConfig.Load(configPath, log);
+            Assert(persisted.Usb.DiagnosticJournalEnabled,
+                "USB diagnostic journal opt-in must persist through AppConfig save/load.");
+
+            File.WriteAllText(
+                configPath,
+                """
+                {
+                  "Usb": {
+                    "RetryIntervalMs": 3000,
+                    "TransferTimeoutMs": 3000
+                  }
+                }
+                """);
+            var legacy = AppConfig.Load(configPath, log);
+            Assert(!legacy.Usb.DiagnosticJournalEnabled,
+                "Existing config without DiagnosticJournalEnabled must keep diagnostics disabled.");
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+    }
+
+    private static void UsbDiagnosticJournalContract()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "PinkieSysMon-usb-diagnostic-journal-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+        try
+        {
+            var mainLogPath = Path.Combine(tempRoot, "runtime.log");
+            var targetId = "screen:one/unsafe-for-filename";
+            var derived = TrofeoDiagnosticJournal.GetPath(mainLogPath, targetId);
+            Assert(
+                string.Equals(Path.GetDirectoryName(derived), tempRoot, StringComparison.OrdinalIgnoreCase) &&
+                !Path.GetFileName(derived).Contains(targetId, StringComparison.Ordinal),
+                "USB diagnostic journal path must stay beside the runtime log without embedding raw target identity.");
+
+            var journalPath = Path.Combine(tempRoot, "usb-test.journal.log");
+            using (var journal = new TrofeoDiagnosticJournal(
+                       journalPath,
+                       maxBytes: 512,
+                       maxArchiveCount: 2,
+                       durableFlushInterval: TimeSpan.Zero))
+            {
+                journal.Write(
+                    "FRAME_TEST",
+                    ("seq", 7),
+                    ("text", "row\twith\ncontrol"),
+                    ("duration", 12.5));
+
+                for (var i = 0; i < 20; i++)
+                    journal.Write("FILL", ("index", i), ("payload", new string('x', 80)));
+            }
+
+            Assert(File.Exists(journalPath),
+                "USB diagnostic journal must keep an active log after rotation.");
+            Assert(File.Exists(journalPath + ".1"),
+                "USB diagnostic journal must rotate when its bounded size is exceeded.");
+            Assert(!File.Exists(journalPath + ".3"),
+                "USB diagnostic journal must not exceed its configured archive count.");
+
+            var allText = string.Join(
+                Environment.NewLine,
+                new[] { journalPath, journalPath + ".1", journalPath + ".2" }
+                    .Where(File.Exists)
+                    .Select(File.ReadAllText));
+            Assert(allText.Contains("FRAME_TEST", StringComparison.Ordinal),
+                "USB diagnostic journal must persist event names.");
+            Assert(allText.Contains("text=row\\twith\\ncontrol", StringComparison.Ordinal),
+                "USB diagnostic journal must escape control characters into one-line records.");
+            Assert(allText.Contains("duration=12.5", StringComparison.Ordinal),
+                "USB diagnostic journal must format numeric fields with invariant culture.");
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
     }
 
     private static void OutputSessionManagerLifecycle()
