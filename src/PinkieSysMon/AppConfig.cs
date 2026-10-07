@@ -179,6 +179,7 @@ internal sealed class UsbConfig
 {
     public int RetryIntervalMs { get; set; } = 3000;
     public int TransferTimeoutMs { get; set; } = 3000;
+    public bool DiagnosticJournalEnabled { get; set; }
 }
 
 internal sealed class MediaConfig
