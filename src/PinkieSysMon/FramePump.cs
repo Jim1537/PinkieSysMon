@@ -322,7 +322,7 @@ internal sealed class FramePump : IOutputSession
             var usbStartedAt = Stopwatch.GetTimestamp();
             try
             {
-                _display!.SendJpeg(
+                _display!.SendJpegWithDiagnostics(
                     rendered.Bytes,
                     new TrofeoFrameRenderDiagnostics(rendered.RenderMs, rendered.EncodeMs));
             }
