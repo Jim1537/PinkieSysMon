@@ -1,4 +1,5 @@
 using Microsoft.Win32.SafeHandles;
+using System.Diagnostics;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
@@ -22,25 +23,48 @@ internal sealed class TrofeoTransport : IDisposable
     private readonly OutputTargetConfig _target;
     private readonly OutputDeviceDescriptor _device;
     private readonly byte[] _ackBuffer = new byte[512];
+    private readonly TrofeoDiagnosticJournal? _diagnostics;
     private SafeFileHandle? _deviceHandle;
     private IntPtr _interfaceHandle;
     private byte[] _transferBuffer = Array.Empty<byte>();
     private GCHandle _transferBufferHandle;
     private bool _transferBufferPinned;
     private IntPtr _transferBufferAddress;
+    private long _frameSequence;
 
-    private TrofeoTransport(FileLogger log, OutputTargetConfig target, OutputDeviceDescriptor device)
+    private TrofeoTransport(
+        FileLogger log,
+        OutputTargetConfig target,
+        OutputDeviceDescriptor device,
+        bool diagnosticJournalEnabled)
     {
         _log = log;
         _target = target;
         _device = device;
+
+        if (diagnosticJournalEnabled)
+        {
+            try
+            {
+                _diagnostics = new TrofeoDiagnosticJournal(
+                    TrofeoDiagnosticJournal.GetPath(log.Path, target.Id));
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Output target '{target.Name}' USB diagnostic journal could not be opened.", ex);
+            }
+        }
     }
 
     public int WireRotationDegrees { get; private set; }
     public int ProtocolPm { get; private set; }
     public int ProtocolSub { get; private set; }
 
-    public static TrofeoTransport? TryOpen(OutputTargetConfig target, int transferTimeoutMs, FileLogger log)
+    public static TrofeoTransport? TryOpen(
+        OutputTargetConfig target,
+        int transferTimeoutMs,
+        bool diagnosticJournalEnabled,
+        FileLogger log)
     {
         ArgumentNullException.ThrowIfNull(target);
 
@@ -51,14 +75,15 @@ internal sealed class TrofeoTransport : IDisposable
         if (resolution.Status != OutputDeviceResolutionStatus.Found || resolution.Device is null)
             throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
 
-        var transport = new TrofeoTransport(log, target, resolution.Device);
+        var transport = new TrofeoTransport(log, target, resolution.Device, diagnosticJournalEnabled);
         try
         {
             transport.Open(resolution.Device.DevicePath, transferTimeoutMs);
             return transport;
         }
-        catch
+        catch (Exception ex)
         {
+            transport.WriteFailure("OPEN_FAIL", 0, "open", Stopwatch.GetTimestamp(), ex);
             transport.Dispose();
             throw;
         }
@@ -66,6 +91,14 @@ internal sealed class TrofeoTransport : IDisposable
 
     private void Open(string path, int transferTimeoutMs)
     {
+        _diagnostics?.Write(
+            "OPEN_BEGIN",
+            ("runtime", RuntimeVersion.Current),
+            ("targetId", _target.Id),
+            ("targetName", _target.Name),
+            ("device", _device.ShortId),
+            ("timeoutMs", transferTimeoutMs));
+
         _deviceHandle = CreateFileW(
             path,
             GenericRead | GenericWrite,
@@ -90,6 +123,15 @@ internal sealed class TrofeoTransport : IDisposable
         ProtocolPm = 64 + pmRawForCalc;
         ProtocolSub = response[22] + 1;
         WireRotationDegrees = ProtocolSub is < 2 or > 4 ? 180 : 0;
+
+        _diagnostics?.Write(
+            "OPEN_COMPLETE",
+            ("runtime", RuntimeVersion.Current),
+            ("targetId", _target.Id),
+            ("device", _device.ShortId),
+            ("pm", ProtocolPm),
+            ("sub", ProtocolSub),
+            ("wireRotation", WireRotationDegrees));
 
         _log.Info(
             $"Output target '{_target.Name}' connected to {_device.DisplayName} [{_device.ShortId}]. " +
@@ -119,22 +161,94 @@ internal sealed class TrofeoTransport : IDisposable
         return response;
     }
 
-    public void SendJpeg(ReadOnlySpan<byte> jpeg)
+    public void SendJpeg(ReadOnlySpan<byte> jpeg) =>
+        SendJpeg(jpeg, default);
+
+    public void SendJpeg(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
     {
         if (_interfaceHandle == IntPtr.Zero)
             throw new ObjectDisposedException(nameof(TrofeoTransport));
 
-        var frameLength = PrepareLyFrame(jpeg);
-        for (var offset = 0; offset < frameLength;)
-        {
-            var count = TrofeoWireProtocol.GetTransferLength(frameLength - offset);
-            WritePinned(PipeOut, IntPtr.Add(_transferBufferAddress, offset), count);
-            offset += count;
-        }
+        var sequence = Interlocked.Increment(ref _frameSequence);
+        var startedAt = Stopwatch.GetTimestamp();
+        var stage = "prepare";
+        var layout = TrofeoWireProtocol.GetFrameLayout(jpeg.Length);
+        var writeCount = checked((layout.FrameLength + TrofeoWireProtocol.TransferBlockSize - 1) /
+                                 TrofeoWireProtocol.TransferBlockSize);
 
-        var ackLength = ReadInto(PipeIn, _ackBuffer);
-        if (ackLength == 0)
-            throw new IOException("Trofeo returned an empty frame ACK.");
+        _diagnostics?.Write(
+            "FRAME_BEGIN",
+            ("seq", sequence),
+            ("jpegBytes", jpeg.Length),
+            ("renderMs", renderDiagnostics.RenderMs),
+            ("encodeMs", renderDiagnostics.EncodeMs),
+            ("chunks", layout.ChunkCount),
+            ("paddedChunks", layout.PaddedChunkCount),
+            ("wireBytes", layout.FrameLength),
+            ("writes", writeCount));
+
+        try
+        {
+            var frameLength = PrepareLyFrame(jpeg);
+            stage = "write";
+
+            for (var offset = 0; offset < frameLength;)
+            {
+                var count = TrofeoWireProtocol.GetTransferLength(frameLength - offset);
+                WritePinned(PipeOut, IntPtr.Add(_transferBufferAddress, offset), count);
+                offset += count;
+            }
+
+            _diagnostics?.Write(
+                "FRAME_SENT",
+                ("seq", sequence),
+                ("wireBytes", frameLength),
+                ("writes", writeCount),
+                ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
+
+            stage = "ack";
+            var ackLength = ReadInto(PipeIn, _ackBuffer);
+            if (ackLength == 0)
+                throw new IOException("Trofeo returned an empty frame ACK.");
+
+            _diagnostics?.Write(
+                "FRAME_COMPLETE",
+                ("seq", sequence),
+                ("ackBytes", ackLength),
+                ("ackPrefix", AckPrefixHex(ackLength)),
+                ("usbMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
+        }
+        catch (Exception ex)
+        {
+            WriteFailure("FRAME_FAIL", sequence, stage, startedAt, ex);
+            throw;
+        }
+    }
+
+    public void RecordLifecycle(string state, string reason)
+    {
+        _diagnostics?.Write(
+            "LIFECYCLE",
+            ("state", state),
+            ("reason", reason));
+    }
+
+    private string AckPrefixHex(int ackLength)
+    {
+        var count = Math.Min(16, ackLength);
+        return count <= 0 ? string.Empty : Convert.ToHexString(_ackBuffer.AsSpan(0, count));
+    }
+
+    private void WriteFailure(string eventName, long sequence, string stage, long startedAt, Exception ex)
+    {
+        _diagnostics?.Write(
+            eventName,
+            ("seq", sequence),
+            ("stage", stage),
+            ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds),
+            ("exception", ex.GetType().Name),
+            ("win32", ex is Win32Exception win32 ? win32.NativeErrorCode : null),
+            ("message", ex.Message));
     }
 
     private int PrepareLyFrame(ReadOnlySpan<byte> payload)
@@ -235,6 +349,7 @@ internal sealed class TrofeoTransport : IDisposable
 
     public void Dispose()
     {
+        _diagnostics?.Write("TRANSPORT_DISPOSE", ("targetId", _target.Id));
         ReleaseTransferBuffer();
 
         if (_interfaceHandle != IntPtr.Zero)
@@ -245,6 +360,8 @@ internal sealed class TrofeoTransport : IDisposable
 
         _deviceHandle?.Dispose();
         _deviceHandle = null;
+
+        _diagnostics?.Dispose();
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
@@ -294,3 +411,6 @@ internal sealed class TrofeoTransport : IDisposable
         uint valueLength,
         ref uint value);
 }
+
+
+internal readonly record struct TrofeoFrameRenderDiagnostics(double RenderMs, double EncodeMs);
