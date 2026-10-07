@@ -30,6 +30,9 @@ internal static class Program
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
             ("USB diagnostic config contract", UsbDiagnosticConfigContract),
             ("USB diagnostic journal contract", UsbDiagnosticJournalContract),
+            ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
+            ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
+            ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
             ("Output session manager lifecycle", OutputSessionManagerLifecycle),
             ("Output session manager reconfiguration", OutputSessionManagerReconfiguration),
             ("Output session manager transactional preparation", OutputSessionManagerTransactionalPreparation),
@@ -620,6 +623,142 @@ internal static class Program
         finally
         {
             try { Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+    }
+
+    private static void FramePumpSuspendDuringBlockedOpen()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-open-ownership");
+        using var openStarted = new ManualResetEventSlim();
+        using var allowOpen = new ManualResetEventSlim();
+        var fake = new BlockingTrofeoTestTransport();
+        var pump = new FramePump(
+            new AppConfig(),
+            new OutputTargetConfig(),
+            new C.DashboardDefinition(),
+            new MetricStore(),
+            new FileLogger(Path.Combine(root, "ownership.log")),
+            (target, timeout, journal, log) =>
+            {
+                openStarted.Set();
+                if (!allowOpen.Wait(TimeSpan.FromSeconds(10)))
+                    throw new TimeoutException("Test open was not released.");
+                return fake;
+            });
+
+        try
+        {
+            pump.Start();
+            Assert(openStarted.Wait(TimeSpan.FromSeconds(5)),
+                "Worker must enter the injected blocking USB open.");
+
+            var suspension = Task.Run(pump.Suspend);
+            Assert(suspension.Wait(TimeSpan.FromSeconds(2)),
+                "Suspend must not wait for in-progress USB discovery/handshake under the general session lock.");
+            Assert(pump.UsbState == "SUSPENDED" && !pump.IsConnected,
+                "Suspend must immediately expose SUSPENDED/unavailable even while USB open is blocked.");
+
+            allowOpen.Set();
+            Assert(SpinWait.SpinUntil(() => fake.DisposeCount == 1, TimeSpan.FromSeconds(5)),
+                "A USB handle opened after suspend must be closed by the worker before any transfer.");
+            Assert(fake.SendCount == 0,
+                "No frame may be sent on a connection invalidated during USB open.");
+        }
+        finally
+        {
+            allowOpen.Set();
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    private static void FramePumpSuspendDuringBlockedSend()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-send-ownership");
+        using var sendStarted = new ManualResetEventSlim();
+        using var allowSend = new ManualResetEventSlim();
+        var fake = new BlockingTrofeoTestTransport(sendStarted, allowSend);
+        var pump = new FramePump(
+            new AppConfig(),
+            new OutputTargetConfig(),
+            new C.DashboardDefinition(),
+            new MetricStore(),
+            new FileLogger(Path.Combine(root, "ownership.log")),
+            (target, timeout, journal, log) => fake);
+
+        try
+        {
+            pump.Start();
+            Assert(sendStarted.Wait(TimeSpan.FromSeconds(5)),
+                "Worker must reach the injected blocking frame transfer.");
+
+            var suspension = Task.Run(pump.Suspend);
+            Assert(suspension.Wait(TimeSpan.FromSeconds(2)),
+                "Suspend must return without taking the USB sender's general state lock.");
+            Assert(pump.UsbState == "SUSPENDED" && !pump.IsConnected,
+                "In-flight transfer must not leave the public connection state CONNECTED after suspend.");
+            Assert(fake.DisposeCount == 0,
+                "Suspend must never dispose a transport while an in-flight send owns it.");
+
+            allowSend.Set();
+            Assert(SpinWait.SpinUntil(() => fake.DisposeCount == 1, TimeSpan.FromSeconds(5)),
+                "Worker must release the in-flight USB handle after the blocked send completes.");
+            Assert(fake.SendCount == 1 && pump.UsbState == "SUSPENDED",
+                "Suspend must prevent any subsequent send or stale CONNECTED status.");
+        }
+        finally
+        {
+            allowSend.Set();
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    private static void FramePumpReconfigureDuringBlockedSend()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-reconfig-ownership");
+        using var sendStarted = new ManualResetEventSlim();
+        using var allowSend = new ManualResetEventSlim();
+        var original = new BlockingTrofeoTestTransport(sendStarted, allowSend);
+        var replacement = new BlockingTrofeoTestTransport();
+        var opens = 0;
+        var config = new AppConfig();
+        var target = new OutputTargetConfig();
+        var pump = new FramePump(
+            config, target, new C.DashboardDefinition(), new MetricStore(),
+            new FileLogger(Path.Combine(root, "ownership.log")),
+            (selectedTarget, timeout, journal, log) =>
+                Interlocked.Increment(ref opens) == 1 ? original : replacement);
+
+        try
+        {
+            pump.Start();
+            Assert(sendStarted.Wait(TimeSpan.FromSeconds(5)),
+                "Worker must enter the first device's blocked transfer.");
+
+            var newConfig = new AppConfig();
+            newConfig.Usb.TransferTimeoutMs = config.Usb.TransferTimeoutMs + 500;
+            using var prepared = pump.PrepareReconfiguration(
+                newConfig, new OutputTargetConfig(), new C.DashboardDefinition());
+
+            var reconfigure = Task.Run(() => pump.CommitReconfiguration(prepared));
+            Assert(reconfigure.Wait(TimeSpan.FromSeconds(2)),
+                "Transport-affecting reconfigure must not wait for active USB I/O under the general lock.");
+            Assert(original.DisposeCount == 0,
+                "Reconfigure must not close a transport whose send has not finished.");
+
+            allowSend.Set();
+            Assert(SpinWait.SpinUntil(() => original.DisposeCount == 1, TimeSpan.FromSeconds(5)),
+                "Old transport must be closed by its owning worker after reconfiguration.");
+
+            Assert(SpinWait.SpinUntil(() => Volatile.Read(ref opens) >= 2, TimeSpan.FromSeconds(5)),
+                "Worker must open a fresh transport after the in-flight old transfer has retired.");
+        }
+        finally
+        {
+            allowSend.Set();
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
         }
     }
 
@@ -10882,6 +11021,43 @@ internal static class Program
         }
 
         throw new InvalidOperationException(message);
+    }
+
+    private sealed class BlockingTrofeoTestTransport : ITrofeoFrameTransport
+    {
+        private readonly ManualResetEventSlim? _sendStarted;
+        private readonly ManualResetEventSlim? _allowSend;
+        private int _sendCount;
+        private int _disposeCount;
+
+        public BlockingTrofeoTestTransport(
+            ManualResetEventSlim? sendStarted = null,
+            ManualResetEventSlim? allowSend = null)
+        {
+            _sendStarted = sendStarted;
+            _allowSend = allowSend;
+        }
+
+        public int WireRotationDegrees => 0;
+        public int SendCount => Volatile.Read(ref _sendCount);
+        public int DisposeCount => Volatile.Read(ref _disposeCount);
+
+        public void SendJpegWithDiagnostics(
+            ReadOnlySpan<byte> jpeg,
+            TrofeoFrameRenderDiagnostics diagnostics)
+        {
+            if (DisposeCount != 0)
+                throw new InvalidOperationException("Test transport was disposed before sending.");
+            Interlocked.Increment(ref _sendCount);
+            _sendStarted?.Set();
+            if (_allowSend is not null && !_allowSend.Wait(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("Test send was not released.");
+            if (DisposeCount != 0)
+                throw new InvalidOperationException("Test transport was disposed during an active send.");
+        }
+
+        public void RecordLifecycle(string state, string reason) { }
+        public void Dispose() => Interlocked.Increment(ref _disposeCount);
     }
 
     private sealed class FakeOutputSession : IOutputSession
