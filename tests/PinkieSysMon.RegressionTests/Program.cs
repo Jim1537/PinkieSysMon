@@ -635,7 +635,7 @@ internal static class Program
         var pump = new FramePump(
             new AppConfig(),
             new OutputTargetConfig(),
-            new C.DashboardDefinition(),
+            new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
             (target, timeout, journal, log) =>
@@ -681,7 +681,7 @@ internal static class Program
         var pump = new FramePump(
             new AppConfig(),
             new OutputTargetConfig(),
-            new C.DashboardDefinition(),
+            new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
             (target, timeout, journal, log) => fake);
@@ -725,7 +725,7 @@ internal static class Program
         var config = new AppConfig();
         var target = new OutputTargetConfig();
         var pump = new FramePump(
-            config, target, new C.DashboardDefinition(), new MetricStore(),
+            config, target, new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") }, new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
             (selectedTarget, timeout, journal, log) =>
                 Interlocked.Increment(ref opens) == 1 ? original : replacement);
@@ -739,7 +739,7 @@ internal static class Program
             var newConfig = new AppConfig();
             newConfig.Usb.TransferTimeoutMs = config.Usb.TransferTimeoutMs + 500;
             using var prepared = pump.PrepareReconfiguration(
-                newConfig, new OutputTargetConfig(), new C.DashboardDefinition());
+                newConfig, new OutputTargetConfig(), new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") });
 
             var reconfigure = Task.Run(() => pump.CommitReconfiguration(prepared));
             Assert(reconfigure.Wait(TimeSpan.FromSeconds(2)),
