@@ -588,14 +588,14 @@ internal static class Program
                        maxArchiveCount: 2,
                        durableFlushInterval: TimeSpan.Zero))
             {
+                for (var i = 0; i < 20; i++)
+                    journal.Write("FILL", ("index", i), ("payload", new string('x', 80)));
+
                 journal.Write(
                     "FRAME_TEST",
                     ("seq", 7),
                     ("text", "row\twith\ncontrol"),
                     ("duration", 12.5));
-
-                for (var i = 0; i < 20; i++)
-                    journal.Write("FILL", ("index", i), ("payload", new string('x', 80)));
             }
 
             Assert(File.Exists(journalPath),
