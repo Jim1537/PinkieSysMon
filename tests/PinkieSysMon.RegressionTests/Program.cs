@@ -34,6 +34,7 @@ internal static class Program
             ("Trofeo overlapped wait canceled and drained", TrofeoOverlappedWaitCanceledAndDrained),
             ("Trofeo overlapped wait cancellation failure drains", TrofeoOverlappedWaitCancellationFailureDrains),
             ("Trofeo overlapped x64 ABI contract", TrofeoOverlappedX64AbiContract),
+            ("Trofeo overlapped cancellation waits for completion", TrofeoOverlappedCancelAwaitsCompletion),
             ("Frame pump suspend cancels blocked open", FramePumpSuspendCancelsBlockedOpen),
             ("Frame pump dispose cancels blocked send", FramePumpDisposeCancelsBlockedSend),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
@@ -629,6 +630,42 @@ internal static class Program
         finally
         {
             try { Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+    }
+
+    private static void TrofeoOverlappedCancelAwaitsCompletion()
+    {
+        using var eventNotYetSignaled = new ManualResetEvent(initialState: false);
+        using var cts = new CancellationTokenSource();
+        using var cancellationRequested = new ManualResetEventSlim();
+        using var allowTerminalCompletion = new ManualResetEventSlim();
+        cts.Cancel();
+
+        var worker = Task.Run(() => TrofeoOverlappedCompletionWait.Wait(
+            eventNotYetSignaled,
+            cts.Token,
+            () => cancellationRequested.Set(),
+            () =>
+            {
+                if (!allowTerminalCompletion.Wait(TimeSpan.FromSeconds(10)))
+                    throw new TimeoutException("Synthetic terminal completion was not signaled.");
+            }));
+
+        try
+        {
+            Assert(cancellationRequested.Wait(TimeSpan.FromSeconds(2)),
+                "A pending native cancellation request must be issued.");
+            Assert(!worker.Wait(TimeSpan.FromMilliseconds(100)),
+                "Cancellation request alone must never mark pending native I/O as completed.");
+
+            allowTerminalCompletion.Set();
+            Assert(worker.Wait(TimeSpan.FromSeconds(2)) && worker.Result,
+                "Cancellation must return only after the terminal native result was drained.");
+        }
+        finally
+        {
+            allowTerminalCompletion.Set();
+            try { worker.GetAwaiter().GetResult(); } catch { }
         }
     }
 
