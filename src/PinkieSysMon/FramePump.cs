@@ -61,8 +61,8 @@ internal sealed class FramePump : IOutputSession
         _metrics = metrics;
         _log = log;
         _transportFactory = transportFactory ??
-            static (selectedTarget, timeoutMs, journalEnabled, logger) =>
-                TrofeoTransport.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger);
+            (static (selectedTarget, timeoutMs, journalEnabled, logger) =>
+                TrofeoTransport.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger));
         _renderer = new DashboardRenderer(dashboard);
     }
 
