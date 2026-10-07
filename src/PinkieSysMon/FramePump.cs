@@ -14,13 +14,14 @@ internal sealed class FramePump : IOutputSession
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly string _targetId;
-    private readonly Func<OutputTargetConfig, int, bool, FileLogger, ITrofeoFrameTransport?> _transportFactory;
+    private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, ITrofeoFrameTransport?> _transportFactory;
 
     private AppConfig _config;
     private OutputTargetConfig _target;
     private string _targetName;
     private DashboardRenderer _renderer;
     private ITrofeoFrameTransport? _display;
+    private CancellationTokenSource _transportIoCancellation;
     private long _nextUsbAttemptAtMs;
     private long _connectionGeneration;
     private bool _transportRetirePending;
@@ -48,7 +49,7 @@ internal sealed class FramePump : IOutputSession
         global::PinkieSysMon.DashboardModel.DashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<OutputTargetConfig, int, bool, FileLogger, ITrofeoFrameTransport?>? transportFactory = null)
+        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, ITrofeoFrameTransport?>? transportFactory = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -60,9 +61,10 @@ internal sealed class FramePump : IOutputSession
         _targetName = target.Name;
         _metrics = metrics;
         _log = log;
+        _transportIoCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _transportFactory = transportFactory ??
-            (static (selectedTarget, timeoutMs, journalEnabled, logger) =>
-                TrofeoTransport.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger));
+            (static (selectedTarget, timeoutMs, journalEnabled, logger, ioToken) =>
+                TrofeoTransport.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
         _renderer = new DashboardRenderer(dashboard);
     }
 
@@ -315,6 +317,9 @@ internal sealed class FramePump : IOutputSession
         // Invalidate any connection currently being opened or any completed frame whose
         // send began before this lifecycle transition.
         _connectionGeneration++;
+        // The worker observes cancellation outside _sync and drains the native
+        // operation before disposing its transport handle.
+        _transportIoCancellation.Cancel();
         _transportRetirePending = true;
         _transportRetireReason = reason;
         _transportRetireState = nextState;
@@ -327,6 +332,7 @@ internal sealed class FramePump : IOutputSession
     private void DrainTransportRetirementWorker()
     {
         ITrofeoFrameTransport? retired;
+        CancellationTokenSource retiredCancellation;
         string reason;
         string nextState;
         lock (_sync)
@@ -334,6 +340,8 @@ internal sealed class FramePump : IOutputSession
             if (!_transportRetirePending)
                 return;
 
+            retiredCancellation = _transportIoCancellation;
+            _transportIoCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
             retired = _display;
             _display = null;
             reason = _transportRetireReason;
@@ -345,8 +353,17 @@ internal sealed class FramePump : IOutputSession
             _lastFps = 0;
         }
 
-        if (retired is not null)
-            CloseTransportWorker(retired, reason, nextState);
+        try
+        {
+            if (retired is not null)
+                CloseTransportWorker(retired, reason, nextState);
+        }
+        finally
+        {
+            // No transfer can reference the previous generation after the
+            // worker drained and closed the previous transport.
+            retiredCancellation.Dispose();
+        }
     }
 
     private void CloseTransportWorker(ITrofeoFrameTransport display, string reason, string nextState)
@@ -377,6 +394,7 @@ internal sealed class FramePump : IOutputSession
         int timeoutMs;
         int retryMs;
         bool journalEnabled;
+        CancellationToken ioToken;
         long generation;
 
         lock (_sync)
@@ -394,6 +412,7 @@ internal sealed class FramePump : IOutputSession
             timeoutMs = _config.Usb.TransferTimeoutMs;
             retryMs = _config.Usb.RetryIntervalMs;
             journalEnabled = _config.Usb.DiagnosticJournalEnabled;
+            ioToken = _transportIoCancellation.Token;
             generation = _connectionGeneration;
         }
 
@@ -402,7 +421,13 @@ internal sealed class FramePump : IOutputSession
         {
             // Discovery, CreateFile, WinUSB handshake and their failure cleanup run
             // OUTSIDE the general session state lock.
-            opened = _transportFactory(target, timeoutMs, journalEnabled, _log);
+            opened = _transportFactory(target, timeoutMs, journalEnabled, _log, ioToken);
+        }
+        catch (OperationCanceledException) when (ioToken.IsCancellationRequested)
+        {
+            // Lifecycle intent superseded the connection during handshake.
+            // The worker will drain retirement on its next iteration.
+            return null;
         }
         catch (OutputDeviceResolutionException ex)
         {
@@ -539,6 +564,13 @@ internal sealed class FramePump : IOutputSession
                 display.SendJpegWithDiagnostics(
                     rendered.Bytes,
                     new TrofeoFrameRenderDiagnostics(rendered.RenderMs, rendered.EncodeMs));
+            }
+            catch (OperationCanceledException) when (
+                token.IsCancellationRequested || _transportIoCancellation.IsCancellationRequested)
+            {
+                // The owner still holds the handle. Retirement/shutdown will
+                // dispose it only AFTER native completion has been drained.
+                return;
             }
             catch (Exception ex)
             {
@@ -691,6 +723,7 @@ internal sealed class FramePump : IOutputSession
         }
         finally
         {
+            _transportIoCancellation.Dispose();
             _wakeSignal.Dispose();
             _cts.Dispose();
         }
