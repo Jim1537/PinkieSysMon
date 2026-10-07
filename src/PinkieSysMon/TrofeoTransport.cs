@@ -33,6 +33,8 @@ internal sealed class TrofeoTransport : ITrofeoFrameTransport
     private GCHandle _transferBufferHandle;
     private bool _transferBufferPinned;
     private IntPtr _transferBufferAddress;
+    private EventWaitHandle? _completionEvent;
+    private IntPtr _nativeOverlapped;
     private long _frameSequence;
 
     private TrofeoTransport(
@@ -343,69 +345,65 @@ internal sealed class TrofeoTransport : ITrofeoFrameTransport
     {
         _ioCancellation.ThrowIfCancellationRequested();
 
-        // One pending transfer at a time. Both OVERLAPPED memory and hEvent remain
-        // valid until WinUsb_GetOverlappedResult has observed final completion.
-        using var completion = new EventWaitHandle(false, EventResetMode.ManualReset);
-        var overlapped = Marshal.AllocHGlobal(Marshal.SizeOf<Win32Overlapped>());
-        try
+        // Open/Send/Dispose share one worker and never overlap two USB requests.
+        // Reuse the event and OVERLAPPED only AFTER final completion has been
+        // observed; this avoids per-4096-byte native/event allocations.
+        _completionEvent ??= new EventWaitHandle(false, EventResetMode.ManualReset);
+        if (_nativeOverlapped == IntPtr.Zero)
+            _nativeOverlapped = Marshal.AllocHGlobal(Marshal.SizeOf<Win32Overlapped>());
+
+        var completion = _completionEvent;
+        var overlapped = _nativeOverlapped;
+        completion.Reset();
+        Marshal.StructureToPtr(
+            new Win32Overlapped { EventHandle = completion.SafeWaitHandle.DangerousGetHandle() },
+            overlapped,
+            fDeleteOld: false);
+
+        var started = isRead
+            ? WinUsb_ReadPipe(
+                _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped)
+            : WinUsb_WritePipe(
+                _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped);
+
+        if (!started)
         {
-            Marshal.StructureToPtr(
-                new Win32Overlapped
+            var immediateError = Marshal.GetLastWin32Error();
+            if (immediateError != ErrorIoPending)
+                throw new Win32Exception(immediateError,
+                    $"WinUsb_{(isRead ? "Read" : "Write")}Pipe(0x{pipeId:X2}) failed");
+
+            var cancelled = TrofeoOverlappedCompletionWait.Wait(
+                completion,
+                _ioCancellation,
+                () =>
                 {
-                    EventHandle = completion.SafeWaitHandle.DangerousGetHandle()
+                    // ERROR_NOT_FOUND means completion may have beaten the request.
+                    // Either way, the terminal result MUST still be drained.
+                    if (!CancelIoEx(_deviceHandle!, overlapped))
+                    {
+                        var error = Marshal.GetLastWin32Error();
+                        if (error != ErrorNotFound)
+                            throw new Win32Exception(error, "CancelIoEx(Trofeo) failed");
+                    }
                 },
-                overlapped,
-                fDeleteOld: false);
+                () =>
+                {
+                    // This waits for actual kernel completion, not just for
+                    // CancelIoEx to acknowledge its cancellation request.
+                    _ = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out _, true);
+                });
 
-            var started = isRead
-                ? WinUsb_ReadPipe(
-                    _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped)
-                : WinUsb_WritePipe(
-                    _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped);
-
-            if (!started)
-            {
-                var immediateError = Marshal.GetLastWin32Error();
-                if (immediateError != ErrorIoPending)
-                    throw new Win32Exception(immediateError,
-                        $"WinUsb_{(isRead ? "Read" : "Write")}Pipe(0x{pipeId:X2}) failed");
-
-                var cancelled = TrofeoOverlappedCompletionWait.Wait(
-                    completion,
-                    _ioCancellation,
-                    () =>
-                    {
-                        // ERROR_NOT_FOUND means completion may have beaten the request.
-                        // Either way, the terminal result MUST still be drained.
-                        if (!CancelIoEx(_deviceHandle!, overlapped))
-                        {
-                            var error = Marshal.GetLastWin32Error();
-                            if (error != ErrorNotFound)
-                                throw new Win32Exception(error, "CancelIoEx(Trofeo) failed");
-                        }
-                    },
-                    () =>
-                    {
-                        // This waits for the actual kernel completion, not just for
-                        // CancelIoEx to acknowledge the cancellation request.
-                        _ = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out _, true);
-                    });
-
-                if (cancelled)
-                    throw new OperationCanceledException(_ioCancellation);
-            }
-
-            if (!WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var transferred, true))
-                throw new Win32Exception(Marshal.GetLastWin32Error(),
-                    $"WinUsb_GetOverlappedResult(0x{pipeId:X2}) failed");
-
-            _ioCancellation.ThrowIfCancellationRequested();
-            return transferred;
+            if (cancelled)
+                throw new OperationCanceledException(_ioCancellation);
         }
-        finally
-        {
-            Marshal.FreeHGlobal(overlapped);
-        }
+
+        if (!WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var transferred, true))
+            throw new Win32Exception(Marshal.GetLastWin32Error(),
+                $"WinUsb_GetOverlappedResult(0x{pipeId:X2}) failed");
+
+        _ioCancellation.ThrowIfCancellationRequested();
+        return transferred;
     }
 
     private byte[] Read(byte pipeId, int length)
@@ -432,6 +430,16 @@ internal sealed class TrofeoTransport : ITrofeoFrameTransport
 
         _deviceHandle?.Dispose();
         _deviceHandle = null;
+
+        // The worker cannot reach Dispose before all submitted native requests
+        // have reported terminal completion (including cancellation).
+        if (_nativeOverlapped != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_nativeOverlapped);
+            _nativeOverlapped = IntPtr.Zero;
+        }
+        _completionEvent?.Dispose();
+        _completionEvent = null;
 
         _diagnostics?.Dispose();
     }
