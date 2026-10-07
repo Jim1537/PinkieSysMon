@@ -33,6 +33,7 @@ internal static class Program
             ("Trofeo overlapped wait completed", TrofeoOverlappedWaitCompleted),
             ("Trofeo overlapped wait canceled and drained", TrofeoOverlappedWaitCanceledAndDrained),
             ("Trofeo overlapped wait cancellation failure drains", TrofeoOverlappedWaitCancellationFailureDrains),
+            ("Trofeo overlapped x64 ABI contract", TrofeoOverlappedX64AbiContract),
             ("Frame pump suspend cancels blocked open", FramePumpSuspendCancelsBlockedOpen),
             ("Frame pump dispose cancels blocked send", FramePumpDisposeCancelsBlockedSend),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
@@ -629,6 +630,36 @@ internal static class Program
         {
             try { Directory.Delete(tempRoot, recursive: true); } catch { }
         }
+    }
+
+    private static void TrofeoOverlappedX64AbiContract()
+    {
+        Assert(IntPtr.Size == 8,
+            "Trofeo native OVERLAPPED contract must execute in the declared win-x64 process.");
+
+        var flags = System.Reflection.BindingFlags.NonPublic |
+                    System.Reflection.BindingFlags.Static;
+        var native = typeof(TrofeoTransport).GetNestedType(
+            "Win32Overlapped", System.Reflection.BindingFlags.NonPublic);
+        Assert(native is not null &&
+               System.Runtime.InteropServices.Marshal.SizeOf(native) == 32 &&
+               System.Runtime.InteropServices.Marshal.OffsetOf(native, "EventHandle").ToInt32() == 24,
+            "Native Windows OVERLAPPED must match the 32-byte x64 ABI with hEvent at offset 24.");
+
+        foreach (var name in new[] { "WinUsb_ReadPipe", "WinUsb_WritePipe" })
+        {
+            var nativeMethod = typeof(TrofeoTransport).GetMethod(name, flags);
+            var parameters = nativeMethod?.GetParameters();
+            Assert(parameters is not null &&
+                   parameters.Length == 6 &&
+                   parameters[2].ParameterType == typeof(IntPtr) &&
+                   parameters[5].ParameterType == typeof(IntPtr),
+                $"{name} must use a stable pinned byte buffer and native OVERLAPPED pointer.");
+        }
+
+        Assert(typeof(TrofeoTransport).GetMethod("WinUsb_GetOverlappedResult", flags) is not null &&
+               typeof(TrofeoTransport).GetMethod("CancelIoEx", flags) is not null,
+            "Cancellable native WinUSB transfers require terminal-result and targeted-cancel APIs.");
     }
 
     private static void TrofeoOverlappedWaitCompleted()
