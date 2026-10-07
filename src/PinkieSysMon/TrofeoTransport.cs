@@ -163,9 +163,9 @@ internal sealed class TrofeoTransport : IDisposable
     }
 
     public void SendJpeg(ReadOnlySpan<byte> jpeg) =>
-        SendJpeg(jpeg, default);
+        SendJpegWithDiagnostics(jpeg, default);
 
-    public void SendJpeg(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
+    internal void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
     {
         if (_interfaceHandle == IntPtr.Zero)
             throw new ObjectDisposedException(nameof(TrofeoTransport));
