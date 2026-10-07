@@ -30,6 +30,9 @@ internal static class Program
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
             ("USB diagnostic config contract", UsbDiagnosticConfigContract),
             ("USB diagnostic journal contract", UsbDiagnosticJournalContract),
+            ("Trofeo overlapped wait completed", TrofeoOverlappedWaitCompleted),
+            ("Trofeo overlapped wait canceled and drained", TrofeoOverlappedWaitCanceledAndDrained),
+            ("Trofeo overlapped wait cancellation failure drains", TrofeoOverlappedWaitCancellationFailureDrains),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
@@ -624,6 +627,78 @@ internal static class Program
         {
             try { Directory.Delete(tempRoot, recursive: true); } catch { }
         }
+    }
+
+    private static void TrofeoOverlappedWaitCompleted()
+    {
+        using var completion = new ManualResetEvent(initialState: true);
+        using var cts = new CancellationTokenSource();
+        var cancelRequests = 0;
+        var drainCalls = 0;
+
+        var canceled = TrofeoOverlappedCompletionWait.Wait(
+            completion,
+            cts.Token,
+            () => cancelRequests++,
+            () => drainCalls++);
+
+        Assert(!canceled && cancelRequests == 0 && drainCalls == 0,
+            "A completed overlapped operation must not request cancellation or an abort drain.");
+    }
+
+    private static void TrofeoOverlappedWaitCanceledAndDrained()
+    {
+        using var completion = new ManualResetEvent(initialState: false);
+        using var cts = new CancellationTokenSource();
+        using var waiting = new ManualResetEventSlim();
+        var cancelRequests = 0;
+        var drainCalls = 0;
+
+        var worker = Task.Run(() =>
+        {
+            waiting.Set();
+            return TrofeoOverlappedCompletionWait.Wait(
+                completion,
+                cts.Token,
+                () =>
+                {
+                    Interlocked.Increment(ref cancelRequests);
+                    completion.Set();
+                },
+                () =>
+                {
+                    Assert(completion.WaitOne(0),
+                        "Cancel callback must run before the terminal-completion drain.");
+                    Interlocked.Increment(ref drainCalls);
+                });
+        });
+
+        Assert(waiting.Wait(TimeSpan.FromSeconds(2)),
+            "Overlapped wait regression worker did not start.");
+        cts.Cancel();
+        Assert(worker.Wait(TimeSpan.FromSeconds(2)) && worker.Result,
+            "Cancellation must unblock the pending overlapped wait.");
+        Assert(cancelRequests == 1 && drainCalls == 1,
+            "Cancel must be requested once and terminal completion must be drained exactly once.");
+    }
+
+    private static void TrofeoOverlappedWaitCancellationFailureDrains()
+    {
+        using var completion = new ManualResetEvent(initialState: false);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var drainCalls = 0;
+
+        AssertThrows<InvalidOperationException>(
+            () => TrofeoOverlappedCompletionWait.Wait(
+                completion,
+                cts.Token,
+                () => throw new InvalidOperationException("Synthetic cancel request failure."),
+                () => drainCalls++),
+            "A native cancellation request failure must remain observable.");
+
+        Assert(drainCalls == 1,
+            "Even failed cancellation requests must drain pending OVERLAPPED completion before releasing memory.");
     }
 
     private static void FramePumpSuspendDuringBlockedOpen()
