@@ -76,6 +76,7 @@ internal sealed class TrofeoTransport : IDisposable
             throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
 
         var transport = new TrofeoTransport(log, target, resolution.Device, diagnosticJournalEnabled);
+        var openStartedAt = Stopwatch.GetTimestamp();
         try
         {
             transport.Open(resolution.Device.DevicePath, transferTimeoutMs);
@@ -83,7 +84,7 @@ internal sealed class TrofeoTransport : IDisposable
         }
         catch (Exception ex)
         {
-            transport.WriteFailure("OPEN_FAIL", 0, "open", Stopwatch.GetTimestamp(), ex);
+            transport.WriteFailure("OPEN_FAIL", 0, "open", openStartedAt, ex);
             transport.Dispose();
             throw;
         }
