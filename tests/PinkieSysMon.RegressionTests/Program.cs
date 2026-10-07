@@ -33,6 +33,8 @@ internal static class Program
             ("Trofeo overlapped wait completed", TrofeoOverlappedWaitCompleted),
             ("Trofeo overlapped wait canceled and drained", TrofeoOverlappedWaitCanceledAndDrained),
             ("Trofeo overlapped wait cancellation failure drains", TrofeoOverlappedWaitCancellationFailureDrains),
+            ("Frame pump suspend cancels blocked open", FramePumpSuspendCancelsBlockedOpen),
+            ("Frame pump dispose cancels blocked send", FramePumpDisposeCancelsBlockedSend),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
@@ -701,6 +703,86 @@ internal static class Program
             "Even failed cancellation requests must drain pending OVERLAPPED completion before releasing memory.");
     }
 
+    private static void FramePumpSuspendCancelsBlockedOpen()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-cancel-open");
+        using var entered = new ManualResetEventSlim();
+        using var canceled = new ManualResetEventSlim();
+        var pump = new FramePump(
+            new AppConfig(),
+            new OutputTargetConfig(),
+            new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
+            new MetricStore(),
+            new FileLogger(Path.Combine(root, "cancel.log")),
+            (target, timeout, journal, log, ioToken) =>
+            {
+                entered.Set();
+                try
+                {
+                    if (!ioToken.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+                        throw new TimeoutException("Synthetic handshake was not canceled.");
+                    ioToken.ThrowIfCancellationRequested();
+                    throw new InvalidOperationException("Synthetic handshake ended without cancellation.");
+                }
+                catch (OperationCanceledException)
+                {
+                    canceled.Set();
+                    throw;
+                }
+            });
+
+        try
+        {
+            pump.Start();
+            Assert(entered.Wait(TimeSpan.FromSeconds(5)),
+                "Worker must enter the synthetic pending handshake.");
+            pump.Suspend();
+            Assert(canceled.Wait(TimeSpan.FromSeconds(2)),
+                "Suspending an output must cancel a pending worker-owned handshake.");
+            Assert(pump.UsbState == "SUSPENDED" && !pump.IsConnected,
+                "Canceled handshake must leave the output suspended and disconnected.");
+        }
+        finally
+        {
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    private static void FramePumpDisposeCancelsBlockedSend()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-cancel-send");
+        using var sendEntered = new ManualResetEventSlim();
+        var disposalCount = 0;
+        var pump = new FramePump(
+            new AppConfig(),
+            new OutputTargetConfig(),
+            new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
+            new MetricStore(),
+            new FileLogger(Path.Combine(root, "cancel.log")),
+            (target, timeout, journal, log, ioToken) =>
+                new CancellationAwareTrofeoTestTransport(
+                    ioToken, sendEntered, () => Interlocked.Increment(ref disposalCount)));
+
+        try
+        {
+            pump.Start();
+            Assert(sendEntered.Wait(TimeSpan.FromSeconds(5)),
+                "Worker must reach the synthetic pending frame transfer.");
+
+            var disposeTask = Task.Run(pump.Dispose);
+            Assert(disposeTask.Wait(TimeSpan.FromSeconds(3)),
+                "Dispose must cancel a pending frame transfer before waiting for its worker.");
+            Assert(disposalCount == 1,
+                "Worker-owned transport must be disposed exactly once after cancellation.");
+        }
+        finally
+        {
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
     private static void FramePumpSuspendDuringBlockedOpen()
     {
         var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-open-ownership");
@@ -713,7 +795,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (target, timeout, journal, log) =>
+            (target, timeout, journal, log, ioToken) =>
             {
                 openStarted.Set();
                 if (!allowOpen.Wait(TimeSpan.FromSeconds(10)))
@@ -759,7 +841,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (target, timeout, journal, log) => fake);
+            (target, timeout, journal, log, ioToken) => fake);
 
         try
         {
@@ -802,7 +884,7 @@ internal static class Program
         var pump = new FramePump(
             config, target, new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") }, new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (selectedTarget, timeout, journal, log) =>
+            (selectedTarget, timeout, journal, log, ioToken) =>
                 Interlocked.Increment(ref opens) == 1 ? original : replacement);
 
         try
@@ -11096,6 +11178,28 @@ internal static class Program
         }
 
         throw new InvalidOperationException(message);
+    }
+
+    private sealed class CancellationAwareTrofeoTestTransport(
+        CancellationToken cancellation,
+        ManualResetEventSlim started,
+        Action disposed) : ITrofeoFrameTransport
+    {
+        public int WireRotationDegrees => 0;
+
+        public void SendJpegWithDiagnostics(
+            ReadOnlySpan<byte> jpeg,
+            TrofeoFrameRenderDiagnostics diagnostics)
+        {
+            started.Set();
+            if (!cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
+                throw new TimeoutException("Synthetic pending transfer was not canceled.");
+            cancellation.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("Synthetic transfer completed without cancellation.");
+        }
+
+        public void RecordLifecycle(string state, string reason) { }
+        public void Dispose() => disposed();
     }
 
     private sealed class BlockingTrofeoTestTransport : ITrofeoFrameTransport
