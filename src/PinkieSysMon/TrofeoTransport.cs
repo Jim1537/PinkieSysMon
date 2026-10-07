@@ -1,5 +1,4 @@
 using Microsoft.Win32.SafeHandles;
-using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
@@ -128,7 +127,7 @@ internal sealed class TrofeoTransport : IDisposable
         var frameLength = PrepareLyFrame(jpeg);
         for (var offset = 0; offset < frameLength;)
         {
-            var count = Math.Min(4096, frameLength - offset);
+            var count = TrofeoWireProtocol.GetTransferLength(frameLength - offset);
             WritePinned(PipeOut, IntPtr.Add(_transferBufferAddress, offset), count);
             offset += count;
         }
@@ -140,51 +139,9 @@ internal sealed class TrofeoTransport : IDisposable
 
     private int PrepareLyFrame(ReadOnlySpan<byte> payload)
     {
-        const int chunkSize = 512;
-        const int headerSize = 16;
-        const int dataSize = 496;
-
-        var totalSize = payload.Length;
-        var numChunks = totalSize / dataSize + 1;
-        var lastData = totalSize % dataSize;
-
-        var paddedChunks = numChunks;
-        var remainder = paddedChunks % 4;
-        if (remainder != 0)
-            paddedChunks += 4 - remainder;
-
-        var frameLength = checked(paddedChunks * chunkSize);
-        EnsureTransferBuffer(frameLength);
-        var output = _transferBuffer.AsSpan(0, frameLength);
-
-        for (var i = 0; i < numChunks; i++)
-        {
-            var offset = i * chunkSize;
-            var isLast = i == numChunks - 1;
-            var dataLength = isLast ? lastData : dataSize;
-            var chunk = output.Slice(offset, chunkSize);
-
-            // Header has three reserved bytes that must not retain data from the previous frame.
-            chunk.Slice(0, headerSize).Clear();
-            chunk[0] = 0x01;
-            chunk[1] = 0xFF;
-            BinaryPrimitives.WriteUInt32LittleEndian(chunk.Slice(2, 4), checked((uint)totalSize));
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(6, 2), checked((ushort)dataLength));
-            chunk[8] = 0x01;
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(9, 2), checked((ushort)numChunks));
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(11, 2), checked((ushort)i));
-
-            if (dataLength > 0)
-                payload.Slice(i * dataSize, dataLength).CopyTo(chunk.Slice(headerSize, dataLength));
-
-            if (dataLength < dataSize)
-                chunk.Slice(headerSize + dataLength, dataSize - dataLength).Clear();
-        }
-
-        if (paddedChunks > numChunks)
-            output.Slice(numChunks * chunkSize, (paddedChunks - numChunks) * chunkSize).Clear();
-
-        return frameLength;
+        var layout = TrofeoWireProtocol.GetFrameLayout(payload.Length);
+        EnsureTransferBuffer(layout.FrameLength);
+        return TrofeoWireProtocol.WriteFrame(payload, _transferBuffer.AsSpan(0, layout.FrameLength));
     }
 
     private void EnsureTransferBuffer(int requiredLength)
