@@ -73,6 +73,9 @@ internal sealed class FramePump : IOutputSession
         if (_worker is not null)
             return;
 
+        _log.Info(
+            $"Output session '{TargetName}' started. USB diagnostic journal=" +
+            (_config.Usb.DiagnosticJournalEnabled ? "enabled." : "disabled."));
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
 
@@ -116,6 +119,7 @@ internal sealed class FramePump : IOutputSession
 
             var outputConnectionChanged =
                 _config.Usb.TransferTimeoutMs != prepared.Config.Usb.TransferTimeoutMs ||
+                _config.Usb.DiagnosticJournalEnabled != prepared.Config.Usb.DiagnosticJournalEnabled ||
                 !OutputTargetContract.ConnectionEquals(_target, prepared.Target);
             var runtimeMetricsWereEnabled = RuntimeMetricsEnabled;
 
@@ -135,7 +139,7 @@ internal sealed class FramePump : IOutputSession
             }
 
             if (outputConnectionChanged)
-                DropDisplayLocked("Output target or USB timeout changed; reconnecting.");
+                DropDisplayLocked("Output target, USB timeout, or USB diagnostics changed; reconnecting.");
 
             _nextUsbAttemptAtMs = 0;
         }
@@ -181,6 +185,7 @@ internal sealed class FramePump : IOutputSession
             SetUsbStateLocked("SUSPENDED");
         }
 
+        _log.Info($"Output session '{TargetName}' suspended.");
         SignalWake();
     }
 
@@ -193,6 +198,7 @@ internal sealed class FramePump : IOutputSession
             SetUsbStateLocked("WAITING");
         }
 
+        _log.Info($"Output session '{TargetName}' resumed.");
         SignalWake();
     }
 
@@ -316,7 +322,9 @@ internal sealed class FramePump : IOutputSession
             var usbStartedAt = Stopwatch.GetTimestamp();
             try
             {
-                _display!.SendJpeg(rendered.Bytes);
+                _display!.SendJpeg(
+                    rendered.Bytes,
+                    new TrofeoFrameRenderDiagnostics(rendered.RenderMs, rendered.EncodeMs));
             }
             catch (Exception ex)
             {
@@ -363,7 +371,11 @@ internal sealed class FramePump : IOutputSession
 
         try
         {
-            _display = TrofeoTransport.TryOpen(_target, _config.Usb.TransferTimeoutMs, _log);
+            _display = TrofeoTransport.TryOpen(
+                _target,
+                _config.Usb.TransferTimeoutMs,
+                _config.Usb.DiagnosticJournalEnabled,
+                _log);
             if (_display is null)
             {
                 SetUsbStateLocked("WAITING");
@@ -462,6 +474,7 @@ internal sealed class FramePump : IOutputSession
             _log.Info($"Output target '{TargetName}' disconnected. {reason}");
             try
             {
+                display.RecordLifecycle(nextState, reason);
                 display.Dispose();
             }
             catch (Exception ex)
@@ -503,6 +516,7 @@ internal sealed class FramePump : IOutputSession
                 {
                     try
                     {
+                        display.RecordLifecycle("SHUTDOWN", "Output session disposed.");
                         display.Dispose();
                     }
                     catch (Exception ex)
