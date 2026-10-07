@@ -26,6 +26,8 @@ internal static class Program
             ("Output target selection", OutputTargetSelection),
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
+            ("Trofeo wire framing contract", TrofeoWireFramingContract),
+            ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
             ("Output session manager lifecycle", OutputSessionManagerLifecycle),
             ("Output session manager reconfiguration", OutputSessionManagerReconfiguration),
             ("Output session manager transactional preparation", OutputSessionManagerTransactionalPreparation),
@@ -414,6 +416,114 @@ internal static class Program
         {
             Directory.Delete(tempRoot, true);
         }
+    }
+
+    private static void TrofeoWireFramingContract()
+    {
+        var layouts = new[]
+        {
+            (Payload: 0, Chunks: 1, Padded: 4, Frame: 2048, Last: 0),
+            (Payload: 1, Chunks: 1, Padded: 4, Frame: 2048, Last: 1),
+            (Payload: 495, Chunks: 1, Padded: 4, Frame: 2048, Last: 495),
+            (Payload: 496, Chunks: 2, Padded: 4, Frame: 2048, Last: 0),
+            (Payload: 497, Chunks: 2, Padded: 4, Frame: 2048, Last: 1),
+            (Payload: 1983, Chunks: 4, Padded: 4, Frame: 2048, Last: 495),
+            (Payload: 1984, Chunks: 5, Padded: 8, Frame: 4096, Last: 0)
+        };
+
+        foreach (var expected in layouts)
+        {
+            var actual = TrofeoWireProtocol.GetFrameLayout(expected.Payload);
+            Assert(
+                actual.ChunkCount == expected.Chunks &&
+                actual.PaddedChunkCount == expected.Padded &&
+                actual.FrameLength == expected.Frame &&
+                actual.LastDataLength == expected.Last,
+                $"Trofeo layout mismatch for {expected.Payload} bytes: " +
+                $"chunks={actual.ChunkCount}, padded={actual.PaddedChunkCount}, " +
+                $"frame={actual.FrameLength}, last={actual.LastDataLength}.");
+        }
+
+        var payload = Enumerable.Range(0, 497)
+            .Select(index => (byte)(index % 251))
+            .ToArray();
+        var layout = TrofeoWireProtocol.GetFrameLayout(payload.Length);
+        var frame = Enumerable.Repeat((byte)0xA5, layout.FrameLength).ToArray();
+
+        var written = TrofeoWireProtocol.WriteFrame(payload, frame);
+        Assert(written == layout.FrameLength,
+            "Trofeo frame writer must return the padded wire-frame length.");
+
+        var first = frame.AsSpan(0, TrofeoWireProtocol.ChunkSize);
+        Assert(first[0] == 0x01 && first[1] == 0xFF && first[8] == 0x01,
+            "Trofeo first record markers must remain 01 FF / 01.");
+        Assert(
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(first.Slice(2, 4)) == (uint)payload.Length &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Slice(6, 2)) == TrofeoWireProtocol.DataSize &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Slice(9, 2)) == 2 &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(first.Slice(11, 2)) == 0,
+            "Trofeo first record header must preserve total size, data length, chunk count and index.");
+        Assert(first.Slice(13, 3).ToArray().All(value => value == 0),
+            "Trofeo reserved header bytes must be zeroed.");
+        Assert(payload.AsSpan(0, TrofeoWireProtocol.DataSize).SequenceEqual(
+                   first.Slice(TrofeoWireProtocol.HeaderSize, TrofeoWireProtocol.DataSize)),
+            "Trofeo first record payload bytes must be preserved verbatim.");
+
+        var second = frame.AsSpan(TrofeoWireProtocol.ChunkSize, TrofeoWireProtocol.ChunkSize);
+        Assert(
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(second.Slice(2, 4)) == (uint)payload.Length &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(second.Slice(6, 2)) == 1 &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(second.Slice(9, 2)) == 2 &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(second.Slice(11, 2)) == 1,
+            "Trofeo terminal record header must preserve total size, residual length, chunk count and index.");
+        Assert(second[TrofeoWireProtocol.HeaderSize] == payload[^1],
+            "Trofeo terminal record must contain the final payload byte.");
+        Assert(second.Slice(TrofeoWireProtocol.HeaderSize + 1, TrofeoWireProtocol.DataSize - 1)
+                .ToArray()
+                .All(value => value == 0),
+            "Trofeo unused bytes in the terminal record must be zero padded.");
+        Assert(frame.AsSpan(TrofeoWireProtocol.ChunkSize * 2).ToArray().All(value => value == 0),
+            "Trofeo padding records must be completely zeroed.");
+
+        var exactPayload = new byte[TrofeoWireProtocol.DataSize];
+        var exactLayout = TrofeoWireProtocol.GetFrameLayout(exactPayload.Length);
+        var exactFrame = new byte[exactLayout.FrameLength];
+        TrofeoWireProtocol.WriteFrame(exactPayload, exactFrame);
+        var exactTerminal = exactFrame.AsSpan(TrofeoWireProtocol.ChunkSize, TrofeoWireProtocol.ChunkSize);
+        Assert(
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(exactTerminal.Slice(6, 2)) == 0 &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(exactTerminal.Slice(9, 2)) == 2 &&
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(exactTerminal.Slice(11, 2)) == 1,
+            "An exact 496-byte payload must retain the proven extra zero-length terminal record.");
+    }
+
+    private static void TrofeoUsbTransferSegmentationContract()
+    {
+        static int[] Segment(int frameLength)
+        {
+            var result = new List<int>();
+            for (var remaining = frameLength; remaining > 0;)
+            {
+                var count = TrofeoWireProtocol.GetTransferLength(remaining);
+                Assert(count > 0 && count <= TrofeoWireProtocol.TransferBlockSize,
+                    "Trofeo transfer segmentation must always make bounded forward progress.");
+                result.Add(count);
+                remaining -= count;
+            }
+
+            return result.ToArray();
+        }
+
+        Assert(Segment(2048).SequenceEqual(new[] { 2048 }),
+            "A 2048-byte Trofeo wire frame must be sent as one transfer.");
+        Assert(Segment(4096).SequenceEqual(new[] { 4096 }),
+            "A 4096-byte Trofeo wire frame must be sent as one transfer.");
+        Assert(Segment(6144).SequenceEqual(new[] { 4096, 2048 }),
+            "A 6144-byte Trofeo wire frame must preserve 4096 + 2048 transfer segmentation.");
+        Assert(Segment(8192).SequenceEqual(new[] { 4096, 4096 }),
+            "An 8192-byte Trofeo wire frame must preserve two 4096-byte transfers.");
+        Assert(Segment(10240).SequenceEqual(new[] { 4096, 4096, 2048 }),
+            "A 10240-byte Trofeo wire frame must preserve repeated 4096-byte transfers plus the tail.");
     }
 
     private static void OutputSessionManagerLifecycle()
