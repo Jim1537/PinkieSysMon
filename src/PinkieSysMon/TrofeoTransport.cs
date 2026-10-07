@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace PinkieSysMon;
 
-internal sealed class TrofeoTransport : IDisposable
+internal sealed class TrofeoTransport : ITrofeoFrameTransport
 {
     private const byte PipeOut = 0x09;
     private const byte PipeIn = 0x81;
@@ -165,7 +165,7 @@ internal sealed class TrofeoTransport : IDisposable
     public void SendJpeg(ReadOnlySpan<byte> jpeg) =>
         SendJpegWithDiagnostics(jpeg, default);
 
-    internal void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
+    public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
     {
         if (_interfaceHandle == IntPtr.Zero)
             throw new ObjectDisposedException(nameof(TrofeoTransport));
