@@ -230,7 +230,7 @@ Bar uses the common dashboard rendering pipeline for container background, borde
 
 The `image` object contains `source`, `fit`, `progressMode`, and `loop`. The `thresholds` object contains `mode` and `items` with `enabled`, `value`, and `color` per slot.
 
-Inherited properties include `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, `color`, `backgroundColor`, `borderColor`, `borderWidth`, `cornerRadius`, and shadow settings.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 The display labels in the Editor are not a substitute for these persisted JSON property names.
 

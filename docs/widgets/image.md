@@ -195,7 +195,7 @@ Unlike metric-driven widgets, Image requires no `metric`, `unit`, `format`, `fal
 | `opacity` | `Opacity` | Widget graphic opacity in the range `0..1`. |
 | `color` | Inherited `Color` | Foreground color for tint-capable icons. |
 
-Inherited properties also include `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, `backgroundColor`, `borderColor`, `borderWidth`, `cornerRadius`, and shadow settings.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 The Editor's display term `Image` for a file source maps to the canonical token `file`. `Icon` maps to `icon`. The asset model defaults to file source type, stretch fitting, and looping enabled; the widget opacity defaults to `1`.
 
