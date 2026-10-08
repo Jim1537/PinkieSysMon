@@ -17,6 +17,14 @@ PinkieSysMon consists of two main components:
 
 The project is designed for fully local operation.
 
+> **⚠️ Compatibility Notice**
+>
+> Pinkie's System Monitor is considered release-ready by its author. However, real-world testing has so far been limited to **one Windows 11 Pro computer and one Thermalright Trofeo Vision 9.16 display**.
+>
+> Compatibility with other configurations has not yet been verified. **Community testing and feedback are very welcome!**
+>
+> [**Read the full compatibility notice →**](compatibility.md)
+
 ## Key Features
 
 - fully native dashboard rendering on Windows;

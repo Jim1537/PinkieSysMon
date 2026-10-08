@@ -9,6 +9,7 @@ site_dir: site
 
 nav:
   - Overview: README.md
+  - Compatibility & Testing: compatibility.md
   - Telemetry providers:
       - System: telemetry/system.md
       - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md
