@@ -2,9 +2,10 @@
 
 ## Release Status
 
-**Pinkie's System Monitor is considered release-ready by its author** and is used on the author's own system. It is an independent, personal software project, however, and its real-world compatibility testing is currently limited to a single workstation and display setup.
+!!! warning "Real-world compatibility evidence"
+    **Pinkie's System Monitor is considered release-ready by its author** and is used on the author's own system. It is an independent, personal software project, however, and its real-world compatibility testing is currently limited to a single workstation and display setup.
 
-A release-ready status reflects the author's experience with that setup; it is **not a claim of broad compatibility across Windows hardware or display models**.
+    A release-ready status reflects the author's experience with that setup; it is **not a claim of broad compatibility across Windows hardware or display models**.
 
 ## Tested Configuration
 

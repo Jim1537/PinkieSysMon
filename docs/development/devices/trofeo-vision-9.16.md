@@ -65,7 +65,8 @@ The Runtime renderer produces JPEG bytes and `TrofeoTransport.SendJpeg` prepares
 
 Records are transferred through OUT `0x09` in writes of at most **4,096 bytes**, using a reusable pinned managed buffer. The sender then reads an ACK from IN `0x81` into a **512-byte** buffer. The current implementation requires a **non-empty** ACK and does **not** validate its contents beyond that; do not describe stricter ACK validation as implemented.
 
-**Do not change** header layout, the extra terminal record, four-record padding, endpoints, transfer sizing, pinned-buffer lifetime, handshake, or ACK sequencing based on speculative optimization. A protocol change requires controlled testing against the real device.
+!!! warning "Protocol-sensitive parameters"
+    **Do not change** header layout, the extra terminal record, four-record padding, endpoints, transfer sizing, pinned-buffer lifetime, handshake, or ACK sequencing based on speculative optimization. A protocol change requires controlled testing against the real device.
 
 ## Geometry and configuration
 
@@ -78,7 +79,8 @@ Records are transferred through OUT `0x09` in writes of at most **4,096 bytes**,
 
 `FramePump` owns the live `TrofeoTransport` for each output target, tracks connection state, and retries after a missing device or connection/transfer error. A failed transfer drops and disposes the current transport, sets an explicit disconnected/error state as appropriate, and schedules a new attempt. Device-selection ambiguity is surfaced instead of silently choosing a device.
 
-**Real-device acceptance remains incomplete** for unplug/replug, suspend/resume, configured-device-missing, and multiple-device ambiguity scenarios. The relevant checks are tracked as deferred physical output acceptance work. Code paths for recovery exist, but the outstanding physical scenarios must **not** be reported as passed merely because the implementation or documentation exists.
+!!! info "Physical acceptance is incomplete"
+    **Real-device acceptance remains incomplete** for unplug/replug, suspend/resume, configured-device-missing, and multiple-device ambiguity scenarios. The relevant checks are tracked as deferred physical output acceptance work. Code paths for recovery exist, but the outstanding physical scenarios must **not** be reported as passed merely because the implementation or documentation exists.
 
 ### Maintenance and verification checklist
 
