@@ -1,0 +1,16 @@
+/*
+ * Spacing for the top-level navigation of the MkDocs Material left sidebar.
+ * The current nav has ten root items. Item 7 begins the reference sections
+ * (Telemetry providers), and item 10 begins the developer section.
+ * Update these positions if the root nav order is changed in mkdocs.yml.
+ */
+.md-sidebar--primary .md-nav--primary > .md-nav__list > .md-nav__item + .md-nav__item {
+  margin-top: 0.22rem;
+}
+
+.md-sidebar--primary .md-nav--primary > .md-nav__list > .md-nav__item:nth-child(7),
+.md-sidebar--primary .md-nav--primary > .md-nav__list > .md-nav__item:nth-child(10) {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
