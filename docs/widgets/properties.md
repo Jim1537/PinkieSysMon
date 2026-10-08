@@ -17,20 +17,21 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 <!-- --8<-- [start:background-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `appearance.background.color`  
-**Canonical model:** `WidgetDefinition.BackgroundColor / CanvasDefinition.BackgroundColor`  
-**JSON:** `backgroundColor` (widgets); `canvas.backgroundColor` (Canvas)
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `appearance.background.color`  
+    **Canonical model:** `WidgetDefinition.BackgroundColor / CanvasDefinition.BackgroundColor`  
+    **JSON:** `backgroundColor` (widgets); `canvas.backgroundColor` (Canvas)
 
 
-Background color of the widget container or Canvas.
+    **Values:**
+    - Color.
 
-**Used by:** All widgets, Canvas
+
+    Background color of the widget container or Canvas.
+
+    **Used by:** All widgets, Canvas
 
 <!-- --8<-- [end:background-color] -->
 
@@ -40,21 +41,22 @@ Background color of the widget container or Canvas.
 
 <!-- --8<-- [start:bar-mode] -->
 
+!!! info ""
 
-**Editor name:** Mode  
-**Semantic key:** `gauge.bar.content_mode`  
-**Canonical model:** `BarWidgetDefinition.ContentMode`  
-**JSON:** `contentMode`
-
-
-**Values:**
-- `Fill`
-- `Image`
+    **Editor name:** Mode  
+    **Semantic key:** `gauge.bar.content_mode`  
+    **Canonical model:** `BarWidgetDefinition.ContentMode`  
+    **JSON:** `contentMode`
 
 
-Selects standard fill rendering or image-backed Bar rendering.
+    **Values:**
+    - `Fill`
+    - `Image`
 
-**Used by:** Bar
+
+    Selects standard fill rendering or image-backed Bar rendering.
+
+    **Used by:** Bar
 
 <!-- --8<-- [end:bar-mode] -->
 
@@ -64,20 +66,21 @@ Selects standard fill rendering or image-backed Bar rendering.
 
 <!-- --8<-- [start:border-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `appearance.border.color`  
-**Canonical model:** `WidgetDefinition.BorderColor`  
-**JSON:** `borderColor`
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `appearance.border.color`  
+    **Canonical model:** `WidgetDefinition.BorderColor`  
+    **JSON:** `borderColor`
 
 
-Border color of the widget container.
+    **Values:**
+    - Color.
 
-**Used by:** All widgets
+
+    Border color of the widget container.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:border-color] -->
 
@@ -87,20 +90,21 @@ Border color of the widget container.
 
 <!-- --8<-- [start:border-width] -->
 
+!!! info ""
 
-**Editor name:** Width  
-**Semantic key:** `appearance.border.width`  
-**Canonical model:** `WidgetDefinition.BorderWidth`  
-**JSON:** `borderWidth`
-
-
-**Values:**
-- Finite number `>= 0`.
+    **Editor name:** Width  
+    **Semantic key:** `appearance.border.width`  
+    **Canonical model:** `WidgetDefinition.BorderWidth`  
+    **JSON:** `borderWidth`
 
 
-Border width of the widget container.
+    **Values:**
+    - Finite number `>= 0`.
 
-**Used by:** All widgets
+
+    Border width of the widget container.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:border-width] -->
 
@@ -110,23 +114,24 @@ Border width of the widget container.
 
 <!-- --8<-- [start:bump-pause] -->
 
+!!! info ""
 
-**Editor name:** Bump Pause  
-**Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state)  
-**Canonical model:** `TextPresentationDefinition.BumpPauseMs`  
-**JSON:** `textPresentation.bumpPauseMs` (Text / Value); `profiles.{state}.textPresentation.bumpPauseMs` (Value state)
-
-
-**Values:**
-- Integer `>=0` milliseconds; default `500`.
+    **Editor name:** Bump Pause  
+    **Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.BumpPauseMs`  
+    **JSON:** `textPresentation.bumpPauseMs` (Text / Value); `profiles.{state}.textPresentation.bumpPauseMs` (Value state)
 
 
-Pause at the edges during Bump.
+    **Values:**
+    - Integer `>=0` milliseconds; default `500`.
 
-**Used by:** Text / Value and Value state profiles
 
-**Disabled / read-only when:**
-- [Overflow Mode](properties.md#overflow-mode)!=`Bump`.
+    Pause at the edges during Bump.
+
+    **Used by:** Text / Value and Value state profiles
+
+    **Disabled / read-only when:**
+    - [Overflow Mode](properties.md#overflow-mode)!=`Bump`.
 
 <!-- --8<-- [end:bump-pause] -->
 
@@ -136,20 +141,21 @@ Pause at the edges during Bump.
 
 <!-- --8<-- [start:corner-radius] -->
 
+!!! info ""
 
-**Editor name:** Corner Radius  
-**Semantic key:** `appearance.border.corner_radius`  
-**Canonical model:** `WidgetDefinition.CornerRadius`  
-**JSON:** `cornerRadius`
-
-
-**Values:**
-- Finite number `>= 0`.
+    **Editor name:** Corner Radius  
+    **Semantic key:** `appearance.border.corner_radius`  
+    **Canonical model:** `WidgetDefinition.CornerRadius`  
+    **JSON:** `cornerRadius`
 
 
-Corner radius of the widget container.
+    **Values:**
+    - Finite number `>= 0`.
 
-**Used by:** All widgets
+
+    Corner radius of the widget container.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:corner-radius] -->
 
@@ -159,20 +165,21 @@ Corner radius of the widget container.
 
 <!-- --8<-- [start:end-angle] -->
 
+!!! info ""
 
-**Editor name:** End Angle  
-**Semantic key:** `gauge.arc.end`  
-**Canonical model:** `GaugeWidgetDefinition.EndAngle`  
-**JSON:** `endAngle`
-
-
-**Values:**
-- Degrees; the contract requires `0 <= [Start Angle](properties.md#start-angle) < End Angle <= 360`.
+    **Editor name:** End Angle  
+    **Semantic key:** `gauge.arc.end`  
+    **Canonical model:** `GaugeWidgetDefinition.EndAngle`  
+    **JSON:** `endAngle`
 
 
-Ending angle of the arc.
+    **Values:**
+    - Degrees; the contract requires `0 <= [Start Angle](properties.md#start-angle) < End Angle <= 360`.
 
-**Used by:** Gauge
+
+    Ending angle of the arc.
+
+    **Used by:** Gauge
 
 <!-- --8<-- [end:end-angle] -->
 
@@ -182,33 +189,34 @@ Ending angle of the arc.
 
 <!-- --8<-- [start:endpoint-type-override] -->
 
+!!! info ""
 
-**Editor name:** Friendly Name of the discovered Windows media endpoint  
-**Semantic key:** `EndpointOverride:{EndpointId}` (dynamic per endpoint)  
-**Canonical model:** `AppConfig.Media.EndpointTypeOverrides[EndpointId]`  
-**JSON:** `not dashboard JSON; application config`
-
-
-**Values:**
-- `Auto`
-- `remote-network`
-- `speakers`
-- `line-level`
-- `headphones`
-- `microphone`
-- `handset`
-- `digital-passthrough`
-- `spdif`
-- `display-audio`
-- `unknown`
+    **Editor name:** Friendly Name of the discovered Windows media endpoint  
+    **Semantic key:** `EndpointOverride:{EndpointId}` (dynamic per endpoint)  
+    **Canonical model:** `AppConfig.Media.EndpointTypeOverrides[EndpointId]`  
+    **JSON:** `not dashboard JSON; application config`
 
 
-Overrides the automatically detected endpoint type. `Auto` removes the override.
+    **Values:**
+    - `Auto`
+    - `remote-network`
+    - `speakers`
+    - `line-level`
+    - `headphones`
+    - `microphone`
+    - `handset`
+    - `digital-passthrough`
+    - `spdif`
+    - `display-audio`
+    - `unknown`
 
-**Used by:** Media System when Windows media endpoints are discovered
 
-**Hidden / tab omitted when:**
-- No media endpoints are discovered.
+    Overrides the automatically detected endpoint type. `Auto` removes the override.
+
+    **Used by:** Media System when Windows media endpoints are discovered
+
+    **Hidden / tab omitted when:**
+    - No media endpoints are discovered.
 
 <!-- --8<-- [end:endpoint-type-override] -->
 
@@ -218,21 +226,22 @@ Overrides the automatically detected endpoint type. `Auto` removes the override.
 
 <!-- --8<-- [start:evaluation-mode] -->
 
+!!! info ""
 
-**Editor name:** Mode  
-**Semantic key:** `data.binary.evaluation.mode`  
-**Canonical model:** `BinaryWidgetDefinition.EvaluationMode`  
-**JSON:** `evaluationMode`
-
-
-**Values:**
-- `Auto`
-- `Setpoint`
+    **Editor name:** Mode  
+    **Semantic key:** `data.binary.evaluation.mode`  
+    **Canonical model:** `BinaryWidgetDefinition.EvaluationMode`  
+    **JSON:** `evaluationMode`
 
 
-Defines how the Metric is converted to True/False.
+    **Values:**
+    - `Auto`
+    - `Setpoint`
 
-**Used by:** Binary
+
+    Defines how the Metric is converted to True/False.
+
+    **Used by:** Binary
 
 <!-- --8<-- [end:evaluation-mode] -->
 
@@ -242,20 +251,21 @@ Defines how the Metric is converted to True/False.
 
 <!-- --8<-- [start:fallback] -->
 
+!!! info ""
 
-**Editor name:** Fallback  
-**Semantic key:** `data.display.fallback`  
-**Canonical model:** `ValueWidgetDefinition.Fallback` / `BinaryWidgetDefinition.Fallback`  
-**JSON:** `fallback`
-
-
-**Values:**
-- Text; default `--`.
+    **Editor name:** Fallback  
+    **Semantic key:** `data.display.fallback`  
+    **Canonical model:** `ValueWidgetDefinition.Fallback` / `BinaryWidgetDefinition.Fallback`  
+    **JSON:** `fallback`
 
 
-Text used when the value is unavailable.
+    **Values:**
+    - Text; default `--`.
 
-**Used by:** Text / Value, Binary with Value state
+
+    Text used when the value is unavailable.
+
+    **Used by:** Text / Value, Binary with Value state
 
 <!-- --8<-- [end:fallback] -->
 
@@ -265,20 +275,21 @@ Text used when the value is unavailable.
 
 <!-- --8<-- [start:font-family] -->
 
+!!! info ""
 
-**Editor name:** Family  
-**Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state)  
-**Canonical model:** `TextPresentationDefinition.FontFamily`  
-**JSON:** `textPresentation.fontFamily` (Text / Value); `profiles.{state}.textPresentation.fontFamily` (Value state)
-
-
-**Values:**
-- Font family text; default `Roboto`.
+    **Editor name:** Family  
+    **Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.FontFamily`  
+    **JSON:** `textPresentation.fontFamily` (Text / Value); `profiles.{state}.textPresentation.fontFamily` (Value state)
 
 
-Font family. In the current canonical view, this is an editable text property.
+    **Values:**
+    - Font family text; default `Roboto`.
 
-**Used by:** Text / Value and Value state profiles
+
+    Font family. In the current canonical view, this is an editable text property.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-family] -->
 
@@ -288,20 +299,21 @@ Font family. In the current canonical view, this is an editable text property.
 
 <!-- --8<-- [start:font-size] -->
 
+!!! info ""
 
-**Editor name:** Size  
-**Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state)  
-**Canonical model:** `TextPresentationDefinition.FontSize`  
-**JSON:** `textPresentation.fontSize` (Text / Value); `profiles.{state}.textPresentation.fontSize` (Value state)
-
-
-**Values:**
-- Finite number `>0`.
+    **Editor name:** Size  
+    **Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.FontSize`  
+    **JSON:** `textPresentation.fontSize` (Text / Value); `profiles.{state}.textPresentation.fontSize` (Value state)
 
 
-Font size.
+    **Values:**
+    - Finite number `>0`.
 
-**Used by:** Text / Value and Value state profiles
+
+    Font size.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-size] -->
 
@@ -311,20 +323,21 @@ Font size.
 
 <!-- --8<-- [start:font-weight] -->
 
+!!! info ""
 
-**Editor name:** Weight  
-**Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state)  
-**Canonical model:** `TextPresentationDefinition.FontWeight`  
-**JSON:** `textPresentation.fontWeight` (Text / Value); `profiles.{state}.textPresentation.fontWeight` (Value state)
-
-
-**Values:**
-- Integer `1..1000`.
+    **Editor name:** Weight  
+    **Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.FontWeight`  
+    **JSON:** `textPresentation.fontWeight` (Text / Value); `profiles.{state}.textPresentation.fontWeight` (Value state)
 
 
-Font weight.
+    **Values:**
+    - Integer `1..1000`.
 
-**Used by:** Text / Value and Value state profiles
+
+    Font weight.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-weight] -->
 
@@ -334,27 +347,28 @@ Font weight.
 
 <!-- --8<-- [start:foreground-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `appearance.foreground.color`  
-**Canonical model:** `WidgetDefinition.Color`  
-**JSON:** `color`
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `appearance.foreground.color`  
+    **Canonical model:** `WidgetDefinition.Color`  
+    **JSON:** `color`
 
 
-Primary foreground color. For state-driven widgets, it serves as a fallback when the active profile does not define its own Color.
+    **Values:**
+    - Color.
 
-**Used by:** Text / Value, Gauge, Binary, Power, Media System, Media Player, Bar in Fill mode, Image in Icon mode
 
-**Disabled / read-only when:**
-- Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
+    Primary foreground color. For state-driven widgets, it serves as a fallback when the active profile does not define its own Color.
 
-**Hidden / tab omitted when:**
-- Bar / [Mode](properties.md#bar-mode)=`Image`.
-- Image / [Type](properties.md#image-source-type)!=`Icon`.
+    **Used by:** Text / Value, Gauge, Binary, Power, Media System, Media Player, Bar in Fill mode, Image in Icon mode
+
+    **Disabled / read-only when:**
+    - Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
+
+    **Hidden / tab omitted when:**
+    - Bar / [Mode](properties.md#bar-mode)=`Image`.
+    - Image / [Type](properties.md#image-source-type)!=`Icon`.
 
 <!-- --8<-- [end:foreground-color] -->
 
@@ -364,29 +378,30 @@ Primary foreground color. For state-driven widgets, it serves as a fallback when
 
 <!-- --8<-- [start:format] -->
 
+!!! info ""
 
-**Editor name:** Format  
-**Semantic key:** `data.value.format / data.binary.format`  
-**Canonical model:** `ValueWidgetDefinition.Format / BinaryWidgetDefinition.Format`  
-**JSON:** `format`
-
-
-**Values:**
-- Number / Percent / DataSize: `raw`, `0`, `0.0`, `0.00`.
-- Duration additionally supports `h:mm` and `h:mm:ss` when [Unit](properties.md#unit) is not `auto`.
-- DateTime presets include `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `dddd`, `ddd`, `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `hh:mm:ss tt`, `MMMM d`, `MMMM d, yyyy`, `dddd, MMMM d`, `dddd, MMMM d, yyyy`; custom .NET DateTime formats are validated before acceptance.
+    **Editor name:** Format  
+    **Semantic key:** `data.value.format / data.binary.format`  
+    **Canonical model:** `ValueWidgetDefinition.Format / BinaryWidgetDefinition.Format`  
+    **JSON:** `format`
 
 
-Format of the displayed value.
+    **Values:**
+    - Number / Percent / DataSize: `raw`, `0`, `0.0`, `0.00`.
+    - Duration additionally supports `h:mm` and `h:mm:ss` when [Unit](properties.md#unit) is not `auto`.
+    - DateTime presets include `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `dddd`, `ddd`, `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `hh:mm:ss tt`, `MMMM d`, `MMMM d, yyyy`, `dddd, MMMM d`, `dddd, MMMM d, yyyy`; custom .NET DateTime formats are validated before acceptance.
 
-**Used by:** Text / Value, Binary with Value state
 
-**Disabled / read-only when:**
-- Literal Text is not numeric.
-- The selected [Metric](properties.md#metric) is unavailable or has no descriptor.
-- The Metric has Text or Boolean value kind.
-- Duration [Unit](properties.md#unit)=`auto`.
-- Binary has no Value state.
+    Format of the displayed value.
+
+    **Used by:** Text / Value, Binary with Value state
+
+    **Disabled / read-only when:**
+    - Literal Text is not numeric.
+    - The selected [Metric](properties.md#metric) is unavailable or has no descriptor.
+    - The Metric has Text or Boolean value kind.
+    - Duration [Unit](properties.md#unit)=`auto`.
+    - Binary has no Value state.
 
 <!-- --8<-- [end:format] -->
 
@@ -396,31 +411,32 @@ Format of the displayed value.
 
 <!-- --8<-- [start:gap] -->
 
+!!! info ""
 
-**Editor name:** Gap
+    **Editor name:** Gap
 
-**Semantic keys:**
-- `gauge.track.gap`
-- `gauge.bar.gap`
+    **Semantic keys:**
+    - `gauge.track.gap`
+    - `gauge.bar.gap`
 
-**Canonical model:**
-- `GaugeWidgetDefinition.Gap`
-- `BarWidgetDefinition.Gap`
+    **Canonical model:**
+    - `GaugeWidgetDefinition.Gap`
+    - `BarWidgetDefinition.Gap`
 
-**JSON:** `gap`
-
-
-**Values:**
-- Finite number `>= 0`.
+    **JSON:** `gap`
 
 
-Spacing used by Gauge/Bar indicator geometry.
+    **Values:**
+    - Finite number `>= 0`.
 
-**Used by:** Gauge, Bar
 
-**Gauge note:**
-- In the current Editor, Gap remains editable regardless of [Track Enabled](properties.md#track-enabled).
-- With the track enabled, `2*[Border Width](properties.md#track-border-width) + 2*Gap + [Thickness](properties.md#track-thickness)` must fit within `[Width](properties.md#width)/2`.
+    Spacing used by Gauge/Bar indicator geometry.
+
+    **Used by:** Gauge, Bar
+
+    **Gauge note:**
+    - In the current Editor, Gap remains editable regardless of [Track Enabled](properties.md#track-enabled).
+    - With the track enabled, `2*[Border Width](properties.md#track-border-width) + 2*Gap + [Thickness](properties.md#track-thickness)` must fit within `[Width](properties.md#width)/2`.
 
 <!-- --8<-- [end:gap] -->
 
@@ -430,28 +446,29 @@ Spacing used by Gauge/Bar indicator geometry.
 
 <!-- --8<-- [start:height] -->
 
+!!! info ""
 
-**Editor name:** Height  
-**Semantic key:** `general.geometry.height`  
-**Canonical model:** `WidgetDefinition.Height / CanvasDefinition.Height`  
-**JSON:** `height` (widgets); `canvas.height` (Canvas)
-
-
-**Values:**
-- **Bar / Image:** `> 0`.
-- **Gauge:** derived and equal to [Width](properties.md#width).
-- **Text / Value:** derived from the active text layout.
-- **State-driven:** derived only when all states use `Value`; otherwise a persisted positive dimension.
-- **Canvas:** positive integer.
-**Read-only:**
-- Gauge.
-- Text / Value.
-- Binary / Power / Media System / Media Player, when all states use [Source Type](properties.md#state-source-type) = `Value`.
+    **Editor name:** Height  
+    **Semantic key:** `general.geometry.height`  
+    **Canonical model:** `WidgetDefinition.Height / CanvasDefinition.Height`  
+    **JSON:** `height` (widgets); `canvas.height` (Canvas)
 
 
-Height of the widget bounds in logical pixels; for Canvas, the native canvas height.
+    **Values:**
+    - **Bar / Image:** `> 0`.
+    - **Gauge:** derived and equal to [Width](properties.md#width).
+    - **Text / Value:** derived from the active text layout.
+    - **State-driven:** derived only when all states use `Value`; otherwise a persisted positive dimension.
+    - **Canvas:** positive integer.
+    **Read-only:**
+    - Gauge.
+    - Text / Value.
+    - Binary / Power / Media System / Media Player, when all states use [Source Type](properties.md#state-source-type) = `Value`.
 
-**Used by:** All widgets, Canvas
+
+    Height of the widget bounds in logical pixels; for Canvas, the native canvas height.
+
+    **Used by:** All widgets, Canvas
 
 <!-- --8<-- [end:height] -->
 
@@ -461,22 +478,23 @@ Height of the widget bounds in logical pixels; for Canvas, the native canvas hei
 
 <!-- --8<-- [start:horizontal-alignment] -->
 
+!!! info ""
 
-**Editor name:** Horizontal  
-**Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state)  
-**Canonical model:** `TextPresentationDefinition.Align`  
-**JSON:** `textPresentation.align` (Text / Value); `profiles.{state}.textPresentation.align` (Value state)
-
-
-**Values:**
-- `left`
-- `center`
-- `right`
+    **Editor name:** Horizontal  
+    **Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.Align`  
+    **JSON:** `textPresentation.align` (Text / Value); `profiles.{state}.textPresentation.align` (Value state)
 
 
-Horizontal alignment.
+    **Values:**
+    - `left`
+    - `center`
+    - `right`
 
-**Used by:** Text / Value and Value state profiles
+
+    Horizontal alignment.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:horizontal-alignment] -->
 
@@ -486,39 +504,40 @@ Horizontal alignment.
 
 <!-- --8<-- [start:image-fit] -->
 
+!!! info ""
 
-**Editor name:** Fit
+    **Editor name:** Fit
 
-**Semantic keys:**
-- `image.asset.fit`
-- `image.state.{state}.fit`
-- `image.background_image.asset.fit`
-- `image.foreground_image.asset.fit`
-- `bar.image.fit`
+    **Semantic keys:**
+    - `image.asset.fit`
+    - `image.state.{state}.fit`
+    - `image.background_image.asset.fit`
+    - `image.foreground_image.asset.fit`
+    - `bar.image.fit`
 
-**Canonical model:**
-- `ImageAssetPresentationDefinition.Fit` (Image, state assets, Canvas layers)
-- `BarImagePresentationDefinition.Fit` (Bar Image mode)
+    **Canonical model:**
+    - `ImageAssetPresentationDefinition.Fit` (Image, state assets, Canvas layers)
+    - `BarImagePresentationDefinition.Fit` (Bar Image mode)
 
-**JSON:**
-- Image: `asset.fit`
-- State profile: `profiles.{state}.asset.fit`
-- Canvas background: `canvas.backgroundImage.asset.fit`
-- Canvas foreground: `canvas.foregroundImage.asset.fit`
-- Bar Image: `image.fit`
-
-
-**Values:**
-- Image / state / Canvas assets: `contain`, `cover`, `stretch`.
-- Bar Image mode: `Clip`, `Contain`, `Cover`, `Stretch`.
+    **JSON:**
+    - Image: `asset.fit`
+    - State profile: `profiles.{state}.asset.fit`
+    - Canvas background: `canvas.backgroundImage.asset.fit`
+    - Canvas foreground: `canvas.foregroundImage.asset.fit`
+    - Bar Image: `image.fit`
 
 
-Controls how an image source is fitted inside the target bounds.
+    **Values:**
+    - Image / state / Canvas assets: `contain`, `cover`, `stretch`.
+    - Bar Image mode: `Clip`, `Contain`, `Cover`, `Stretch`.
 
-**Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
-**Context notes:**
-- Canvas layer Fit is read-only when [Source](properties.md#image-source) is empty.
+    Controls how an image source is fitted inside the target bounds.
+
+    **Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+
+    **Context notes:**
+    - Canvas layer Fit is read-only when [Source](properties.md#image-source) is empty.
 
 <!-- --8<-- [end:image-fit] -->
 
@@ -528,32 +547,33 @@ Controls how an image source is fitted inside the target bounds.
 
 <!-- --8<-- [start:image-layer-color] -->
 
+!!! info ""
 
-**Editor name:** Color
+    **Editor name:** Color
 
-**Semantic keys:**
-- `image.background_image.color`
-- `image.foreground_image.color`
+    **Semantic keys:**
+    - `image.background_image.color`
+    - `image.foreground_image.color`
 
-**Canonical model:** `CanvasImageLayerDefinition.Color`
+    **Canonical model:** `CanvasImageLayerDefinition.Color`
 
-**JSON:**
-- `canvas.backgroundImage.color`
-- `canvas.foregroundImage.color`
-
-
-**Values:**
-- Color.
+    **JSON:**
+    - `canvas.backgroundImage.color`
+    - `canvas.foregroundImage.color`
 
 
-Tint color of a Canvas image layer.
+    **Values:**
+    - Color.
 
-**Used by:** Canvas background image layer, Canvas foreground image layer
 
-**Disabled / read-only when:**
-- [Source](properties.md#image-source) is empty.
-- [Type](properties.md#image-source-type)=`Image` (file).
-- [Type](properties.md#image-source-type)=`Icon` but the selected icon does not expose tint capability.
+    Tint color of a Canvas image layer.
+
+    **Used by:** Canvas background image layer, Canvas foreground image layer
+
+    **Disabled / read-only when:**
+    - [Source](properties.md#image-source) is empty.
+    - [Type](properties.md#image-source-type)=`Image` (file).
+    - [Type](properties.md#image-source-type)=`Icon` but the selected icon does not expose tint capability.
 
 <!-- --8<-- [end:image-layer-color] -->
 
@@ -563,40 +583,41 @@ Tint color of a Canvas image layer.
 
 <!-- --8<-- [start:image-loop] -->
 
+!!! info ""
 
-**Editor name:** Loop
+    **Editor name:** Loop
 
-**Semantic keys:**
-- `image.asset.loop`
-- `image.state.{state}.loop`
-- `image.background_image.asset.loop`
-- `image.foreground_image.asset.loop`
-- `bar.image.loop`
+    **Semantic keys:**
+    - `image.asset.loop`
+    - `image.state.{state}.loop`
+    - `image.background_image.asset.loop`
+    - `image.foreground_image.asset.loop`
+    - `bar.image.loop`
 
-**Canonical model:**
-- `ImageAssetPresentationDefinition.Loop` (Image, state assets, Canvas layers)
-- `BarImagePresentationDefinition.Loop` (Bar Image mode)
+    **Canonical model:**
+    - `ImageAssetPresentationDefinition.Loop` (Image, state assets, Canvas layers)
+    - `BarImagePresentationDefinition.Loop` (Bar Image mode)
 
-**JSON:**
-- Image: `asset.loop`
-- State profile: `profiles.{state}.asset.loop`
-- Canvas background: `canvas.backgroundImage.asset.loop`
-- Canvas foreground: `canvas.foregroundImage.asset.loop`
-- Bar Image: `image.loop`
-
-
-**Values:**
-- Boolean.
+    **JSON:**
+    - Image: `asset.loop`
+    - State profile: `profiles.{state}.asset.loop`
+    - Canvas background: `canvas.backgroundImage.asset.loop`
+    - Canvas foreground: `canvas.foregroundImage.asset.loop`
+    - Bar Image: `image.loop`
 
 
-Controls looping of an animated graphical source.
+    **Values:**
+    - Boolean.
 
-**Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
-**Context notes:**
-- Icon-backed Image/state content is read-only when the selected icon does not expose animated capability.
-- Canvas layers require a non-empty [Source](properties.md#image-source) and an animated file/icon capability.
-- Bar Image mode exposes Loop directly.
+    Controls looping of an animated graphical source.
+
+    **Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+
+    **Context notes:**
+    - Icon-backed Image/state content is read-only when the selected icon does not expose animated capability.
+    - Canvas layers require a non-empty [Source](properties.md#image-source) and an animated file/icon capability.
+    - Bar Image mode exposes Loop directly.
 
 <!-- --8<-- [end:image-loop] -->
 
@@ -606,42 +627,43 @@ Controls looping of an animated graphical source.
 
 <!-- --8<-- [start:image-source] -->
 
+!!! info ""
 
-**Editor name:** Source; standalone Image displays Image or Icon dynamically
+    **Editor name:** Source; standalone Image displays Image or Icon dynamically
 
-**Semantic keys:**
-- `general.source.image.source`
-- `general.background_image.asset.source`
-- `general.foreground_image.asset.source`
-- `states.{state}.asset.source`
-- `bar.image.source`
+    **Semantic keys:**
+    - `general.source.image.source`
+    - `general.background_image.asset.source`
+    - `general.foreground_image.asset.source`
+    - `states.{state}.asset.source`
+    - `bar.image.source`
 
-**Canonical model:**
-- `ImageAssetPresentationDefinition.Source` (Image, Canvas layers, state assets)
-- `BarImagePresentationDefinition.Source` (Bar Image mode)
+    **Canonical model:**
+    - `ImageAssetPresentationDefinition.Source` (Image, Canvas layers, state assets)
+    - `BarImagePresentationDefinition.Source` (Bar Image mode)
 
-**JSON:**
-- Image: `asset.source`
-- Canvas background: `canvas.backgroundImage.asset.source`
-- Canvas foreground: `canvas.foregroundImage.asset.source`
-- State profile: `profiles.{state}.asset.source`
-- Bar Image: `image.source`
-
-
-**Values:**
-- File-backed contexts: dashboard-relative image file.
-- Icon-backed contexts: global icon logical name.
-- Bar Image mode: dashboard-relative image file.
+    **JSON:**
+    - Image: `asset.source`
+    - Canvas background: `canvas.backgroundImage.asset.source`
+    - Canvas foreground: `canvas.foregroundImage.asset.source`
+    - State profile: `profiles.{state}.asset.source`
+    - Bar Image: `image.source`
 
 
-Active graphical source.
+    **Values:**
+    - File-backed contexts: dashboard-relative image file.
+    - Icon-backed contexts: global icon logical name.
+    - Bar Image mode: dashboard-relative image file.
 
-**Used by:** Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 
-**Context notes:**
-- State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
-- Shared image assets clear Source when [Image Source Type](properties.md#image-source-type) changes between file and icon.
-- Bar Image mode is file-backed only.
+    Active graphical source.
+
+    **Used by:** Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
+
+    **Context notes:**
+    - State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
+    - Shared image assets clear Source when [Image Source Type](properties.md#image-source-type) changes between file and icon.
+    - Bar Image mode is file-backed only.
 
 <!-- --8<-- [end:image-source] -->
 
@@ -651,33 +673,34 @@ Active graphical source.
 
 <!-- --8<-- [start:image-source-type] -->
 
+!!! info ""
 
-**Editor name:** Type
+    **Editor name:** Type
 
-**Semantic keys:**
-- `general.source.image.kind`
-- `general.background_image.asset.kind`
-- `general.foreground_image.asset.kind`
+    **Semantic keys:**
+    - `general.source.image.kind`
+    - `general.background_image.asset.kind`
+    - `general.foreground_image.asset.kind`
 
-**Canonical model:** `ImageAssetPresentationDefinition.SourceType`
+    **Canonical model:** `ImageAssetPresentationDefinition.SourceType`
 
-**JSON:**
-- Image: `asset.sourceType`
-- Canvas background: `canvas.backgroundImage.asset.sourceType`
-- Canvas foreground: `canvas.foregroundImage.asset.sourceType`
-
-
-**Values:**
-- Editor `Image` → canonical/JSON `file`.
-- Editor `Icon` → canonical/JSON `icon`.
+    **JSON:**
+    - Image: `asset.sourceType`
+    - Canvas background: `canvas.backgroundImage.asset.sourceType`
+    - Canvas foreground: `canvas.foregroundImage.asset.sourceType`
 
 
-Selects whether a shared image asset uses a dashboard-relative file or a global icon.
+    **Values:**
+    - Editor `Image` → canonical/JSON `file`.
+    - Editor `Icon` → canonical/JSON `icon`.
 
-**Used by:** Image, Canvas background image layer, Canvas foreground image layer
 
-**Notes:**
-- Changing `file` ↔ `icon` uses canonical `ChangeSourceType()` and clears the current [Source](properties.md#image-source).
+    Selects whether a shared image asset uses a dashboard-relative file or a global icon.
+
+    **Used by:** Image, Canvas background image layer, Canvas foreground image layer
+
+    **Notes:**
+    - Changing `file` ↔ `icon` uses canonical `ChangeSourceType()` and clears the current [Source](properties.md#image-source).
 
 <!-- --8<-- [end:image-source-type] -->
 
@@ -687,20 +710,21 @@ Selects whether a shared image asset uses a dashboard-relative file or a global 
 
 <!-- --8<-- [start:italic] -->
 
+!!! info ""
 
-**Editor name:** Italic  
-**Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state)  
-**Canonical model:** `TextPresentationDefinition.Italic`  
-**JSON:** `textPresentation.italic` (Text / Value); `profiles.{state}.textPresentation.italic` (Value state)
-
-
-**Values:**
-- Boolean.
+    **Editor name:** Italic  
+    **Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.Italic`  
+    **JSON:** `textPresentation.italic` (Text / Value); `profiles.{state}.textPresentation.italic` (Value state)
 
 
-Italic.
+    **Values:**
+    - Boolean.
 
-**Used by:** Text / Value and Value state profiles
+
+    Italic.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:italic] -->
 
@@ -710,20 +734,21 @@ Italic.
 
 <!-- --8<-- [start:max] -->
 
+!!! info ""
 
-**Editor name:** Max  
-**Semantic key:** `data.range.max`  
-**Canonical model:** `GaugeWidgetDefinition.Max` / `BarWidgetDefinition.Max`  
-**JSON:** `max`
-
-
-**Values:**
-- Finite number; must be > [Min](properties.md#min).
+    **Editor name:** Max  
+    **Semantic key:** `data.range.max`  
+    **Canonical model:** `GaugeWidgetDefinition.Max` / `BarWidgetDefinition.Max`  
+    **JSON:** `max`
 
 
-Upper bound of the quantitative range.
+    **Values:**
+    - Finite number; must be > [Min](properties.md#min).
 
-**Used by:** Gauge, Bar
+
+    Upper bound of the quantitative range.
+
+    **Used by:** Gauge, Bar
 
 <!-- --8<-- [end:max] -->
 
@@ -733,22 +758,23 @@ Upper bound of the quantitative range.
 
 <!-- --8<-- [start:media-player-metric] -->
 
+!!! info ""
 
-**Editor name:** Metric  
-**Semantic key:** `general.source.media_player.metric`  
-**Canonical model:** `derived fixed source`  
-**JSON:** `not persisted`
-
-
-**Values:**
-- `system.media.playback.status`
-**Read-only:**
-- Always read-only.
+    **Editor name:** Metric  
+    **Semantic key:** `general.source.media_player.metric`  
+    **Canonical model:** `derived fixed source`  
+    **JSON:** `not persisted`
 
 
-Media Player has no persisted fake source/metric domain property. Editor exposes the fixed playback-status metric as a derived read-only property.
+    **Values:**
+    - `system.media.playback.status`
+    **Read-only:**
+    - Always read-only.
 
-**Used by:** Media Player
+
+    Media Player has no persisted fake source/metric domain property. Editor exposes the fixed playback-status metric as a derived read-only property.
+
+    **Used by:** Media Player
 
 <!-- --8<-- [end:media-player-metric] -->
 
@@ -758,21 +784,22 @@ Media Player has no persisted fake source/metric domain property. Editor exposes
 
 <!-- --8<-- [start:media-source] -->
 
+!!! info ""
 
-**Editor name:** Source  
-**Semantic key:** `general.source.media`  
-**Canonical model:** `MediaSystemWidgetDefinition.MediaSource`  
-**JSON:** `mediaSource`
-
-
-**Values:**
-- `media.output`
-- `media.input`
+    **Editor name:** Source  
+    **Semantic key:** `general.source.media`  
+    **Canonical model:** `MediaSystemWidgetDefinition.MediaSource`  
+    **JSON:** `mediaSource`
 
 
-Selects the Windows media output or input endpoint domain. Mute and Volume remain telemetry metrics and are not state types.
+    **Values:**
+    - `media.output`
+    - `media.input`
 
-**Used by:** Media System
+
+    Selects the Windows media output or input endpoint domain. Mute and Volume remain telemetry metrics and are not state types.
+
+    **Used by:** Media System
 
 <!-- --8<-- [end:media-source] -->
 
@@ -782,23 +809,24 @@ Selects the Windows media output or input endpoint domain. Mute and Volume remai
 
 <!-- --8<-- [start:metric] -->
 
+!!! info ""
 
-**Editor name:** Metric  
-**Semantic key:** `general.source.metric`  
-**Canonical model:** `ValueWidgetDefinition.Metric / BinaryWidgetDefinition.Metric / GaugeWidgetDefinition.Metric / BarWidgetDefinition.Metric`  
-**JSON:** `metric`
-
-
-**Values:**
-- Metric ID selected through the metric picker.
+    **Editor name:** Metric  
+    **Semantic key:** `general.source.metric`  
+    **Canonical model:** `ValueWidgetDefinition.Metric / BinaryWidgetDefinition.Metric / GaugeWidgetDefinition.Metric / BarWidgetDefinition.Metric`  
+    **JSON:** `metric`
 
 
-Telemetry metric used by the widget as its data source.
+    **Values:**
+    - Metric ID selected through the metric picker.
 
-**Used by:** Text / Value, Binary, Gauge, Bar
 
-**Disabled / read-only when:**
-- Text / Value: [Type](properties.md#value-source-type)!=`Metric`.
+    Telemetry metric used by the widget as its data source.
+
+    **Used by:** Text / Value, Binary, Gauge, Bar
+
+    **Disabled / read-only when:**
+    - Text / Value: [Type](properties.md#value-source-type)!=`Metric`.
 
 <!-- --8<-- [end:metric] -->
 
@@ -808,20 +836,21 @@ Telemetry metric used by the widget as its data source.
 
 <!-- --8<-- [start:min] -->
 
+!!! info ""
 
-**Editor name:** Min  
-**Semantic key:** `data.range.min`  
-**Canonical model:** `GaugeWidgetDefinition.Min` / `BarWidgetDefinition.Min`  
-**JSON:** `min`
-
-
-**Values:**
-- Finite number; must be < [Max](properties.md#max).
+    **Editor name:** Min  
+    **Semantic key:** `data.range.min`  
+    **Canonical model:** `GaugeWidgetDefinition.Min` / `BarWidgetDefinition.Min`  
+    **JSON:** `min`
 
 
-Lower bound of the quantitative range.
+    **Values:**
+    - Finite number; must be < [Max](properties.md#max).
 
-**Used by:** Gauge, Bar
+
+    Lower bound of the quantitative range.
+
+    **Used by:** Gauge, Bar
 
 <!-- --8<-- [end:min] -->
 
@@ -831,20 +860,21 @@ Lower bound of the quantitative range.
 
 <!-- --8<-- [start:name] -->
 
+!!! info ""
 
-**Editor name:** Name  
-**Semantic key:** `general.identity.name`  
-**Canonical model:** `WidgetDefinition.Name`  
-**JSON:** `name`
-
-
-**Values:**
-- Text; an empty value is persisted as `null`.
+    **Editor name:** Name  
+    **Semantic key:** `general.identity.name`  
+    **Canonical model:** `WidgetDefinition.Name`  
+    **JSON:** `name`
 
 
-Widget name used by Editor as the element label.
+    **Values:**
+    - Text; an empty value is persisted as `null`.
 
-**Used by:** All widgets
+
+    Widget name used by Editor as the element label.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:name] -->
 
@@ -854,23 +884,24 @@ Widget name used by Editor as the element label.
 
 <!-- --8<-- [start:needle-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `gauge.needle.color`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Color`  
-**JSON:** `needle.color`
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `gauge.needle.color`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Color`  
+    **JSON:** `needle.color`
 
 
-Color of the main needle line.
+    **Values:**
+    - Color.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Color of the main needle line.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
 
 <!-- --8<-- [end:needle-color] -->
 
@@ -880,20 +911,21 @@ Color of the main needle line.
 
 <!-- --8<-- [start:needle-enabled] -->
 
+!!! info ""
 
-**Editor name:** Enabled  
-**Semantic key:** `gauge.needle.enabled`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Enabled`  
-**JSON:** `needle.enabled`
-
-
-**Values:**
-- Boolean.
+    **Editor name:** Enabled  
+    **Semantic key:** `gauge.needle.enabled`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Enabled`  
+    **JSON:** `needle.enabled`
 
 
-Enables the needle.
+    **Values:**
+    - Boolean.
 
-**Used by:** Gauge
+
+    Enables the needle.
+
+    **Used by:** Gauge
 
 <!-- --8<-- [end:needle-enabled] -->
 
@@ -903,26 +935,27 @@ Enables the needle.
 
 <!-- --8<-- [start:needle-end-offset] -->
 
+!!! info ""
 
-**Editor name:** End Offset  
-**Semantic key:** `gauge.needle.end_offset`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.EndOffset`  
-**JSON:** `needle.endOffset`
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** End Offset  
+    **Semantic key:** `gauge.needle.end_offset`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.EndOffset`  
+    **JSON:** `needle.endOffset`
 
 
-Offset from the outer radius to the end of the visible needle.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Offset from the outer radius to the end of the visible needle.
 
-**Notes:**
-- When the needle is enabled, Start Offset + End Offset must be less than `Width/2`.
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
+
+    **Notes:**
+    - When the needle is enabled, Start Offset + End Offset must be less than `Width/2`.
 
 <!-- --8<-- [end:needle-end-offset] -->
 
@@ -932,26 +965,27 @@ Offset from the outer radius to the end of the visible needle.
 
 <!-- --8<-- [start:needle-start-offset] -->
 
+!!! info ""
 
-**Editor name:** Start Offset  
-**Semantic key:** `gauge.needle.start_offset`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.StartOffset`  
-**JSON:** `needle.startOffset`
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** Start Offset  
+    **Semantic key:** `gauge.needle.start_offset`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.StartOffset`  
+    **JSON:** `needle.startOffset`
 
 
-Offset from the center to the start of the visible needle.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Offset from the center to the start of the visible needle.
 
-**Notes:**
-- When the needle is enabled, Start Offset + End Offset must be less than `Width/2`.
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
+
+    **Notes:**
+    - When the needle is enabled, Start Offset + End Offset must be less than `Width/2`.
 
 <!-- --8<-- [end:needle-start-offset] -->
 
@@ -961,23 +995,24 @@ Offset from the center to the start of the visible needle.
 
 <!-- --8<-- [start:needle-thickness] -->
 
+!!! info ""
 
-**Editor name:** Thickness  
-**Semantic key:** `gauge.needle.thickness`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Thickness`  
-**JSON:** `needle.thickness`
-
-
-**Values:**
-- Finite number `>=0`; when Enabled=true, it must be `>0`.
+    **Editor name:** Thickness  
+    **Semantic key:** `gauge.needle.thickness`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Thickness`  
+    **JSON:** `needle.thickness`
 
 
-Thickness of the main needle line.
+    **Values:**
+    - Finite number `>=0`; when Enabled=true, it must be `>0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Thickness of the main needle line.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
 
 <!-- --8<-- [end:needle-thickness] -->
 
@@ -987,37 +1022,38 @@ Thickness of the main needle line.
 
 <!-- --8<-- [start:opacity] -->
 
+!!! info ""
 
-**Editor name:** Opacity
+    **Editor name:** Opacity
 
-**Semantic keys:**
-- `image.opacity`
-- `image.state.{state}.opacity`
-- `text.state.{state}.opacity`
-- `image.background_image.opacity`
-- `image.foreground_image.opacity`
+    **Semantic keys:**
+    - `image.opacity`
+    - `image.state.{state}.opacity`
+    - `text.state.{state}.opacity`
+    - `image.background_image.opacity`
+    - `image.foreground_image.opacity`
 
-**Canonical model:**
-- `ImageWidgetDefinition.Opacity`
-- `StateVisualProfileDefinition.Opacity`
-- `CanvasImageLayerDefinition.Opacity`
+    **Canonical model:**
+    - `ImageWidgetDefinition.Opacity`
+    - `StateVisualProfileDefinition.Opacity`
+    - `CanvasImageLayerDefinition.Opacity`
 
-**JSON:**
-- Image: `opacity`
-- State profile: `profiles.{state}.opacity`
-- Canvas background: `canvas.backgroundImage.opacity`
-- Canvas foreground: `canvas.foregroundImage.opacity`
+    **JSON:**
+    - Image: `opacity`
+    - State profile: `profiles.{state}.opacity`
+    - Canvas background: `canvas.backgroundImage.opacity`
+    - Canvas foreground: `canvas.foregroundImage.opacity`
 
-**Values:**
-- Number `0..1`.
+    **Values:**
+    - Number `0..1`.
 
 
-Opacity of the visual content represented by the current context.
+    Opacity of the visual content represented by the current context.
 
-**Used by:** Image, Value/graphical state profiles, Canvas background/foreground image layers
+    **Used by:** Image, Value/graphical state profiles, Canvas background/foreground image layers
 
-**Context notes:**
-- Canvas layer Opacity is read-only when [Source](properties.md#image-source) is empty.
+    **Context notes:**
+    - Canvas layer Opacity is read-only when [Source](properties.md#image-source) is empty.
 
 <!-- --8<-- [end:opacity] -->
 
@@ -1027,23 +1063,24 @@ Opacity of the visual content represented by the current context.
 
 <!-- --8<-- [start:orientation] -->
 
+!!! info ""
 
-**Editor name:** Orientation  
-**Semantic key:** `general.geometry.orientation`  
-**Canonical model:** `CanvasDefinition.Orientation`  
-**JSON:** `canvas.orientation`
-
-
-**Values:**
-- `0`
-- `90`
-- `180`
-- `270` degrees (values normalize modulo 360 before validation).
+    **Editor name:** Orientation  
+    **Semantic key:** `general.geometry.orientation`  
+    **Canonical model:** `CanvasDefinition.Orientation`  
+    **JSON:** `canvas.orientation`
 
 
-Logical orientation canvas.
+    **Values:**
+    - `0`
+    - `90`
+    - `180`
+    - `270` degrees (values normalize modulo 360 before validation).
 
-**Used by:** Canvas
+
+    Logical orientation canvas.
+
+    **Used by:** Canvas
 
 <!-- --8<-- [end:orientation] -->
 
@@ -1053,20 +1090,21 @@ Logical orientation canvas.
 
 <!-- --8<-- [start:outline-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state)  
-**Canonical model:** `TextPresentationDefinition.OutlineColor`  
-**JSON:** `textPresentation.outlineColor` (Text / Value); `profiles.{state}.textPresentation.outlineColor` (Value state)
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.OutlineColor`  
+    **JSON:** `textPresentation.outlineColor` (Text / Value); `profiles.{state}.textPresentation.outlineColor` (Value state)
 
 
-Text outline color.
+    **Values:**
+    - Color.
 
-**Used by:** Text / Value and Value state profiles
+
+    Text outline color.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:outline-color] -->
 
@@ -1076,20 +1114,21 @@ Text outline color.
 
 <!-- --8<-- [start:outline-width] -->
 
+!!! info ""
 
-**Editor name:** Width  
-**Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state)  
-**Canonical model:** `TextPresentationDefinition.OutlineWidth`  
-**JSON:** `textPresentation.outlineWidth` (Text / Value); `profiles.{state}.textPresentation.outlineWidth` (Value state)
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** Width  
+    **Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.OutlineWidth`  
+    **JSON:** `textPresentation.outlineWidth` (Text / Value); `profiles.{state}.textPresentation.outlineWidth` (Value state)
 
 
-Text outline width.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Text / Value and Value state profiles
+
+    Text outline width.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:outline-width] -->
 
@@ -1099,31 +1138,32 @@ Text outline width.
 
 <!-- --8<-- [start:overflow-mode] -->
 
+!!! info ""
 
-**Editor name:** Mode  
-**Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state)  
-**Canonical model:** `TextPresentationDefinition.OverflowMode`  
-**JSON:** `textPresentation.overflowMode` (Text / Value); `profiles.{state}.textPresentation.overflowMode` (Value state)
-
-
-**Values:**
-- `None`
-- `Clip`
-- `Ellipsis`
-- `ShrinkToFit`
-- `Wrap`
-- `Scroll`
-- `Bump`
+    **Editor name:** Mode  
+    **Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.OverflowMode`  
+    **JSON:** `textPresentation.overflowMode` (Text / Value); `profiles.{state}.textPresentation.overflowMode` (Value state)
 
 
-Controls text behavior when the available width is constrained.
+    **Values:**
+    - `None`
+    - `Clip`
+    - `Ellipsis`
+    - `ShrinkToFit`
+    - `Wrap`
+    - `Scroll`
+    - `Bump`
 
-**Used by:** Text / Value and Value state profiles
 
-**Notes:**
-- `None` is the auto-width mode.
-- Text / Value allows `None` only when [Width](properties.md#width)=0; fixed Width normalizes `None` to `Clip`.
-- A state-driven widget allows `None` only when **all** states have [Source Type](properties.md#state-source-type)=`Value` and [Width](properties.md#width)=0. Mixed Value/Image/Icon state widgets use constrained modes.
+    Controls text behavior when the available width is constrained.
+
+    **Used by:** Text / Value and Value state profiles
+
+    **Notes:**
+    - `None` is the auto-width mode.
+    - Text / Value allows `None` only when [Width](properties.md#width)=0; fixed Width normalizes `None` to `Clip`.
+    - A state-driven widget allows `None` only when **all** states have [Source Type](properties.md#state-source-type)=`Value` and [Width](properties.md#width)=0. Mixed Value/Image/Icon state widgets use constrained modes.
 
 <!-- --8<-- [end:overflow-mode] -->
 
@@ -1133,23 +1173,24 @@ Controls text behavior when the available width is constrained.
 
 <!-- --8<-- [start:pointer-color] -->
 
+!!! info ""
 
-**Editor name:** Pointer Color  
-**Semantic key:** `gauge.needle.pointer.color`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Color`  
-**JSON:** `needle.pointer.color`
-
-
-**Values:**
-- Color.
+    **Editor name:** Pointer Color  
+    **Semantic key:** `gauge.needle.pointer.color`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Color`  
+    **JSON:** `needle.pointer.color`
 
 
-Color of the pointer segment.
+    **Values:**
+    - Color.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Color of the pointer segment.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
 
 <!-- --8<-- [end:pointer-color] -->
 
@@ -1159,23 +1200,24 @@ Color of the pointer segment.
 
 <!-- --8<-- [start:pointer-length] -->
 
+!!! info ""
 
-**Editor name:** Pointer Length  
-**Semantic key:** `gauge.needle.pointer.length`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Length`  
-**JSON:** `needle.pointer.length`
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** Pointer Length  
+    **Semantic key:** `gauge.needle.pointer.length`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Length`  
+    **JSON:** `needle.pointer.length`
 
 
-Length of the pointer segment.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Length of the pointer segment.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
 
 <!-- --8<-- [end:pointer-length] -->
 
@@ -1185,23 +1227,24 @@ Length of the pointer segment.
 
 <!-- --8<-- [start:pointer-thickness] -->
 
+!!! info ""
 
-**Editor name:** Pointer Thickness  
-**Semantic key:** `gauge.needle.pointer.thickness`  
-**Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Thickness`  
-**JSON:** `needle.pointer.thickness`
-
-
-**Values:**
-- Finite number `>=0`; when [Pointer Length](properties.md#pointer-length)>0, it must be `>0`.
+    **Editor name:** Pointer Thickness  
+    **Semantic key:** `gauge.needle.pointer.thickness`  
+    **Canonical model:** `GaugeWidgetDefinition.Needle.Pointer.Thickness`  
+    **JSON:** `needle.pointer.thickness`
 
 
-Thickness of the pointer segment.
+    **Values:**
+    - Finite number `>=0`; when [Pointer Length](properties.md#pointer-length)>0, it must be `>0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Needle Enabled](properties.md#needle-enabled)=`false`.
+    Thickness of the pointer segment.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Needle Enabled](properties.md#needle-enabled)=`false`.
 
 <!-- --8<-- [end:pointer-thickness] -->
 
@@ -1211,21 +1254,22 @@ Thickness of the pointer segment.
 
 <!-- --8<-- [start:power-source] -->
 
+!!! info ""
 
-**Editor name:** Source  
-**Semantic key:** `general.source.power`  
-**Canonical model:** `PowerWidgetDefinition.PowerSource`  
-**JSON:** `powerSource`
-
-
-**Values:**
-- `power.ups`
-- `power.battery`
+    **Editor name:** Source  
+    **Semantic key:** `general.source.power`  
+    **Canonical model:** `PowerWidgetDefinition.PowerSource`  
+    **JSON:** `powerSource`
 
 
-Logical power source whose state is displayed by the widget. This is not a generic telemetry Metric property.
+    **Values:**
+    - `power.ups`
+    - `power.battery`
 
-**Used by:** Power
+
+    Logical power source whose state is displayed by the widget. This is not a generic telemetry Metric property.
+
+    **Used by:** Power
 
 <!-- --8<-- [end:power-source] -->
 
@@ -1235,20 +1279,21 @@ Logical power source whose state is displayed by the widget. This is not a gener
 
 <!-- --8<-- [start:prefix] -->
 
+!!! info ""
 
-**Editor name:** Prefix  
-**Semantic key:** `data.display.prefix`  
-**Canonical model:** `ValueWidgetDefinition.Prefix` / `BinaryWidgetDefinition.Prefix`  
-**JSON:** `prefix`
-
-
-**Values:**
-- Text.
+    **Editor name:** Prefix  
+    **Semantic key:** `data.display.prefix`  
+    **Canonical model:** `ValueWidgetDefinition.Prefix` / `BinaryWidgetDefinition.Prefix`  
+    **JSON:** `prefix`
 
 
-Text displayed before the value.
+    **Values:**
+    - Text.
 
-**Used by:** Text / Value, Binary with Value state
+
+    Text displayed before the value.
+
+    **Used by:** Text / Value, Binary with Value state
 
 <!-- --8<-- [end:prefix] -->
 
@@ -1258,22 +1303,23 @@ Text displayed before the value.
 
 <!-- --8<-- [start:progress-mode] -->
 
+!!! info ""
 
-**Editor name:** Progress Mode  
-**Semantic key:** `bar.image.progress_mode`  
-**Canonical model:** `BarWidgetDefinition.Image.ProgressMode`  
-**JSON:** `image.progressMode`
-
-
-**Values:**
-- `Scale`
-- `Slide`
-- `Reveal`
+    **Editor name:** Progress Mode  
+    **Semantic key:** `bar.image.progress_mode`  
+    **Canonical model:** `BarWidgetDefinition.Image.ProgressMode`  
+    **JSON:** `image.progressMode`
 
 
-Controls how the image changes visually with the Bar value.
+    **Values:**
+    - `Scale`
+    - `Slide`
+    - `Reveal`
 
-**Used by:** Bar / [Mode](properties.md#bar-mode)=Image
+
+    Controls how the image changes visually with the Bar value.
+
+    **Used by:** Bar / [Mode](properties.md#bar-mode)=Image
 
 <!-- --8<-- [end:progress-mode] -->
 
@@ -1283,27 +1329,28 @@ Controls how the image changes visually with the Bar value.
 
 <!-- --8<-- [start:reverse] -->
 
+!!! info ""
 
-**Editor name:** Reverse
+    **Editor name:** Reverse
 
-**Semantic keys:**
-- `gauge.reverse`
-- `gauge.bar.reverse`
+    **Semantic keys:**
+    - `gauge.reverse`
+    - `gauge.bar.reverse`
 
-**Canonical model:**
-- `GaugeWidgetDefinition.Reverse`
-- `BarWidgetDefinition.Reverse`
+    **Canonical model:**
+    - `GaugeWidgetDefinition.Reverse`
+    - `BarWidgetDefinition.Reverse`
 
-**JSON:** `reverse`
-
-
-**Values:**
-- Boolean.
+    **JSON:** `reverse`
 
 
-Reverses the direction in which the quantitative indicator progresses.
+    **Values:**
+    - Boolean.
 
-**Used by:** Gauge, Bar
+
+    Reverses the direction in which the quantitative indicator progresses.
+
+    **Used by:** Gauge, Bar
 
 <!-- --8<-- [end:reverse] -->
 
@@ -1313,20 +1360,21 @@ Reverses the direction in which the quantitative indicator progresses.
 
 <!-- --8<-- [start:rotation] -->
 
+!!! info ""
 
-**Editor name:** Rotation  
-**Semantic key:** `general.geometry.rotation`  
-**Canonical model:** `WidgetDefinition.Rotation`  
-**JSON:** `rotation`
-
-
-**Values:**
-- Finite number, degrees.
+    **Editor name:** Rotation  
+    **Semantic key:** `general.geometry.rotation`  
+    **Canonical model:** `WidgetDefinition.Rotation`  
+    **JSON:** `rotation`
 
 
-Rotates the widget around its center; positive values rotate clockwise.
+    **Values:**
+    - Finite number, degrees.
 
-**Used by:** All widgets
+
+    Rotates the widget around its center; positive values rotate clockwise.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:rotation] -->
 
@@ -1336,23 +1384,24 @@ Rotates the widget around its center; positive values rotate clockwise.
 
 <!-- --8<-- [start:scroll-speed] -->
 
+!!! info ""
 
-**Editor name:** Scroll Speed  
-**Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state)  
-**Canonical model:** `TextPresentationDefinition.ScrollSpeed`  
-**JSON:** `textPresentation.scrollSpeed` (Text / Value); `profiles.{state}.textPresentation.scrollSpeed` (Value state)
-
-
-**Values:**
-- Finite number `>=0` pixels/second; `0` is allowed.
+    **Editor name:** Scroll Speed  
+    **Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.ScrollSpeed`  
+    **JSON:** `textPresentation.scrollSpeed` (Text / Value); `profiles.{state}.textPresentation.scrollSpeed` (Value state)
 
 
-Scroll/Bump speed.
+    **Values:**
+    - Finite number `>=0` pixels/second; `0` is allowed.
 
-**Used by:** Text / Value and Value state profiles
 
-**Disabled / read-only when:**
-- [Overflow Mode](properties.md#overflow-mode) is neither `Scroll` nor `Bump`.
+    Scroll/Bump speed.
+
+    **Used by:** Text / Value and Value state profiles
+
+    **Disabled / read-only when:**
+    - [Overflow Mode](properties.md#overflow-mode) is neither `Scroll` nor `Bump`.
 
 <!-- --8<-- [end:scroll-speed] -->
 
@@ -1362,23 +1411,24 @@ Scroll/Bump speed.
 
 <!-- --8<-- [start:setpoint] -->
 
+!!! info ""
 
-**Editor name:** Setpoint  
-**Semantic key:** `data.binary.evaluation.setpoint`  
-**Canonical model:** `BinaryWidgetDefinition.Setpoint`  
-**JSON:** `setpoint`
-
-
-**Values:**
-- Text representation of reference value.
+    **Editor name:** Setpoint  
+    **Semantic key:** `data.binary.evaluation.setpoint`  
+    **Canonical model:** `BinaryWidgetDefinition.Setpoint`  
+    **JSON:** `setpoint`
 
 
-Reference value used when [Mode](properties.md#evaluation-mode)=`Setpoint`.
+    **Values:**
+    - Text representation of reference value.
 
-**Used by:** Binary
 
-**Disabled / read-only when:**
-- [Mode](properties.md#evaluation-mode)!=`Setpoint`.
+    Reference value used when [Mode](properties.md#evaluation-mode)=`Setpoint`.
+
+    **Used by:** Binary
+
+    **Disabled / read-only when:**
+    - [Mode](properties.md#evaluation-mode)!=`Setpoint`.
 
 <!-- --8<-- [end:setpoint] -->
 
@@ -1388,23 +1438,24 @@ Reference value used when [Mode](properties.md#evaluation-mode)=`Setpoint`.
 
 <!-- --8<-- [start:shadow-blur] -->
 
+!!! info ""
 
-**Editor name:** Blur  
-**Semantic key:** `appearance.shadow.blur`  
-**Canonical model:** `WidgetDefinition.ShadowBlur`  
-**JSON:** `shadowBlur`
-
-
-**Values:**
-- Finite number `>= 0`.
+    **Editor name:** Blur  
+    **Semantic key:** `appearance.shadow.blur`  
+    **Canonical model:** `WidgetDefinition.ShadowBlur`  
+    **JSON:** `shadowBlur`
 
 
-Shadow blur radius.
+    **Values:**
+    - Finite number `>= 0`.
 
-**Used by:** All widgets
 
-**Disabled / read-only when:**
-- [Enabled](properties.md#shadow-enabled)=`false`.
+    Shadow blur radius.
+
+    **Used by:** All widgets
+
+    **Disabled / read-only when:**
+    - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-blur] -->
 
@@ -1414,23 +1465,24 @@ Shadow blur radius.
 
 <!-- --8<-- [start:shadow-color] -->
 
+!!! info ""
 
-**Editor name:** Color  
-**Semantic key:** `appearance.shadow.color`  
-**Canonical model:** `WidgetDefinition.ShadowColor`  
-**JSON:** `shadowColor`
-
-
-**Values:**
-- Color.
+    **Editor name:** Color  
+    **Semantic key:** `appearance.shadow.color`  
+    **Canonical model:** `WidgetDefinition.ShadowColor`  
+    **JSON:** `shadowColor`
 
 
-Shadow color.
+    **Values:**
+    - Color.
 
-**Used by:** All widgets
 
-**Disabled / read-only when:**
-- [Enabled](properties.md#shadow-enabled)=`false`.
+    Shadow color.
+
+    **Used by:** All widgets
+
+    **Disabled / read-only when:**
+    - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-color] -->
 
@@ -1440,20 +1492,21 @@ Shadow color.
 
 <!-- --8<-- [start:shadow-enabled] -->
 
+!!! info ""
 
-**Editor name:** Enabled  
-**Semantic key:** `appearance.shadow.enabled`  
-**Canonical model:** `WidgetDefinition.ShadowEnabled`  
-**JSON:** `shadowEnabled`
-
-
-**Values:**
-- Boolean.
+    **Editor name:** Enabled  
+    **Semantic key:** `appearance.shadow.enabled`  
+    **Canonical model:** `WidgetDefinition.ShadowEnabled`  
+    **JSON:** `shadowEnabled`
 
 
-Enables the shadow for the visible widget content.
+    **Values:**
+    - Boolean.
 
-**Used by:** All widgets
+
+    Enables the shadow for the visible widget content.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:shadow-enabled] -->
 
@@ -1463,23 +1516,24 @@ Enables the shadow for the visible widget content.
 
 <!-- --8<-- [start:shadow-offset-x] -->
 
+!!! info ""
 
-**Editor name:** Offset X  
-**Semantic key:** `appearance.shadow.offset_x`  
-**Canonical model:** `WidgetDefinition.ShadowOffsetX`  
-**JSON:** `shadowOffsetX`
-
-
-**Values:**
-- Finite number.
+    **Editor name:** Offset X  
+    **Semantic key:** `appearance.shadow.offset_x`  
+    **Canonical model:** `WidgetDefinition.ShadowOffsetX`  
+    **JSON:** `shadowOffsetX`
 
 
-Horizontal shadow offset.
+    **Values:**
+    - Finite number.
 
-**Used by:** All widgets
 
-**Disabled / read-only when:**
-- [Enabled](properties.md#shadow-enabled)=`false`.
+    Horizontal shadow offset.
+
+    **Used by:** All widgets
+
+    **Disabled / read-only when:**
+    - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-offset-x] -->
 
@@ -1489,23 +1543,24 @@ Horizontal shadow offset.
 
 <!-- --8<-- [start:shadow-offset-y] -->
 
+!!! info ""
 
-**Editor name:** Offset Y  
-**Semantic key:** `appearance.shadow.offset_y`  
-**Canonical model:** `WidgetDefinition.ShadowOffsetY`  
-**JSON:** `shadowOffsetY`
-
-
-**Values:**
-- Finite number.
+    **Editor name:** Offset Y  
+    **Semantic key:** `appearance.shadow.offset_y`  
+    **Canonical model:** `WidgetDefinition.ShadowOffsetY`  
+    **JSON:** `shadowOffsetY`
 
 
-Vertical shadow offset.
+    **Values:**
+    - Finite number.
 
-**Used by:** All widgets
 
-**Disabled / read-only when:**
-- [Enabled](properties.md#shadow-enabled)=`false`.
+    Vertical shadow offset.
+
+    **Used by:** All widgets
+
+    **Disabled / read-only when:**
+    - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-offset-y] -->
 
@@ -1515,23 +1570,24 @@ Vertical shadow offset.
 
 <!-- --8<-- [start:shadow-opacity] -->
 
+!!! info ""
 
-**Editor name:** Opacity  
-**Semantic key:** `appearance.shadow.opacity`  
-**Canonical model:** `WidgetDefinition.ShadowOpacity`  
-**JSON:** `shadowOpacity`
-
-
-**Values:**
-- Number `0..1`.
+    **Editor name:** Opacity  
+    **Semantic key:** `appearance.shadow.opacity`  
+    **Canonical model:** `WidgetDefinition.ShadowOpacity`  
+    **JSON:** `shadowOpacity`
 
 
-Shadow opacity.
+    **Values:**
+    - Number `0..1`.
 
-**Used by:** All widgets
 
-**Disabled / read-only when:**
-- [Enabled](properties.md#shadow-enabled)=`false`.
+    Shadow opacity.
+
+    **Used by:** All widgets
+
+    **Disabled / read-only when:**
+    - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-opacity] -->
 
@@ -1541,27 +1597,28 @@ Shadow opacity.
 
 <!-- --8<-- [start:source-unit] -->
 
+!!! info ""
 
-**Editor name:** Source Unit  
-**Semantic key:** `data.value.literal_source_unit / data.value.metric_source_unit / data.binary.metric_source_unit / data.quantitative.metric_source_unit`  
-**Canonical model:** `ValueWidgetDefinition.SourceUnit` (literal) / `MetricDescriptor.BaseUnit` (metric)  
-**JSON:** `sourceUnit` only for numeric literal Text / Value; metric source unit is derived and not persisted
-
-
-**Values:**
-- Metric-backed value: read-only unit declared by the selected metric.
-- Numeric literal Text / Value: `raw`, `%`, `milliseconds`, `seconds`, `minutes`, `hours`, `C`, `F`, `W`, `V`, `A`, `Hz`, `kHz`, `MHz`, `GHz`, `RPM`, `L/h`, `ns`, `mWh`, `dBA`, `µS/cm`, `FPS`, `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`, `TiB`, `B/s`, `KB/s`, `MB/s`, `GB/s`, `TB/s`, `KiB/s`, `MiB/s`, `GiB/s`, `TiB/s`, `bit/s`, `kbit/s`, `Mbit/s`, `Gbit/s`, `Tbit/s`.
-**Read-only:**
-- Metric-backed contexts.
+    **Editor name:** Source Unit  
+    **Semantic key:** `data.value.literal_source_unit / data.value.metric_source_unit / data.binary.metric_source_unit / data.quantitative.metric_source_unit`  
+    **Canonical model:** `ValueWidgetDefinition.SourceUnit` (literal) / `MetricDescriptor.BaseUnit` (metric)  
+    **JSON:** `sourceUnit` only for numeric literal Text / Value; metric source unit is derived and not persisted
 
 
-Source unit of the value before display conversion.
+    **Values:**
+    - Metric-backed value: read-only unit declared by the selected metric.
+    - Numeric literal Text / Value: `raw`, `%`, `milliseconds`, `seconds`, `minutes`, `hours`, `C`, `F`, `W`, `V`, `A`, `Hz`, `kHz`, `MHz`, `GHz`, `RPM`, `L/h`, `ns`, `mWh`, `dBA`, `µS/cm`, `FPS`, `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`, `TiB`, `B/s`, `KB/s`, `MB/s`, `GB/s`, `TB/s`, `KiB/s`, `MiB/s`, `GiB/s`, `TiB/s`, `bit/s`, `kbit/s`, `Mbit/s`, `Gbit/s`, `Tbit/s`.
+    **Read-only:**
+    - Metric-backed contexts.
 
-**Used by:** Text / Value, Binary, Gauge, Bar
 
-**Disabled / read-only when:**
-- Text / Value: [Type](properties.md#value-source-type)=`Text` and [Text](properties.md#text) is not a finite invariant number.
-- Binary, Gauge, and Bar obtain [Source Unit](properties.md#source-unit) from the selected [Metric](properties.md#metric).
+    Source unit of the value before display conversion.
+
+    **Used by:** Text / Value, Binary, Gauge, Bar
+
+    **Disabled / read-only when:**
+    - Text / Value: [Type](properties.md#value-source-type)=`Text` and [Text](properties.md#text) is not a finite invariant number.
+    - Binary, Gauge, and Bar obtain [Source Unit](properties.md#source-unit) from the selected [Metric](properties.md#metric).
 
 <!-- --8<-- [end:source-unit] -->
 
@@ -1571,20 +1628,21 @@ Source unit of the value before display conversion.
 
 <!-- --8<-- [start:start-angle] -->
 
+!!! info ""
 
-**Editor name:** Start Angle  
-**Semantic key:** `gauge.arc.start`  
-**Canonical model:** `GaugeWidgetDefinition.StartAngle`  
-**JSON:** `startAngle`
-
-
-**Values:**
-- Degrees; the contract requires `0 <= [Start Angle](properties.md#start-angle) < End Angle <= 360`.
+    **Editor name:** Start Angle  
+    **Semantic key:** `gauge.arc.start`  
+    **Canonical model:** `GaugeWidgetDefinition.StartAngle`  
+    **JSON:** `startAngle`
 
 
-Starting angle of the arc.
+    **Values:**
+    - Degrees; the contract requires `0 <= [Start Angle](properties.md#start-angle) < End Angle <= 360`.
 
-**Used by:** Gauge
+
+    Starting angle of the arc.
+
+    **Used by:** Gauge
 
 <!-- --8<-- [end:start-angle] -->
 
@@ -1594,32 +1652,33 @@ Starting angle of the arc.
 
 <!-- --8<-- [start:state-color] -->
 
+!!! info ""
 
-**Editor name:** Color
+    **Editor name:** Color
 
-**Semantic keys:**
-- `image.state.{state}.color`
-- `text.state.{state}.color`
+    **Semantic keys:**
+    - `image.state.{state}.color`
+    - `text.state.{state}.color`
 
-**Canonical model:** `StateVisualProfileDefinition.Color`
+    **Canonical model:** `StateVisualProfileDefinition.Color`
 
-**JSON:** `profiles.{state}.color`
-
-
-**Values:**
-- Color.
+    **JSON:** `profiles.{state}.color`
 
 
-State-local foreground color.
+    **Values:**
+    - Color.
 
-**Used by:** Value and graphical state profiles
 
-**Context notes:**
-- For a Value state, Color is the text foreground color.
-- For an Icon state, Color is a tint override.
-- For a file-backed Image state, Color is not applicable.
-- If no state Color is stored, the widget [foreground Color](properties.md#foreground-color) may serve as a fallback.
-- Icon tint is read-only when the selected icon does not expose tint capability.
+    State-local foreground color.
+
+    **Used by:** Value and graphical state profiles
+
+    **Context notes:**
+    - For a Value state, Color is the text foreground color.
+    - For an Icon state, Color is a tint override.
+    - For a file-backed Image state, Color is not applicable.
+    - If no state Color is stored, the widget [foreground Color](properties.md#foreground-color) may serve as a fallback.
+    - Icon tint is read-only when the selected icon does not expose tint capability.
 
 <!-- --8<-- [end:state-color] -->
 
@@ -1629,26 +1688,27 @@ State-local foreground color.
 
 <!-- --8<-- [start:state-source-type] -->
 
+!!! info ""
 
-**Editor name:** Source Type  
-**Semantic key:** `states.{state}.source.kind`  
-**Canonical model:** `StateVisualProfileDefinition.ContentType + Asset.SourceType`  
-**JSON:** `profiles.{state}.contentType + profiles.{state}.asset.sourceType`
-
-
-**Values:**
-- `Value` → contentType=`value`.
-- `Image` → contentType=`image`, asset.sourceType=`file`.
-- `Icon` → contentType=`image`, asset.sourceType=`icon`.
+    **Editor name:** Source Type  
+    **Semantic key:** `states.{state}.source.kind`  
+    **Canonical model:** `StateVisualProfileDefinition.ContentType + Asset.SourceType`  
+    **JSON:** `profiles.{state}.contentType + profiles.{state}.asset.sourceType`
 
 
-Selects the presentation mode for the specific state.
+    **Values:**
+    - `Value` → contentType=`value`.
+    - `Image` → contentType=`image`, asset.sourceType=`file`.
+    - `Icon` → contentType=`image`, asset.sourceType=`icon`.
 
-**Used by:** Binary, Power, Media System, Media Player
 
-**Notes:**
-- Switching graphical file ↔ icon uses canonical ChangeSourceType and clears an incompatible asset Source.
-- Switching the state to Value changes contentType; the dormant asset remains a separate canonical subobject.
+    Selects the presentation mode for the specific state.
+
+    **Used by:** Binary, Power, Media System, Media Player
+
+    **Notes:**
+    - Switching graphical file ↔ icon uses canonical ChangeSourceType and clears an incompatible asset Source.
+    - Switching the state to Value changes contentType; the dormant asset remains a separate canonical subobject.
 
 <!-- --8<-- [end:state-source-type] -->
 
@@ -1658,20 +1718,21 @@ Selects the presentation mode for the specific state.
 
 <!-- --8<-- [start:suffix] -->
 
+!!! info ""
 
-**Editor name:** Suffix  
-**Semantic key:** `data.display.suffix`  
-**Canonical model:** `ValueWidgetDefinition.Suffix` / `BinaryWidgetDefinition.Suffix`  
-**JSON:** `suffix`
-
-
-**Values:**
-- Text.
+    **Editor name:** Suffix  
+    **Semantic key:** `data.display.suffix`  
+    **Canonical model:** `ValueWidgetDefinition.Suffix` / `BinaryWidgetDefinition.Suffix`  
+    **JSON:** `suffix`
 
 
-Text displayed after the value.
+    **Values:**
+    - Text.
 
-**Used by:** Text / Value, Binary with Value state
+
+    Text displayed after the value.
+
+    **Used by:** Text / Value, Binary with Value state
 
 <!-- --8<-- [end:suffix] -->
 
@@ -1681,23 +1742,24 @@ Text displayed after the value.
 
 <!-- --8<-- [start:text] -->
 
+!!! info ""
 
-**Editor name:** Text  
-**Semantic key:** `general.source.value.text`  
-**Canonical model:** `ValueWidgetDefinition.Text`  
-**JSON:** `text`
-
-
-**Values:**
-- Text; may be a numeric literal.
+    **Editor name:** Text  
+    **Semantic key:** `general.source.value.text`  
+    **Canonical model:** `ValueWidgetDefinition.Text`  
+    **JSON:** `text`
 
 
-Literal text for [Type](properties.md#value-source-type)=`Text`. If the string is an invariant numeric literal, it can participate in unit conversion and numeric formatting.
+    **Values:**
+    - Text; may be a numeric literal.
 
-**Used by:** Text / Value
 
-**Disabled / read-only when:**
-- [Type](properties.md#value-source-type)!=`Text`.
+    Literal text for [Type](properties.md#value-source-type)=`Text`. If the string is an invariant numeric literal, it can participate in unit conversion and numeric formatting.
+
+    **Used by:** Text / Value
+
+    **Disabled / read-only when:**
+    - [Type](properties.md#value-source-type)!=`Text`.
 
 <!-- --8<-- [end:text] -->
 
@@ -1707,32 +1769,33 @@ Literal text for [Type](properties.md#value-source-type)=`Text`. If the string i
 
 <!-- --8<-- [start:threshold-color] -->
 
+!!! info ""
 
-**Editor name:** Color
+    **Editor name:** Color
 
-**Semantic keys:**
-- `appearance.thresholds.1.color`
-- `appearance.thresholds.2.color`
-- `appearance.thresholds.3.color`
+    **Semantic keys:**
+    - `appearance.thresholds.1.color`
+    - `appearance.thresholds.2.color`
+    - `appearance.thresholds.3.color`
 
-**Canonical model:** `ThresholdDefinition.Color` through `Thresholds.Items[0..2]`
+    **Canonical model:** `ThresholdDefinition.Color` through `Thresholds.Items[0..2]`
 
-**JSON:** `thresholds.items[0..2].color`
-
-
-**Values:**
-- Color.
+    **JSON:** `thresholds.items[0..2].color`
 
 
-Color assigned to the corresponding threshold slot.
+    **Values:**
+    - Color.
 
-**Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
-**Disabled / read-only when:**
-- The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
+    Color assigned to the corresponding threshold slot.
 
-**Notes:**
-- Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
+    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+
+    **Disabled / read-only when:**
+    - The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
+
+    **Notes:**
+    - Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
 
 <!-- --8<-- [end:threshold-color] -->
 
@@ -1742,30 +1805,31 @@ Color assigned to the corresponding threshold slot.
 
 <!-- --8<-- [start:threshold-enabled] -->
 
+!!! info ""
 
-**Editor name:** Enabled
+    **Editor name:** Enabled
 
-**Semantic keys:**
-- `appearance.thresholds.1.enabled`
-- `appearance.thresholds.2.enabled`
-- `appearance.thresholds.3.enabled`
+    **Semantic keys:**
+    - `appearance.thresholds.1.enabled`
+    - `appearance.thresholds.2.enabled`
+    - `appearance.thresholds.3.enabled`
 
-**Canonical model:** `ThresholdDefinition.Enabled` through `Thresholds.Items[0..2]`
+    **Canonical model:** `ThresholdDefinition.Enabled` through `Thresholds.Items[0..2]`
 
-**JSON:** `thresholds.items[0..2].enabled`
-
-
-**Values:**
-- Boolean.
+    **JSON:** `thresholds.items[0..2].enabled`
 
 
-Enables the corresponding threshold slot.
+    **Values:**
+    - Boolean.
 
-**Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
-**Context notes:**
-- A disabled threshold does not participate in threshold rendering.
-- Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
+    Enables the corresponding threshold slot.
+
+    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+
+    **Context notes:**
+    - A disabled threshold does not participate in threshold rendering.
+    - Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
 
 <!-- --8<-- [end:threshold-enabled] -->
 
@@ -1775,25 +1839,26 @@ Enables the corresponding threshold slot.
 
 <!-- --8<-- [start:threshold-mode] -->
 
+!!! info ""
 
-**Editor name:** Threshold Mode  
-**Semantic key:** `appearance.thresholds.mode`  
-**Canonical model:** `GaugeWidgetDefinition.Thresholds.Mode` / `BarWidgetDefinition.Thresholds.Mode`  
-**JSON:** `thresholds.mode`
-
-
-**Values:**
-- `SegmentTransition`
-- `SegmentSolid`
-- `State`
+    **Editor name:** Threshold Mode  
+    **Semantic key:** `appearance.thresholds.mode`  
+    **Canonical model:** `GaugeWidgetDefinition.Thresholds.Mode` / `BarWidgetDefinition.Thresholds.Mode`  
+    **JSON:** `thresholds.mode`
 
 
-Controls how threshold colors are applied.
+    **Values:**
+    - `SegmentTransition`
+    - `SegmentSolid`
+    - `State`
 
-**Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=Fill
 
-**Hidden when:**
-- Bar: [Mode](properties.md#bar-mode)=`Image`.
+    Controls how threshold colors are applied.
+
+    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=Fill
+
+    **Hidden when:**
+    - Bar: [Mode](properties.md#bar-mode)=`Image`.
 
 <!-- --8<-- [end:threshold-mode] -->
 
@@ -1803,33 +1868,34 @@ Controls how threshold colors are applied.
 
 <!-- --8<-- [start:threshold-value] -->
 
+!!! info ""
 
-**Editor name:** Value
+    **Editor name:** Value
 
-**Semantic keys:**
-- `appearance.thresholds.1.value`
-- `appearance.thresholds.2.value`
-- `appearance.thresholds.3.value`
+    **Semantic keys:**
+    - `appearance.thresholds.1.value`
+    - `appearance.thresholds.2.value`
+    - `appearance.thresholds.3.value`
 
-**Canonical model:** `ThresholdDefinition.Value` through `Thresholds.Items[0..2]`
+    **Canonical model:** `ThresholdDefinition.Value` through `Thresholds.Items[0..2]`
 
-**JSON:** `thresholds.items[0..2].value`
-
-
-**Values:**
-- Finite number within [Min](properties.md#min)..[Max](properties.md#max) when the slot is enabled.
+    **JSON:** `thresholds.items[0..2].value`
 
 
-Numeric boundary for the corresponding threshold slot.
+    **Values:**
+    - Finite number within [Min](properties.md#min)..[Max](properties.md#max) when the slot is enabled.
 
-**Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
-**Disabled / read-only when:**
-- The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
+    Numeric boundary for the corresponding threshold slot.
 
-**Notes:**
-- Enabled threshold values must be ordered in ascending order.
-- Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
+    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+
+    **Disabled / read-only when:**
+    - The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
+
+    **Notes:**
+    - Enabled threshold values must be ordered in ascending order.
+    - Threshold properties are hidden for Bar when [Mode](properties.md#bar-mode)=`Image`.
 
 <!-- --8<-- [end:threshold-value] -->
 
@@ -1839,23 +1905,24 @@ Numeric boundary for the corresponding threshold slot.
 
 <!-- --8<-- [start:track-background-color] -->
 
+!!! info ""
 
-**Editor name:** Background Color  
-**Semantic key:** `gauge.track.background`  
-**Canonical model:** `GaugeWidgetDefinition.Track.BackgroundColor`  
-**JSON:** `track.backgroundColor`
-
-
-**Values:**
-- Color.
+    **Editor name:** Background Color  
+    **Semantic key:** `gauge.track.background`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.BackgroundColor`  
+    **JSON:** `track.backgroundColor`
 
 
-Track background color.
+    **Values:**
+    - Color.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Track Enabled](properties.md#track-enabled)=`false`.
+    Track background color.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Track Enabled](properties.md#track-enabled)=`false`.
 
 <!-- --8<-- [end:track-background-color] -->
 
@@ -1865,23 +1932,24 @@ Track background color.
 
 <!-- --8<-- [start:track-border-color] -->
 
+!!! info ""
 
-**Editor name:** Border Color  
-**Semantic key:** `gauge.track.border.color`  
-**Canonical model:** `GaugeWidgetDefinition.Track.BorderColor`  
-**JSON:** `track.borderColor`
-
-
-**Values:**
-- Color.
+    **Editor name:** Border Color  
+    **Semantic key:** `gauge.track.border.color`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.BorderColor`  
+    **JSON:** `track.borderColor`
 
 
-Track border color.
+    **Values:**
+    - Color.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Track Enabled](properties.md#track-enabled)=`false`.
+    Track border color.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Track Enabled](properties.md#track-enabled)=`false`.
 
 <!-- --8<-- [end:track-border-color] -->
 
@@ -1891,23 +1959,24 @@ Track border color.
 
 <!-- --8<-- [start:track-border-width] -->
 
+!!! info ""
 
-**Editor name:** Border Width  
-**Semantic key:** `gauge.track.border.width`  
-**Canonical model:** `GaugeWidgetDefinition.Track.BorderWidth`  
-**JSON:** `track.borderWidth`
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** Border Width  
+    **Semantic key:** `gauge.track.border.width`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.BorderWidth`  
+    **JSON:** `track.borderWidth`
 
 
-Track border width.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Track Enabled](properties.md#track-enabled)=`false`.
+    Track border width.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Track Enabled](properties.md#track-enabled)=`false`.
 
 <!-- --8<-- [end:track-border-width] -->
 
@@ -1917,23 +1986,24 @@ Track border width.
 
 <!-- --8<-- [start:track-corner-radius] -->
 
+!!! info ""
 
-**Editor name:** Corner Radius  
-**Semantic key:** `gauge.track.corner_radius`  
-**Canonical model:** `GaugeWidgetDefinition.Track.CornerRadius`  
-**JSON:** `track.cornerRadius`
-
-
-**Values:**
-- Finite number `>=0`.
+    **Editor name:** Corner Radius  
+    **Semantic key:** `gauge.track.corner_radius`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.CornerRadius`  
+    **JSON:** `track.cornerRadius`
 
 
-Corner radius track.
+    **Values:**
+    - Finite number `>=0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Track Enabled](properties.md#track-enabled)=`false`.
+    Corner radius track.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Track Enabled](properties.md#track-enabled)=`false`.
 
 <!-- --8<-- [end:track-corner-radius] -->
 
@@ -1943,20 +2013,21 @@ Corner radius track.
 
 <!-- --8<-- [start:track-enabled] -->
 
+!!! info ""
 
-**Editor name:** Enabled  
-**Semantic key:** `gauge.track.enabled`  
-**Canonical model:** `GaugeWidgetDefinition.Track.Enabled`  
-**JSON:** `track.enabled`
-
-
-**Values:**
-- Boolean.
+    **Editor name:** Enabled  
+    **Semantic key:** `gauge.track.enabled`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.Enabled`  
+    **JSON:** `track.enabled`
 
 
-Enables the horseshoe track.
+    **Values:**
+    - Boolean.
 
-**Used by:** Gauge
+
+    Enables the horseshoe track.
+
+    **Used by:** Gauge
 
 <!-- --8<-- [end:track-enabled] -->
 
@@ -1966,23 +2037,24 @@ Enables the horseshoe track.
 
 <!-- --8<-- [start:track-thickness] -->
 
+!!! info ""
 
-**Editor name:** Thickness  
-**Semantic key:** `gauge.track.thickness`  
-**Canonical model:** `GaugeWidgetDefinition.Track.Thickness`  
-**JSON:** `track.thickness`
-
-
-**Values:**
-- Finite number `>=0`; when Enabled=true, it must be `>0`.
+    **Editor name:** Thickness  
+    **Semantic key:** `gauge.track.thickness`  
+    **Canonical model:** `GaugeWidgetDefinition.Track.Thickness`  
+    **JSON:** `track.thickness`
 
 
-Track thickness.
+    **Values:**
+    - Finite number `>=0`; when Enabled=true, it must be `>0`.
 
-**Used by:** Gauge
 
-**Disabled / read-only when:**
-- [Track Enabled](properties.md#track-enabled)=`false`.
+    Track thickness.
+
+    **Used by:** Gauge
+
+    **Disabled / read-only when:**
+    - [Track Enabled](properties.md#track-enabled)=`false`.
 
 <!-- --8<-- [end:track-thickness] -->
 
@@ -1992,26 +2064,27 @@ Track thickness.
 
 <!-- --8<-- [start:true-if] -->
 
+!!! info ""
 
-**Editor name:** True If  
-**Semantic key:** `data.binary.evaluation.true_if`  
-**Canonical model:** `BinaryWidgetDefinition.TrueIf`  
-**JSON:** `trueIf`
-
-
-**Values:**
-- `>`
-- `<`
-- `>=`
-- `<=`
-- `=`
+    **Editor name:** True If  
+    **Semantic key:** `data.binary.evaluation.true_if`  
+    **Canonical model:** `BinaryWidgetDefinition.TrueIf`  
+    **JSON:** `trueIf`
 
 
-Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](properties.md#evaluation-mode)=`Setpoint`.
-**Used by:** Binary
+    **Values:**
+    - `>`
+    - `<`
+    - `>=`
+    - `<=`
+    - `=`
 
-**Disabled / read-only when:**
-- [Mode](properties.md#evaluation-mode)!=`Setpoint`.
+
+    Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](properties.md#evaluation-mode)=`Setpoint`.
+    **Used by:** Binary
+
+    **Disabled / read-only when:**
+    - [Mode](properties.md#evaluation-mode)!=`Setpoint`.
 
 <!-- --8<-- [end:true-if] -->
 
@@ -2021,29 +2094,30 @@ Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](prope
 
 <!-- --8<-- [start:unit] -->
 
+!!! info ""
 
-**Editor name:** Unit  
-**Semantic key:** `data.value.unit / data.binary.unit / data.quantitative.unit`  
-**Canonical model:** `ValueWidgetDefinition.Unit / BinaryWidgetDefinition.Unit / GaugeWidgetDefinition.Unit / BarWidgetDefinition.Unit`  
-**JSON:** `unit`
-
-
-**Values:**
-- Duration: `raw`, `auto`, `seconds`, `minutes`, `hours`; Gauge/Bar exclude `auto`.
-- Data size: `raw`, `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`, `TiB`.
-- Temperature: `raw`, `C`, `F`.
-- Frequency: `raw`, `Hz`, `kHz`, `MHz`, `GHz`.
-- Data rate: `raw`, `B/s`, `KB/s`, `MB/s`, `GB/s`, `TB/s`, `KiB/s`, `MiB/s`, `GiB/s`, `TiB/s`, `bit/s`, `kbit/s`, `Mbit/s`, `Gbit/s`, `Tbit/s`.
-- Other metric base units may have no conversion options.
+    **Editor name:** Unit  
+    **Semantic key:** `data.value.unit / data.binary.unit / data.quantitative.unit`  
+    **Canonical model:** `ValueWidgetDefinition.Unit / BinaryWidgetDefinition.Unit / GaugeWidgetDefinition.Unit / BarWidgetDefinition.Unit`  
+    **JSON:** `unit`
 
 
-Display unit and, where applicable, the conversion target.
+    **Values:**
+    - Duration: `raw`, `auto`, `seconds`, `minutes`, `hours`; Gauge/Bar exclude `auto`.
+    - Data size: `raw`, `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`, `TiB`.
+    - Temperature: `raw`, `C`, `F`.
+    - Frequency: `raw`, `Hz`, `kHz`, `MHz`, `GHz`.
+    - Data rate: `raw`, `B/s`, `KB/s`, `MB/s`, `GB/s`, `TB/s`, `KiB/s`, `MiB/s`, `GiB/s`, `TiB/s`, `bit/s`, `kbit/s`, `Mbit/s`, `Gbit/s`, `Tbit/s`.
+    - Other metric base units may have no conversion options.
 
-**Used by:** Text / Value, Binary, Gauge, Bar
 
-**Disabled / read-only when:**
-- Text / Value literal is not numeric.
-- The selected metric / [Source Unit](properties.md#source-unit) provides no applicable conversions.
+    Display unit and, where applicable, the conversion target.
+
+    **Used by:** Text / Value, Binary, Gauge, Bar
+
+    **Disabled / read-only when:**
+    - Text / Value literal is not numeric.
+    - The selected metric / [Source Unit](properties.md#source-unit) provides no applicable conversions.
 
 <!-- --8<-- [end:unit] -->
 
@@ -2053,21 +2127,22 @@ Display unit and, where applicable, the conversion target.
 
 <!-- --8<-- [start:value-source-type] -->
 
+!!! info ""
 
-**Editor name:** Type  
-**Semantic key:** `general.source.value.kind`  
-**Canonical model:** `ValueWidgetDefinition.SourceKind`  
-**JSON:** `sourceKind`
-
-
-**Values:**
-- `Metric`
-- `Text`
+    **Editor name:** Type  
+    **Semantic key:** `general.source.value.kind`  
+    **Canonical model:** `ValueWidgetDefinition.SourceKind`  
+    **JSON:** `sourceKind`
 
 
-Selects a telemetry metric or literal text as the content source.
+    **Values:**
+    - `Metric`
+    - `Text`
 
-**Used by:** Text / Value
+
+    Selects a telemetry metric or literal text as the content source.
+
+    **Used by:** Text / Value
 
 <!-- --8<-- [end:value-source-type] -->
 
@@ -2077,23 +2152,24 @@ Selects a telemetry metric or literal text as the content source.
 
 <!-- --8<-- [start:vertical-alignment] -->
 
+!!! info ""
 
-**Editor name:** Vertical  
-**Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state)  
-**Canonical model:** `TextPresentationDefinition.VerticalAlign`  
-**JSON:** `textPresentation.verticalAlign` (Text / Value); `profiles.{state}.textPresentation.verticalAlign` (Value state)
-
-
-**Values:**
-- `baseline`
-- `top`
-- `middle`
-- `bottom`
+    **Editor name:** Vertical  
+    **Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state)  
+    **Canonical model:** `TextPresentationDefinition.VerticalAlign`  
+    **JSON:** `textPresentation.verticalAlign` (Text / Value); `profiles.{state}.textPresentation.verticalAlign` (Value state)
 
 
-Vertical alignment.
+    **Values:**
+    - `baseline`
+    - `top`
+    - `middle`
+    - `bottom`
 
-**Used by:** Text / Value and Value state profiles
+
+    Vertical alignment.
+
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:vertical-alignment] -->
 
@@ -2103,29 +2179,30 @@ Vertical alignment.
 
 <!-- --8<-- [start:width] -->
 
+!!! info ""
 
-**Editor name:** Width  
-**Semantic key:** `general.geometry.width`  
-**Canonical model:** `WidgetDefinition.Width / CanvasDefinition.Width`  
-**JSON:** `width` (widgets); `canvas.width` (Canvas)
-
-
-**Values:**
-- **Text / Value:** `>= 0`; `0` enables auto width.
-- **Gauge:** `> 0`; [Height](properties.md#height) is derived and equal to Width.
-- **Bar / Image:** `> 0`.
-- **Binary / Power / Media System / Media Player:** `>= 0` only when all states use [Source Type](properties.md#state-source-type) = `Value`; otherwise `> 0`.
-- **Canvas:** positive integer.
+    **Editor name:** Width  
+    **Semantic key:** `general.geometry.width`  
+    **Canonical model:** `WidgetDefinition.Width / CanvasDefinition.Width`  
+    **JSON:** `width` (widgets); `canvas.width` (Canvas)
 
 
-Width of the widget bounds in logical pixels; for Canvas, the native canvas width.
+    **Values:**
+    - **Text / Value:** `>= 0`; `0` enables auto width.
+    - **Gauge:** `> 0`; [Height](properties.md#height) is derived and equal to Width.
+    - **Bar / Image:** `> 0`.
+    - **Binary / Power / Media System / Media Player:** `>= 0` only when all states use [Source Type](properties.md#state-source-type) = `Value`; otherwise `> 0`.
+    - **Canvas:** positive integer.
 
-**Used by:** All widgets, Canvas
 
-**Notes:**
-- For Text / Value, [Width](properties.md#width)=0 requires [Overflow Mode](properties.md#overflow-mode)=`None`.
-- For a state-driven value-only widget, [Width](properties.md#width)=0 enables the shared auto-width contract; all value-state [Overflow Mode](properties.md#overflow-mode) values normalize to `None`.
-- Switching a value-only state widget to mixed Value/Image/Icon content materializes a positive Width.
+    Width of the widget bounds in logical pixels; for Canvas, the native canvas width.
+
+    **Used by:** All widgets, Canvas
+
+    **Notes:**
+    - For Text / Value, [Width](properties.md#width)=0 requires [Overflow Mode](properties.md#overflow-mode)=`None`.
+    - For a state-driven value-only widget, [Width](properties.md#width)=0 enables the shared auto-width contract; all value-state [Overflow Mode](properties.md#overflow-mode) values normalize to `None`.
+    - Switching a value-only state widget to mixed Value/Image/Icon content materializes a positive Width.
 
 <!-- --8<-- [end:width] -->
 
@@ -2135,20 +2212,21 @@ Width of the widget bounds in logical pixels; for Canvas, the native canvas widt
 
 <!-- --8<-- [start:x] -->
 
+!!! info ""
 
-**Editor name:** X  
-**Semantic key:** `general.geometry.x`  
-**Canonical model:** `WidgetDefinition.X`  
-**JSON:** `x`
-
-
-**Values:**
-- Finite number; Editor normalizes it to an integer logical pixel.
+    **Editor name:** X  
+    **Semantic key:** `general.geometry.x`  
+    **Canonical model:** `WidgetDefinition.X`  
+    **JSON:** `x`
 
 
-Horizontal coordinate on the logical canvas.
+    **Values:**
+    - Finite number; Editor normalizes it to an integer logical pixel.
 
-**Used by:** All widgets
+
+    Horizontal coordinate on the logical canvas.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:x] -->
 
@@ -2158,20 +2236,21 @@ Horizontal coordinate on the logical canvas.
 
 <!-- --8<-- [start:y] -->
 
+!!! info ""
 
-**Editor name:** Y  
-**Semantic key:** `general.geometry.y`  
-**Canonical model:** `WidgetDefinition.Y`  
-**JSON:** `y`
-
-
-**Values:**
-- Finite number; Editor normalizes it to an integer logical pixel.
+    **Editor name:** Y  
+    **Semantic key:** `general.geometry.y`  
+    **Canonical model:** `WidgetDefinition.Y`  
+    **JSON:** `y`
 
 
-Vertical coordinate on the logical canvas.
+    **Values:**
+    - Finite number; Editor normalizes it to an integer logical pixel.
 
-**Used by:** All widgets
+
+    Vertical coordinate on the logical canvas.
+
+    **Used by:** All widgets
 
 <!-- --8<-- [end:y] -->
 
