@@ -255,13 +255,11 @@ When telemetry reconfiguration deactivates an iCUE metric, the previously active
 
 ### Demand-Driven Polling
 
-The provider participates in Pinkie's System Monitor's demand-driven telemetry scheduler.
-
-Runtime does not poll the entire iCUE catalog continuously. It requests only iCUE metrics referenced by the active dashboard and permitted by the current telemetry policy.
+The shared scheduling and metric-deactivation rules belong to [Application Architecture → Runtime data path](../development/architecture.md#runtime-data-path). With **`icue`** enabled, Runtime requests dashboard-referenced iCUE metric identities rather than the entire discovered CSV catalog.
 
 The source default interval is `1000 ms`. If a requested dynamic iCUE metric has no explicit entry in `telemetry.json`, the scheduler falls back to that source default.
 
-Disabling the iCUE provider removes its metrics from the active schedule. The provider remains registered as a source so that existing `icue.*` metric identities can still be resolved structurally.
+Disabling `icue` removes its metrics from the active schedule under the shared [deactivation contract](../development/architecture.md#runtime-data-path). The source remains registered so existing `icue.*` metric identities can still be resolved structurally.
 
 ### Editor Integration
 
@@ -269,8 +267,7 @@ The Dashboard Editor owns a separate `IcueSensorLogTelemetrySource` instance for
 
 When the iCUE provider is enabled:
 
-- Editor preview captures only the iCUE metrics required by the current dashboard;
-- iCUE preview telemetry is snapshot-based and is not polled directly from the preview render timer;
+- Editor preview captures only the iCUE metrics required by the current dashboard, following the shared [snapshot/render-timer boundary](../development/architecture.md#editor-versus-runtime-state);
 - opening the metric selector performs a fresh iCUE catalog discovery;
 - discovered descriptors are registered through `MetricContract`;
 - discovered metrics are displayed under the `iCUE` provider hierarchy;

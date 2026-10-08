@@ -521,15 +521,9 @@ Known USB state values currently produced by `FramePump` include:
 
 ### Demand-Driven Polling
 
-Regular System `IMetricSource` metrics participate in the shared demand-driven telemetry scheduler.
+Dashboard demand, enabled providers, `telemetry.json` policies, scheduler lifetime, and deactivation belong to [Application Architecture → Runtime data path](../development/architecture.md#runtime-data-path).
 
-Runtime polls only metrics that:
-
-- are actually required by the current dashboard;
-- belong to the enabled `system` provider;
-- are permitted by the corresponding policy in `telemetry.json`.
-
-If a metric has no individual policy, the `DefaultIntervalMs` of its source is used.
+For regular metrics of the built-in **`system`** provider, the relevant `IMetricSource.DefaultIntervalMs` applies when no individual polling policy exists.
 
 Current defaults:
 
@@ -581,9 +575,7 @@ Dashboard Editor creates its own instances of:
 
 for preview telemetry.
 
-Editor preview uses the snapshot model. External or potentially blocking telemetry calls are not executed directly from the render timer.
-
-When the System provider is enabled, preview requests only the System metrics actually required by the current dashboard.
+Editor preview follows the shared [snapshot/render-timer boundary](../development/architecture.md#editor-versus-runtime-state). When `system` is enabled, its separate Editor source instances capture only the System metrics required by the current dashboard.
 
 Opening the Metric selector does not perform a separate System discovery operation.
 

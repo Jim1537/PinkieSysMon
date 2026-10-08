@@ -49,7 +49,9 @@ The horizontal link from `MetricStore` to output sessions carries **data snapsho
 
 [The Runtime composition root](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs) loads configuration and the active canonical dashboard, determines the dashboard's referenced metric IDs, and creates the long-lived telemetry and output services.
 
-`TelemetryEngine` runs an acquisition worker independently of rendering. It determines which metric IDs to request from its source objects, combining dashboard demand with the active configuration. It publishes completed capture batches into `MetricStore`.
+`TelemetryEngine` runs an acquisition worker independently of rendering. It combines dashboard-demanded metric IDs (`DashboardMetricUsage`), enabled providers, and `telemetry.json` policies to schedule captures; individual sources supply default intervals when no metric-specific policy exists. Deactivated metrics are cleared instead of retaining stale valid readings. It publishes completed capture batches into `MetricStore`.
+
+**This is the shared scheduling contract.** Provider-specific metric IDs, intervals, discovery, source freshness and recovery remain with [System](../telemetry/system.md#demand-driven-polling), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md#demand-driven-polling), and [iCUE](../telemetry/icue-sensor-logging.md#demand-driven-polling).
 
 `MetricStore` replaces the published dictionary on updates. Readers obtain its current snapshot without holding a per-frame read lock, and previously published dictionaries are never subsequently mutated. This is the **ownership boundary between polling and frame production**; neither side requires the other to complete a poll for every frame.
 
@@ -71,7 +73,7 @@ A frame worker reads the most recent `MetricStore` snapshot, renders via the sha
 
 The Editor creates its own `DashboardPreviewRenderer` from the canonical document and uses the same widget renderer registry as Runtime. Its preview produces in-memory pixels for the Editor window, **not** output frames for the live device.
 
-Editor telemetry is an independently captured snapshot. The preview render timer does not initiate potentially blocking provider capture calls. Importantly, **Editor preview synthesizes representative `system.runtime.*` values** (for example frame count, FPS, and an `EDITOR` USB state). These are preview fixtures, not live Runtime performance or connection measurements.
+Editor telemetry is an independently captured **dashboard-demanded snapshot**. The preview render timer consumes that snapshot and does not initiate potentially blocking provider capture calls. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior. Importantly, **Editor preview synthesizes representative `system.runtime.*` values** (for example frame count, FPS, and an `EDITOR` USB state). These are preview fixtures, not live Runtime performance or connection measurements.
 
 The two processes can load the same persisted dashboard from disk without sharing an editable object. **Save** commits the Editor's document to disk; the already-running Runtime retains its own loaded definition until an explicit reload/start operation is requested.
 
