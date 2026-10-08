@@ -233,6 +233,8 @@ For icon-backed images, `ImageVisual` delegates drawing and fit behavior to the 
 
 These are the same three canonical Fit options regardless of which Image source type is selected. The fourth `Clip` option used by **Bar Image mode** is not an Image-widget Fit value.
 
+These asset paths have different owners: [Bar Image](bar.md#image-rendering) has a progress transform layered over file-backed fitting, whereas [state-driven visual profiles](profiles.md#state-visual-profiles) can restart supported animation when the selected state changes. Standalone Image uses its own `ImageVisual`/asset playback contract; shared caches do **not** make the three rendering or animation contracts interchangeable.
+
 ### Color and Opacity Contract
 
 `ImageWidgetDefinition.Opacity` is validated as a finite number between `0` and `1` inclusive.

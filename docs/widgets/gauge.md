@@ -219,24 +219,9 @@ Property names are part of the persisted dashboard contract; Editor labels and s
 
 ### Metric Resolution and Normalization
 
-`GaugeWidgetRenderer.Render` requests the configured metric through `context.TryGetMetricDouble(gauge, out raw)`.
+--8<-- "widgets/quantitative.md:quantitative-metric"
 
-The conversion path:
-
-- looks up the metric value in the current snapshot;
-- uses `MetricContract` to identify recognized numeric metric types and their native units;
-- applies the widget's selected `Unit` through `MetricValueConverter`;
-- rejects missing values and unsuccessful or non-finite conversions.
-
-When a metric descriptor is absent or not numeric, a raw value can be used only if no conversion unit is requested and it can be converted into a finite number.
-
-The renderer does not preserve a previous valid reading as an implicit fallback when the current reading becomes unavailable.
-
-For a valid numeric value `v`, normalized position is:
-
-  `ratio = clamp((v - Min) / (Max - Min), 0, 1)`
-
-This ratio controls fill length and needle angle. Values outside the range are visually clamped, not automatically rescaled. The original converted value is still available to threshold state-color selection.
+For **Gauge**, the ratio controls the active arc sweep and, when enabled, the needle angle. The converted value is separately retained for threshold color selection. There is no automatic rescaling of out-of-range readings.
 
 ### Arc Geometry and Direction
 
@@ -278,25 +263,11 @@ Disabling the track suppresses its background, fill, and border. It does not dis
 
 ### Threshold Modes and Color Evaluation
 
-Gauge compiles enabled thresholds with `CompiledQuantitativeIndicator`. Its base color is the widget's foreground `color`.
+--8<-- "widgets/quantitative.md:quantitative-thresholds"
 
-The persisted `ThresholdSetDefinition` has exactly three slots. Enabled thresholds must lie within Min..Max and must appear in ascending numeric order. Disabled slots do not create active color boundaries.
+For **Gauge**, `SegmentSolid` creates fixed color **arc** segments revealed by the active sweep; `SegmentTransition` paints a **sweep gradient** through the color stops. `State` colors the whole active arc using the last reached enabled threshold. `Reverse` reverses arc-segment positions and gradient orientation as well as fill progression.
 
-Supported modes:
-
-| Mode | Rendering contract |
-| --- | --- |
-| `SegmentSolid` | Constructs fixed color segments from Min through enabled thresholds to Max; only the part covered by the active fill is drawn. |
-| `SegmentTransition` | Constructs a sweep gradient through the base and threshold colors and clips it to the active sweep. |
-| `State` | Uses a single active-fill color: the base color until the first crossed threshold, then the color of the last crossed threshold. |
-
-For `State`, a threshold at value `t` is considered crossed when `v >= t`. The selected color is applied to the entire active arc, not only to its highest-value segment.
-
-For `SegmentSolid` and `SegmentTransition`, colors are associated with fixed positions on the scale; the current reading determines how much of that colored scale is visible.
-
-`Reverse` reverses the segment positions and gradient orientation consistently with fill progression.
-
-The needle has its own explicit color fields and is not recolored by threshold mode.
+The needle's explicitly configured colors are independent of the threshold mode. The inactive track background and track border are not automatically recolored.
 
 ### Needle and Pointer Rendering
 

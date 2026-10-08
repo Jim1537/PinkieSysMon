@@ -293,24 +293,26 @@ The State group repeats for each profile supported by the selected state-driven 
 
 The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, or Canvas image layers.
 
+The `Image` property group changes with widget type: standalone Image exposes Fit, Loop, and Opacity; Bar in Image mode exposes Source, Fit, Progress Mode, and Loop. The repeated Fit/Loop references below are **different Editor contexts**, not duplicate simultaneous controls. State profiles and Canvas layers have their own groups.
+
 ### Image
 
 #### Image Source
 --8<-- "widgets/properties.md:image-source"
 
-#### Image Fit
+#### Image Fit (standalone Image)
 --8<-- "widgets/properties.md:image-fit"
 
-#### Image Fit
+#### Image Fit (Bar Image mode)
 --8<-- "widgets/properties.md:image-fit"
 
 #### Progress Mode
 --8<-- "widgets/properties.md:progress-mode"
 
-#### Image Loop
+#### Image Loop (standalone Image)
 --8<-- "widgets/properties.md:image-loop"
 
-#### Image Loop
+#### Image Loop (Bar Image mode)
 --8<-- "widgets/properties.md:image-loop"
 
 #### Opacity

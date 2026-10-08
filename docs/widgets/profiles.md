@@ -2,6 +2,8 @@
 
 This file is the shared home for cross-widget **profile mechanisms**. Additional profile families can be added here when they have a genuinely reusable contract; a different profile name alone does not justify another file. Individual property definitions remain with the [Property Dictionary](properties.md).
 
+This profile-specific rendering path is not the standalone [Image widget](image.md#animation-and-playback-contract) or [Bar Image progress mode](bar.md#image-rendering), even though they can use common asset-loading infrastructure.
+
 ## State Visual Profiles
 
 Binary, Power, Media System, and Media Player use the same persisted state-profile structure and state-specific rendering pipeline. This page owns **only the common mechanism**. Each [widget guide](../README.md#available-widgets) owns its own required state keys, default icons, source selection, value text, unavailable behavior, and validation exceptions. The [Property Dictionary](properties.md) owns individual Editor-property definitions.
