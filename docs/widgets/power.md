@@ -187,11 +187,7 @@ Power does not persist a generic `metric` field. In particular, `power.ups` is *
 
 `DashboardMetricUsage.Collect` requests only the selected Power state metric for a Power widget. Charge and runtime are separate metrics, requested when another dashboard element actually needs them.
 
-The Power widget depends on the System power telemetry source, which reads `Win32_Battery` through WMI and publishes separate UPS and Battery metric groups. Its supported classification uses the device's WMI identity to distinguish UPS-like devices from non-UPS batteries; current code selects the first member of each group.
-
-The provider normalizes charge to a percent reading and translates estimated runtime from WMI minutes into seconds where available. It must not invent values for missing power devices.
-
-The Power widget itself only consumes the state metric. For telemetry-source details, see [System Provider](../telemetry/system.md).
+Power consumes **only the selected state metric**. WMI device classification, first-device selection for UPS/Battery groups, charge normalization, runtime conversion, and telemetry-provider failures belong to [System → Power Telemetry](../telemetry/system.md#power-telemetry).
 
 ### State Normalization
 
@@ -213,21 +209,8 @@ State normalization is intentionally not a generic Boolean or numerical comparis
 
 #### WMI battery-status mapping
 
-`PowerMetricContract.FromWmiBatteryStatus` recognizes the following Windows status codes:
+The provider's authoritative `Win32_Battery.BatteryStatus` code table, including combined charging/low and charging/critical conditions and missing-code handling, is in [System → Power Telemetry](../telemetry/system.md#power-telemetry). The provider produces the normalized WMI reading through `PowerMetricContract.FromWmiBatteryStatus`; this widget then applies its separate `NormalizeState` contract to the **published state token**.
 
-| WMI code | Normalized state |
-| --- | --- |
-| `1` | `on-battery` |
-| `2` | `online` |
-| `3` | `fully-charged` |
-| `4`, `8` | `low` |
-| `5`, `9` | `critical` |
-| `6`, `7` | `charging` |
-| `10` | `unavailable` |
-| `11` | `normal` |
-| Other or missing code | `unknown` |
-
-The mapping preserves reported low/critical conditions for the WMI combinations that indicate charging and low/critical simultaneously. It does not replace the reported state with a calculation from charge percentage.
 
 ### State Selection and Unavailable Semantics
 
