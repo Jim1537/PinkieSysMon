@@ -1,11 +1,12 @@
 # Pinkie's System Monitor
 
-[![Download Pinkie's System Monitor for Windows](images/download-windows.svg)](https://github.com/Jim1537/PinkieSysMon/releases/latest)
+<p>
+  <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
+  <a href="https://ko-fi.com/Z5X220SWVK"><img align="right" src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a>
+</p>
 
 **Windows x64 · Portable ZIP · No separate .NET Runtime required**  
-[Direct download: v1.19.0 ZIP (136 MB)](https://github.com/Jim1537/PinkieSysMon/releases/download/1.19.0/PinkieSysMon_1.19.0-0.zip) · [All releases](https://github.com/Jim1537/PinkieSysMon/releases)
-
-[![Support Pinkie's System Monitor on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z5X220SWVK)
+[Get the portable ZIP from the latest release](https://github.com/Jim1537/PinkieSysMon/releases/latest) · [All releases](https://github.com/Jim1537/PinkieSysMon/releases)
 
 ![banner_001.png](images/banner_001.png)
 
