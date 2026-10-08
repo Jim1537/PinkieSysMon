@@ -23,13 +23,13 @@ The project is designed for fully local operation.
 >
 > Compatibility with other configurations has not yet been verified. **Community testing and feedback are very welcome!**
 >
-> [**Read the full compatibility notice →**](compatibility.md)
+> [**Read the full compatibility notice →**](https://jim1537.github.io/PinkieSysMon/compatibility/)
 
 > **🤖 Development Approach — 100% Vibe-Coded**
 >
 > Despite the author's experience in application software development, Pinkie's System Monitor was created **entirely through vibe coding**. The goal was to give a new PC a fun, personalized system monitor—not spend months or years developing what is, at its core, a fairly straightforward utility.
 >
-> [**Read about the development approach →**](development/vibe-coding.md)
+> [**Read about the development approach →**](https://jim1537.github.io/PinkieSysMon/development/vibe-coding/)
 
 ## Key Features
 
@@ -54,22 +54,22 @@ The project is designed for fully local operation.
 
 PinkieSysMon combines multiple data sources into a unified metrics system.
 
-- **[System](telemetry/system.md)** — the built-in Windows provider. It collects operating system, network, power, audio/media, and Runtime telemetry directly through Windows and the application itself, without requiring third-party monitoring software.
-- **[Libre Hardware Monitor](telemetry/libre-hardware-monitor.md)** — an optional provider for extended hardware telemetry. PinkieSysMon reads sensors exposed by an already-running Libre Hardware Monitor instance through its local HTTP API.
-- **[iCUE Sensor Logging](telemetry/icue-sensor-logging.md)** — an optional provider for Corsair hardware telemetry. PinkieSysMon reads Corsair iCUE Sensor Logging files in read-only mode and does not interfere with hardware control performed by iCUE.
+- **[System](https://jim1537.github.io/PinkieSysMon/telemetry/system/)** — the built-in Windows provider. It collects operating system, network, power, audio/media, and Runtime telemetry directly through Windows and the application itself, without requiring third-party monitoring software.
+- **[Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)** — an optional provider for extended hardware telemetry. PinkieSysMon reads sensors exposed by an already-running Libre Hardware Monitor instance through its local HTTP API.
+- **[iCUE Sensor Logging](https://jim1537.github.io/PinkieSysMon/telemetry/icue-sensor-logging/)** — an optional provider for Corsair hardware telemetry. PinkieSysMon reads Corsair iCUE Sensor Logging files in read-only mode and does not interfere with hardware control performed by iCUE.
 
 ## Available Widgets
 
-- **[Text / Value](widgets/text-value.md)** — displays a dynamic numeric or text value. Supports formatting, units, prefix/suffix text, fallback text, and customizable text presentation.
-- **[Binary](widgets/binary.md)** — displays a value with two logical states. Each state can have its own presentation, such as text, an icon, or an image.
-- **[Gauge](widgets/gauge.md)** — displays a numeric value as a gauge. Intended for temperatures, load, clock speeds, battery level, and other values with a defined range.
-- **[Bar](widgets/bar.md)** — displays a value as a linear bar within a defined range. Useful for progress-style indicators, resource usage, levels, and other quantitative values.
-- **[Image](widgets/image.md)** — a standalone graphical element for static or animated images and decorative dashboard content.
-- **[Power](widgets/power.md)** — a specialized representation of battery or UPS state, including AC power, battery operation, charging, low or critical charge, and other power states.
-- **[Media System](widgets/media-system.md)** — displays the type and availability of the current audio device, such as speakers, headphones, microphones, display audio, S/PDIF, and other media endpoints.
-- **[Media Player](widgets/media-player.md)** — represents media playback state: Playing, Paused, Stopped, or Unavailable. It can be combined with media metrics to build current-playback elements.
+- **[Text / Value](https://jim1537.github.io/PinkieSysMon/widgets/text-value/)** — displays a dynamic numeric or text value. Supports formatting, units, prefix/suffix text, fallback text, and customizable text presentation.
+- **[Binary](https://jim1537.github.io/PinkieSysMon/widgets/binary/)** — displays a value with two logical states. Each state can have its own presentation, such as text, an icon, or an image.
+- **[Gauge](https://jim1537.github.io/PinkieSysMon/widgets/gauge/)** — displays a numeric value as a gauge. Intended for temperatures, load, clock speeds, battery level, and other values with a defined range.
+- **[Bar](https://jim1537.github.io/PinkieSysMon/widgets/bar/)** — displays a value as a linear bar within a defined range. Useful for progress-style indicators, resource usage, levels, and other quantitative values.
+- **[Image](https://jim1537.github.io/PinkieSysMon/widgets/image/)** — a standalone graphical element for static or animated images and decorative dashboard content.
+- **[Power](https://jim1537.github.io/PinkieSysMon/widgets/power/)** — a specialized representation of battery or UPS state, including AC power, battery operation, charging, low or critical charge, and other power states.
+- **[Media System](https://jim1537.github.io/PinkieSysMon/widgets/media-system/)** — displays the type and availability of the current audio device, such as speakers, headphones, microphones, display audio, S/PDIF, and other media endpoints.
+- **[Media Player](https://jim1537.github.io/PinkieSysMon/widgets/media-player/)** — represents media playback state: Playing, Paused, Stopped, or Unavailable. It can be combined with media metrics to build current-playback elements.
 
-For widget configuration details, see [Widget Properties — Editor Tabs](widgets/properties-by-tab.md) and [Widget Property Dictionary](widgets/properties.md).
+For widget configuration details, see [Widget Properties — Editor Tabs](https://jim1537.github.io/PinkieSysMon/widgets/properties-by-tab/) and [Widget Property Dictionary](https://jim1537.github.io/PinkieSysMon/widgets/properties/).
 
 ## Dashboard Editor
 
@@ -137,12 +137,12 @@ Published Runtime and Editor builds are self-contained x64 applications.
 
 ## Documentation
 
-- [Building, deployment, and development](development/building.md)
-- [System provider](telemetry/system.md)
-- [Libre Hardware Monitor](telemetry/libre-hardware-monitor.md)
-- [iCUE Sensor Logging](telemetry/icue-sensor-logging.md)
-- [Widget reference](widgets/text-value.md)
-- [Widget property dictionary](widgets/properties.md)
+- [Building, deployment, and development](https://jim1537.github.io/PinkieSysMon/development/building/)
+- [System provider](https://jim1537.github.io/PinkieSysMon/telemetry/system/)
+- [Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)
+- [iCUE Sensor Logging](https://jim1537.github.io/PinkieSysMon/telemetry/icue-sensor-logging/)
+- [Widget reference](https://jim1537.github.io/PinkieSysMon/widgets/text-value/)
+- [Widget property dictionary](https://jim1537.github.io/PinkieSysMon/widgets/properties/)
 
 
 PinkieSysMon is an independent fan-made project and is not affiliated with or endorsed by Hasbro. The project source code is distributed under the [MIT License](https://github.com/Jim1537/PinkieSysMon/blob/main/LICENSE).

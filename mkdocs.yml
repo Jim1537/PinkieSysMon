@@ -9,7 +9,8 @@ site_dir: site
 
 nav:
   - Overview: README.md
-  - Compatibility & Testing: compatibility.md
+  - Compatibility Notice: compatibility.md
+  - Development Approach: development/vibe-coding.md
   - Telemetry providers:
       - System: telemetry/system.md
       - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md
@@ -25,7 +26,6 @@ nav:
       - Media Player: widgets/media-player.md
   - Development:
       - Building and deployment: development/building.md
-      - Development approach & AI disclosure: development/vibe-coding.md
   - Property reference:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
