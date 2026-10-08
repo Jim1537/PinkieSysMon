@@ -90,7 +90,7 @@ PinkieSysMon reads LHM through the local HTTP API of an already-running Libre Ha
 
 ## Dashboard compatibility
 
-The persisted dashboard schema is versioned and migration-aware. Runtime and Editor use the same canonical dashboard model and rendering semantics. Persisted schema changes require an intentional migration and regression coverage rather than silent reinterpretation.
+See [Application Architecture](architecture.md#persistence-and-schema-boundary) for the shared document/schema boundary.
 
 ## License
 
