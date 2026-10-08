@@ -1,35 +1,6 @@
-# Pinkie's System Monitor
+# Building, Deployment, and Development
 
-**Documentation:** [Online documentation](https://jim1537.github.io/PinkieSysMon/) · [Markdown sources](docs/index.md)
-
-PinkieSysMon is a native Windows hardware-dashboard application for small telemetry displays installed in or near a PC. It runs fully locally, renders dashboards with SkiaSharp, collects telemetry from Windows and optional external providers, and can send rendered frames directly to supported USB display hardware.
-
-PinkieSysMon is an independent fan-made project and is not affiliated with or endorsed by Hasbro.
-
-The project contains two applications:
-
-- **PinkieSysMon Runtime** — background telemetry, dashboard rendering, system-tray control, and output-device management.
-- **PinkieSysMon Dashboard Editor** — visual dashboard authoring with layers, groups, multi-selection, drag/resize/rotate editing, contextual properties, and live telemetry preview.
-
-## Documentation
-
-The [documentation source](docs/index.md) is maintained in this repository and built with Material for MkDocs. It is intended to be published as a [GitHub Pages documentation site](https://jim1537.github.io/PinkieSysMon/) once Pages is enabled.
-
-## Current capabilities
-
-PinkieSysMon supports configurable dashboards with Value, Binary, Gauge, Bar, Image, Power, Media System, and Media Player widgets. Dashboard presentation supports fonts, colors, units, formatting, thresholds and state-based presentation, static and animated images, background/foreground image layers, grouping, and dashboard switching.
-
-Telemetry is exposed through a unified metric model:
-
-- **System** — Windows-native OS, uptime, integrated-GPU, network, power, audio/media, and runtime metrics.
-- **Libre Hardware Monitor** — optional extended hardware telemetry from an already-running Libre Hardware Monitor instance through its local HTTP API. PinkieSysMon does not embed LHM or compete for privileged hardware access.
-- **Corsair iCUE Sensor Logging** — optional read-only consumption of iCUE sensor-log data; PinkieSysMon does not take over iCUE hardware control.
-
-## Supported output device
-
-Direct hardware output is currently implemented for **Thermalright Trofeo Vision 9.16** at its native **1920 × 480** resolution over USB/WinUSB.
-
-Other displays require their own output transport and should not be assumed compatible solely because they have a similar resolution or USB connection.
+This page preserves the build, packaging, deployment, compatibility, and licensing instructions previously maintained in the root repository README. For the product overview and complete documentation, see the [project overview](../README.md).
 
 ## Requirements
 
@@ -123,6 +94,6 @@ The persisted dashboard schema is versioned and migration-aware. Runtime and Edi
 
 ## License
 
-PinkieSysMon project source code is released under the **MIT License**. See [`LICENSE`](LICENSE).
+PinkieSysMon project source code is released under the **MIT License**. See [`LICENSE`](https://github.com/Jim1537/PinkieSysMon/blob/main/LICENSE).
 
-Bundled third-party assets remain under their own licenses. See [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) and the license files stored with those assets.
+Bundled third-party assets remain under their own licenses. See [`THIRD-PARTY-NOTICES.md`](https://github.com/Jim1537/PinkieSysMon/blob/main/THIRD-PARTY-NOTICES.md) and the license files stored with those assets.

@@ -121,11 +121,9 @@ The following software is optional and is only required for the corresponding te
 
 Published Runtime and Editor builds are self-contained x64 applications.
 
-## Project Files
-
 ## Documentation
 
-- [Getting started](index.md)
+- [Building, deployment, and development](development/building.md)
 - [System provider](telemetry/system.md)
 - [Libre Hardware Monitor](telemetry/libre-hardware-monitor.md)
 - [iCUE Sensor Logging](telemetry/icue-sensor-logging.md)
