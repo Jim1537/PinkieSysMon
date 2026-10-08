@@ -298,7 +298,9 @@ Current normalization of WMI `BatteryStatus`:
 | `9` | `critical` |
 | `10` | `unavailable` |
 | `11` | `normal` |
-| any other value | `unknown` |
+| any other or missing code | `unknown` |
+
+The provider translates `Win32_Battery.BatteryStatus` through `PowerMetricContract.FromWmiBatteryStatus`. Codes `8` and `9` are combined charging/low and charging/critical conditions; the mapping preserves the more urgent low or critical state instead of converting them to `charging`. The state is derived from the WMI status code, **not from a widget's charge-percentage threshold**.
 
 If the WMI power query fails, charge and runtime become `null`, while state is published as `unavailable`.
 
@@ -373,37 +375,27 @@ Therefore, inactive and unavailable are distinct states.
 
 #### Audio Endpoint Type
 
-Endpoint type is determined from Windows audio endpoint form-factor metadata.
+`WindowsMediaTelemetrySource.EndpointType` reads Windows audio endpoint form-factor metadata and publishes the corresponding canonical type. This is a **System provider** classification contract, not a Media System widget operation.
 
-Normalized endpoint types:
+| Windows form factor | Published endpoint type |
+| --- | --- |
+| Remote Network | `remote-network` |
+| Speakers | `speakers` |
+| Line Level | `line-level` |
+| Headphones | `headphones` |
+| Microphone | `microphone` |
+| Headset | `headphones` |
+| Handset | `handset` |
+| Digital Passthrough | `digital-passthrough` |
+| S/PDIF | `spdif` |
+| Display Audio | `display-audio` |
+| Missing, unreadable, or unrecognized form factor | `unknown` |
 
-- `remote-network`
-- `speakers`
-- `line-level`
-- `headphones`
-- `microphone`
-- `handset`
-- `digital-passthrough`
-- `spdif`
-- `display-audio`
-- `unknown`
+Windows Headset is intentionally normalized to Headphones; there is no separate `headset` published type. `MediaMetricContract.NormalizeEndpointType` trims and lowercases known type tokens and maps other values to `unknown`. When no default endpoint exists, the producer publishes `available = false` separately; an available but unrecognized endpoint is **Unknown**, not Unavailable.
 
-The Windows form factor `Headset` is intentionally normalized as:
+**Application-level endpoint-type overrides:** overrides are stored in `AppConfig.Media.EndpointTypeOverrides`, keyed by the exact Windows **endpoint ID** rather than its friendly name. The Editor's [Media System override controls](../widgets/media-system.md#step-7-override-an-incorrectly-classified-endpoint) offer `Auto` (removes the saved entry) or one of the ten canonical types.
 
-  `headphones`
-
-If the driver does not expose usable form-factor metadata, the type becomes:
-
-  `unknown`
-
-A user may have a stored endpoint-type override for a specific endpoint in:
-
-  `AppConfig.Media.EndpointTypeOverrides`
-
-The override takes precedence over the automatically detected Windows form factor.
-
-These overrides belong to Media System presentation semantics and are not a separate System-provider enablement setting.
-
+`WindowsMediaTelemetrySource` normalizes configured override values and, for the current default input or output endpoint with a matching ID, publishes the override instead of the detected form factor. The override changes the **reported classification**, not endpoint identity, Windows default-device selection, audio capability, or volume. The mapping belongs to app configuration, **not dashboard JSON**, and is not a separate System-provider enablement setting.
 
 #### Media Playback
 
@@ -423,13 +415,7 @@ Media playback integration uses Windows:
 
   `GlobalSystemMediaTransportControlsSessionManager`
 
-Pinkie's System Monitor tracks the current media session and responds to:
-
-- a change in the current session;
-- changes in the session set;
-- playback-state changes;
-- media-metadata changes;
-- timeline changes.
+Pinkie's System Monitor tracks the **current** media session and responds to session/list changes and playback-state, media-metadata, and timeline events. On a session switch it detaches handlers from the old session, attaches them to the new session, and refreshes the playback snapshot.
 
 Supported normalized playback states:
 
@@ -440,6 +426,10 @@ Supported normalized playback states:
 - `playing`
 - `paused`
 - `unavailable`
+
+`MediaMetricContract.NormalizePlaybackState` recognizes these incoming status tokens. The live `WindowsMediaTelemetrySource` normally resets a Windows session reporting `Closed` to the **Unavailable** snapshot before publication. When no session exists or playback info cannot be read, it likewise resets to `status = unavailable` and `available = false`, instead of retaining a stale prior state. `Opened` and `Changing` remain possible status tokens; the [Media Player widget](../widgets/media-player.md#playback-state-normalization) selects its Unavailable profile for them.
+
+A current media session may provide playback status and source application identity while withholding optional metadata or a usable timeline. The provider does not fabricate missing values.
 
 If title, artist, or album metadata is missing, the value used is:
 
