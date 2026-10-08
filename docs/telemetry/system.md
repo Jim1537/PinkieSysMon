@@ -519,6 +519,8 @@ When there is no active output session, all `system.runtime.*` metrics are clear
 
 When the System provider is disabled, runtime metrics also stop being published and are cleared.
 
+The `usb` names in these metric IDs are **existing runtime contracts**, not claims that arbitrary USB-connected displays are compatible. Refer to [Supported Devices](../supported-devices.md) for the actual hardware compatibility list.
+
 Known USB state values currently produced by `FramePump` include:
 
 - `WAITING`

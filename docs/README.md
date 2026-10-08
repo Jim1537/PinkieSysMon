@@ -10,18 +10,18 @@
   <a href="https://github.com/Jim1537/PinkieSysMon">GitHub Repository</a>
 </p>
 
-**Pinkie's System Monitor** is a native Windows application for creating and displaying customizable hardware dashboards with system telemetry. It is designed for setups where a small telemetry display is installed inside or next to a PC and you want a lightweight, fully local solution with its own editor and direct control of the device.
+**Pinkie's System Monitor** is a native Windows application for creating and displaying customizable hardware dashboards with system telemetry. It is designed for setups that need a dedicated, fully local telemetry dashboard, with its own editor and direct output to [supported devices](https://jim1537.github.io/PinkieSysMon/supported-devices/).
 
 PinkieSysMon consists of two main components:
 
-- **PinkieSysMon Runtime** — a background application that collects telemetry, renders the active dashboard, and manages output to the device;
+- **PinkieSysMon Runtime** — a background application that collects telemetry, renders the active dashboard, and manages output to the configured device;
 - **PinkieSysMon Dashboard Editor** — a visual editor for creating and configuring dashboards.
 
 The project is designed for fully local operation.
 
 > **⚠️ Compatibility Notice**
 >
-> Pinkie's System Monitor is considered release-ready by its author. However, real-world testing has so far been limited to **one Windows 11 Pro computer and one Thermalright Trofeo Vision 9.16 display**.
+> Pinkie's System Monitor is considered release-ready by its author. However, real-world testing has so far been limited to **one Windows 11 Pro computer and one [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/)**.
 >
 > Compatibility with other configurations has not yet been verified. **Community testing and feedback are very welcome!**
 >
@@ -106,29 +106,21 @@ After startup, Runtime:
 - determines which telemetry metrics it needs;
 - retrieves current values from available sources;
 - renders the dashboard;
-- sends the rendered frame to the Trofeo;
+- sends rendered frames to the configured [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/);
 - monitors output status;
 - allows dashboard switching and access to the Editor from the system tray.
 
 Configuration files, dashboards, and user assets are stored separately from the application binaries, so updating the program does not require rebuilding or recreating your dashboard.
 
-## Supported Device
+## Supported Devices
 
-At this stage, direct hardware output is implemented for:
-
-- **Thermalright Trofeo Vision 9.16**
-- native resolution: **1920 × 480**
-- connection: **USB / WinUSB**
-
-The Trofeo is used as a specialized frame device rather than as an additional Windows display.
-
-Support for other displays requires a dedicated output transport and should not be assumed simply because another device has a similar resolution or USB connection.
+Direct hardware output is available only for explicitly [supported devices](https://jim1537.github.io/PinkieSysMon/supported-devices/). The compatibility list records the implemented models, connection requirements, and their current validation status. Similar-looking hardware is not necessarily compatible.
 
 ## System Requirements
 
 - 64-bit Windows;
 - Windows 11 x64 is recommended as the primary supported desktop platform; Windows 10 is supported only in configurations compatible with the current .NET 10 runtime;
-- a compatible **Thermalright Trofeo Vision 9.16** for direct hardware output.
+- a [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/) when using direct hardware output.
 
 The following software is optional and is only required for the corresponding telemetry source:
 
@@ -139,6 +131,7 @@ Published Runtime and Editor builds are self-contained x64 applications.
 
 ## Documentation
 
+- [Supported Devices](https://jim1537.github.io/PinkieSysMon/supported-devices/)
 - [Building, deployment, and development](https://jim1537.github.io/PinkieSysMon/development/building/)
 - [System provider](https://jim1537.github.io/PinkieSysMon/telemetry/system/)
 - [Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)
