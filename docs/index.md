@@ -19,8 +19,6 @@ The project is designed for fully local operation.
 
 ## Key Features
 
-[![dasshboard_example.png](images/dasshboard_example.png)](images/dasshboard_example.png)
-
 - fully native dashboard rendering on Windows;
 - a dedicated visual dashboard editor;
 - free placement, scaling, and rotation of elements;
