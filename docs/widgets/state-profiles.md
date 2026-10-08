@@ -12,7 +12,7 @@ Every entry in the canonical `profiles` dictionary is a `DashboardModel.StateVis
 | --- | --- |
 | `contentType` | `image` or `value`. |
 | `asset.sourceType` | `icon` or `file` when `contentType = image`. |
-| `asset.source` | Logical icon identifier or dashboard-relative image path. |
+| `asset.source` | Logical icon identifier (for example `lucide:play`) or dashboard-relative image path (often in `images/`). |
 | `asset.fit` | Graphical fitting mode (Contain, Cover, or Stretch). |
 | `asset.loop` | Animation looping for supported animated sources. |
 | `color` | Profile color and supported icon tint, or Value-state text foreground. |
@@ -35,13 +35,13 @@ Every widget requires its own complete set of recognized profile keys, without u
 
 <!-- --8<-- [start:profile-rendering] -->
 
-State-driven widgets delegate their graphical and Value-state drawing to `StateProfileWidgetRenderer`, using a projection of the canonical state profile into the common render profile. An active Image/Icon uses the shared image/icon cache, image fit, state opacity, and supported icon tint. File-backed images preserve their own colors rather than acquiring an icon-only tint.
+State-driven widgets delegate their graphical and Value-state drawing to `StateProfileWidgetRenderer`, using a projection of the canonical state profile into the common render profile. An active Image/Icon uses the shared `StateIconVisualCache` and image-asset rendering paths, image fit, state opacity, and supported icon tint. File-backed images preserve their own colors rather than acquiring an icon-only tint.
 
 For Value content, `TextContentRenderer` uses the selected state's own `TextPresentationDefinition`, foreground color, opacity, alignment, and outline. **The text being displayed is widget-specific**; choosing Value does not turn every state widget into a general metric reader.
 
-Where an asset supports animation, playback can be measured relative to the activation of its current state/source; a change of state can restart that animation. `Loop` has a visible effect only when the asset is animated and supports looping. If no state profile is active, the state renderer deactivates its playback tracker. None of these visual behaviors controls the underlying hardware or media application.
+Where an asset supports animation, **activation-relative playback** can be measured from the time the current state/source becomes active; changing state can reset or restart that animation. `Loop` has a visible effect only when the asset is animated and supports looping. If no state profile is active, the state renderer deactivates its playback tracker. None of these visual behaviors controls the underlying hardware or media application.
 
-Shared widget appearance (background, border, shadow, geometry, and rotation) remains outside individual profiles. Editor preview and Runtime use the same canonical projection and widget rendering contract.
+The shared SkiaSharp widget appearance pipeline (background, border, shadow, geometry, and rotation) remains outside individual profiles. Editor preview and Runtime use the same canonical projection and widget rendering contract.
 
 <!-- --8<-- [end:profile-rendering] -->
 
@@ -51,7 +51,7 @@ Shared widget appearance (background, border, shadow, geometry, and rotation) re
 
 The widget has a shared Width and Height even though each state has its own content and text presentation:
 
-- **Any Icon/Image profile:** graphical or mixed content requires positive Width **and** Height. All states share a fixed-size widget container; Value-state text must fit its effective bounds.
+- **Any Icon/Image profile:** graphical or mixed content requires positive Width **and** Height. All states share a fixed-size widget container; Value-state text is laid out inside it and clipped to its effective bounds.
 - **Every profile is Value:** non-negative stored dimensions are allowed; text layout can be content-derived. `Width = 0` permits automatic text width, with `Overflow Mode = None` for Value states.
 - **Positive Width:** Value-state text uses a constrained overflow mode: `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, or `Bump`. Mixed Icon/Image/Value content cannot use auto-width `None`.
 
