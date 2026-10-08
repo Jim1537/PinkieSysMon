@@ -261,26 +261,7 @@ Power requires exactly these state keys in its `profiles` dictionary:
 | `unknown` | `lucide:battery-warning` |
 | `unavailable` | `lucide:battery-warning` |
 
-Each canonical `DashboardModel.StateVisualProfileDefinition` contains:
-
-| JSON field | Meaning |
-| --- | --- |
-| `contentType` | `image` or `value`. |
-| `asset.sourceType` | `icon` or `file` when using graphical content. |
-| `asset.source` | Logical icon name or dashboard-relative image path. |
-| `asset.fit` | Image fitting rule. |
-| `asset.loop` | Animation looping setting. |
-| `color` | State-specific color / tint where supported. |
-| `opacity` | State visual opacity from 0 to 1. |
-| `textPresentation` | State-specific font, alignment, outline, and overflow presentation. |
-
-The Editor's `Source Type` options map to this canonical representation:
-
-- `Icon` → `contentType = image`, `asset.sourceType = icon`.
-- `Image` → `contentType = image`, `asset.sourceType = file`.
-- `Value` → `contentType = value`.
-
-Profile keys are canonical and their associated appearances are independent. All nine required profiles must be present; unrecognized extra keys are invalid. A source-type switch must preserve unrelated states and may clear an incompatible previous asset source.
+--8<-- "widgets/state-profiles.md:profile-schema"
 
 The default image profiles use `Fit = contain`, `Loop = true`, and full opacity. Loop only produces animation when the selected asset supports it.
 
@@ -298,26 +279,15 @@ The Text tab exposes only Value-backed state groups; the Image tab exposes only 
 
 ### Image/Icon Rendering and Animation
 
-`PowerWidgetRenderer` is a small specialization of `StateProfileWidgetRenderer`. The shared renderer selects either the image/icon path or the Value text path for the active state.
+`PowerWidgetRenderer` is a specialization of the shared state-profile renderer.
 
-Icon and file rendering use the shared image/icon caches and apply the state's fit, opacity, and supported tint. File-backed images preserve their intrinsic colors rather than using the tint-only icon control.
-
-If the active asset supports activation-relative animation playback, the shared state renderer measures elapsed time for the current state/source. Changing state can restart that animated content's playback. Otherwise, the normal image/icon rendering path is used.
-
-All state presentations continue through the shared SkiaSharp rendering and canonical-model projection used by Editor preview and Runtime.
+--8<-- "widgets/state-profiles.md:profile-rendering"
 
 ### Geometry and Text Overflow
 
-Power uses the shared widget geometry model, including logical X/Y, Width/Height, rotation, background, border, and shadow properties.
+--8<-- "widgets/state-profiles.md:profile-geometry"
 
-- When at least one profile is graphical (Icon/Image), Power uses an explicit positive-width, positive-height container.
-- When **all nine** profiles are Value-backed, automatic text width is permitted; text geometry can be derived from the active state's content.
-- `Width = 0` is an auto-width setting only for an all-Value configuration; Value profiles then use `Overflow Mode = None`.
-- Mixed or fixed-width configurations use constrained overflow modes such as `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, and `Bump` for Value profiles.
-
-`TextOverflowStateContract` reconciles source-type, width, and overflow changes. Switching any state back to a graphical source can remove auto-width eligibility.
-
-See [Width](properties.md#width) and [Overflow Mode](properties.md#overflow-mode).
+For Power, **all nine** profiles must use Value before auto-width is allowed. Its widget-level geometry and appearance still include logical X/Y, Width/Height, rotation, background, border, and shadow.
 
 ### Editor Property Applicability
 
