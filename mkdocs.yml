@@ -32,6 +32,7 @@ nav:
 
 theme:
   name: material
+  custom_dir: overrides
   favicon: images/pinkiesysmon.ico
   language: en
   features:
@@ -59,6 +60,9 @@ theme:
 
 plugins:
   - search
+
+extra_css:
+  - stylesheets/support.css
 
 markdown_extensions:
   - admonition

@@ -1,5 +1,7 @@
 # Pinkie's System Monitor
 
+[![Support Pinkie's System Monitor on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Z5X220SWVK)
+
 ![banner_001.png](images/banner_001.png)
 
 **Project:** Pinkie's System Monitor  
