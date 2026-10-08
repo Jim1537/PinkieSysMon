@@ -19,6 +19,8 @@ PinkieSysMon consists of two main components:
 
 The project is designed for fully local operation.
 
+***
+
 > **⚠️ Compatibility Notice**
 >
 > Pinkie's System Monitor is considered release-ready by its author. However, real-world testing has so far been limited to **one Windows 11 Pro computer and one [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/)**.
@@ -27,11 +29,15 @@ The project is designed for fully local operation.
 >
 > [**Read the full compatibility notice →**](https://jim1537.github.io/PinkieSysMon/compatibility/)
 
+***
+
 > **🤖 Development Approach — 100% Vibe-Coded**
 >
 > Despite the author's experience in application software development, Pinkie's System Monitor was created **entirely through vibe coding**. The goal was to give a new PC a fun, personalized system monitor—not spend months or years developing what is, at its core, a fairly straightforward utility.
 >
 > [**Read about the development approach →**](https://jim1537.github.io/PinkieSysMon/development/vibe-coding/)
+
+***
 
 ## Key Features
 
@@ -51,6 +57,7 @@ The project is designed for fully local operation.
 - fully local operation with no cloud dependency;
 - self-contained x64 deployment — no separate .NET Runtime installation is required for published builds.
 
+***
 
 ## Telemetry Providers
 
@@ -59,6 +66,8 @@ PinkieSysMon combines multiple data sources into a unified metrics system.
 - **[System](https://jim1537.github.io/PinkieSysMon/telemetry/system/)** — the built-in Windows provider. It collects operating system, network, power, audio/media, and Runtime telemetry directly through Windows and the application itself, without requiring third-party monitoring software.
 - **[Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)** — an optional provider for extended hardware telemetry. PinkieSysMon reads sensors exposed by an already-running Libre Hardware Monitor instance through its local HTTP API.
 - **[iCUE Sensor Logging](https://jim1537.github.io/PinkieSysMon/telemetry/icue-sensor-logging/)** — an optional provider for Corsair hardware telemetry. PinkieSysMon reads Corsair iCUE Sensor Logging files in read-only mode and does not interfere with hardware control performed by iCUE.
+
+***
 
 ## Available Widgets
 
@@ -72,6 +81,8 @@ PinkieSysMon combines multiple data sources into a unified metrics system.
 - **[Media Player](https://jim1537.github.io/PinkieSysMon/widgets/media-player/)** — represents media playback state: Playing, Paused, Stopped, or Unavailable. It can be combined with media metrics to build current-playback elements.
 
 For widget configuration details, see [Widget Properties — Editor Tabs](https://jim1537.github.io/PinkieSysMon/widgets/properties-by-tab/) and [Widget Property Dictionary](https://jim1537.github.io/PinkieSysMon/widgets/properties/).
+
+***
 
 ## Dashboard Editor
 
@@ -96,6 +107,8 @@ The editor allows you to:
 
 A dashboard is a self-contained layout and presentation configuration. You can create multiple dashboards for different purposes or visual styles and switch between them as needed.
 
+***
+
 ## Runtime
 
 **PinkieSysMon Runtime** is designed for continuous background operation.
@@ -112,9 +125,13 @@ After startup, Runtime:
 
 Configuration files, dashboards, and user assets are stored separately from the application binaries, so updating the program does not require rebuilding or recreating your dashboard.
 
+***
+
 ## Supported Devices
 
 Direct hardware output is available only for explicitly [supported devices](https://jim1537.github.io/PinkieSysMon/supported-devices/). The compatibility list records the implemented models, connection requirements, and their current validation status. Similar-looking hardware is not necessarily compatible.
+
+***
 
 ## System Requirements
 
@@ -128,6 +145,8 @@ The following software is optional and is only required for the corresponding te
 - **Corsair iCUE**, with Sensor Logging enabled, for Corsair hardware telemetry.
 
 Published Runtime and Editor builds are self-contained x64 applications.
+
+***
 
 ## Documentation
 
