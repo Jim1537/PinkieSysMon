@@ -6,10 +6,11 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 
 1. Identify the **actual target repository, branch or PR, and commit SHA**. Read the current instructions and relevant files at that revision. Do not substitute recalled content, previous chat results, or a filename for a fresh source read.
 2. Inspect the precise source, tests, documentation, Issues, PR history, and acceptance evidence relevant to the requested change. Distinguish merged `main`, an unmerged branch, an older accepted baseline, and the user's private local installation.
-3. Treat implementation source and executable tests as authorities on implemented contracts; actual observed Windows/build, Runtime, Editor, and hardware results are authorities only for the conditions tested. Use [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues) for current unresolved work and [Development Roadmap](docs/development/roadmap.md) for historical milestones.
+3. Treat implementation source and executable tests as authorities on implemented contracts; actual observed Windows/build, Runtime, Editor, and hardware results are authorities only for the conditions tested. Official manufacturer documentation may establish published specifications, but cannot establish installed hardware state, actual device/driver behavior, or application acceptance. Use [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues) for current unresolved work and [Development Roadmap](docs/development/roadmap.md) for historical milestones.
 4. When source, docs, tests, and reported observations disagree, explain the specific conflict. Do not silently choose a convenient version or modify working source solely to fit older prose.
 5. If current GitHub state cannot be retrieved, explicitly label any offline snapshot as such. Do not invent live status or perform irreversible updates based only on memory.
 6. User authorization is required for repository mutations. If it is granted for an ongoing task, keep changes within that delegated scope and use reviewable commits/PRs.
+7. Do not import implementation facts, hardware state, measurements, assumptions, or decisions from another user project without explicit permission. Limit any authorized import to its stated purpose and identify it as external context.
 
 Existing higher-priority ChatGPT Project or platform bootstrap instructions remain binding until the user updates them; this repository file does not silently replace those instructions.
 
@@ -31,6 +32,7 @@ Existing higher-priority ChatGPT Project or platform bootstrap instructions rema
 - Provider-specific behavior is owned by [provider documentation](docs/telemetry/system.md); do not silently invent hardware/sensor identities, provider ownership, metric aliases, unit conversions, or cached valid readings after loss of availability. Preserve isolation and explicit unavailable values.
 - Device selection and transport behavior are owned by [device integration documentation](docs/development/devices/trofeo-vision-9.16.md). Do not choose the first compatible device when identity is missing/ambiguous, or change protocol-sensitive I/O based on speculative performance theories. Require actual physical-device evidence for protocol/lifecycle changes.
 - Handle errors, recovery, lifetime, ownership, and long-running overhead explicitly. Prefer supported Windows/.NET primitives over private hacks. Treat unknown host/driver/device root causes as **unknown**, not as proven application defects.
+- During interactive live diagnostics, establish the observed state and propose one minimal evidence-producing step at a time. Verify the user's result before taking a dependent step; record only durable findings. Avoid long speculative command sequences while the user is operating the system.
 - Never rewrite an established regression solely to make a failing implementation appear correct. When a reproducible behavior changes intentionally, update the tested contract with a documented reason.
 
 ## Schema and private production dashboard
@@ -45,7 +47,7 @@ Existing higher-priority ChatGPT Project or platform bootstrap instructions rema
 1. Confirm the exact branch/commit and existing Issue or user-requested scope.
 2. Inspect the touched implementation and relevant regression contracts first.
 3. Work on an appropriately scoped branch with a descriptive commit and PR when practical; do not default to passing around replacement source ZIPs. Use an archive only when explicitly requested or when an agreed offline transfer is necessary.
-4. Review the complete diff for unintended source/schema changes, secrets, generated output, private assets, unrelated edits, stale links, and accidental documentation duplication.
+4. **Before** creating or modifying an artifact, audit source support, intended scope, semantic overlap, and the lasting value of its contents. **After** the operation, fetch and inspect the **actual resulting artifact** and complete diff: recheck structure, references, unintended source/schema changes, secrets, generated output, private assets, unrelated edits, and applicable verification gates. Intended output alone is not evidence of delivery.
 5. Run the checks available for the change and report **observed** results. The source-of-truth Windows build/regression procedure is [`build.ps1`](build.ps1); a green documentation site job does not verify the app.
 6. Merge only after the relevant acceptance conditions have actually been met. Do not close an Issue because a patch exists; record which outstanding gates remain.
 7. Where a change affects an established documented contract, update its **single canonical document** in the same PR; do not create parallel copies.
@@ -69,6 +71,8 @@ Do not infer one gate from another. Historical passing test counts do not establ
 
 ## Documentation ownership and maintenance
 
+The user may provide exhaustive context; the assistant owns editorial selection. Retain details only when they materially support operation, correctness, compatibility, fault isolation, recovery, maintenance, auditability, or a real future engineering decision. Omit incidental history, personal provenance, and details easier to recheck than to maintain, unless technically consequential.
+
 Use the single canonical owner for each type of information:
 
 - **Cross-component topology and state ownership:** [Application Architecture](docs/development/architecture.md).
@@ -79,7 +83,7 @@ Use the single canonical owner for each type of information:
 - **Live work and acceptance:** GitHub Issues; **past milestones:** [Development Roadmap](docs/development/roadmap.md).
 - **AI behavior/evidence and change workflow:** this file.
 
-When an existing fact belongs to another document, **link, do not paraphrase**. If ownership must change, move the fact and remove its old copy in the same change. Never restore revisioned `about`, buglist, provider, or widget Project attachments as competing current authorities.
+Duplicate content includes paraphrases with the same practical meaning. When a fact belongs to another document, **link instead of retelling it**. If ownership must change, move the fact and remove its old copy in the same change. Never restore revisioned `about`, buglist, provider, or widget Project attachments as competing current authorities.
 
 ## Delivery report
 
