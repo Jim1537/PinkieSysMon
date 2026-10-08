@@ -218,33 +218,15 @@ No arbitrary `metric` field, playback-state property, or endpoint ID selector be
 
 These are demand-driven telemetry dependencies. Adding a Media System widget does not automatically require volume, mute, endpoint friendly name, input activity, or playback metadata.
 
-`WindowsMediaTelemetrySource` uses Windows audio endpoint APIs through NAudio. It resolves the current default `DataFlow.Render` or `DataFlow.Capture` endpoint with `Role.Multimedia` and provides the corresponding type and availability values.
-
-The telemetry provider, not the Media System widget, reads endpoint metadata and applies endpoint-type overrides.
+The built-in [System provider](../telemetry/system.md#audio-endpoint-type) owns Windows Core Audio/NAudio default-endpoint resolution, form-factor metadata, and application-level override application. This widget consumes only the published type and availability metrics.
 
 ### Endpoint Classification
 
-`WindowsMediaTelemetrySource.EndpointType` reads the Windows audio endpoint form-factor property and maps it to a canonical type.
+The Media System widget reads the **published** type and availability; it does not classify the Windows form factor itself. The form-factor-to-type table, including Headset → `headphones`, missing/unknown data, and override precedence, has one owner: [System → Audio Endpoint Type](../telemetry/system.md#audio-endpoint-type).
 
-| Windows form factor | Media System type |
-| --- | --- |
-| Remote Network | `remote-network` |
-| Speakers | `speakers` |
-| Line Level | `line-level` |
-| Headphones | `headphones` |
-| Microphone | `microphone` |
-| Headset | `headphones` |
-| Handset | `handset` |
-| Digital Passthrough | `digital-passthrough` |
-| S/PDIF | `spdif` |
-| Display Audio | `display-audio` |
-| Missing/unrecognized form factor | `unknown` |
+`MediaMetricContract.NormalizeEndpointType` recognizes the ten endpoint type tokens. The widget selects the corresponding profile when availability is explicitly true. Its eleven available/unknown/unavailable visual-profile keys remain defined under [Eleven Visual Profiles](#eleven-visual-profiles).
 
-The Headset-to-Headphones normalization is intentional. There is no extra `headset` persisted profile key.
-
-`MediaMetricContract.NormalizeEndpointType` trims and lowercases an incoming type, matches the ten canonical endpoint categories, and maps anything else to `unknown`.
-
-An available endpoint with unrecognized type remains **Unknown**. It is not classified as Unavailable simply because Windows supplied incomplete device metadata.
+An available endpoint with an unrecognized type selects **Unknown**, rather than Unavailable. The latter is determined by the separate availability metric.
 
 ### Unavailable Selection Semantics
 
@@ -266,19 +248,11 @@ An endpoint reconfiguration or provider failure must not cause a stale previous 
 
 ### Endpoint Overrides
 
-Editor overrides are indexed by the exact Windows endpoint identifier in:
+The **Editor** exposes `Data → Endpoint Overrides` for enumerated active endpoints. The displayed property name is the Windows friendly name; the editor property's identity contains the endpoint ID. Choosing `Auto` removes the override; choosing a supported type changes how the endpoint is classified in telemetry.
 
-  `AppConfig.Media.EndpointTypeOverrides[EndpointId]`
+After a change, the Editor saves the application configuration, applies the new mapping to its media telemetry source, and refreshes the preview. This is **not a persisted widget property**; a dashboard on another machine can therefore show a different classification.
 
-The Editor exposes an `Endpoint Overrides` group in the Data tab for enumerated active endpoints. The displayed property name is the current Windows friendly name; its internal property identity includes the endpoint ID.
-
-The supported override values are `Auto` and the ten canonical endpoint types. `Auto` removes the corresponding entry from the map.
-
-`WindowsMediaTelemetrySource` normalizes configured override values and, when the default endpoint's ID is present in the map, publishes the override type instead of the detected form factor.
-
-After an override edit, the Editor saves the application configuration, applies the normalized override map to its media telemetry source, and refreshes the preview.
-
-These overrides change the **reported classification**. They do not select a different endpoint, alter the Windows audio driver, or control system volume. Since the override is not stored in dashboard JSON, a dashboard moved to a differently configured machine need not receive the same endpoint classification.
+The canonical storage (`AppConfig.Media.EndpointTypeOverrides`), endpoint-ID lookup, normalization and precedence over Windows metadata, and non-effects on actual device selection or audio capabilities belong to [System → Audio Endpoint Type](../telemetry/system.md#audio-endpoint-type).
 
 ### Eleven Visual Profiles
 
