@@ -1,414 +1,431 @@
 # Widget Properties — Tabs
 
 
-## General
+Select a tab below to browse the same canonical property definitions by their location in the Editor. Each property is presented in a standard Material info block; entries are maintained in the [Property Dictionary](properties.md).
 
-### Identity
+=== "General"
 
-#### Name
---8<-- "widgets/properties.md:name"
+    ## General
 
-### Source
+    ### Identity
 
-#### Value Source Type
---8<-- "widgets/properties.md:value-source-type"
+    #### Name
+    --8<-- "widgets/properties.md:name"
 
-#### Metric
---8<-- "widgets/properties.md:metric"
+    ### Source
 
-#### Text
---8<-- "widgets/properties.md:text"
+    #### Value Source Type
+    --8<-- "widgets/properties.md:value-source-type"
 
-#### Image Source Type
---8<-- "widgets/properties.md:image-source-type"
+    #### Metric
+    --8<-- "widgets/properties.md:metric"
 
-#### Image Source
---8<-- "widgets/properties.md:image-source"
+    #### Text
+    --8<-- "widgets/properties.md:text"
 
-#### Power Source
---8<-- "widgets/properties.md:power-source"
+    #### Image Source Type
+    --8<-- "widgets/properties.md:image-source-type"
 
-#### Media Source
---8<-- "widgets/properties.md:media-source"
+    #### Image Source
+    --8<-- "widgets/properties.md:image-source"
 
-#### Media Player Metric
---8<-- "widgets/properties.md:media-player-metric"
+    #### Power Source
+    --8<-- "widgets/properties.md:power-source"
 
-### Background Image
+    #### Media Source
+    --8<-- "widgets/properties.md:media-source"
 
-#### Image Source Type
---8<-- "widgets/properties.md:image-source-type"
+    #### Media Player Metric
+    --8<-- "widgets/properties.md:media-player-metric"
 
-#### Image Source
---8<-- "widgets/properties.md:image-source"
+    ### Background Image
 
-### Foreground Image
+    #### Image Source Type
+    --8<-- "widgets/properties.md:image-source-type"
 
-#### Image Source Type
---8<-- "widgets/properties.md:image-source-type"
+    #### Image Source
+    --8<-- "widgets/properties.md:image-source"
 
-#### Image Source
---8<-- "widgets/properties.md:image-source"
+    ### Foreground Image
 
-### Geometry
+    #### Image Source Type
+    --8<-- "widgets/properties.md:image-source-type"
 
-#### X
---8<-- "widgets/properties.md:x"
+    #### Image Source
+    --8<-- "widgets/properties.md:image-source"
 
-#### Y
---8<-- "widgets/properties.md:y"
+    ### Geometry
 
-#### Width
---8<-- "widgets/properties.md:width"
+    #### X
+    --8<-- "widgets/properties.md:x"
 
-#### Height
---8<-- "widgets/properties.md:height"
+    #### Y
+    --8<-- "widgets/properties.md:y"
 
-#### Rotation
---8<-- "widgets/properties.md:rotation"
+    #### Width
+    --8<-- "widgets/properties.md:width"
 
+    #### Height
+    --8<-- "widgets/properties.md:height"
 
-#### Orientation
---8<-- "widgets/properties.md:orientation"
+    #### Rotation
+    --8<-- "widgets/properties.md:rotation"
 
-## Appearance
 
-### Foreground
+    #### Orientation
+    --8<-- "widgets/properties.md:orientation"
 
-#### Foreground Color
---8<-- "widgets/properties.md:foreground-color"
+=== "Appearance"
 
-### Background
+    ## Appearance
 
-#### Background Color
---8<-- "widgets/properties.md:background-color"
+    ### Foreground
 
+    #### Foreground Color
+    --8<-- "widgets/properties.md:foreground-color"
 
-### Border
+    ### Background
 
-#### Border Color
---8<-- "widgets/properties.md:border-color"
+    #### Background Color
+    --8<-- "widgets/properties.md:background-color"
 
-#### Border Width
---8<-- "widgets/properties.md:border-width"
 
-#### Corner Radius
---8<-- "widgets/properties.md:corner-radius"
+    ### Border
 
-### Shadow
+    #### Border Color
+    --8<-- "widgets/properties.md:border-color"
 
-#### Shadow Enabled
---8<-- "widgets/properties.md:shadow-enabled"
+    #### Border Width
+    --8<-- "widgets/properties.md:border-width"
 
-#### Shadow Offset X
---8<-- "widgets/properties.md:shadow-offset-x"
+    #### Corner Radius
+    --8<-- "widgets/properties.md:corner-radius"
 
-#### Shadow Offset Y
---8<-- "widgets/properties.md:shadow-offset-y"
+    ### Shadow
 
-#### Shadow Blur
---8<-- "widgets/properties.md:shadow-blur"
+    #### Shadow Enabled
+    --8<-- "widgets/properties.md:shadow-enabled"
 
-#### Shadow Opacity
---8<-- "widgets/properties.md:shadow-opacity"
+    #### Shadow Offset X
+    --8<-- "widgets/properties.md:shadow-offset-x"
 
-#### Shadow Color
---8<-- "widgets/properties.md:shadow-color"
+    #### Shadow Offset Y
+    --8<-- "widgets/properties.md:shadow-offset-y"
 
-### Thresholds
+    #### Shadow Blur
+    --8<-- "widgets/properties.md:shadow-blur"
 
-#### Threshold Mode
---8<-- "widgets/properties.md:threshold-mode"
+    #### Shadow Opacity
+    --8<-- "widgets/properties.md:shadow-opacity"
 
-#### Threshold 1
+    #### Shadow Color
+    --8<-- "widgets/properties.md:shadow-color"
 
-##### Threshold Enabled
---8<-- "widgets/properties.md:threshold-enabled"
+    ### Thresholds
 
-##### Threshold Value
---8<-- "widgets/properties.md:threshold-value"
+    #### Threshold Mode
+    --8<-- "widgets/properties.md:threshold-mode"
 
-##### Threshold Color
---8<-- "widgets/properties.md:threshold-color"
+    #### Threshold 1
 
-#### Threshold 2
+    ##### Threshold Enabled
+    --8<-- "widgets/properties.md:threshold-enabled"
 
-##### Threshold Enabled
---8<-- "widgets/properties.md:threshold-enabled"
+    ##### Threshold Value
+    --8<-- "widgets/properties.md:threshold-value"
 
-##### Threshold Value
---8<-- "widgets/properties.md:threshold-value"
+    ##### Threshold Color
+    --8<-- "widgets/properties.md:threshold-color"
 
-##### Threshold Color
---8<-- "widgets/properties.md:threshold-color"
+    #### Threshold 2
 
-#### Threshold 3
+    ##### Threshold Enabled
+    --8<-- "widgets/properties.md:threshold-enabled"
 
-##### Threshold Enabled
---8<-- "widgets/properties.md:threshold-enabled"
+    ##### Threshold Value
+    --8<-- "widgets/properties.md:threshold-value"
 
-##### Threshold Value
---8<-- "widgets/properties.md:threshold-value"
+    ##### Threshold Color
+    --8<-- "widgets/properties.md:threshold-color"
 
-##### Threshold Color
---8<-- "widgets/properties.md:threshold-color"
+    #### Threshold 3
 
-## Data
+    ##### Threshold Enabled
+    --8<-- "widgets/properties.md:threshold-enabled"
 
-### Value
+    ##### Threshold Value
+    --8<-- "widgets/properties.md:threshold-value"
 
-#### Source Unit
---8<-- "widgets/properties.md:source-unit"
+    ##### Threshold Color
+    --8<-- "widgets/properties.md:threshold-color"
 
-#### Unit
---8<-- "widgets/properties.md:unit"
+=== "Data"
 
-#### Format
---8<-- "widgets/properties.md:format"
+    ## Data
 
-### Display
+    ### Value
 
-#### Prefix
---8<-- "widgets/properties.md:prefix"
+    #### Source Unit
+    --8<-- "widgets/properties.md:source-unit"
 
-#### Suffix
---8<-- "widgets/properties.md:suffix"
+    #### Unit
+    --8<-- "widgets/properties.md:unit"
 
-#### Fallback
---8<-- "widgets/properties.md:fallback"
+    #### Format
+    --8<-- "widgets/properties.md:format"
 
-### Evaluation
+    ### Display
 
-#### Evaluation Mode
---8<-- "widgets/properties.md:evaluation-mode"
+    #### Prefix
+    --8<-- "widgets/properties.md:prefix"
 
-#### True If
---8<-- "widgets/properties.md:true-if"
+    #### Suffix
+    --8<-- "widgets/properties.md:suffix"
 
-#### Setpoint
---8<-- "widgets/properties.md:setpoint"
+    #### Fallback
+    --8<-- "widgets/properties.md:fallback"
 
-### Range
+    ### Evaluation
 
-#### Min
---8<-- "widgets/properties.md:min"
+    #### Evaluation Mode
+    --8<-- "widgets/properties.md:evaluation-mode"
 
-#### Max
---8<-- "widgets/properties.md:max"
+    #### True If
+    --8<-- "widgets/properties.md:true-if"
 
-### Endpoint Overrides
+    #### Setpoint
+    --8<-- "widgets/properties.md:setpoint"
 
-#### Endpoint Type Override
---8<-- "widgets/properties.md:endpoint-type-override"
+    ### Range
 
-## Gauge
+    #### Min
+    --8<-- "widgets/properties.md:min"
 
-### Horseshoe
+    #### Max
+    --8<-- "widgets/properties.md:max"
 
-#### Track Enabled
---8<-- "widgets/properties.md:track-enabled"
+    ### Endpoint Overrides
 
-#### Reverse
---8<-- "widgets/properties.md:reverse"
+    #### Endpoint Type Override
+    --8<-- "widgets/properties.md:endpoint-type-override"
 
-#### Start Angle
---8<-- "widgets/properties.md:start-angle"
+=== "Gauge"
 
-#### End Angle
---8<-- "widgets/properties.md:end-angle"
+    ## Gauge
 
-#### Track Thickness
---8<-- "widgets/properties.md:track-thickness"
+    ### Horseshoe
 
-#### Track Background Color
---8<-- "widgets/properties.md:track-background-color"
+    #### Track Enabled
+    --8<-- "widgets/properties.md:track-enabled"
 
-#### Track Border Width
---8<-- "widgets/properties.md:track-border-width"
+    #### Reverse
+    --8<-- "widgets/properties.md:reverse"
 
-#### Track Border Color
---8<-- "widgets/properties.md:track-border-color"
+    #### Start Angle
+    --8<-- "widgets/properties.md:start-angle"
 
-#### Track Corner Radius
---8<-- "widgets/properties.md:track-corner-radius"
+    #### End Angle
+    --8<-- "widgets/properties.md:end-angle"
 
-#### Gap
---8<-- "widgets/properties.md:gap"
+    #### Track Thickness
+    --8<-- "widgets/properties.md:track-thickness"
 
-### Needle
+    #### Track Background Color
+    --8<-- "widgets/properties.md:track-background-color"
 
-#### Needle Enabled
---8<-- "widgets/properties.md:needle-enabled"
+    #### Track Border Width
+    --8<-- "widgets/properties.md:track-border-width"
 
-#### Needle Thickness
---8<-- "widgets/properties.md:needle-thickness"
+    #### Track Border Color
+    --8<-- "widgets/properties.md:track-border-color"
 
-#### Needle Color
---8<-- "widgets/properties.md:needle-color"
+    #### Track Corner Radius
+    --8<-- "widgets/properties.md:track-corner-radius"
 
-#### Needle Start Offset
---8<-- "widgets/properties.md:needle-start-offset"
+    #### Gap
+    --8<-- "widgets/properties.md:gap"
 
-#### Needle End Offset
---8<-- "widgets/properties.md:needle-end-offset"
+    ### Needle
 
-#### Pointer Length
---8<-- "widgets/properties.md:pointer-length"
+    #### Needle Enabled
+    --8<-- "widgets/properties.md:needle-enabled"
 
-#### Pointer Thickness
---8<-- "widgets/properties.md:pointer-thickness"
+    #### Needle Thickness
+    --8<-- "widgets/properties.md:needle-thickness"
 
-#### Pointer Color
---8<-- "widgets/properties.md:pointer-color"
+    #### Needle Color
+    --8<-- "widgets/properties.md:needle-color"
 
-### Bar
+    #### Needle Start Offset
+    --8<-- "widgets/properties.md:needle-start-offset"
 
-#### Bar Mode
---8<-- "widgets/properties.md:bar-mode"
+    #### Needle End Offset
+    --8<-- "widgets/properties.md:needle-end-offset"
 
-#### Reverse
---8<-- "widgets/properties.md:reverse"
+    #### Pointer Length
+    --8<-- "widgets/properties.md:pointer-length"
 
-#### Gap
---8<-- "widgets/properties.md:gap"
+    #### Pointer Thickness
+    --8<-- "widgets/properties.md:pointer-thickness"
 
-## States
+    #### Pointer Color
+    --8<-- "widgets/properties.md:pointer-color"
 
-The State group repeats for each profile supported by the selected state-driven widget.
+    ### Bar
 
-- **Binary:** State: False, State: True.
-- **Power:** State: Online, On Battery, Charging, Low, Critical, Fully Charged, Normal, Unknown, Unavailable.
-- **Media System:** Type: Remote Network, Speakers, Line Level, Headphones, Microphone, Handset, Digital Passthrough, S/PDIF, Display Audio, Unknown; State: Unavailable.
-- **Media Player:** State: Playing, Paused, Stopped, Unavailable.
+    #### Bar Mode
+    --8<-- "widgets/properties.md:bar-mode"
 
-### State
+    #### Reverse
+    --8<-- "widgets/properties.md:reverse"
 
-#### State Source Type
---8<-- "widgets/properties.md:state-source-type"
+    #### Gap
+    --8<-- "widgets/properties.md:gap"
 
-#### Image Source
---8<-- "widgets/properties.md:image-source"
+=== "States"
 
-## Image
+    ## States
 
-The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, or Canvas image layers.
+    The State group repeats for each profile supported by the selected state-driven widget.
 
-The `Image` property group changes with widget type: standalone Image exposes Fit, Loop, and Opacity; Bar in Image mode exposes Source, Fit, Progress Mode, and Loop. The repeated Fit/Loop references below are **different Editor contexts**, not duplicate simultaneous controls. State profiles and Canvas layers have their own groups.
+    - **Binary:** State: False, State: True.
+    - **Power:** State: Online, On Battery, Charging, Low, Critical, Fully Charged, Normal, Unknown, Unavailable.
+    - **Media System:** Type: Remote Network, Speakers, Line Level, Headphones, Microphone, Handset, Digital Passthrough, S/PDIF, Display Audio, Unknown; State: Unavailable.
+    - **Media Player:** State: Playing, Paused, Stopped, Unavailable.
 
-### Image
+    ### State
 
-#### Image Source
---8<-- "widgets/properties.md:image-source"
+    #### State Source Type
+    --8<-- "widgets/properties.md:state-source-type"
 
-#### Image Fit (standalone Image)
---8<-- "widgets/properties.md:image-fit"
+    #### Image Source
+    --8<-- "widgets/properties.md:image-source"
 
-#### Image Fit (Bar Image mode)
---8<-- "widgets/properties.md:image-fit"
+=== "Image"
 
-#### Progress Mode
---8<-- "widgets/properties.md:progress-mode"
+    ## Image
 
-#### Image Loop (standalone Image)
---8<-- "widgets/properties.md:image-loop"
+    The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, or Canvas image layers.
 
-#### Image Loop (Bar Image mode)
---8<-- "widgets/properties.md:image-loop"
+    The `Image` property group changes with widget type: standalone Image exposes Fit, Loop, and Opacity; Bar in Image mode exposes Source, Fit, Progress Mode, and Loop. The repeated Fit/Loop references below are **different Editor contexts**, not duplicate simultaneous controls. State profiles and Canvas layers have their own groups.
 
-#### Opacity
---8<-- "widgets/properties.md:opacity"
+    ### Image
 
-### State
+    #### Image Source
+    --8<-- "widgets/properties.md:image-source"
 
-#### Image Fit
---8<-- "widgets/properties.md:image-fit"
+    #### Image Fit (standalone Image)
+    --8<-- "widgets/properties.md:image-fit"
 
-#### Image Loop
---8<-- "widgets/properties.md:image-loop"
+    #### Image Fit (Bar Image mode)
+    --8<-- "widgets/properties.md:image-fit"
 
-#### State Color
---8<-- "widgets/properties.md:state-color"
+    #### Progress Mode
+    --8<-- "widgets/properties.md:progress-mode"
 
-#### Opacity
---8<-- "widgets/properties.md:opacity"
+    #### Image Loop (standalone Image)
+    --8<-- "widgets/properties.md:image-loop"
 
-### Background Image
+    #### Image Loop (Bar Image mode)
+    --8<-- "widgets/properties.md:image-loop"
 
-#### Image Fit
---8<-- "widgets/properties.md:image-fit"
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
 
-#### Opacity
---8<-- "widgets/properties.md:opacity"
+    ### State
 
-#### Image Loop
---8<-- "widgets/properties.md:image-loop"
+    #### Image Fit
+    --8<-- "widgets/properties.md:image-fit"
 
-#### Image Layer Color
---8<-- "widgets/properties.md:image-layer-color"
+    #### Image Loop
+    --8<-- "widgets/properties.md:image-loop"
 
-### Foreground Image
+    #### State Color
+    --8<-- "widgets/properties.md:state-color"
 
-#### Image Fit
---8<-- "widgets/properties.md:image-fit"
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
 
-#### Opacity
---8<-- "widgets/properties.md:opacity"
+    ### Background Image
 
-#### Image Loop
---8<-- "widgets/properties.md:image-loop"
+    #### Image Fit
+    --8<-- "widgets/properties.md:image-fit"
 
-#### Image Layer Color
---8<-- "widgets/properties.md:image-layer-color"
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
 
-## Text
+    #### Image Loop
+    --8<-- "widgets/properties.md:image-loop"
 
-For **Text / Value**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; foreground state color/opacity remain fields of the profile itself.
+    #### Image Layer Color
+    --8<-- "widgets/properties.md:image-layer-color"
 
-### Foreground
+    ### Foreground Image
 
-#### State Color
---8<-- "widgets/properties.md:state-color"
+    #### Image Fit
+    --8<-- "widgets/properties.md:image-fit"
 
-#### Opacity
---8<-- "widgets/properties.md:opacity"
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
 
-### Font
+    #### Image Loop
+    --8<-- "widgets/properties.md:image-loop"
 
-#### Font Family
---8<-- "widgets/properties.md:font-family"
+    #### Image Layer Color
+    --8<-- "widgets/properties.md:image-layer-color"
 
-#### Font Size
---8<-- "widgets/properties.md:font-size"
+=== "Text"
 
-#### Font Weight
---8<-- "widgets/properties.md:font-weight"
+    ## Text
 
-#### Italic
---8<-- "widgets/properties.md:italic"
+    For **Text / Value**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; foreground state color/opacity remain fields of the profile itself.
 
-### Alignment
+    ### Foreground
 
-#### Horizontal Alignment
---8<-- "widgets/properties.md:horizontal-alignment"
+    #### State Color
+    --8<-- "widgets/properties.md:state-color"
 
-#### Vertical Alignment
---8<-- "widgets/properties.md:vertical-alignment"
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
 
-### Outline
+    ### Font
 
-#### Outline Color
---8<-- "widgets/properties.md:outline-color"
+    #### Font Family
+    --8<-- "widgets/properties.md:font-family"
 
-#### Outline Width
---8<-- "widgets/properties.md:outline-width"
+    #### Font Size
+    --8<-- "widgets/properties.md:font-size"
 
-### Overflow
+    #### Font Weight
+    --8<-- "widgets/properties.md:font-weight"
 
-#### Overflow Mode
---8<-- "widgets/properties.md:overflow-mode"
+    #### Italic
+    --8<-- "widgets/properties.md:italic"
 
-#### Scroll Speed
---8<-- "widgets/properties.md:scroll-speed"
+    ### Alignment
 
-#### Bump Pause
---8<-- "widgets/properties.md:bump-pause"
+    #### Horizontal Alignment
+    --8<-- "widgets/properties.md:horizontal-alignment"
+
+    #### Vertical Alignment
+    --8<-- "widgets/properties.md:vertical-alignment"
+
+    ### Outline
+
+    #### Outline Color
+    --8<-- "widgets/properties.md:outline-color"
+
+    #### Outline Width
+    --8<-- "widgets/properties.md:outline-width"
+
+    ### Overflow
+
+    #### Overflow Mode
+    --8<-- "widgets/properties.md:overflow-mode"
+
+    #### Scroll Speed
+    --8<-- "widgets/properties.md:scroll-speed"
+
+    #### Bump Pause
+    --8<-- "widgets/properties.md:bump-pause"
+
