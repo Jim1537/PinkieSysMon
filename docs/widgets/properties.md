@@ -1,5 +1,16 @@
 # Widget Property Dictionary
 
+## Common inherited widget fields
+
+<!-- --8<-- [start:widget-base-fields] -->
+
+Every widget inherits the shared persisted `WidgetDefinition` fields: `id` (the widget's instance identity), optional `name`, `z` (layer order), `x`, `y`, `width`, `height`, `rotation`, `color` (foreground), `backgroundColor`, `borderColor`, `borderWidth`, `cornerRadius`, and `shadowEnabled`, `shadowOffsetX`, `shadowOffsetY`, `shadowBlur`, `shadowOpacity`, `shadowColor`.
+
+Individual widgets retain their own geometry validation, source-specific meaning of foreground color, and Editor property applicability. This shared list does not replace their widget-specific persisted fields.
+
+<!-- --8<-- [end:widget-base-fields] -->
+
+
 
 ## Background Color
 
