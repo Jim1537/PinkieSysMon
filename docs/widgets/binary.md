@@ -275,7 +275,7 @@ The canonical `profiles` dictionary contains exactly these required keys:
 - `true` — `State: True`
 - `false` — `State: False`
 
---8<-- "widgets/state-profiles.md:profile-schema"
+--8<-- "widgets/profiles.md:profile-schema"
 
 The current default profiles both use `lucide:check`. The True profile has full opacity; the False profile has `0.5` opacity.
 
@@ -305,13 +305,13 @@ In Setpoint mode, numeric `Unit` options are constrained to units suitable for n
 
 `BinaryWidgetRenderer` inherits from `StateProfileWidgetRenderer`.
 
---8<-- "widgets/state-profiles.md:profile-rendering"
+--8<-- "widgets/profiles.md:profile-rendering"
 
 For Binary, missing or failed evaluation leaves no active True/False profile. No graphical or animated state is displayed; this must not be silently treated as False. The canonical schema-19 state definition is projected into the shared immutable render profile.
 
 ### Geometry and Overflow
 
---8<-- "widgets/state-profiles.md:profile-geometry"
+--8<-- "widgets/profiles.md:profile-geometry"
 
 Binary has **two** profiles. Both must use Value for auto-width to be eligible. `WidgetGeometry` retains an appropriate selection/layout extent when Binary evaluation is unavailable. This geometry fallback is not an additional visual or unavailable state.
 

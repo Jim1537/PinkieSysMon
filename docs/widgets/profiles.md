@@ -1,8 +1,12 @@
-# Shared State-Profile Contracts
+# Shared Profile Contracts
+
+This file is the shared home for cross-widget **profile mechanisms**. Additional profile families can be added here when they have a genuinely reusable contract; a different profile name alone does not justify another file. Individual property definitions remain with the [Property Dictionary](properties.md).
+
+## State Visual Profiles
 
 Binary, Power, Media System, and Media Player use the same persisted state-profile structure and state-specific rendering pipeline. This page owns **only the common mechanism**. Each [widget guide](../README.md#available-widgets) owns its own required state keys, default icons, source selection, value text, unavailable behavior, and validation exceptions. The [Property Dictionary](properties.md) owns individual Editor-property definitions.
 
-## Persisted profile structure
+### Persisted profile structure
 
 <!-- --8<-- [start:profile-schema] -->
 
@@ -21,7 +25,7 @@ Each widget owns its required profile keys, defaults, and state-selection/unavai
 
 <!-- --8<-- [end:profile-schema] -->
 
-## Shared rendering and animation
+### Shared rendering and animation
 
 <!-- --8<-- [start:profile-rendering] -->
 
@@ -35,7 +39,7 @@ The shared SkiaSharp widget appearance pipeline (background, border, shadow, geo
 
 <!-- --8<-- [end:profile-rendering] -->
 
-## Shared geometry and Value-state overflow
+### Shared geometry and Value-state overflow
 
 <!-- --8<-- [start:profile-geometry] -->
 

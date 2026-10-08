@@ -248,7 +248,7 @@ The canonical `profiles` dictionary requires exactly these four keys:
 
 The default graphical profiles reference `lucide:play`, `lucide:pause`, `lucide:square`, and `lucide:circle-slash`, respectively.
 
---8<-- "widgets/state-profiles.md:profile-schema"
+--8<-- "widgets/profiles.md:profile-schema"
 
 Selecting Value activates only that state's text presentation; it does not make Media Player a general-purpose metric reader.
 
@@ -264,13 +264,13 @@ The shared `TextContentRenderer` renders the state text using the profile's cano
 
 `MediaPlayerWidgetRenderer` inherits from `StateProfileWidgetRenderer`.
 
---8<-- "widgets/state-profiles.md:profile-rendering"
+--8<-- "widgets/profiles.md:profile-rendering"
 
 These visual animations do **not** control media playback in the external application.
 
 ### Geometry and Text Overflow
 
---8<-- "widgets/state-profiles.md:profile-geometry"
+--8<-- "widgets/profiles.md:profile-geometry"
 
 For Media Player, **all four** profiles must use Value for auto-width to be eligible. X, Y, Width, Height, and Rotation remain common widget properties.
 

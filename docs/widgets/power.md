@@ -261,7 +261,7 @@ Power requires exactly these state keys in its `profiles` dictionary:
 | `unknown` | `lucide:battery-warning` |
 | `unavailable` | `lucide:battery-warning` |
 
---8<-- "widgets/state-profiles.md:profile-schema"
+--8<-- "widgets/profiles.md:profile-schema"
 
 The default image profiles use `Fit = contain`, `Loop = true`, and full opacity. Loop only produces animation when the selected asset supports it.
 
@@ -281,11 +281,11 @@ The Text tab exposes only Value-backed state groups; the Image tab exposes only 
 
 `PowerWidgetRenderer` is a specialization of the shared state-profile renderer.
 
---8<-- "widgets/state-profiles.md:profile-rendering"
+--8<-- "widgets/profiles.md:profile-rendering"
 
 ### Geometry and Text Overflow
 
---8<-- "widgets/state-profiles.md:profile-geometry"
+--8<-- "widgets/profiles.md:profile-geometry"
 
 For Power, **all nine** profiles must use Value before auto-width is allowed. Its widget-level geometry and appearance still include logical X/Y, Width/Height, rotation, background, border, and shadow.
 

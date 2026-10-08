@@ -296,7 +296,7 @@ The required profile keys are:
 - `unknown`
 - `unavailable`
 
---8<-- "widgets/state-profiles.md:profile-schema"
+--8<-- "widgets/profiles.md:profile-schema"
 
 These eleven state presentations are independently configurable. `unknown` and `unavailable` are separate profiles; endpoint selection and the application-level endpoint override contract are documented above.
 
@@ -314,11 +314,11 @@ It does not read `system.media.output.name`, `system.media.input.name`, volume, 
 
 `MediaSystemWidgetRenderer` delegates state-specific drawing to `StateProfileWidgetRenderer`.
 
---8<-- "widgets/state-profiles.md:profile-rendering"
+--8<-- "widgets/profiles.md:profile-rendering"
 
 ### Geometry and Overflow
 
---8<-- "widgets/state-profiles.md:profile-geometry"
+--8<-- "widgets/profiles.md:profile-geometry"
 
 For Media System, **all eleven** profiles must be Value-backed for auto-width to be eligible. X, Y, Width, Height, and Rotation remain the common widget geometry properties.
 
