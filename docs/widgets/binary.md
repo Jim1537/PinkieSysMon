@@ -208,7 +208,7 @@ Binary-specific JSON fields:
 | `setpoint` | `Setpoint` | Reference value stored as text. |
 | `profiles` | `Profiles` | True/False visual-profile dictionary. |
 
-Common inherited fields include `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, color, background, border, and shadow parameters.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 The `metric` field identifies the telemetry source reading, not the widget instance. The stable `id` is the widget identity within the dashboard.
 
