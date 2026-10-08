@@ -8,7 +8,7 @@ docs_dir: docs
 site_dir: site
 
 nav:
-  - Overview: index.md
+  - Overview: README.md
   - Telemetry providers:
       - System: telemetry/system.md
       - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md
@@ -22,6 +22,8 @@ nav:
       - Power: widgets/power.md
       - Media System: widgets/media-system.md
       - Media Player: widgets/media-player.md
+  - Development:
+      - Building and deployment: development/building.md
   - Property reference:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
