@@ -192,7 +192,7 @@ Gauge uses the same metric-conversion and quantitative threshold contracts as ot
 
 ### Canonical Model and JSON Fields
 
-The Gauge model inherits common widget geometry and appearance fields including `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, foreground `color`, background, border, and shadow settings.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 Gauge-specific and quantitative JSON fields:
 
