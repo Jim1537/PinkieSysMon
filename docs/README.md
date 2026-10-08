@@ -9,8 +9,8 @@
 **Repository:** [GitHub](https://github.com/Jim1537/PinkieSysMon)
 
 <p>
-  <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
-  <a href="https://ko-fi.com/Z5X220SWVK"><img align="right" src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a>
+  <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img align="left" src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
+  <a href="https://ko-fi.com/Z5X220SWVK"><img align="left" src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a>
 </p>
 
 <br clear="all">
