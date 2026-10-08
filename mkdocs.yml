@@ -11,6 +11,7 @@ nav:
   - Overview: README.md
   - Download: https://github.com/Jim1537/PinkieSysMon/releases/latest
   - Compatibility Notice: compatibility.md
+  - Supported Devices: supported-devices.md
   - Development Approach: development/vibe-coding.md
   - Support Me: https://ko-fi.com/Z5X220SWVK
   - Telemetry providers:
@@ -26,11 +27,13 @@ nav:
       - Power: widgets/power.md
       - Media System: widgets/media-system.md
       - Media Player: widgets/media-player.md
-  - Development:
-      - Building and deployment: development/building.md
   - Property reference:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
+  - Development:
+      - Building and deployment: development/building.md
+      - Device integration:
+          - Trofeo Vision 9.16: development/devices/trofeo-vision-9.16.md
 
 theme:
   name: material
