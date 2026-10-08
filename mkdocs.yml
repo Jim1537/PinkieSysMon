@@ -31,6 +31,7 @@ nav:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
   - Development:
+      - Roadmap: development/roadmap.md
       - Building and deployment: development/building.md
       - Device integration:
           - Trofeo Vision 9.16: development/devices/trofeo-vision-9.16.md
