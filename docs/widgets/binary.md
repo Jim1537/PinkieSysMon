@@ -275,28 +275,7 @@ The canonical `profiles` dictionary contains exactly these required keys:
 - `true` — `State: True`
 - `false` — `State: False`
 
-Each entry is a `DashboardModel.StateVisualProfileDefinition`.
-
-| Profile JSON field | Meaning |
-| --- | --- |
-| `contentType` | `image` or `value`. |
-| `asset.sourceType` | `icon` or `file` when `contentType = image`. |
-| `asset.source` | Icon identifier or dashboard-relative image source. |
-| `asset.fit` | Image fitting mode. |
-| `asset.loop` | Image animation loop setting. |
-| `color` | State color or supported icon tint. |
-| `opacity` | State-specific opacity. |
-| `textPresentation` | Font, alignment, outline, and overflow definition for Value content. |
-
-The Editor exposes these structures as `Source Type = Icon`, `Image`, or `Value`:
-
-- `Icon` maps to `contentType = image`, `asset.sourceType = icon`.
-- `Image` maps to `contentType = image`, `asset.sourceType = file`.
-- `Value` maps to `contentType = value`.
-
-The graphical asset remains a separate canonical object even when Value content is selected. Switching between Icon and Image clears an incompatible asset source; switching to Value does not convert the asset into text.
-
-Profile validation requires a supported content type, non-null asset and text-presentation structures, and opacity in `0..1`. Active image content must reference a valid icon or an existing dashboard-relative asset.
+--8<-- "widgets/state-profiles.md:profile-schema"
 
 The current default profiles both use `lucide:check`. The True profile has full opacity; the False profile has `0.5` opacity.
 
@@ -324,33 +303,15 @@ In Setpoint mode, numeric `Unit` options are constrained to units suitable for n
 
 ### Graphical State Rendering
 
-`BinaryWidgetRenderer` inherits from `StateProfileWidgetRenderer`. The selected state profile is projected from the canonical schema-19 model into the common immutable render profile.
+--8<-- "widgets/state-profiles.md:profile-rendering"
 
-Image/Icon rendering uses `StateIconVisualCache`. It supports image fitting, state opacity, appropriate icon tint, and animation where the selected asset supports it.
-
-The rendering path can track animation playback relative to the activation of a state, so switching between True and False can reset activation-relative animated content. When no profile is active, the playback tracker is deactivated.
-
-The Value path uses `TextContentRenderer` with state-specific text presentation, color, and opacity. The shared renderer draws text outline and fill using SkiaSharp.
-
-The widget-level appearance pipeline handles background, border, shadow, common geometry, and rotation.
+For Binary, missing or failed evaluation leaves no active True/False profile. No graphical or animated state is displayed; this must not be silently treated as False.
 
 ### Geometry and Overflow
 
-Binary has two layout configurations, determined by its profiles:
+--8<-- "widgets/state-profiles.md:profile-geometry"
 
-- **Mixed or graphical content** — if either state uses Icon/Image, the widget requires a positive Width and Height and uses an explicit container.
-- **Value-only content** — if both states use Value, automatic text width is allowed and effective text height is content-derived.
-
-In Value-only mode:
-
-- `Width = 0` allows intrinsic text width; Value states use `Overflow Mode = None`.
-- `Width > 0` requires constrained overflow behavior.
-
-When graphical and Value states are mixed, all Value-state text is laid out inside the shared positive-size container and clipped to its effective bounds. `Overflow Mode = None` is not valid for the mixed fixed-width layout.
-
-The supported constrained overflow modes are `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, and `Bump`. The Editor and `TextOverflowStateContract` reconcile Width and Overflow changes rather than persisting contradictory settings.
-
-`WidgetGeometry` derives bounds for Value-only profiles and retains an appropriate selection/layout extent when Binary evaluation is unavailable. This geometry fallback is not an extra visual state.
+Binary has **two** profiles. Both must use Value for auto-width to be eligible. `WidgetGeometry` retains an appropriate selection/layout extent when Binary evaluation is unavailable. This geometry fallback is not an additional visual or unavailable state.
 
 ### Editor Property Applicability
 
