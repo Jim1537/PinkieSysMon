@@ -12,6 +12,7 @@ nav:
   - Download: https://github.com/Jim1537/PinkieSysMon/releases/latest
   - Compatibility Notice: compatibility.md
   - Development Approach: development/vibe-coding.md
+  - Support Me: https://ko-fi.com/Z5X220SWVK
   - Telemetry providers:
       - System: telemetry/system.md
       - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md
@@ -33,7 +34,6 @@ nav:
 
 theme:
   name: material
-  custom_dir: overrides
   favicon: images/pinkiesysmon.ico
   language: en
   features:
@@ -61,9 +61,6 @@ theme:
 
 plugins:
   - search
-
-extra_css:
-  - stylesheets/support.css
 
 markdown_extensions:
   - admonition
