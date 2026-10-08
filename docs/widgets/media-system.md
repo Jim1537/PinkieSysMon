@@ -312,6 +312,8 @@ For Media System, `WidgetRenderContext.ResolveStateValueText(widget, stateKey)` 
 
 It does not read `system.media.output.name`, `system.media.input.name`, volume, mute, or activity values. Value is a presentation **of the classified state**, not a general telemetry-value source.
 
+`MediaSystemWidgetRenderer` delegates state-specific drawing to `StateProfileWidgetRenderer`.
+
 --8<-- "widgets/state-profiles.md:profile-rendering"
 
 ### Geometry and Overflow
