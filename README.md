@@ -11,6 +11,10 @@ The project contains two applications:
 - **PinkieSysMon Runtime** — background telemetry, dashboard rendering, system-tray control, and output-device management.
 - **PinkieSysMon Dashboard Editor** — visual dashboard authoring with layers, groups, multi-selection, drag/resize/rotate editing, contextual properties, and live telemetry preview.
 
+## Documentation
+
+The [documentation source](docs/index.md) is maintained in this repository and built with Material for MkDocs. It is intended to be published as a [GitHub Pages documentation site](https://jim1537.github.io/PinkieSysMon/) once Pages is enabled.
+
 ## Current capabilities
 
 PinkieSysMon supports configurable dashboards with Value, Binary, Gauge, Bar, Image, Power, Media System, and Media Player widgets. Dashboard presentation supports fonts, colors, units, formatting, thresholds and state-based presentation, static and animated images, background/foreground image layers, grouping, and dashboard switching.
