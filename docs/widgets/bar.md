@@ -236,22 +236,9 @@ The display labels in the Editor are not a substitute for these persisted JSON p
 
 ### Metric Resolution and Normalized Progress
 
-`BarWidgetRenderer.Render` calls `WidgetRenderContext.TryGetMetricDouble` for the configured metric, including the widget's selected `Unit`.
+--8<-- "widgets/quantitative.md:quantitative-metric"
 
-For a known numeric metric descriptor, conversion uses `MetricValueConverter`. If the descriptor is absent or nonnumeric, the context accepts a finite numeric conversion only when no separate unit conversion is requested.
-
-For a converted numeric reading `v`, normalization is:
-
-  `progress = clamp((v - Min) / (Max - Min), 0, 1)`
-
-`Min` and `Max` are numeric values in the selected unit, not raw source units when conversion is enabled.
-
-- `progress = 0` draws no active fill or image content.
-- `progress = 1` uses the full available interior.
-- Intermediate values occupy a proportional interior width.
-- Values outside the configured range are visually clamped.
-
-The selected metric is gathered by demand-driven telemetry usage. Bar does not poll a provider directly and does not preserve an old reading if the current metric becomes unavailable.
+For **Bar**, `ratio = 0` draws no active Fill/Image content, `ratio = 1` covers the full drawable interior, and intermediate values control proportional **horizontal** progress. The metric is requested only when needed; a missing reading does not leave the prior fill visible.
 
 ### Geometry and Reverse Direction
 
@@ -273,21 +260,11 @@ Rotation applies through the common widget rendering pipeline, around the widget
 
 ### Fill Rendering and Thresholds
 
-In `Fill` mode, `CompiledQuantitativeIndicator` supplies the base color, normalized thresholds, and threshold color stops. The base color comes from the widget's foreground `color`.
+--8<-- "widgets/quantitative.md:quantitative-thresholds"
 
-Thresholds are represented by exactly three slots. Enabled values must be finite, inside `Min..Max`, and ordered in ascending value. Disabled slots are ignored for color-stop selection.
+In **Bar Fill mode**, `SegmentSolid` draws fixed color intervals across the horizontal interior and clips them to the active rectangle. `SegmentTransition` applies a **linear** gradient across the whole interior, then clips it to the active region; its direction follows `Reverse`. `State` colors the **entire horizontal active rectangle** according to the last reached threshold.
 
-| Mode | Implementation behavior |
-| --- | --- |
-| `SegmentSolid` | Builds fixed intervals across Min..Max, assigns each interval its color, and clips them to the current active rectangle. |
-| `SegmentTransition` | Creates a linear gradient across the entire interior using base and enabled-threshold colors, then draws only the current active rectangle. The gradient direction follows `Reverse`. |
-| `State` | Colors the whole active rectangle with the base color or the last enabled threshold color reached by the converted metric value. |
-
-For `SegmentSolid`, thresholds define interval starts, not separate alarm outputs. In `State` mode, the current metric reading is evaluated against threshold values; its active length still uses the clamped progress ratio.
-
-Threshold coloring affects only the active Fill. The common widget background is not automatically recolored by thresholds.
-
-In `Image` mode, there is no `CompiledQuantitativeIndicator` for color rendering. The current Editor hides threshold controls in that mode and the Bar model does not apply threshold range/order validation as part of image-mode rendering. Threshold configuration remains a separate persisted property object rather than part of the Image pipeline.
+Threshold coloring affects only Bar's active Fill, not its shared background. **Image mode** instead uses `ImageAssetCache` with `Scale`, `Slide`, or `Reveal` transformations; threshold controls are hidden by the Editor, threshold range/order validation is not used in this mode, and the persisted thresholds definition remains separate.
 
 ### Image Rendering
 
