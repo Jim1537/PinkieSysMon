@@ -85,6 +85,11 @@ Use the single canonical owner for each type of information:
 
 Duplicate content includes paraphrases with the same practical meaning. When a fact belongs to another document, **link instead of retelling it**. If ownership must change, move the fact and remove its old copy in the same change. Never restore revisioned `about`, buglist, provider, or widget Project attachments as competing current authorities.
 
+## Documentation presentation and visual acceptance
+
+- **Publication and visual review:** First establish how the author can actually view the rendered change. If a documentation site publishes only from `main` and no PR preview exists, do **not** request browser approval of an unpublished PR. For documentation-only changes, after applicable static checks and docs CI, obtain explicit authorization to merge and publish, verify the actual deployment, and then request visual feedback. Correct or revert a disappointing result in a follow-up commit/PR rather than rewriting shared history. This workflow does not waive code, regression, runtime, or device acceptance requirements for other changes.
+- **Readable, inheritable formatting:** Prioritize visual hierarchy and scanability without decorating every paragraph or enforcing a fixed paragraph count. Prefer built-in MkDocs Material blocks, content tabs, ordinary lists, blockquotes, and restrained Unicode symbols over custom CSS or JavaScript; use warning styles only for genuine warnings. Keep formatting of reused material **inside the canonical named snippet**, so consumers inherit it instead of maintaining duplicate wrappers. Preserve headings, links, anchors, legibility, and accessibility; once the author accepts the result, stop embellishing it without a concrete need.
+
 ## Delivery report
 
 For each meaningful change, identify the target SHA, files changed, preserved/modified contracts, schema and real-private-dashboard impact, test gates actually run, outstanding acceptance or uncertainties, and PR/Issue links. Never claim a verification step was performed when it was only reasoned about.
