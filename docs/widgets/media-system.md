@@ -203,7 +203,7 @@ Media System consumes already collected telemetry. It does not enumerate endpoin
 | `mediaSource` | `MediaSource` | One of `media.output` or `media.input`. |
 | `profiles` | `Profiles` | Eleven required visual profiles, keyed by canonical endpoint classification or `unavailable`. |
 
-Inherited properties include `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, common colors, background, border, and shadow configuration.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 No arbitrary `metric` field, playback-state property, or endpoint ID selector belongs to this widget model. Endpoint-type overrides belong to `AppConfig.Media.EndpointTypeOverrides` and must not be serialized inside an individual Media System widget.
 
