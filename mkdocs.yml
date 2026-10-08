@@ -28,6 +28,7 @@ nav:
 
 theme:
   name: material
+  favicon: images/pinkiesysmon.ico
   language: en
   features:
     - navigation.sections
