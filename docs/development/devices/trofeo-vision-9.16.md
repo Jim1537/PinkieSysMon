@@ -17,6 +17,12 @@ PinkieSysMon renders dashboard frames in the native Windows Runtime, encodes the
 | Canvas orientation and device-side rotation | [`FrameGeometry.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/FrameGeometry.cs) |
 | Target, renderer and USB configuration contracts | [`AppConfig.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/AppConfig.cs) |
 
+## Protocol research and acknowledgments
+
+**Special thanks to [@Lexonight1](https://github.com/Lexonight1)**, creator of [thermalright-trcc-linux](https://github.com/Lexonight1/thermalright-trcc-linux), for publishing the [reverse-engineered USBLCDNEW / LY USB bulk protocol reference](https://github.com/Lexonight1/thermalright-trcc-linux/blob/main/doc/PROTOCOL_USBLCDNEW.md#protocol-4-ly-lcd-04165408). That research documents the Thermalright software's LY transport for USB `0416:5408`, including endpoint selection, handshake, 512-byte JPEG frame records, transfer grouping, and acknowledgments. Making these low-level details publicly inspectable is a valuable contribution to independent device integration and verification.
+
+The exact behavior described on this page remains the behavior of PinkieSysMon's own [`TrofeoTransport.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/TrofeoTransport.cs). The upstream research is an **external reference**, not an official Thermalright specification. PinkieSysMon's public repository history does not independently establish whether its original transport implementation was derived directly from that project; this acknowledgment credits the published protocol research without asserting a verbatim code import.
+
 ## Hardware identification and output selection
 
 - **Target model:** Thermalright Trofeo Vision 9.16; **native resolution:** 1920 × 480; **connection:** USB / WinUSB.
