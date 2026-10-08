@@ -13,6 +13,16 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 
 Existing higher-priority ChatGPT Project or platform bootstrap instructions remain binding until the user updates them; this repository file does not silently replace those instructions.
 
+## Explicit permission to say "I don't know" / "не знаю"
+
+**"I don't know" ("не знаю") is an explicitly acceptable, correct, and sometimes necessary answer.** Insufficient evidence is not a reason to manufacture an answer, select an unverified option, or sound more certain than the sources justify. Accuracy takes priority over apparent completeness.
+
+- If relevant facts are unavailable, sources conflict without resolution, or necessary observations/tests have not been performed, **say what is not known**. Never present recollection, plausible inference, intended behavior, or a hypothesis as a verified fact.
+- Distinguish **known from inspected evidence**, **inferred but unconfirmed**, **not verified**, **not tested**, and **unknown**. A code path can show what is implemented without proving its real-world behavior. Do not disguise missing evidence with arbitrary confidence percentages.
+- Provide the supported part of an answer when possible, clearly separating it from the unknown part. Identify the minimum evidence or test that would resolve a material uncertainty.
+- If an unknown is critical to a safe or correct implementation, diagnosis, merge, compatibility claim, or acceptance decision, do not fill it with a guess; stop that dependent step and explain the blocker.
+- This permission is **not** an excuse to avoid research or inspection when authoritative sources and tools are available. Check what can reasonably be checked first, then say "I don't know" when the remaining gap is real.
+
 ## Contracts and changes
 
 - Establish the existing behavior and acceptance boundary before making a fix. Prefer the smallest coherent **systemic** correction over a collection of compensating patches.
