@@ -6,28 +6,18 @@ Binary, Power, Media System, and Media Player use the same persisted state-profi
 
 <!-- --8<-- [start:profile-schema] -->
 
-Every entry in the canonical `profiles` dictionary is a `DashboardModel.StateVisualProfileDefinition`:
+Each entry in the persisted `profiles` dictionary is a `DashboardModel.StateVisualProfileDefinition`. It combines several **distinct parts of one state**:
 
-| Profile JSON field | Meaning |
-| --- | --- |
-| `contentType` | `image` or `value`. |
-| `asset.sourceType` | `icon` or `file` when `contentType = image`. |
-| `asset.source` | Logical icon identifier (for example `lucide:play`) or dashboard-relative image path (often in `images/`). |
-| `asset.fit` | Graphical fitting mode (Contain, Cover, or Stretch). |
-| `asset.loop` | Animation looping for supported animated sources. |
-| `color` | Profile color and supported icon tint, or Value-state text foreground. |
-| `opacity` | State-specific opacity from 0 to 1. |
-| `textPresentation` | State-local font, alignment, outline, and overflow settings for Value content. |
+- **Content selection:** `contentType` chooses graphical or Value presentation, with `asset.sourceType` identifying the graphical source kind.
+- **Graphical payload:** the `asset` object contains the graphical source and its fit/loop presentation.
+- **State appearance:** `color` and `opacity` belong to that particular profile.
+- **Value payload:** `textPresentation` holds the state's font, alignment, outline, and overflow presentation.
 
-The Editor's `Source Type` options map to persisted content as follows:
+This list describes **model composition**, not a second set of property definitions. The [Property Dictionary](properties.md) exclusively defines Editor labels, supported values, persisted JSON paths, and applicability: [State Source Type](properties.md#state-source-type), [Image Source](properties.md#image-source), [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop), [State Color](properties.md#state-color), [Opacity](properties.md#opacity), and the [Text property groups](properties-by-tab.md#text). For example, the exact Icon/Image/Value-to-JSON mapping is owned by **State Source Type**, not repeated here.
 
-- **Icon** → `contentType = image`, `asset.sourceType = icon`.
-- **Image** → `contentType = image`, `asset.sourceType = file`.
-- **Value** → `contentType = value`.
+Both payload objects remain separate in the canonical profile, including when one is inactive. A graphical source-kind change can clear an incompatible stored asset source, but selecting Value does not convert that asset into text. Changing one state's presentation must preserve unrelated state profiles.
 
-The asset and text-presentation objects remain distinct in the canonical model. Changing between Icon and Image can clear an incompatible asset source; switching to Value does not convert the asset into text. Each state has an independent presentation, so changing one state must not change the other states.
-
-Every widget requires its own complete set of recognized profile keys, without unsupported extra keys. Validation requires a supported content type, non-null asset and text-presentation structures, finite opacity in `0..1`, and a valid icon or an existing dashboard-relative file for active graphical content. An inactive graphical asset is not automatically a required active text source.
+Each widget owns its required profile keys, defaults, and state-selection/unavailable rules. Shared validation checks supported profile content, non-null graphical and text-presentation structures, and valid state appearance; **only an active graphical source** must resolve to a valid icon or existing dashboard-relative file. The precise field and range contracts are in the Property Dictionary. Unsupported extra profile keys and missing required states are rejected by each widget's canonical validation.
 
 <!-- --8<-- [end:profile-schema] -->
 
@@ -49,14 +39,12 @@ The shared SkiaSharp widget appearance pipeline (background, border, shadow, geo
 
 <!-- --8<-- [start:profile-geometry] -->
 
-The widget has a shared Width and Height even though each state has its own content and text presentation:
+Width and Height belong to the **widget**, while graphical assets and Value text belong to **individual state profiles**. Their interaction changes the layout:
 
-- **Any Icon/Image profile:** graphical or mixed content requires positive Width **and** Height. All states share a fixed-size widget container; Value-state text is laid out inside it and clipped to its effective bounds.
-- **Every profile is Value:** non-negative stored dimensions are allowed; text layout can be content-derived. `Width = 0` permits automatic text width, with `Overflow Mode = None` for Value states.
-- **Positive Width:** Value-state text uses a constrained overflow mode: `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, or `Bump`. Mixed Icon/Image/Value content cannot use auto-width `None`.
+- **Mixed or graphical configuration:** if any state uses an Icon/Image, the widget uses one explicit positive-size container shared by every state. Value-state text is laid out within and clipped to that container.
+- **All-Value configuration:** if every state uses Value content, `WidgetGeometry` and `ValueTextLayout` can derive intrinsic text geometry from the active profile rather than requiring a graphical container.
+- **Transition between configurations:** `TextOverflowStateContract` reconciles changes to source kinds, shared dimensions, and per-state text overflow. Switching a state to graphical content can materialize a constrained width and normalize the Value states; no obsolete auto-width/overflow combination may remain.
 
-`TextOverflowStateContract` reconciles content-source changes, shared Width edits, and per-state overflow settings instead of persisting contradictory combinations. Returning even one state to graphical content removes Value-only auto-width eligibility. `WidgetGeometry` and `ValueTextLayout` provide effective layout bounds where appropriate.
-
-The detailed Editor contracts are in [Width](properties.md#width) and [Overflow Mode](properties.md#overflow-mode).
+The **exact dimension limits, automatic-width eligibility, and available overflow modes** are defined only by [Width](properties.md#width), [Height](properties.md#height), and [Overflow Mode](properties.md#overflow-mode) in the Property Dictionary.
 
 <!-- --8<-- [end:profile-geometry] -->
