@@ -246,26 +246,11 @@ The canonical `profiles` dictionary requires exactly these four keys:
 - `stopped`
 - `unavailable`
 
-Every entry is a `DashboardModel.StateVisualProfileDefinition`. The default graphical profiles reference `lucide:play`, `lucide:pause`, `lucide:square`, and `lucide:circle-slash`, respectively.
+The default graphical profiles reference `lucide:play`, `lucide:pause`, `lucide:square`, and `lucide:circle-slash`, respectively.
 
-| Profile JSON field | Meaning |
-| --- | --- |
-| `contentType` | `image` or `value`. |
-| `asset.sourceType` | `icon` or `file` for graphical content. |
-| `asset.source` | Global icon identifier or dashboard-relative image path. |
-| `asset.fit` | Image fitting mode. |
-| `asset.loop` | Animated asset looping. |
-| `color` | State color or supported icon tint; Value text foreground color. |
-| `opacity` | State opacity in the range 0..1. |
-| `textPresentation` | State-local font, alignment, outline, and overflow definition. |
+--8<-- "widgets/state-profiles.md:profile-schema"
 
-The Editor exposes three `Source Type` choices, mapped to canonical storage:
-
-- `Icon` maps to `contentType = image`, `asset.sourceType = icon`.
-- `Image` maps to `contentType = image`, `asset.sourceType = file`.
-- `Value` maps to `contentType = value`.
-
-Selecting Value activates the state's text presentation; it does not turn the widget into a general-purpose metric reader. Changing between Icon and Image clears an incompatible active asset source according to the canonical asset-source contract.
+Selecting Value activates only that state's text presentation; it does not make Media Player a general-purpose metric reader.
 
 ### Value Rendering
 
@@ -277,32 +262,15 @@ The shared `TextContentRenderer` renders the state text using the profile's cano
 
 ### Image, Icon, and Animation Rendering
 
-`MediaPlayerWidgetRenderer` inherits the shared `StateProfileWidgetRenderer`. The canonical state profile is projected into an immutable rendering representation and drawn by shared icon/image or text rendering services.
+--8<-- "widgets/state-profiles.md:profile-rendering"
 
-Graphical profiles support the same canonical asset path and capability rules as other state-driven widgets:
-
-- Global icons use logical library names such as `lucide:play`.
-- File-backed images use dashboard-relative asset paths, commonly under an `images` directory.
-- `Fit` controls Contain, Cover, or Stretch.
-- `Loop` affects animated sources; icon tint applies only when supported by the source.
-- The state-specific `Opacity` applies independently to each profile.
-
-Animated content can use activation-relative playback, resetting animation when a different state becomes active, where supported. This visual behavior must not be confused with controlling the media application itself.
-
-The shared widget-level appearance pipeline provides background, border, shadow, geometry, and rotation.
+These visual animations do **not** control media playback in the external application.
 
 ### Geometry and Text Overflow
 
-The Media Player widget supports X, Y, Width, Height, and Rotation.
+--8<-- "widgets/state-profiles.md:profile-geometry"
 
-- If **any** of the four profiles is graphical (Icon/Image), Width and Height must be positive. Every state shares the fixed-size widget container.
-- If **all four** profiles use Value content, Width and Height may be non-negative, with an intrinsic text layout available.
-- In the all-Value configuration, `Width = 0` enables auto width and requires `Overflow Mode = None` for the Value states.
-- With a positive Width, Value states use constrained overflow behavior; graphical/Value mixtures also require explicit positive dimensions.
-
-Constrained overflow modes include `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, and `Bump`. The Editor uses `TextOverflowStateContract` to normalize Width/Overflow combinations. `WidgetGeometry` and `ValueTextLayout` produce the effective text bounds where appropriate.
-
-See [Width](properties.md#width) and [Overflow Mode](properties.md#overflow-mode).
+For Media Player, **all four** profiles must use Value for auto-width to be eligible. X, Y, Width, Height, and Rotation remain common widget properties.
 
 ### Editor Property Applicability
 
