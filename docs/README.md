@@ -2,21 +2,13 @@
 
 ![banner_001.png](images/banner_001.png)
 
-**Project:** Pinkie's System Monitor  
-**Key:** `PinkieSysMon`  
-**Date:** `2026-10-08`  
-**Revision:** `2`  
-**Repository:** [GitHub](https://github.com/Jim1537/PinkieSysMon)
-
-<p>
-  <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img align="left" src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
-  <a href="https://ko-fi.com/Z5X220SWVK"><img align="left" src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a>
+<p align="center">
+  <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
+  <a href="https://ko-fi.com/Z5X220SWVK"><img src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a><br>
+  <b></b>Windows x64 • Portable ZIP • No separate .NET Runtime required</b><br>
+  <a href="https://github.com/Jim1537/PinkieSysMon/releases">All releases</a><br>
+  <a href="https://github.com/Jim1537/PinkieSysMon">GitHub Repository</a>
 </p>
-
-<br clear="all">
-
-**Windows x64 · Portable ZIP · No separate .NET Runtime required**  
-[Get the portable ZIP from the latest release](https://github.com/Jim1537/PinkieSysMon/releases/latest) · [All releases](https://github.com/Jim1537/PinkieSysMon/releases)
 
 **Pinkie's System Monitor** is a native Windows application for creating and displaying customizable hardware dashboards with system telemetry. It is designed for setups where a small telemetry display is installed inside or next to a PC and you want a lightweight, fully local solution with its own editor and direct control of the device.
 
