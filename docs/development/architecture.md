@@ -73,7 +73,10 @@ A frame worker reads the most recent `MetricStore` snapshot, renders via the sha
 
 The Editor creates its own `DashboardPreviewRenderer` from the canonical document and uses the same widget renderer registry as Runtime. Its preview produces in-memory pixels for the Editor window, **not** output frames for the live device.
 
-Editor telemetry is an independently captured **dashboard-demanded snapshot**. The preview render timer consumes that snapshot and does not initiate potentially blocking provider capture calls. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior. Importantly, **Editor preview synthesizes representative `system.runtime.*` values** (for example frame count, FPS, and an `EDITOR` USB state). These are preview fixtures, not live Runtime performance or connection measurements.
+Editor telemetry is an independently captured **dashboard-demanded snapshot**. The preview render timer consumes that snapshot and does not initiate potentially blocking provider capture calls. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior.
+
+!!! info "Preview Runtime metrics are illustrative"
+    Importantly, **Editor preview synthesizes representative `system.runtime.*` values** (for example frame count, FPS, and an `EDITOR` USB state). These are preview fixtures, not live Runtime performance or connection measurements.
 
 The two processes can load the same persisted dashboard from disk without sharing an editable object. **Save** commits the Editor's document to disk; the already-running Runtime retains its own loaded definition until an explicit reload/start operation is requested.
 
@@ -108,6 +111,7 @@ The control plane additionally governs session start/stop, system suspend/resume
 
 Runtime telemetry uses a polling worker; each active output session uses a separate frame worker. The Editor has its own UI and preview cadence. These workers share data through published snapshots, while lifecycle and reconfiguration require stronger synchronization.
 
-In the current code, `FramePump` holds its synchronization lock while rendering and performing synchronous device I/O. Thus cancellation and IPC timeouts cannot be treated as proof that shutdown or reconfiguration can always interrupt a blocked device call. The unresolved cross-subsystem lifetime risk is tracked in [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37); current acceptance status belongs to [Issues](https://github.com/Jim1537/PinkieSysMon/issues) and [Compatibility & Testing](../compatibility.md), not to this architecture page.
+!!! warning "Blocking USB I/O and shutdown"
+    In the current code, `FramePump` holds its synchronization lock while rendering and performing synchronous device I/O. Thus cancellation and IPC timeouts cannot be treated as proof that shutdown or reconfiguration can always interrupt a blocked device call. The unresolved cross-subsystem lifetime risk is tracked in [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37); current acceptance status belongs to [Issues](https://github.com/Jim1537/PinkieSysMon/issues) and [Compatibility & Testing](../compatibility.md), not to this architecture page.
 
 This document intentionally provides **no independent inventory of bugs, device support, widget implementations, or provider behavior**. Those remain with their existing owners; when a cross-component contract changes, this page should change with the corresponding implementation.

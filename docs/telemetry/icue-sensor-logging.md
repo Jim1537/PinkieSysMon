@@ -40,7 +40,7 @@ After Sensor Logging has started, the iCUE GUI window can be closed. Logging con
 
 Let the system run for a couple of minutes, then verify that Sensor Logging CSV files are being created and updated in the Pinkie's System Monitor `.\logs` directory.
 
-!!! info
+!!! warning "Automatic iCUE CSV cleanup"
     Pinkie's System Monitor manages iCUE Sensor Logging files automatically. It selects the newest valid log and removes old iCUE CSV files according to its retention rules. Other files in the `logs` directory, including Pinkie's System Monitor's own log files, are not affected.
 
 

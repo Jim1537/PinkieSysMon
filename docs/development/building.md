@@ -76,9 +76,11 @@ The default local deployment root used by `build.ps1` is:
 C:\PinkieSysMon
 ```
 
-`Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard. It also creates two portable launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. Their executable relationship is recorded relative to the installation root so the portable tree can move together. The shortcuts use the icons embedded in the target executables. PinkieSysMon does **not** create Desktop or Start Menu shortcuts.
-
-Existing machine-specific configuration, private/local assets, dashboards, and logs are preserved. The application is left stopped after deployment so runtime/device verification remains an explicit step.
+!!! info "Publish local: replaced vs. preserved"
+    - **Replaced:** `Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard.
+    - **Created:** Two portable launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. Their executable relationship is recorded relative to the installation root so the portable tree can move together. The shortcuts use the icons embedded in the target executables. PinkieSysMon does **not** create Desktop or Start Menu shortcuts.
+    - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
+    - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 
 The same **Publish local** action also prepares a clean redistributable portable ZIP under `release/`. The archive contains a top-level `PinkieSysMon/` folder with the self-contained binaries, the two portable root shortcuts, the project/third-party license notices, only the public Roboto and Lucide assets, only the public `Default` dashboard, and a machine-neutral `config/app.json` configured for `Default` with only the `system` metric provider enabled. The ZIP filename is `PinkieSysMon_<Version>-<build>.zip`, where `<build>` is the fourth component of `FileVersion`; rerunning the same version/build replaces that ZIP.
 
