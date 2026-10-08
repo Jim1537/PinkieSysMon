@@ -25,6 +25,12 @@ The project is designed for fully local operation.
 >
 > [**Read the full compatibility notice →**](compatibility.md)
 
+> **🤖 Development Approach — 100% Vibe-Coded**
+>
+> Despite the author's experience in application software development, Pinkie's System Monitor was created **entirely through vibe coding**. The goal was to give a new PC a fun, personalized system monitor—not spend months or years developing what is, at its core, a fairly straightforward utility.
+>
+> [**Read about the development approach →**](development/vibe-coding.md)
+
 ## Key Features
 
 - fully native dashboard rendering on Windows;
