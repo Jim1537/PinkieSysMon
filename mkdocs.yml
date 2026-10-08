@@ -31,6 +31,7 @@ nav:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
   - Development:
+      - Application Architecture: development/architecture.md
       - Roadmap: development/roadmap.md
       - Building and deployment: development/building.md
       - Device integration:
