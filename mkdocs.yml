@@ -9,6 +9,7 @@ site_dir: site
 
 nav:
   - Overview: README.md
+  - Download: https://github.com/Jim1537/PinkieSysMon/releases/latest
   - Compatibility Notice: compatibility.md
   - Development Approach: development/vibe-coding.md
   - Telemetry providers:
