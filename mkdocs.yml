@@ -27,7 +27,6 @@ nav:
       - Power: widgets/power.md
       - Media System: widgets/media-system.md
       - Media Player: widgets/media-player.md
-      - Shared state-profile contracts: widgets/state-profiles.md
   - Property reference:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
