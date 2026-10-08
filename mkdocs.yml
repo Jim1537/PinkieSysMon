@@ -25,6 +25,7 @@ nav:
       - Media Player: widgets/media-player.md
   - Development:
       - Building and deployment: development/building.md
+      - Development approach & AI disclosure: development/vibe-coding.md
   - Property reference:
       - Properties by tab: widgets/properties-by-tab.md
       - Property dictionary: widgets/properties.md
