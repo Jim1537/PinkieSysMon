@@ -44,3 +44,7 @@
 Thumbs.db
 .DS_Store
 /config/*.local.json
+
+# Documentation build output
+/site/
+/.venv/
