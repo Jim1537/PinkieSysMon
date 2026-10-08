@@ -303,6 +303,8 @@ In Setpoint mode, numeric `Unit` options are constrained to units suitable for n
 
 ### Graphical State Rendering
 
+`BinaryWidgetRenderer` inherits from `StateProfileWidgetRenderer`.
+
 --8<-- "widgets/state-profiles.md:profile-rendering"
 
 For Binary, missing or failed evaluation leaves no active True/False profile. No graphical or animated state is displayed; this must not be silently treated as False. The canonical schema-19 state definition is projected into the shared immutable render profile.
