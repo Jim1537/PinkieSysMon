@@ -262,6 +262,8 @@ The shared `TextContentRenderer` renders the state text using the profile's cano
 
 ### Image, Icon, and Animation Rendering
 
+`MediaPlayerWidgetRenderer` inherits from `StateProfileWidgetRenderer`.
+
 --8<-- "widgets/state-profiles.md:profile-rendering"
 
 These visual animations do **not** control media playback in the external application.
