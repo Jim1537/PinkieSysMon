@@ -1,0 +1,21 @@
+/* A low-key support link in Material's standard, scroll-away announcement bar. */
+.pinki-support {
+  display: flex;
+  gap: .65rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.pinki-support__link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}
+.pinki-support__link:hover,
+.pinki-support__link:focus-visible {
+  text-decoration-thickness: 2px;
+}
