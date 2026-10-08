@@ -183,7 +183,7 @@ There is **no** persisted `metric`, `mediaSource`, `powerSource`, `playbackSourc
 
   `system.media.playback.status`
 
-`WindowsMediaTelemetrySource` publishes this reading from the current Windows `GlobalSystemMediaTransportControlsSessionManager` session. It uses the current session returned by Windows and listens for session, playback-info, metadata, and timeline changes.
+The built-in [System provider](../telemetry/system.md#media-playback) owns the SMTC current-session selection, event subscriptions, and publication of the playback status. Media Player reads the resulting snapshot; it does not own that session.
 
 It is distinct from:
 
@@ -221,21 +221,9 @@ A failed or missing status does not reuse the last valid status. The resolver se
 
 ### Windows Session and Metadata Semantics
 
-`WindowsMediaTelemetrySource` uses Windows `GlobalSystemMediaTransportControlsSessionManager` (SMTC). When the current session changes, the producer detaches handlers from the previous session, attaches to the new one, and refreshes its playback snapshot.
+The Windows `GlobalSystemMediaTransportControlsSessionManager` (SMTC) lifecycle, event handlers on session switches, no-session/error reset behavior, metadata publication, timeline calculations, and AIMP-specific fallback are **System provider** contracts. They are documented under [System → Media Playback](../telemetry/system.md#media-playback) and [AIMP Timeline Fallback](../telemetry/system.md#aimp-timeline-fallback).
 
-If no session is available, or playback information cannot be read, the snapshot is reset to `unavailable` with `available = false`. Metadata fields use the canonical `[unknown]` placeholder when not available.
-
-When a session is available, the producer can publish:
-
-- `status` — current playback status;
-- `title`, `artist`, `album` — media properties when exposed;
-- `source` — the source application identifier;
-- `available` — a Boolean indicating session availability;
-- `progress` — a percentage where supported timeline information or a source-specific fallback is available.
-
-The progress implementation uses Windows timeline properties, can extrapolate position while Playing, and has a narrowly scoped AIMP-specific fallback when Windows supplies no usable timeline. These are **provider features**, not Media Player widget properties.
-
-A media application can expose a current status while withholding metadata or timing information. Missing optional information must remain unavailable rather than being fabricated by the widget.
+This widget uses **only** `system.media.playback.status`. Optional metadata and progress belong to the System provider and can be displayed by other widgets; they are not Media Player state dependencies. The widget's own [Playback State Normalization](#playback-state-normalization) determines the visual profile from the published status.
 
 ### Four Visual Profiles
 
