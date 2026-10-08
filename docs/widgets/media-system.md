@@ -296,26 +296,9 @@ The required profile keys are:
 - `unknown`
 - `unavailable`
 
-Each entry uses `DashboardModel.StateVisualProfileDefinition`.
+--8<-- "widgets/state-profiles.md:profile-schema"
 
-| Profile JSON field | Purpose |
-| --- | --- |
-| `contentType` | `image` or `value`. |
-| `asset.sourceType` | `icon` or `file` for graphical states. |
-| `asset.source` | Logical icon identifier or dashboard-relative image path. |
-| `asset.fit` | Graphical fitting mode. |
-| `asset.loop` | Animated-asset looping. |
-| `color` | Profile color / supported icon tint, or Value foreground color. |
-| `opacity` | Profile opacity between 0 and 1. |
-| `textPresentation` | Value-state font, alignment, outline, and overflow parameters. |
-
-Editor `Source Type` corresponds to these canonical combinations:
-
-- `Icon` = `contentType = image`, `asset.sourceType = icon`.
-- `Image` = `contentType = image`, `asset.sourceType = file`.
-- `Value` = `contentType = value`.
-
-All eleven profiles are required for the canonical model. Unsupported extra keys are invalid. Graphical content requires resolvable assets, and each state has its own appearance.
+These eleven state presentations are independently configurable. `unknown` and `unavailable` are separate profiles; endpoint selection and the application-level endpoint override contract are documented above.
 
 ### Value-State Text and Rendering
 
@@ -329,28 +312,13 @@ For Media System, `WidgetRenderContext.ResolveStateValueText(widget, stateKey)` 
 
 It does not read `system.media.output.name`, `system.media.input.name`, volume, mute, or activity values. Value is a presentation **of the classified state**, not a general telemetry-value source.
 
-`MediaSystemWidgetRenderer` delegates to `StateProfileWidgetRenderer`. The shared renderer:
-
-- resolves the current active state profile;
-- renders Value profiles with `TextContentRenderer`;
-- renders file/icon assets with shared graphical caches;
-- applies profile-specific opacity, applicable icon tint, image fit, and animation settings;
-- handles activation-relative playback for supported animated state assets.
-
-The Editor and Runtime use the shared canonical rendering projection rather than separate visual interpretations for Media System.
+--8<-- "widgets/state-profiles.md:profile-rendering"
 
 ### Geometry and Overflow
 
-Media System uses the standard widget geometry properties (X, Y, Width, Height, Rotation).
+--8<-- "widgets/state-profiles.md:profile-geometry"
 
-- When at least one of the eleven profiles uses Icon/Image content, Width and Height must both be positive. All states use the shared fixed-size container.
-- When **all eleven** profiles are Value-backed, non-negative dimensions are supported and intrinsic text width is allowed.
-- `Width = 0` is an auto-width option only for an all-Value configuration; in that case Value profiles use `Overflow Mode = None`.
-- Fixed-width or mixed graphical/Value configurations use constrained overflow modes such as `Clip`, `Ellipsis`, `ShrinkToFit`, `Wrap`, `Scroll`, and `Bump`.
-
-`TextOverflowStateContract` handles width/overflow consistency and responds to state-content changes. `WidgetGeometry` and `ValueTextLayout` compute the effective layout used for text states.
-
-See [Width](properties.md#width) and [Overflow Mode](properties.md#overflow-mode).
+For Media System, **all eleven** profiles must be Value-backed for auto-width to be eligible. X, Y, Width, Height, and Rotation remain the common widget geometry properties.
 
 ### Editor Property Applicability
 
