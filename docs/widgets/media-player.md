@@ -173,7 +173,7 @@ The renderer consumes a telemetry snapshot; it neither owns a Windows media sess
 | `type` | `Type` | Persistent discriminator `media.player`. |
 | `profiles` | `Profiles` | Map of the four state-specific visual profiles. |
 
-Inherited common fields include widget ID, optional name, Z-order, position, Width, Height, Rotation, background, border, color, and shadow parameters.
+--8<-- "widgets/properties.md:widget-base-fields"
 
 There is **no** persisted `metric`, `mediaSource`, `powerSource`, `playbackSource`, or selected application identifier in the Media Player widget model. The Editor's `Metric` property is a derived, read-only view of the fixed telemetry dependency.
 
