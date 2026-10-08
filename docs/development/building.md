@@ -7,7 +7,7 @@ This page preserves the build, packaging, deployment, compatibility, and licensi
 - 64-bit Windows.
 - Windows 11 x64 is the primary supported desktop platform; compatible Windows 10 configurations are also supported by the current .NET 10 target.
 - .NET SDK **10.0.401** to build from source.
-- Thermalright Trofeo Vision 9.16 for direct hardware output.
+- A [supported output device](../supported-devices.md) when testing direct hardware output; it is not required merely to build the application.
 - Optional: Libre Hardware Monitor with its local web server enabled on port `8085` for LHM telemetry.
 - Optional: Corsair iCUE with Sensor Logging enabled for Corsair telemetry.
 

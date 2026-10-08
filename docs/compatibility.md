@@ -14,17 +14,15 @@ The following is the **one confirmed real-world test environment**, not a minimu
 | --- | --- |
 | Computer | One Windows 11 Pro workstation |
 | Operating system | Windows 11 Pro x64, version 25H2 (OS build 26200.9457, recorded during diagnostics) |
-| Display | **Thermalright Trofeo Vision 9.16** |
-| Display resolution | **1920 × 480** |
-| Display interface | **USB / WinUSB** |
+| Output hardware | One [supported output device](supported-devices.md) used in the author's test setup; model and connection details are maintained in the device catalog. |
 
 The OS build shown above is a recorded snapshot, not a guarantee that the author's PC still runs that exact build. More detailed CPU, motherboard, memory, and GPU specifications are not included here because they have not yet been confirmed for this published test record.
 
 ## Compatibility Limitations
 
-- Testing on **other Windows computers, Windows versions, USB controllers, and hardware configurations** has not yet been independently verified.
+- Testing on **other Windows computers, Windows versions, output connection configurations, and hardware setups** has not yet been independently verified.
 - The fact that the application runs on the author's computer does not guarantee identical results on another system.
-- Direct display output is currently implemented for the **Thermalright Trofeo Vision 9.16**. Other display models should **not** be assumed compatible, even if they have a similar resolution or use USB.
+- Direct hardware output is limited to the models listed under [Supported Devices](supported-devices.md). Similar appearance or connection methods do **not** establish compatibility.
 - These limits describe the **available testing evidence**, not a declaration that other configurations cannot work.
 
 ## Community Testing & Feedback
@@ -35,7 +33,7 @@ Please [open a GitHub issue](https://github.com/Jim1537/PinkieSysMon/issues/new)
 
 - the Windows edition, version, and OS build;
 - CPU, motherboard, memory, and GPU information;
-- the display model and how it is connected over USB;
+- the output device model and how it is connected;
 - the PinkieSysMon version and any enabled optional telemetry providers;
 - what worked, what failed, and the steps needed to reproduce a problem, if any.
 
