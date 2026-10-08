@@ -1,5 +1,5 @@
-/* A low-key support link in Material's standard, scroll-away announcement bar. */
-.pinki-support {
+/* Primary download CTA plus a low-key Ko-fi link in Material's scroll-away announcement bar. */
+.pinki-actions {
   display: flex;
   gap: .65rem;
   flex-wrap: wrap;
@@ -9,12 +9,38 @@
   font-size: .72rem;
   line-height: 1.5;
 }
+
+.pinki-actions__download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .3rem .75rem;
+  border-radius: .3rem;
+  background: var(--md-primary-bg-color);
+  color: var(--md-primary-fg-color);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pinki-actions__download:hover,
+.pinki-actions__download:focus-visible {
+  background: var(--md-default-bg-color);
+  color: var(--md-primary-fg-color);
+  text-decoration: none;
+  outline-offset: 2px;
+}
+
+.pinki-actions__separator {
+  opacity: .65;
+}
+
 .pinki-support__link {
   color: inherit;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: .15em;
 }
+
 .pinki-support__link:hover,
 .pinki-support__link:focus-visible {
   text-decoration-thickness: 2px;
