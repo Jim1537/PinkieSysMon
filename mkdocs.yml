@@ -1,0 +1,78 @@
+site_name: Pinkie's System Monitor
+site_description: Native Windows telemetry dashboards for the Thermalright Trofeo Vision 9.16
+site_url: https://jim1537.github.io/PinkieSysMon/
+repo_url: https://github.com/Jim1537/PinkieSysMon
+repo_name: Jim1537/PinkieSysMon
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: site
+
+nav:
+  - Overview: index.md
+  - Telemetry providers:
+      - System: telemetry/system.md
+      - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md
+      - iCUE Sensor Logging: telemetry/icue-sensor-logging.md
+  - Widgets:
+      - Text / Value: widgets/text-value.md
+      - Binary: widgets/binary.md
+      - Gauge: widgets/gauge.md
+      - Bar: widgets/bar.md
+      - Image: widgets/image.md
+      - Power: widgets/power.md
+      - Media System: widgets/media-system.md
+      - Media Player: widgets/media-player.md
+  - Property reference:
+      - Properties by tab: widgets/properties-by-tab.md
+      - Property dictionary: widgets/properties.md
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: pink
+      accent: pink
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: pink
+      accent: pink
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path: docs
+      check_paths: true
+
+validation:
+  nav:
+    not_found: warn
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn

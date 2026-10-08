@@ -1,5 +1,7 @@
 # Pinkie's System Monitor
 
+**Documentation:** [Online documentation](https://jim1537.github.io/PinkieSysMon/) · [Markdown sources](docs/index.md)
+
 PinkieSysMon is a native Windows hardware-dashboard application for small telemetry displays installed in or near a PC. It runs fully locally, renders dashboards with SkiaSharp, collects telemetry from Windows and optional external providers, and can send rendered frames directly to supported USB display hardware.
 
 PinkieSysMon is an independent fan-made project and is not affiliated with or endorsed by Hasbro.
