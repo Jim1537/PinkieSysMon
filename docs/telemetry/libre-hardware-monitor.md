@@ -395,15 +395,9 @@ An old value is not kept published indefinitely after LHM or a sensor disappears
 
 ### Demand-Driven Polling
 
-The Libre Hardware Monitor provider participates in the Pinkie's System Monitor demand-driven telemetry scheduler.
+The shared scheduling eligibility and metric-deactivation rules belong to [Application Architecture → Runtime data path](../development/architecture.md#runtime-data-path).
 
-Runtime does not continuously poll the entire LHM catalog.
-
-Only metrics that meet all of the following conditions enter the active schedule:
-
-- they are actually used by the current dashboard;
-- they belong to the enabled `lhm` provider;
-- they are not disabled by an individual telemetry policy.
+For **`lhm`**, Runtime requests only the current dashboard's sensor metrics from the enabled provider, not the entire dynamically discovered catalog.
 
 The provider default polling interval is:
 
@@ -413,9 +407,7 @@ If a dynamic LHM metric has no dedicated entry in `telemetry.json`, the schedule
 
 If an individual policy exists in `telemetry.json`, its `IntervalMs` and `Enabled` settings apply normally.
 
-When the provider is disabled or a metric is removed from the active dashboard, the previously active metric is explicitly published as `null` before the schedule changes.
-
-This prevents stale telemetry values from remaining active after source deactivation.
+When a metric is deactivated, the shared [scheduler contract](../development/architecture.md#runtime-data-path) publishes `null` rather than retaining stale data. The independent HTTP/sensor recovery contract remains under [Availability and Failure Recovery](#availability-and-failure-recovery).
 
 
 ### Editor Integration
@@ -426,9 +418,7 @@ Dashboard Editor uses a separate:
 
 instance for preview telemetry.
 
-Editor preview uses the snapshot model: external telemetry providers are not called directly from the render timer.
-
-When the LHM provider is enabled, preview requests only the LHM metrics required by the current dashboard.
+The separate LHM source follows the shared [Editor snapshot/render-timer boundary](../development/architecture.md#editor-versus-runtime-state). With `lhm` enabled, preview requests only LHM metrics required by the current dashboard.
 
 When the Metric selector is opened, Editor performs a fresh discovery using `LibreHardwareMonitorHttpClient` and `data.json`.
 

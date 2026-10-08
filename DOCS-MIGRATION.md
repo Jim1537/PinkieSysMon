@@ -1,4 +1,4 @@
-# Documentation migration notes
+# Documentation migration notes (historical)
 
 - Source: two user-provided DokuWiki ZIP exports, 14 pages and 20 images.
 - Source semantics are not revised to match older PinkieSysMon snapshots.
@@ -8,6 +8,5 @@
 - DokuWiki image `lightbox` is approximated with an image linked to its original.
 - DokuWiki layout-only `WRAP` markup is simplified to responsive Markdown, while info/important notes become admonitions.
 - Material for MkDocs 9.7.7 is pinned because the theme is in maintenance mode.
-- The site must be built and checked by GitHub Actions on a PR before merging.
-- GitHub Pages must be set to GitHub Actions as its deployment source in repository Settings.
+- At migration time, PR documentation validation and GitHub Pages deployment used GitHub Actions. Current checks and deployment rules are owned by the live [`.github/workflows/docs.yml`](.github/workflows/docs.yml) and [`mkdocs.yml`](mkdocs.yml); repository Pages settings must be verified from GitHub, not inferred from this archival record.
 - This conversion only changes documentation; Runtime, Editor, build.ps1, dashboard/schema are untouched.

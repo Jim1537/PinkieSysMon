@@ -8,7 +8,7 @@ This page preserves the build, packaging, deployment, compatibility, and licensi
 - Windows 11 x64 is the primary supported desktop platform; compatible Windows 10 configurations are also supported by the current .NET 10 target.
 - .NET SDK **10.0.401** to build from source.
 - A [supported output device](../supported-devices.md) when testing direct hardware output; it is not required merely to build the application.
-- Optional: Libre Hardware Monitor with its local web server enabled on port `8085` for LHM telemetry.
+- Optional: Libre Hardware Monitor; its [provider setup](../telemetry/libre-hardware-monitor.md#user-setup) owns endpoint and security details.
 - Optional: Corsair iCUE with Sensor Logging enabled for Corsair telemetry.
 
 Published Runtime and Editor builds are self-contained x64 applications and do not require a separately installed .NET Runtime. PinkieSysMon currently ships an English-only UI; non-English satellite-resource directories are removed from the self-contained publish payload.
@@ -37,7 +37,7 @@ build.ps1                        Build, regression, local deploy, Git publish wo
 
 Build output is generated under `artifacts/` and is not tracked. Portable release ZIPs are generated under `release/`; that directory is also intentionally gitignored.
 
-The public repository intentionally excludes workstation-specific configuration, logs, the real private production dashboard, and additional private/local asset packs that are not part of the public project baseline.
+The authoritative public/private source boundary and exclusion inventory are maintained in [Public Repository Boundary](../PUBLIC-REPOSITORY.md). The repository layout above describes the public source baseline, not the author's local production installation.
 
 ## Build and regression
 
@@ -86,7 +86,7 @@ Libre Hardware Monitor is an independent external application and is not bundled
 
 ## Libre Hardware Monitor setup
 
-PinkieSysMon reads LHM through the local HTTP API of an already-running Libre Hardware Monitor instance. The current provider expects the standard local port `8085`; HTTP authentication is not supported by the current implementation. LHM remains the owner of hardware-sensor access.
+LHM is an optional runtime telemetry integration, not a build requirement and not part of the portable package. The authoritative HTTP endpoint, default port, authentication limitations, setup instructions, and troubleshooting are in the [Libre Hardware Monitor provider guide](../telemetry/libre-hardware-monitor.md#user-setup).
 
 ## Dashboard compatibility
 
