@@ -1,43 +1,32 @@
 # Compatibility & Testing
 
-## Release Status
+## Status and scope
 
-!!! warning "Real-world compatibility evidence"
-    **Pinkie's System Monitor is considered release-ready by its author** and is used on the author's own system. It is an independent, personal software project, however, and its real-world compatibility testing is currently limited to a single workstation and display setup.
+Pinkie's System Monitor is considered release-ready by its author for the originally accepted workstation setup. Evidence remains limited and is **not** a guarantee of compatibility with other Windows builds, hardware, or USB controllers.
 
-    A release-ready status reflects the author's experience with that setup; it is **not a claim of broad compatibility across Windows hardware or display models**.
+**Test update: October 10, 2026.** Candidate `1.20.0` from integration commit [`4f97717`](https://github.com/Jim1537/PinkieSysMon/commit/4f977170de284d91c9e8ea3398b538019f322b59) completed a Windows build/regression run and a **basic portable/physical-display smoke test on a second PC**. At this point, that candidate is **not yet merged into `main` or published as an accepted release**.
 
-## Tested Configuration
+## Observed Windows configurations
 
-The following is the **one confirmed real-world test environment**, not a minimum or recommended hardware specification:
+These are tested environments, **not minimum hardware specifications**.
 
-| Component | Tested configuration |
-| --- | --- |
-| Computer | One Windows 11 Pro workstation |
-| Operating system | Windows 11 Pro x64, version 25H2 (OS build 26200.9457, recorded during diagnostics) |
-| Output hardware | One [supported output device](supported-devices.md) used in the author's test setup; model and connection details are maintained in the device catalog. |
+| Environment | Windows configuration | Candidate and observed results |
+| --- | --- | --- |
+| Development workstation | Windows 11 **Pro** x64, **26H2**, OS `10.0.26300`, build **26300.9457** (previously recorded snapshot) | `1.20.0`: Windows Runtime/Editor publish **PASS**, local deployment **PASS**, and **167/167 regressions PASS**. Physical Trofeo lifecycle acceptance for this candidate **not performed** here. |
+| Second workstation | Windows 11 **Home** x64, **26H2**, OS `10.0.26300`, build **26300.9550** (reported October 10, 2026) | `1.20.0` portable ZIP: Runtime and Editor worked, public `Default` dashboard rendered, a new dashboard was created/edited, iCUE Sensor Logging metrics worked **without Libre Hardware Monitor installed**, and a connected **Trofeo Vision 9.16** showed the expected output. **Basic functional smoke test PASS**; bundled root shortcuts failed (see below). |
 
-The OS build shown above is a recorded snapshot, not a guarantee that the author's PC still runs that exact build. More detailed CPU, motherboard, memory, and GPU specifications are not included here because they have not yet been confirmed for this published test record.
+The two systems differ in Windows edition and cumulative-update build. This comparison **does not establish** whether that difference affects USB stability.
 
-## Compatibility Limitations
+## Known limitations of this evidence
 
-- Testing on **other Windows computers, Windows versions, output connection configurations, and hardware setups** has not yet been independently verified.
-- The fact that the application runs on the author's computer does not guarantee identical results on another system.
-- Direct hardware output is limited to the models listed under [Supported Devices](supported-devices.md). Similar appearance or connection methods do **not** establish compatibility.
-- These limits describe the **available testing evidence**, not a declaration that other configurations cannot work.
+- This was a **brief basic functional test**, not a controlled stress/soak test. **No immediate system crash** was observed on the second workstation, but neither sustained reliability nor a cause of the separate [PinkiePie platform instability investigation (#17)](https://github.com/Jim1537/PinkiePie/issues/17) has been established.
+- Physical lifecycle scenarios — **unplug/replug**, **suspend/resume**, **explicitly configured device missing**, and **two compatible devices** — have **not passed physical acceptance**. They remain tracked in [Issues #33–36](https://github.com/Jim1537/PinkieSysMon/issues).
+- Safe cancellation of blocked native WinUSB I/O remains a separate acceptance question under [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37); passing deterministic regressions does not establish driver-level completion behavior.
+- In the tested portable `1.20.0`, the two bundled root **`.lnk` shortcuts did not work after relocation**. The applications themselves launched successfully by other means; see [Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52).
+- Direct hardware output supports only explicitly [listed devices](supported-devices.md). No compatibility with similar-looking models or other firmware is implied.
 
 ## Community Testing & Feedback
 
-**If you can test Pinkie's System Monitor on another computer or Windows configuration, please share your results — whether it works perfectly or you run into problems.** Both successful reports and bug reports are valuable.
+Additional independent reports remain valuable, including failures. Please [open a GitHub issue](https://github.com/Jim1537/PinkieSysMon/issues/new) with the Windows edition, release and OS build, hardware and output-device model, PinkieSysMon version, enabled telemetry providers, and exact actions/results.
 
-Please [open a GitHub issue](https://github.com/Jim1537/PinkieSysMon/issues/new) and, where practical, include:
-
-- the Windows edition, version, and OS build;
-- CPU, motherboard, memory, and GPU information;
-- the output device model and how it is connected;
-- the PinkieSysMon version and any enabled optional telemetry providers;
-- what worked, what failed, and the steps needed to reproduce a problem, if any.
-
-Please remove personal information, device serial numbers, credentials, and other sensitive details from logs or screenshots before sharing.
-
-Community reports will help establish which configurations work in practice and highlight hardware-specific problems that have not surfaced on the original test setup.
+Exclude personal information, device serial numbers, credentials, and private host logs.

@@ -15,4 +15,4 @@ Notable changes to PinkieSysMon, newest first.
 - Output workers own transport lifetime; lifecycle operations no longer hold shared locks during USB I/O.
 - GitHub publishing checks for newer remote commits before pushing.
 
-**Status:** Runtime and physical Trofeo validation of this candidate remain pending.
+**Validation:** Windows build and 167/167 deterministic regressions passed. Runtime, Editor, iCUE telemetry and basic physical Trofeo display were smoke-tested on a second workstation; USB lifecycle and sustained stability remain unverified. See [Compatibility & Testing](docs/compatibility.md).

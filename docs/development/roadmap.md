@@ -63,7 +63,7 @@ These are the workstreams that were outstanding at the October 8 review. **Follo
 | Runtime asset correctness | [BUG-015: deleted image reference after Reload (#32)](https://github.com/Jim1537/PinkieSysMon/issues/32) |
 | Physical output acceptance (PASS 7) | [Unplug/replug (#33)](https://github.com/Jim1537/PinkieSysMon/issues/33), [suspend/resume (#34)](https://github.com/Jim1537/PinkieSysMon/issues/34), [configured device missing (#35)](https://github.com/Jim1537/PinkieSysMon/issues/35), [multiple-device identity (#36)](https://github.com/Jim1537/PinkieSysMon/issues/36) |
 | USB worker lifetime | [Blocking WinUSB I/O and shutdown/reconfiguration (#37)](https://github.com/Jim1537/PinkieSysMon/issues/37) |
-| Platform diagnostics | [USB/platform instability investigation (#38)](https://github.com/Jim1537/PinkieSysMon/issues/38); **software causality is not established** |
+| Platform diagnostics | [PinkiePie investigation (#17)](https://github.com/Jim1537/PinkiePie/issues/17) is the primary cross-repository tracker; [PinkieSysMon #38](https://github.com/Jim1537/PinkieSysMon/issues/38) was closed as a duplicate. **Software causality is not established.** |
 
 The historical [BUG-004 Property Editor redesign (#18)](https://github.com/Jim1537/PinkieSysMon/issues/18) was closed as **not planned / obsolete** on October 8 by the author's decision. It is not an outstanding roadmap milestone.
 
