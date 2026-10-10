@@ -78,7 +78,7 @@ C:\PinkieSysMon
 
 !!! info "Publish local: replaced vs. preserved"
     - **Replaced:** `Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard.
-    - **Created:** Two portable launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. Their executable relationship is recorded relative to the installation root so the portable tree can move together. The shortcuts use the icons embedded in the target executables. PinkieSysMon does **not** create Desktop or Start Menu shortcuts.
+    - **Included:** Two portable launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. However, the links **failed after relocation** in a real test of portable candidate `1.20.0` on a second Windows PC ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52)); until corrected, launch the corresponding executables in `bin/` directly. PinkieSysMon does **not** create Desktop or Start Menu shortcuts.
     - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
     - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 

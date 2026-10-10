@@ -4,7 +4,7 @@ Pinkie's System Monitor currently implements direct hardware output for the devi
 
 ## Thermalright Trofeo Vision 9.16
 
-- **Support status:** Direct output implemented; used on the author's tested setup.
+- **Support status:** Direct output implemented; a basic physical display smoke test also passed on a second Windows 11 PC with portable candidate `1.20.0`. Extended USB lifecycle acceptance remains outstanding; see [Compatibility & Testing](compatibility.md).
 - **Native resolution:** 1920 × 480 pixels.
 - **Connection:** USB using the Windows WinUSB interface.
 
