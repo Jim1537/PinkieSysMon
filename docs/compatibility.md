@@ -4,18 +4,18 @@
 
 Pinkie's System Monitor is considered release-ready by its author for the originally accepted workstation setup. Evidence remains limited and is **not** a guarantee of compatibility with other Windows builds, hardware, or USB controllers.
 
-**Test update: October 10, 2026.** Candidate `1.20.0` from integration commit [`4f97717`](https://github.com/Jim1537/PinkieSysMon/commit/4f977170de284d91c9e8ea3398b538019f322b59) completed a Windows build/regression run and a **basic portable/physical-display smoke test on a second PC**. This is a **candidate build**, not proof of completed USB lifecycle acceptance or an independently verified GitHub Release.
+**Test update: October 10, 2026.** PinkieSysMon `1.20.0` passed Windows build/regression checks and a basic physical-display smoke test on a second computer. USB lifecycle and long-term stability acceptance remain outstanding.
 
-## Observed Windows configurations
+## Tested Configuration
 
-These are tested environments, **not minimum hardware specifications**.
+These are confirmed test configurations, **not minimum hardware requirements**:
 
-| Environment | Windows configuration | Candidate and observed results |
-| --- | --- | --- |
-| Development workstation | Windows 11 **Pro** x64, **26H2**, OS `10.0.26300`, build **26300.9457** (previously recorded snapshot) | `1.20.0`: Windows Runtime/Editor publish **PASS**, local deployment **PASS**, and **167/167 regressions PASS**. Physical Trofeo lifecycle acceptance for this candidate **not performed** here. |
-| Second workstation | Windows 11 **Home** x64, **26H2**, OS `10.0.26300`, build **26300.9550** (reported October 10, 2026) | `1.20.0` portable ZIP: Runtime and Editor worked, public `Default` dashboard rendered, a new dashboard was created/edited, iCUE Sensor Logging metrics worked **without Libre Hardware Monitor installed**, and a connected **Trofeo Vision 9.16** showed the expected output. **Basic functional smoke test PASS**; bundled root shortcuts failed (see below). |
-
-The two systems differ in Windows edition and cumulative-update build. This comparison **does not establish** whether that difference affects USB stability.
+| Component | Tested configuration |
+| --- | --- |
+| Computer | Two Windows 11 x64 workstations |
+| Operating system | Windows 11 Pro x64, 26H2 (OS build 26300.9457) |
+| Operating system | Windows 11 Home x64, 26H2 (OS build 26300.9550) |
+| Output hardware | [Thermalright Trofeo Vision 9.16](supported-devices.md) |
 
 ## Known limitations of this evidence
 
