@@ -4,7 +4,7 @@
 
 Pinkie's System Monitor is considered release-ready by its author for the originally accepted workstation setup. Evidence remains limited and is **not** a guarantee of compatibility with other Windows builds, hardware, or USB controllers.
 
-**Test update: October 10, 2026.** Candidate `1.20.0` from integration commit [`4f97717`](https://github.com/Jim1537/PinkieSysMon/commit/4f977170de284d91c9e8ea3398b538019f322b59) completed a Windows build/regression run and a **basic portable/physical-display smoke test on a second PC**. At this point, that candidate is **not yet merged into `main` or published as an accepted release**.
+**Test update: October 10, 2026.** Candidate `1.20.0` from integration commit [`4f97717`](https://github.com/Jim1537/PinkieSysMon/commit/4f977170de284d91c9e8ea3398b538019f322b59) completed a Windows build/regression run and a **basic portable/physical-display smoke test on a second PC**. This is a **candidate build**, not proof of completed USB lifecycle acceptance or an independently verified GitHub Release.
 
 ## Observed Windows configurations
 
