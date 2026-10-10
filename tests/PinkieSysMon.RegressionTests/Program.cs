@@ -2273,6 +2273,18 @@ internal static class Program
             return attribute is null ? null : selector(attribute);
         }
 
+        // All three projects inherit version metadata from Directory.Build.props.
+        // Verify the published assemblies against the independently built regression assembly,
+        // rather than pinning a test to one particular release number.
+        var expectedVersion = typeof(Program).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Regression test assembly must expose an AssemblyVersion.");
+        Assert(expectedVersion.Build >= 0 && expectedVersion.Revision >= 0,
+            "Regression test assembly must expose a four-component AssemblyVersion.");
+        Assert(assembly.GetName().Version == expectedVersion,
+            $"{assembly.GetName().Name} AssemblyVersion must match the regression build version.");
+        var expectedInformationalVersion =
+            $"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Build}";
+
         Assert(AttributeValue<System.Reflection.AssemblyCompanyAttribute>(assembly, a => a.Company) == "PinkieSysMon Project",
             $"{assembly.GetName().Name} must expose the normalized PinkieSysMon company identity.");
         Assert(AttributeValue<System.Reflection.AssemblyProductAttribute>(assembly, a => a.Product) == "PinkieSysMon",
@@ -2281,7 +2293,7 @@ internal static class Program
             $"{assembly.GetName().Name} must expose its expected Windows title metadata.");
         Assert(AttributeValue<System.Reflection.AssemblyDescriptionAttribute>(assembly, a => a.Description) == expectedDescription,
             $"{assembly.GetName().Name} must expose its expected Windows description metadata.");
-        Assert(AttributeValue<System.Reflection.AssemblyInformationalVersionAttribute>(assembly, a => a.InformationalVersion) == "1.19.0",
+        Assert(AttributeValue<System.Reflection.AssemblyInformationalVersionAttribute>(assembly, a => a.InformationalVersion) == expectedInformationalVersion,
             $"{assembly.GetName().Name} must expose the normalized informational version.");
 
         var fileInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(assembly.Location);
@@ -2291,8 +2303,8 @@ internal static class Program
             $"{assembly.GetName().Name} Win32 version resources must contain ProductName.");
         Assert(fileInfo.FileDescription == expectedTitle,
             $"{assembly.GetName().Name} Win32 version resources must use the assembly title as FileDescription.");
-        Assert(fileInfo.FileVersion == "1.19.0.0",
-            $"{assembly.GetName().Name} Win32 version resources must expose FileVersion 1.19.0.0.");
+        Assert(fileInfo.FileVersion == expectedVersion.ToString(4),
+            $"{assembly.GetName().Name} Win32 version resources must match the regression build FileVersion {expectedVersion}.");
     }
 
     private static void RejectedPropertyGridLabelBoldHackAbsent()
