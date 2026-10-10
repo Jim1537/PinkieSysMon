@@ -4,8 +4,6 @@
 
 Pinkie's System Monitor is considered release-ready by its author for the originally accepted workstation setup. Evidence remains limited and is **not** a guarantee of compatibility with other Windows builds, hardware, or USB controllers.
 
-**Test update: October 10, 2026.** PinkieSysMon `1.20.0` passed Windows build/regression checks and a basic physical-display smoke test on a second computer. USB lifecycle and long-term stability acceptance remain outstanding.
-
 ## Tested Configuration
 
 These are confirmed test configurations, **not minimum hardware requirements**:
