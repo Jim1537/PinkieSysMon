@@ -10,7 +10,7 @@ These are confirmed test configurations, **not minimum hardware requirements**:
 
 | Component | Tested configuration |
 | --- | --- |
-| Computer | Two Windows 11 x64 workstations |
+| Computer | Windows 11 x64 workstations |
 | Operating system | Windows 11 Pro x64, 26H2 (OS build 26300.9457)<br>Windows 11 Home x64, 26H2 (OS build 26300.9550) |
 | Output hardware | [Thermalright Trofeo Vision 9.16](supported-devices.md) |
 
