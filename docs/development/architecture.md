@@ -1,6 +1,6 @@
 # Application Architecture
 
-> **Source-inspected architecture map.** Describes the implementation in GitHub `main` at [`d3b6379`](https://github.com/Jim1537/PinkieSysMon/commit/d3b6379005f1dbee6668d67d239a922fa9163ed1), October 8, 2026. This is a static source review, not a new Windows build, regression, runtime, visual, or physical-device acceptance result.
+> **Source-inspected architecture map.** Originally reviewed against GitHub [`main` at `d3b6379`](https://github.com/Jim1537/PinkieSysMon/commit/d3b6379005f1dbee6668d67d239a922fa9163ed1) on October 8, 2026; this revision also describes the integrated Stage 1–4B USB output lifecycle. This is a source review, **not** a new Windows build, regression, Runtime, visual, or physical-device acceptance result.
 
 ## Scope and documentation ownership
 
@@ -111,7 +111,7 @@ The control plane additionally governs session start/stop, system suspend/resume
 
 Runtime telemetry uses a polling worker; each active output session uses a separate frame worker. The Editor has its own UI and preview cadence. These workers share data through published snapshots, while lifecycle and reconfiguration require stronger synchronization.
 
-!!! warning "Blocking USB I/O and shutdown"
-    In the current code, `FramePump` holds its synchronization lock while rendering and performing synchronous device I/O. Thus cancellation and IPC timeouts cannot be treated as proof that shutdown or reconfiguration can always interrupt a blocked device call. The unresolved cross-subsystem lifetime risk is tracked in [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37); current acceptance status belongs to [Issues](https://github.com/Jim1537/PinkieSysMon/issues) and [Compatibility & Testing](../compatibility.md), not to this architecture page.
+!!! warning "USB cancellation still depends on native completion"
+    In the integrated Stage 1–4B source, each `FramePump` output worker exclusively owns transport open/send/disposal. WinUSB calls execute **outside** the session's shared state lock; suspend, reconfiguration, and shutdown request cancellation and invalidate the previous connection generation. The worker does not release an in-flight transfer's native resources until terminal completion has been observed. `CancelIoEx` is a cancellation request, **not** a guarantee that a stalled driver will complete promptly; process shutdown may still wait for an unresponsive native operation. The remaining lifetime risks and tests are tracked in [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37). Hardware and Runtime acceptance must be recorded separately, not inferred from source review.
 
 This document intentionally provides **no independent inventory of bugs, device support, widget implementations, or provider behavior**. Those remain with their existing owners; when a cross-component contract changes, this page should change with the corresponding implementation.
