@@ -58,6 +58,33 @@ The script:
 
 The generated application package is staged under `artifacts\publish` during the build. Choosing **End** removes generated artifacts before exit.
 
+
+### GitHub synchronization
+
+To synchronize the current local branch with its corresponding branch on
+`origin`, run:
+
+```powershell
+.\build.ps1 -Action Sync
+```
+
+Synchronization requires a clean Git working tree, including no untracked
+files. The command fetches the latest remote references and updates the
+current branch only when a fast-forward is possible.
+
+- If the local branch is current, no changes are made.
+- If the local branch is ahead, local commits are preserved.
+- If the remote branch is ahead, the local branch is fast-forwarded.
+- If the branches have diverged, synchronization stops without merging or rebasing.
+- If the corresponding remote branch does not exist, the local branch is left unchanged.
+
+The GitHub publish action also checks the current remote branch before
+committing or pushing. If newer remote commits exist, publication is blocked
+until synchronization has been resolved explicitly.
+
+Run the build and regression checks again after synchronizing updated source.
+
+
 ### Local code signing
 
 Local signing is optional. To create the project-local trusted development signer on Windows:

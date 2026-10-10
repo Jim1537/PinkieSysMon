@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('Prompt', 'End', 'Local', 'GitHub')]
+    [ValidateSet('Prompt', 'End', 'Local', 'GitHub', 'Sync')]
     [string]$Action = 'Prompt',
 
     [string]$LocalRoot = 'C:\PinkieSysMon'
@@ -730,17 +730,173 @@ function Publish-Local {
     }
 }
 
-function Assert-GitHubPublishReady {
+function Assert-GitRepositoryReady {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         throw 'git.exe is not installed or is not in PATH.'
     }
 
     $gitDir = Join-Path $root '.git'
     if (-not (Test-Path -LiteralPath $gitDir -PathType Container)) {
-        throw 'GitHub publish is not ready: this developer tree has not been initialized as a Git repository.'
+        throw 'Git operation is not ready: this developer tree has not been initialized as a Git repository.'
     }
 
-    foreach ($required in @('README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')) {
+    $remote = @(& git -C $root remote get-url origin 2>$null)
+    $remoteExitCode = $LASTEXITCODE
+    if ($remoteExitCode -ne 0 -or [string]::IsNullOrWhiteSpace(($remote -join '').Trim())) {
+        throw 'Git operation is not ready: Git remote "origin" is not configured.'
+    }
+}
+
+function Get-CurrentGitBranch {
+    $branchOutput = @(& git -C $root branch --show-current)
+    $branchExitCode = $LASTEXITCODE
+    if ($branchExitCode -ne 0) {
+        throw 'Unable to determine the current Git branch.'
+    }
+
+    $branch = if ($branchOutput.Count -eq 0) { '' } else { [string]$branchOutput[0] }
+    $branch = $branch.Trim()
+    if ([string]::IsNullOrWhiteSpace($branch)) {
+        throw 'Git operation is blocked: Git is in detached HEAD state.'
+    }
+
+    return $branch
+}
+
+function Get-OriginBranchHead {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Branch
+    )
+
+    $remoteOutput = @(& git -C $root ls-remote --heads origin "refs/heads/$Branch")
+    $remoteExitCode = $LASTEXITCODE
+    if ($remoteExitCode -ne 0) {
+        throw "Unable to query origin/$Branch."
+    }
+
+    if ($remoteOutput.Count -eq 0 -or [string]::IsNullOrWhiteSpace([string]$remoteOutput[0])) {
+        return $null
+    }
+
+    $parts = ([string]$remoteOutput[0]).Trim() -split '\s+'
+    if ($parts.Count -lt 2 -or [string]::IsNullOrWhiteSpace($parts[0])) {
+        throw "Unable to parse origin/$Branch head."
+    }
+
+    return $parts[0]
+}
+
+function Get-GitBranchDivergence {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Branch
+    )
+
+    $countOutput = @(& git -C $root rev-list --left-right --count "HEAD...origin/$Branch")
+    $countExitCode = $LASTEXITCODE
+    if ($countExitCode -ne 0) {
+        throw "Unable to compare HEAD with origin/$Branch."
+    }
+
+    $countText = ($countOutput -join ' ').Trim()
+    $parts = $countText -split '\s+'
+    if ($parts.Count -ne 2) {
+        throw "Unexpected Git divergence result for origin/${Branch}: $countText"
+    }
+
+    $localAhead = 0
+    $remoteAhead = 0
+    if (-not [int]::TryParse($parts[0], [ref]$localAhead) -or
+        -not [int]::TryParse($parts[1], [ref]$remoteAhead)) {
+        throw "Unable to parse Git divergence result for origin/${Branch}: $countText"
+    }
+
+    return [PSCustomObject]@{
+        LocalAhead = $localAhead
+        RemoteAhead = $remoteAhead
+    }
+}
+
+function Sync-GitHub {
+    Assert-GitRepositoryReady
+
+    $branch = Get-CurrentGitBranch
+
+    $status = @(& git -C $root status --porcelain --untracked-files=normal)
+    $statusExitCode = $LASTEXITCODE
+    if ($statusExitCode -ne 0) {
+        throw 'Unable to inspect the Git working tree before synchronization.'
+    }
+
+    if ($status.Count -ne 0) {
+        throw 'GitHub sync blocked: local source changes are present. Commit, stash, or discard them before synchronization.'
+    }
+
+    $remoteHead = Get-OriginBranchHead -Branch $branch
+    if ($null -eq $remoteHead) {
+        Write-Host ''
+        Write-Host 'GITHUB SYNC: PASS'
+        Write-Host "Remote branch origin/$branch does not exist; local source was left unchanged."
+        return
+    }
+
+    Write-Host ''
+    Write-Host "Fetching origin/$branch..."
+    Invoke-External git '-C' $root 'fetch' '--prune' 'origin'
+
+    $divergence = Get-GitBranchDivergence -Branch $branch
+
+    if ($divergence.LocalAhead -gt 0 -and $divergence.RemoteAhead -gt 0) {
+        throw "GitHub sync blocked: local $branch and origin/$branch have diverged ($($divergence.LocalAhead) local-only commit(s), $($divergence.RemoteAhead) remote-only commit(s)). Resolve explicitly; no automatic merge or rebase was performed."
+    }
+
+    if ($divergence.RemoteAhead -gt 0) {
+        Invoke-External git '-C' $root 'merge' '--ff-only' "origin/$branch"
+        Write-Host ''
+        Write-Host 'GITHUB SYNC: PASS'
+        Write-Host "Fast-forwarded $branch by $($divergence.RemoteAhead) commit(s) from origin/$branch."
+        Write-Host 'Run .\build.ps1 before publishing the synchronized source.'
+        return
+    }
+
+    Write-Host ''
+    Write-Host 'GITHUB SYNC: PASS'
+    if ($divergence.LocalAhead -gt 0) {
+        Write-Host "$branch is $($divergence.LocalAhead) commit(s) ahead of origin/$branch; nothing was pulled."
+    } else {
+        Write-Host "$branch is already synchronized with origin/$branch."
+    }
+}
+
+function Assert-GitHubRemoteCurrentForPublish {
+    $branch = Get-CurrentGitBranch
+    $remoteHead = Get-OriginBranchHead -Branch $branch
+
+    if ($null -eq $remoteHead) {
+        return $branch
+    }
+
+    Write-Host ''
+    Write-Host "Checking origin/$branch for newer commits..."
+    Invoke-External git '-C' $root 'fetch' '--prune' 'origin'
+
+    $divergence = Get-GitBranchDivergence -Branch $branch
+    if ($divergence.RemoteAhead -gt 0) {
+        if ($divergence.LocalAhead -gt 0) {
+            throw "GitHub publish blocked: local $branch and origin/$branch have diverged. Run .\build.ps1 -Action Sync after resolving local changes explicitly, then rebuild before publishing."
+        }
+
+        throw "GitHub publish blocked: origin/$branch is $($divergence.RemoteAhead) commit(s) ahead. Run .\build.ps1 -Action Sync, then rebuild before publishing."
+    }
+
+    return $branch
+}
+
+function Assert-GitHubPublishReady {
+    Assert-GitRepositoryReady
+
+    foreach ($required in @('docs/README.md', 'LICENSE', 'THIRD-PARTY-NOTICES.md')) {
         if (-not (Test-Path -LiteralPath (Join-Path $root $required) -PathType Leaf)) {
             throw "GitHub publish is blocked until the public repository document exists: $required"
         }
@@ -766,14 +922,11 @@ function Assert-GitHubPublishReady {
         throw 'GitHub publish blocked: public config contains machine-specific media endpoint overrides.'
     }
 
-    $remote = (& git -C $root remote get-url origin 2>$null)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($remote | Out-String))) {
-        throw 'GitHub publish is not ready: Git remote "origin" is not configured.'
-    }
 }
 
 function Publish-GitHub {
     Assert-GitHubPublishReady
+    $branch = Assert-GitHubRemoteCurrentForPublish
 
     Write-Host ''
     Write-Host 'Preparing Git commit...'
@@ -829,12 +982,6 @@ function Publish-GitHub {
         Invoke-External git '-C' $root 'commit' '-m' $message
     }
 
-    $branchRaw = (& git -C $root branch --show-current | Select-Object -First 1)
-    $branch = if ($null -eq $branchRaw) { '' } else { $branchRaw.Trim() }
-    if ([string]::IsNullOrWhiteSpace($branch)) {
-        throw 'GitHub publish blocked: Git is in detached HEAD state.'
-    }
-
     # Always push through the project's authoritative remote and refresh upstream tracking.
     # This is valid for both the first publish and subsequent publishes, and avoids
     # platform-specific failure modes when probing a branch that has no upstream yet.
@@ -842,6 +989,19 @@ function Publish-GitHub {
 
     Write-Host ''
     Write-Host 'GITHUB PUBLISH: PASS'
+}
+
+if ($Action -eq 'Sync') {
+    try {
+        Sync-GitHub
+    } catch {
+        Write-Host ''
+        Write-Host 'GITHUB SYNC: FAIL' -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        throw
+    }
+
+    return
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
