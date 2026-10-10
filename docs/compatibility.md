@@ -13,17 +13,10 @@ These are confirmed test configurations, **not minimum hardware requirements**:
 | Component | Tested configuration |
 | --- | --- |
 | Computer | Two Windows 11 x64 workstations |
-| Operating system | Windows 11 Pro x64, 26H2 (OS build 26300.9457) |
-| Operating system | Windows 11 Home x64, 26H2 (OS build 26300.9550) |
+| Operating system | Windows 11 Pro x64, 26H2 (OS build 26300.9457)<br>Windows 11 Home x64, 26H2 (OS build 26300.9550) |
 | Output hardware | [Thermalright Trofeo Vision 9.16](supported-devices.md) |
 
-## Known limitations of this evidence
-
-- This was a **brief basic functional test**, not a controlled stress/soak test. **No immediate system crash** was observed on the second workstation, but neither sustained reliability nor a cause of the separate [PinkiePie platform instability investigation (#17)](https://github.com/Jim1537/PinkiePie/issues/17) has been established.
-- Physical lifecycle scenarios — **unplug/replug**, **suspend/resume**, **explicitly configured device missing**, and **two compatible devices** — have **not passed physical acceptance**. They remain tracked in [Issues #33–36](https://github.com/Jim1537/PinkieSysMon/issues).
-- Safe cancellation of blocked native WinUSB I/O remains a separate acceptance question under [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37); passing deterministic regressions does not establish driver-level completion behavior.
-- In the tested portable `1.20.0`, the two bundled root **`.lnk` shortcuts did not work after relocation**. The applications themselves launched successfully by other means; see [Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52).
-- Direct hardware output supports only explicitly [listed devices](supported-devices.md). No compatibility with similar-looking models or other firmware is implied.
+For current known issues and outstanding checks, see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
 
 ## Community Testing & Feedback
 
