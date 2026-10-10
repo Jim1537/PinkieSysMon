@@ -22,7 +22,7 @@ Canvas became a first-class configurable surface. Its size and orientation cease
 
 Device enumeration and explicit target identity replaced implicit first-compatible-device selection. Named output targets, independent sessions, device-scoped IPC and commands, transaction-safe reconfiguration, and the device-oriented Screen/Output menu were implemented. An absent or ambiguous target must not be silently redirected to another device.
 
-The **software/UI portion** closed under [BUG-012 (#26)](https://github.com/Jim1537/PinkieSysMon/issues/26). Four separate **physical acceptance scenarios remain tracked**, even though this software issue is closed: see [Current work](#current-work) and the [Trofeo integration reference](devices/trofeo-vision-9.16.md).
+The software/UI milestone was recorded in [BUG-012 (#26)](https://github.com/Jim1537/PinkieSysMon/issues/26).
 
 ### September 30–October 1, 2026 — Windows integration and reliability
 
@@ -54,19 +54,6 @@ MkDocs Material documentation was published. Telemetry and widget reference mate
 
 **References:** [MkDocs migration (PR #1)](https://github.com/Jim1537/PinkieSysMon/pull/1), [Supported Devices and integration notes (PR #12)](https://github.com/Jim1537/PinkieSysMon/pull/12), [device-neutral documentation (PR #13)](https://github.com/Jim1537/PinkieSysMon/pull/13), [sidebar organization (PR #14)](https://github.com/Jim1537/PinkieSysMon/pull/14).
 
-## Current work
-
-These are the workstreams that were outstanding at the October 8 review. **Follow their linked GitHub Issue states for current status; this page does not maintain a second issue tracker.** No completion dates are promised.
-
-| Workstream | Source of current status |
-| --- | --- |
-| Runtime asset correctness | [BUG-015: deleted image reference after Reload (#32)](https://github.com/Jim1537/PinkieSysMon/issues/32) |
-| Physical output acceptance (PASS 7) | [Unplug/replug (#33)](https://github.com/Jim1537/PinkieSysMon/issues/33), [suspend/resume (#34)](https://github.com/Jim1537/PinkieSysMon/issues/34), [configured device missing (#35)](https://github.com/Jim1537/PinkieSysMon/issues/35), [multiple-device identity (#36)](https://github.com/Jim1537/PinkieSysMon/issues/36) |
-| USB worker lifetime | [Blocking WinUSB I/O and shutdown/reconfiguration (#37)](https://github.com/Jim1537/PinkieSysMon/issues/37) |
-| Platform diagnostics | [PinkiePie investigation (#17)](https://github.com/Jim1537/PinkiePie/issues/17) is the primary cross-repository tracker; [PinkieSysMon #38](https://github.com/Jim1537/PinkieSysMon/issues/38) was closed as a duplicate. **Software causality is not established.** |
-
-The historical [BUG-004 Property Editor redesign (#18)](https://github.com/Jim1537/PinkieSysMon/issues/18) was closed as **not planned / obsolete** on October 8 by the author's decision. It is not an outstanding roadmap milestone.
-
 ## Maintenance principle
 
-This page owns **milestone history and direction**, not day-to-day status, bug reproduction steps, or acceptance checklists. Keep those details in [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues), and refer to source, accepted test evidence, or pull requests when recording a new milestone. Never turn successful compilation or regressions into unverified physical-device acceptance. Private production dashboard assets remain outside this public history.
+This page records historical milestones. For current defects, tasks, and acceptance criteria, see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).

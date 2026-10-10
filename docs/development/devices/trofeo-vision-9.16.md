@@ -86,9 +86,6 @@ WinUSB reads and writes use overlapped completion. On cancellation, `CancelIoEx`
 
 When explicitly enabled with `Usb.DiagnosticJournalEnabled`, the transport records bounded per-target event logs for connection, frame transfer, acknowledgment, failure, and lifecycle activity. The journal rotates files and periodically flushes to disk. The default is off; diagnostic writes introduce additional I/O and are not proof of the cause of a system-level failure.
 
-!!! info "Physical acceptance is incomplete"
-    An October 10, 2026 basic hardware smoke test of portable candidate `1.20.0` on a second Windows 11 computer succeeded: Trofeo displayed the expected frames. This is **not** a USB lifecycle or long-term stability test. **Real-device acceptance remains incomplete** for unplug/replug, suspend/resume, configured-device-missing, and multiple-device ambiguity scenarios, tracked under [Issues #33–36](https://github.com/Jim1537/PinkieSysMon/issues) and [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37). See [Compatibility & Testing](../../compatibility.md) for the tested Windows environments.
-
 ### Maintenance and verification checklist
 
 When changing device integration, verify the exact source and distinguish: static inspection; Windows compilation/regression; Runtime behavior; and **physical-device acceptance**. In particular, test identity resolution, stale-handle rejection, recovery after lifecycle transitions, JPEG record framing/padding, handshake, and ACK behavior against the real device before declaring a transport change proven. Preserve other output sessions when a single target is unavailable.

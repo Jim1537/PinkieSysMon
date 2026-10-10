@@ -10,7 +10,7 @@ site_dir: site
 nav:
   - Overview: README.md
   - Download: https://github.com/Jim1537/PinkieSysMon/releases/latest
-  - Compatibility Notice: compatibility.md
+  - Compatibility & Testing: compatibility.md
   - Supported Devices: supported-devices.md
   - Development Approach: development/vibe-coding.md
   - Support Me: https://ko-fi.com/Z5X220SWVK
