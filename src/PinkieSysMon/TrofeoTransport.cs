@@ -1,11 +1,11 @@
 using Microsoft.Win32.SafeHandles;
-using System.Buffers.Binary;
+using System.Diagnostics;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace PinkieSysMon;
 
-internal sealed class TrofeoTransport : IDisposable
+internal sealed class TrofeoTransport : ITrofeoFrameTransport
 {
     private const byte PipeOut = 0x09;
     private const byte PipeIn = 0x81;
@@ -18,32 +18,64 @@ internal sealed class TrofeoTransport : IDisposable
     private const uint OpenExisting = 3;
     private const uint FileAttributeNormal = 0x00000080;
     private const uint FileFlagOverlapped = 0x40000000;
+    private const int ErrorIoPending = 997;
+    private const int ErrorNotFound = 1168;
 
     private readonly FileLogger _log;
     private readonly OutputTargetConfig _target;
     private readonly OutputDeviceDescriptor _device;
     private readonly byte[] _ackBuffer = new byte[512];
+    private readonly TrofeoDiagnosticJournal? _diagnostics;
+    private readonly CancellationToken _ioCancellation;
     private SafeFileHandle? _deviceHandle;
     private IntPtr _interfaceHandle;
     private byte[] _transferBuffer = Array.Empty<byte>();
     private GCHandle _transferBufferHandle;
     private bool _transferBufferPinned;
     private IntPtr _transferBufferAddress;
+    private EventWaitHandle? _completionEvent;
+    private IntPtr _nativeOverlapped;
+    private long _frameSequence;
 
-    private TrofeoTransport(FileLogger log, OutputTargetConfig target, OutputDeviceDescriptor device)
+    private TrofeoTransport(
+        FileLogger log,
+        OutputTargetConfig target,
+        OutputDeviceDescriptor device,
+        bool diagnosticJournalEnabled,
+        CancellationToken ioCancellation)
     {
         _log = log;
+        _ioCancellation = ioCancellation;
         _target = target;
         _device = device;
+
+        if (diagnosticJournalEnabled)
+        {
+            try
+            {
+                _diagnostics = new TrofeoDiagnosticJournal(
+                    TrofeoDiagnosticJournal.GetPath(log.Path, target.Id));
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Output target '{target.Name}' USB diagnostic journal could not be opened.", ex);
+            }
+        }
     }
 
     public int WireRotationDegrees { get; private set; }
     public int ProtocolPm { get; private set; }
     public int ProtocolSub { get; private set; }
 
-    public static TrofeoTransport? TryOpen(OutputTargetConfig target, int transferTimeoutMs, FileLogger log)
+    public static TrofeoTransport? TryOpen(
+        OutputTargetConfig target,
+        int transferTimeoutMs,
+        bool diagnosticJournalEnabled,
+        FileLogger log,
+        CancellationToken ioCancellation)
     {
         ArgumentNullException.ThrowIfNull(target);
+        ioCancellation.ThrowIfCancellationRequested();
 
         var discoveredDevices = DeviceDiscovery.EnumerateTrofeoDevices();
         var resolution = OutputDeviceSelection.Resolve(target, discoveredDevices);
@@ -52,14 +84,17 @@ internal sealed class TrofeoTransport : IDisposable
         if (resolution.Status != OutputDeviceResolutionStatus.Found || resolution.Device is null)
             throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
 
-        var transport = new TrofeoTransport(log, target, resolution.Device);
+        ioCancellation.ThrowIfCancellationRequested();
+        var transport = new TrofeoTransport(log, target, resolution.Device, diagnosticJournalEnabled, ioCancellation);
+        var openStartedAt = Stopwatch.GetTimestamp();
         try
         {
             transport.Open(resolution.Device.DevicePath, transferTimeoutMs);
             return transport;
         }
-        catch
+        catch (Exception ex)
         {
+            transport.WriteFailure("OPEN_FAIL", 0, "open", openStartedAt, ex);
             transport.Dispose();
             throw;
         }
@@ -67,6 +102,15 @@ internal sealed class TrofeoTransport : IDisposable
 
     private void Open(string path, int transferTimeoutMs)
     {
+        _ioCancellation.ThrowIfCancellationRequested();
+        _diagnostics?.Write(
+            "OPEN_BEGIN",
+            ("runtime", RuntimeVersion.Current),
+            ("targetId", _target.Id),
+            ("targetName", _target.Name),
+            ("device", _device.ShortId),
+            ("timeoutMs", transferTimeoutMs));
+
         _deviceHandle = CreateFileW(
             path,
             GenericRead | GenericWrite,
@@ -79,18 +123,31 @@ internal sealed class TrofeoTransport : IDisposable
         if (_deviceHandle.IsInvalid)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateFileW(Trofeo) failed");
 
+        _ioCancellation.ThrowIfCancellationRequested();
         if (!WinUsb_Initialize(_deviceHandle, out _interfaceHandle))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Initialize failed");
 
+        _ioCancellation.ThrowIfCancellationRequested();
         ConfigurePipe(PipeOut, transferTimeoutMs);
         ConfigurePipe(PipeIn, transferTimeoutMs);
 
+        _ioCancellation.ThrowIfCancellationRequested();
         var response = Handshake();
+        _ioCancellation.ThrowIfCancellationRequested();
         var rawPm = response[20];
         var pmRawForCalc = rawPm <= 3 ? 1 : rawPm;
         ProtocolPm = 64 + pmRawForCalc;
         ProtocolSub = response[22] + 1;
         WireRotationDegrees = ProtocolSub is < 2 or > 4 ? 180 : 0;
+
+        _diagnostics?.Write(
+            "OPEN_COMPLETE",
+            ("runtime", RuntimeVersion.Current),
+            ("targetId", _target.Id),
+            ("device", _device.ShortId),
+            ("pm", ProtocolPm),
+            ("sub", ProtocolSub),
+            ("wireRotation", WireRotationDegrees));
 
         _log.Info(
             $"Output target '{_target.Name}' connected to {_device.DisplayName} [{_device.ShortId}]. " +
@@ -120,71 +177,101 @@ internal sealed class TrofeoTransport : IDisposable
         return response;
     }
 
-    public void SendJpeg(ReadOnlySpan<byte> jpeg)
+    public void SendJpeg(ReadOnlySpan<byte> jpeg) =>
+        SendJpegWithDiagnostics(jpeg, default);
+
+    public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
     {
         if (_interfaceHandle == IntPtr.Zero)
             throw new ObjectDisposedException(nameof(TrofeoTransport));
 
-        var frameLength = PrepareLyFrame(jpeg);
-        for (var offset = 0; offset < frameLength;)
-        {
-            var count = Math.Min(4096, frameLength - offset);
-            WritePinned(PipeOut, IntPtr.Add(_transferBufferAddress, offset), count);
-            offset += count;
-        }
+        var sequence = Interlocked.Increment(ref _frameSequence);
+        var startedAt = Stopwatch.GetTimestamp();
+        var stage = "prepare";
+        var layout = TrofeoWireProtocol.GetFrameLayout(jpeg.Length);
+        var writeCount = checked((layout.FrameLength + TrofeoWireProtocol.TransferBlockSize - 1) /
+                                 TrofeoWireProtocol.TransferBlockSize);
 
-        var ackLength = ReadInto(PipeIn, _ackBuffer);
-        if (ackLength == 0)
-            throw new IOException("Trofeo returned an empty frame ACK.");
+        _diagnostics?.Write(
+            "FRAME_BEGIN",
+            ("seq", sequence),
+            ("jpegBytes", jpeg.Length),
+            ("renderMs", renderDiagnostics.RenderMs),
+            ("encodeMs", renderDiagnostics.EncodeMs),
+            ("chunks", layout.ChunkCount),
+            ("paddedChunks", layout.PaddedChunkCount),
+            ("wireBytes", layout.FrameLength),
+            ("writes", writeCount));
+
+        try
+        {
+            var frameLength = PrepareLyFrame(jpeg);
+            stage = "write";
+
+            for (var offset = 0; offset < frameLength;)
+            {
+                var count = TrofeoWireProtocol.GetTransferLength(frameLength - offset);
+                WritePinned(PipeOut, IntPtr.Add(_transferBufferAddress, offset), count);
+                offset += count;
+            }
+
+            _diagnostics?.Write(
+                "FRAME_SENT",
+                ("seq", sequence),
+                ("wireBytes", frameLength),
+                ("writes", writeCount),
+                ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
+
+            stage = "ack";
+            var ackLength = ReadInto(PipeIn, _ackBuffer);
+            if (ackLength == 0)
+                throw new IOException("Trofeo returned an empty frame ACK.");
+
+            _diagnostics?.Write(
+                "FRAME_COMPLETE",
+                ("seq", sequence),
+                ("ackBytes", ackLength),
+                ("ackPrefix", AckPrefixHex(ackLength)),
+                ("usbMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
+        }
+        catch (Exception ex)
+        {
+            WriteFailure("FRAME_FAIL", sequence, stage, startedAt, ex);
+            throw;
+        }
+    }
+
+    public void RecordLifecycle(string state, string reason)
+    {
+        _diagnostics?.Write(
+            "LIFECYCLE",
+            ("state", state),
+            ("reason", reason));
+    }
+
+    private string AckPrefixHex(int ackLength)
+    {
+        var count = Math.Min(16, ackLength);
+        return count <= 0 ? string.Empty : Convert.ToHexString(_ackBuffer.AsSpan(0, count));
+    }
+
+    private void WriteFailure(string eventName, long sequence, string stage, long startedAt, Exception ex)
+    {
+        _diagnostics?.Write(
+            eventName,
+            ("seq", sequence),
+            ("stage", stage),
+            ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds),
+            ("exception", ex.GetType().Name),
+            ("win32", ex is Win32Exception win32 ? win32.NativeErrorCode : null),
+            ("message", ex.Message));
     }
 
     private int PrepareLyFrame(ReadOnlySpan<byte> payload)
     {
-        const int chunkSize = 512;
-        const int headerSize = 16;
-        const int dataSize = 496;
-
-        var totalSize = payload.Length;
-        var numChunks = totalSize / dataSize + 1;
-        var lastData = totalSize % dataSize;
-
-        var paddedChunks = numChunks;
-        var remainder = paddedChunks % 4;
-        if (remainder != 0)
-            paddedChunks += 4 - remainder;
-
-        var frameLength = checked(paddedChunks * chunkSize);
-        EnsureTransferBuffer(frameLength);
-        var output = _transferBuffer.AsSpan(0, frameLength);
-
-        for (var i = 0; i < numChunks; i++)
-        {
-            var offset = i * chunkSize;
-            var isLast = i == numChunks - 1;
-            var dataLength = isLast ? lastData : dataSize;
-            var chunk = output.Slice(offset, chunkSize);
-
-            // Header has three reserved bytes that must not retain data from the previous frame.
-            chunk.Slice(0, headerSize).Clear();
-            chunk[0] = 0x01;
-            chunk[1] = 0xFF;
-            BinaryPrimitives.WriteUInt32LittleEndian(chunk.Slice(2, 4), checked((uint)totalSize));
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(6, 2), checked((ushort)dataLength));
-            chunk[8] = 0x01;
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(9, 2), checked((ushort)numChunks));
-            BinaryPrimitives.WriteUInt16LittleEndian(chunk.Slice(11, 2), checked((ushort)i));
-
-            if (dataLength > 0)
-                payload.Slice(i * dataSize, dataLength).CopyTo(chunk.Slice(headerSize, dataLength));
-
-            if (dataLength < dataSize)
-                chunk.Slice(headerSize + dataLength, dataSize - dataLength).Clear();
-        }
-
-        if (paddedChunks > numChunks)
-            output.Slice(numChunks * chunkSize, (paddedChunks - numChunks) * chunkSize).Clear();
-
-        return frameLength;
+        var layout = TrofeoWireProtocol.GetFrameLayout(payload.Length);
+        EnsureTransferBuffer(layout.FrameLength);
+        return TrofeoWireProtocol.WriteFrame(payload, _transferBuffer.AsSpan(0, layout.FrameLength));
     }
 
     private void EnsureTransferBuffer(int requiredLength)
@@ -234,35 +321,89 @@ internal sealed class TrofeoTransport : IDisposable
 
     private void WritePinned(byte pipeId, IntPtr buffer, int length)
     {
-        if (!WinUsb_WritePipe(
-                _interfaceHandle,
-                pipeId,
-                buffer,
-                checked((uint)length),
-                out var transferred,
-                IntPtr.Zero))
-        {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), $"WinUsb_WritePipe(0x{pipeId:X2}) failed");
-        }
-
+        var transferred = TransferPipe(pipeId, buffer, length, isRead: false);
         if (transferred != (uint)length)
             throw new IOException($"Short USB write: {transferred}/{length} bytes.");
     }
 
     private int ReadInto(byte pipeId, byte[] buffer)
     {
-        if (!WinUsb_ReadPipe(
-                _interfaceHandle,
-                pipeId,
-                buffer,
-                checked((uint)buffer.Length),
-                out var transferred,
-                IntPtr.Zero))
+        // WinUSB owns this memory until overlapped completion is observed,
+        // including after a cancellation request.
+        var pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+        try
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), $"WinUsb_ReadPipe(0x{pipeId:X2}) failed");
+            return checked((int)TransferPipe(pipeId, pinned.AddrOfPinnedObject(), buffer.Length, isRead: true));
+        }
+        finally
+        {
+            pinned.Free();
+        }
+    }
+
+    private uint TransferPipe(byte pipeId, IntPtr buffer, int length, bool isRead)
+    {
+        _ioCancellation.ThrowIfCancellationRequested();
+
+        // Open/Send/Dispose share one worker and never overlap two USB requests.
+        // Reuse the event and OVERLAPPED only AFTER final completion has been
+        // observed; this avoids per-4096-byte native/event allocations.
+        _completionEvent ??= new EventWaitHandle(false, EventResetMode.ManualReset);
+        if (_nativeOverlapped == IntPtr.Zero)
+            _nativeOverlapped = Marshal.AllocHGlobal(Marshal.SizeOf<Win32Overlapped>());
+
+        var completion = _completionEvent;
+        var overlapped = _nativeOverlapped;
+        completion.Reset();
+        Marshal.StructureToPtr(
+            new Win32Overlapped { EventHandle = completion.SafeWaitHandle.DangerousGetHandle() },
+            overlapped,
+            fDeleteOld: false);
+
+        var started = isRead
+            ? WinUsb_ReadPipe(
+                _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped)
+            : WinUsb_WritePipe(
+                _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped);
+
+        if (!started)
+        {
+            var immediateError = Marshal.GetLastWin32Error();
+            if (immediateError != ErrorIoPending)
+                throw new Win32Exception(immediateError,
+                    $"WinUsb_{(isRead ? "Read" : "Write")}Pipe(0x{pipeId:X2}) failed");
+
+            var cancelled = TrofeoOverlappedCompletionWait.Wait(
+                completion,
+                _ioCancellation,
+                () =>
+                {
+                    // ERROR_NOT_FOUND means completion may have beaten the request.
+                    // Either way, the terminal result MUST still be drained.
+                    if (!CancelIoEx(_deviceHandle!, overlapped))
+                    {
+                        var error = Marshal.GetLastWin32Error();
+                        if (error != ErrorNotFound)
+                            throw new Win32Exception(error, "CancelIoEx(Trofeo) failed");
+                    }
+                },
+                () =>
+                {
+                    // This waits for actual kernel completion, not just for
+                    // CancelIoEx to acknowledge its cancellation request.
+                    _ = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out _, true);
+                });
+
+            if (cancelled)
+                throw new OperationCanceledException(_ioCancellation);
         }
 
-        return checked((int)transferred);
+        if (!WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var transferred, true))
+            throw new Win32Exception(Marshal.GetLastWin32Error(),
+                $"WinUsb_GetOverlappedResult(0x{pipeId:X2}) failed");
+
+        _ioCancellation.ThrowIfCancellationRequested();
+        return transferred;
     }
 
     private byte[] Read(byte pipeId, int length)
@@ -278,6 +419,7 @@ internal sealed class TrofeoTransport : IDisposable
 
     public void Dispose()
     {
+        _diagnostics?.Write("TRANSPORT_DISPOSE", ("targetId", _target.Id));
         ReleaseTransferBuffer();
 
         if (_interfaceHandle != IntPtr.Zero)
@@ -288,6 +430,18 @@ internal sealed class TrofeoTransport : IDisposable
 
         _deviceHandle?.Dispose();
         _deviceHandle = null;
+
+        // The worker cannot reach Dispose before all submitted native requests
+        // have reported terminal completion (including cancellation).
+        if (_nativeOverlapped != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_nativeOverlapped);
+            _nativeOverlapped = IntPtr.Zero;
+        }
+        _completionEvent?.Dispose();
+        _completionEvent = null;
+
+        _diagnostics?.Dispose();
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
@@ -323,10 +477,32 @@ internal sealed class TrofeoTransport : IDisposable
     private static extern bool WinUsb_ReadPipe(
         IntPtr interfaceHandle,
         byte pipeId,
-        byte[] buffer,
+        IntPtr buffer,
         uint bufferLength,
         out uint lengthTransferred,
         IntPtr overlapped);
+
+    [DllImport("winusb.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool WinUsb_GetOverlappedResult(
+        IntPtr interfaceHandle,
+        IntPtr overlapped,
+        out uint lengthTransferred,
+        [MarshalAs(UnmanagedType.Bool)] bool wait);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CancelIoEx(SafeFileHandle fileHandle, IntPtr overlapped);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Win32Overlapped
+    {
+        public IntPtr Internal;
+        public IntPtr InternalHigh;
+        public uint Offset;
+        public uint OffsetHigh;
+        public IntPtr EventHandle;
+    }
 
     [DllImport("winusb.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -337,3 +513,6 @@ internal sealed class TrofeoTransport : IDisposable
         uint valueLength,
         ref uint value);
 }
+
+
+internal readonly record struct TrofeoFrameRenderDiagnostics(double RenderMs, double EncodeMs);

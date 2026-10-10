@@ -4,10 +4,10 @@
     <Product>PinkieSysMon</Product>
     <Authors>PinkieSysMon Project</Authors>
     <Copyright>Copyright © 2026 PinkieSysMon Project</Copyright>
-    <Version>1.19.0</Version>
-    <AssemblyVersion>1.19.0.0</AssemblyVersion>
-    <FileVersion>1.19.0.0</FileVersion>
-    <InformationalVersion>1.19.0</InformationalVersion>
+    <Version>1.20.0</Version>
+    <AssemblyVersion>1.20.0.0</AssemblyVersion>
+    <FileVersion>1.20.0.0</FileVersion>
+    <InformationalVersion>1.20.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <NeutralLanguage>en-US</NeutralLanguage>
     <SatelliteResourceLanguages>en;en-US</SatelliteResourceLanguages>

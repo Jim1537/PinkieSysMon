@@ -58,6 +58,33 @@ The script:
 
 The generated application package is staged under `artifacts\publish` during the build. Choosing **End** removes generated artifacts before exit.
 
+
+### GitHub synchronization
+
+To synchronize the current local branch with its corresponding branch on
+`origin`, run:
+
+```powershell
+.\build.ps1 -Action Sync
+```
+
+Synchronization requires a clean Git working tree, including no untracked
+files. The command fetches the latest remote references and updates the
+current branch only when a fast-forward is possible.
+
+- If the local branch is current, no changes are made.
+- If the local branch is ahead, local commits are preserved.
+- If the remote branch is ahead, the local branch is fast-forwarded.
+- If the branches have diverged, synchronization stops without merging or rebasing.
+- If the corresponding remote branch does not exist, the local branch is left unchanged.
+
+The GitHub publish action also checks the current remote branch before
+committing or pushing. If newer remote commits exist, publication is blocked
+until synchronization has been resolved explicitly.
+
+Run the build and regression checks again after synchronizing updated source.
+
+
 ### Local code signing
 
 Local signing is optional. To create the project-local trusted development signer on Windows:
@@ -78,7 +105,7 @@ C:\PinkieSysMon
 
 !!! info "Publish local: replaced vs. preserved"
     - **Replaced:** `Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard.
-    - **Included:** Two portable launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. However, the links **failed after relocation** in a real test of portable candidate `1.20.0` on a second Windows PC ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52)); until corrected, launch the corresponding executables in `bin/` directly. PinkieSysMon does **not** create Desktop or Start Menu shortcuts.
+    - **Included:** Two launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. They are intended to remain usable when the portable tree moves, but **this did not work on the second test workstation with candidate `1.20.0`** ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52)). Until fixed, launch `bin\PinkieSysMon.exe` or `bin\PinkieSysMon.Editor.exe` directly. The application does **not** create Desktop or Start Menu shortcuts.
     - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
     - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 

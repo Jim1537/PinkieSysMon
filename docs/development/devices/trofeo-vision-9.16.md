@@ -11,7 +11,10 @@ PinkieSysMon renders dashboard frames in the native Windows Runtime, encodes the
 | Responsibility | Implementation |
 | --- | --- |
 | USB interface enumeration and device identity | [`DeviceDiscovery.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DeviceDiscovery.cs) |
-| Transport open, handshake, framing, USB I/O, ACK | [`TrofeoTransport.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/TrofeoTransport.cs) |
+| Transport open, handshake, overlapped USB I/O, ACK | [`TrofeoTransport.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/TrofeoTransport.cs) |
+| JPEG wire record construction and transfer grouping | `TrofeoWireProtocol.cs` |
+| Optional bounded USB diagnostic journal | `TrofeoDiagnosticJournal.cs` |
+| Native cancellation/completion wait | `TrofeoOverlappedCompletionWait.cs` |
 | Per-target rendering, retry, connection state and metrics | [`FramePump.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/FramePump.cs) |
 | Output session coordination and reconfiguration | [`OutputSessionManager.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs) |
 | Canvas orientation and device-side rotation | [`FrameGeometry.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/FrameGeometry.cs) |
@@ -36,7 +39,7 @@ The exact behavior described on this page remains the behavior of PinkieSysMon's
 ## Opening the transport and handshake
 
 1. Enumerate present device interfaces through Windows Configuration Manager, filter for the above VID/PID, deduplicate interface paths and form descriptors.
-2. Open the selected device path using `CreateFileW`: `GENERIC_READ | GENERIC_WRITE`, shared read/write, `OPEN_EXISTING`, and `FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED`. **Preserve the `FILE_FLAG_OVERLAPPED` requirement** even though the current `WinUsb_ReadPipe`/`WinUsb_WritePipe` calls use a null overlapped pointer.
+2. Open the selected device path using `CreateFileW`: `GENERIC_READ | GENERIC_WRITE`, shared read/write, `OPEN_EXISTING`, and `FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED`. The integrated Stage 4B transport submits WinUSB reads/writes with a native `OVERLAPPED` pointer and waits for actual completion before reusing or freeing its buffers, event, or native state.
 3. Call `WinUsb_Initialize`, then apply `PIPE_TRANSFER_TIMEOUT` to the two currently used pipes: **OUT `0x09`** and **IN `0x81`**.
 4. Send a **2,048-byte** zero-initialized handshake request to OUT with bytes `[0]=0x02`, `[1]=0xFF`, and `[8]=0x01`.
 5. Read up to **512 bytes** from IN. A valid response must contain at least **23 bytes** and markers `[0]=0x03`, `[1]=0xFF`, `[8]=0x01`. Otherwise the connection is rejected.
@@ -46,7 +49,7 @@ On failure, `TrofeoTransport.TryOpen` disposes the partially initialized transpo
 
 ## JPEG frame wire format
 
-The Runtime renderer produces JPEG bytes and `TrofeoTransport.SendJpeg` prepares the device's frame records before USB transmission. The following exact details are **protocol-sensitive**:
+The Runtime renderer produces JPEG bytes; `TrofeoTransport` delegates wire-frame construction to `TrofeoWireProtocol.WriteFrame` before USB transmission. The following exact details are **protocol-sensitive**:
 
 - Each frame record occupies **512 bytes**: **16-byte header + up to 496 JPEG payload bytes**.
 - The implementation computes `numChunks = jpegLength / 496 + 1`; this deliberately includes a final record with **zero payload bytes** when the JPEG length is an exact multiple of 496.
@@ -72,15 +75,19 @@ Records are transferred through OUT `0x09` in writes of at most **4,096 bytes**,
 
 - The supported device's native frame size is **1920 × 480**. `FrameGeometry.DefaultNativeWidth/Height` are **historical/default and schema-migration constants**; actual dashboard geometry comes from the dashboard's canvas definition, not an unconditional hard-coded render size.
 - Logical dashboard orientation permits **0°, 90°, 180°, 270°**. The separate protocol-dependent wire rotation permits **0° or 180°**. `FrameGeometry.DrawLogicalToWire` applies the wire transform and the logical orientation in the established order.
-- Defaults from `AppConfig.cs`: `Renderer.JpegQuality = 92`, `Display.RefreshIntervalMs = 1000`, `Usb.RetryIntervalMs = 3000`, `Usb.TransferTimeoutMs = 3000` (milliseconds). Configuration validation requires the display interval to be at least 10 ms; both USB intervals at least 500 ms; and JPEG quality from 10 through 100.
+- Defaults from `AppConfig.cs`: `Renderer.JpegQuality = 92`, `Display.RefreshIntervalMs = 1000`, `Usb.RetryIntervalMs = 3000`, `Usb.TransferTimeoutMs = 3000` (milliseconds), and `Usb.DiagnosticJournalEnabled = false`. Configuration validation requires the display interval to be at least 10 ms; both USB intervals at least 500 ms; and JPEG quality from 10 through 100.
 - Output targets are configured under `Outputs.Targets`, each with `Id`, `Name`, `Transport`, and optional `DeviceId`. These target identifiers and device selection rules must remain deterministic.
 
 ## Connection lifetime and evidence limits
 
-`FramePump` owns the live `TrofeoTransport` for each output target, tracks connection state, and retries after a missing device or connection/transfer error. A failed transfer drops and disposes the current transport, sets an explicit disconnected/error state as appropriate, and schedules a new attempt. Device-selection ambiguity is surfaced instead of silently choosing a device.
+`FramePump` owns one live device transport per output target through its dedicated worker. Only that worker opens, sends through, and disposes the transport; session lifecycle operations record intent and request cancellation without holding the shared state lock across WinUSB I/O. A connection generation prevents a superseded transfer from publishing a stale connected state. A failed transfer drops and disposes the current transport on the worker, records disconnected/error state as appropriate, and schedules a new attempt. Device-selection ambiguity is surfaced instead of silently choosing a device.
+
+WinUSB reads and writes use overlapped completion. On cancellation, `CancelIoEx` requests termination of a pending native operation, and the worker waits for its terminal result before releasing pinned buffers and native handles. **This does not guarantee bounded shutdown if the underlying driver never completes the operation.**
+
+When explicitly enabled with `Usb.DiagnosticJournalEnabled`, the transport records bounded per-target event logs for connection, frame transfer, acknowledgment, failure, and lifecycle activity. The journal rotates files and periodically flushes to disk. The default is off; diagnostic writes introduce additional I/O and are not proof of the cause of a system-level failure.
 
 !!! info "Physical acceptance is incomplete"
-    **Real-device acceptance remains incomplete** for unplug/replug, suspend/resume, configured-device-missing, and multiple-device ambiguity scenarios. The relevant checks are tracked as deferred physical output acceptance work. Code paths for recovery exist, but the outstanding physical scenarios must **not** be reported as passed merely because the implementation or documentation exists.
+    An October 10, 2026 basic hardware smoke test of portable candidate `1.20.0` on a second Windows 11 computer succeeded: Trofeo displayed the expected frames. This is **not** a USB lifecycle or long-term stability test. **Real-device acceptance remains incomplete** for unplug/replug, suspend/resume, configured-device-missing, and multiple-device ambiguity scenarios, tracked under [Issues #33–36](https://github.com/Jim1537/PinkieSysMon/issues) and [Issue #37](https://github.com/Jim1537/PinkieSysMon/issues/37). See [Compatibility & Testing](../../compatibility.md) for the tested Windows environments.
 
 ### Maintenance and verification checklist
 
