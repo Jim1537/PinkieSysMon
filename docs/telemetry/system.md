@@ -648,26 +648,6 @@ Repeated Windows media errors are logged with a throttle interval of:
 The telemetry engine also applies provider/source failure isolation and throttled logging to exceptions that escape an individual source.
 
 
-### Existing Regression Coverage
-
-The current regression suite contains deterministic guards related to the System provider and its shared telemetry contracts, including:
-
-- `Telemetry provider failure isolation`
-- `Telemetry reconfiguration clears deactivated metrics`
-- `Telemetry reconfiguration prepare/commit isolation`
-- `Windows internet connectivity metric`
-
-`Windows internet connectivity metric` specifically verifies:
-
-- Boolean contract;
-- `5000 ms` polling baseline;
-- `true` when connected;
-- `false` when disconnected;
-- `null` when the system connectivity probe fails.
-
-Additional regression tests protect related Power, Media System, Media Player, and Runtime/dashboard contracts, but they must not be treated as substitutes for runtime validation against actual Windows WMI, Core Audio, DXCore, or SMTC sources.
-
-
 ### Maintenance Contracts
 
 The following contracts are specific to the System provider and should be preserved unless compatibility is intentionally changed:

@@ -1,172 +1,67 @@
 # Pinkie's System Monitor
 
-![banner_001.png](images/banner_001.png)
+![Pinkie's System Monitor banner](images/banner_001.png)
 
 <p align="center">
   <a href="https://github.com/Jim1537/PinkieSysMon/releases/latest"><img src="images/download-windows.svg" alt="Download Pinkie's System Monitor for Windows" width="272" height="54"></a>
   <a href="https://ko-fi.com/Z5X220SWVK"><img src="images/support-kofi.svg" alt="Support Pinkie's System Monitor on Ko-fi" width="272" height="54"></a><br>
-  <b></b>Windows x64 • Portable ZIP • No separate .NET Runtime required</b><br>
-  <a href="https://github.com/Jim1537/PinkieSysMon/releases">All releases</a><br>
-  <a href="https://github.com/Jim1537/PinkieSysMon">GitHub Repository</a>
+  <strong>Windows x64 · Portable ZIP · No separate .NET Runtime required</strong><br>
+  <a href="https://github.com/Jim1537/PinkieSysMon/releases">All releases</a> ·
+  <a href="https://github.com/Jim1537/PinkieSysMon">Source on GitHub</a>
 </p>
 
-**Pinkie's System Monitor** is a native Windows application for creating and displaying customizable hardware dashboards with system telemetry. It is designed for setups that need a dedicated, fully local telemetry dashboard, with its own editor and direct output to [supported devices](https://jim1537.github.io/PinkieSysMon/supported-devices/).
+**Pinkie's System Monitor** is a fully local Windows application for building telemetry dashboards and displaying them on [supported USB devices](supported-devices.md). It includes a background **Runtime** and a separate **Dashboard Editor**.
 
-PinkieSysMon consists of two main components:
-
-- **PinkieSysMon Runtime** — a background application that collects telemetry, renders the active dashboard, and manages output to the configured device;
-- **PinkieSysMon Dashboard Editor** — a visual editor for creating and configuring dashboards.
-
-The project is designed for fully local operation.
-
-***
-
-> **⚠️ Compatibility Notice**
->
-> Pinkie's System Monitor has now been exercised on **two Windows 11 x64 computers**. Portable candidate **1.20.0** passed a basic Runtime, Editor, iCUE telemetry and real Trofeo display smoke test on a second computer. USB lifecycle and long-term system stability have **not** yet been verified.
->
-> **Community testing and feedback are welcome.**
->
-> [**Read the full compatibility notice →**](https://jim1537.github.io/PinkieSysMon/compatibility/)
-
-***
-
-> **🤖 Development Approach — 100% Vibe-Coded**
->
-> Despite the author's experience in application software development, Pinkie's System Monitor was created **entirely through vibe coding**. The goal was to give a new PC a fun, personalized system monitor—not spend months or years developing what is, at its core, a fairly straightforward utility.
->
-> [**Read about the development approach →**](https://jim1537.github.io/PinkieSysMon/development/vibe-coding/)
-
-***
+For tested Windows configurations see [Compatibility & Testing](compatibility.md); for known defects and outstanding work see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
 
 ## Key Features
 
-- fully native dashboard rendering on Windows;
-- a dedicated visual dashboard editor;
-- free placement, scaling, and rotation of elements;
-- layers and element groups;
-- multi-selection, drag-and-drop, Undo/Redo, and grid-based positioning;
-- background and foreground image layers;
-- support for static and animated images;
-- numeric and text formatting;
-- unit conversion;
-- ranges, thresholds, and state-based visual highlighting;
-- customizable fonts, colors, opacity, outlines, and other presentation settings;
-- dashboard switching without rebuilding the application;
-- Runtime operation from the system tray;
-- fully local operation with no cloud dependency;
-- self-contained x64 deployment — no separate .NET Runtime installation is required for published builds.
-
-***
+- Native dashboard rendering with visual layout editing, layers, groups, and Undo/Redo.
+- Flexible text, gauges, bars, images, and state-based widgets, including animated assets.
+- Customizable colors, images, thresholds, units, and text formatting.
+- Independent background Runtime with tray controls and dashboard switching.
+- System telemetry plus optional external sensor providers.
+- Portable, self-contained Windows x64 distribution without cloud services.
 
 ## Telemetry Providers
 
-PinkieSysMon combines multiple data sources into a unified metrics system.
-
-- **[System](https://jim1537.github.io/PinkieSysMon/telemetry/system/)** — the built-in Windows provider. It collects operating system, network, power, audio/media, and Runtime telemetry directly through Windows and the application itself, without requiring third-party monitoring software.
-- **[Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)** — an optional provider for extended hardware telemetry. PinkieSysMon reads sensors exposed by an already-running Libre Hardware Monitor instance through its local HTTP API.
-- **[iCUE Sensor Logging](https://jim1537.github.io/PinkieSysMon/telemetry/icue-sensor-logging/)** — an optional provider for Corsair hardware telemetry. PinkieSysMon reads Corsair iCUE Sensor Logging files in read-only mode and does not interfere with hardware control performed by iCUE.
-
-***
+- **[System](telemetry/system.md)** — built-in Windows, network, power, media, and Runtime metrics; no external monitoring program required.
+- **[Libre Hardware Monitor](telemetry/libre-hardware-monitor.md)** — optional local HTTP hardware-sensor source; Libre Hardware Monitor runs separately.
+- **[iCUE Sensor Logging](telemetry/icue-sensor-logging.md)** — optional read-only metrics from Corsair iCUE Sensor Logging files.
 
 ## Available Widgets
 
-- **[Text / Value](https://jim1537.github.io/PinkieSysMon/widgets/text-value/)** — displays a dynamic numeric or text value. Supports formatting, units, prefix/suffix text, fallback text, and customizable text presentation.
-- **[Binary](https://jim1537.github.io/PinkieSysMon/widgets/binary/)** — displays a value with two logical states. Each state can have its own presentation, such as text, an icon, or an image.
-- **[Gauge](https://jim1537.github.io/PinkieSysMon/widgets/gauge/)** — displays a numeric value as a gauge. Intended for temperatures, load, clock speeds, battery level, and other values with a defined range.
-- **[Bar](https://jim1537.github.io/PinkieSysMon/widgets/bar/)** — displays a value as a linear bar within a defined range. Useful for progress-style indicators, resource usage, levels, and other quantitative values.
-- **[Image](https://jim1537.github.io/PinkieSysMon/widgets/image/)** — a standalone graphical element for static or animated images and decorative dashboard content.
-- **[Power](https://jim1537.github.io/PinkieSysMon/widgets/power/)** — a specialized representation of battery or UPS state, including AC power, battery operation, charging, low or critical charge, and other power states.
-- **[Media System](https://jim1537.github.io/PinkieSysMon/widgets/media-system/)** — displays the type and availability of the current audio device, such as speakers, headphones, microphones, display audio, S/PDIF, and other media endpoints.
-- **[Media Player](https://jim1537.github.io/PinkieSysMon/widgets/media-player/)** — represents media playback state: Playing, Paused, Stopped, or Unavailable. It can be combined with media metrics to build current-playback elements.
+- **[Text / Value](widgets/text-value.md)** — formatted text or live metrics.
+- **[Binary](widgets/binary.md)** — two-state values with configurable text, icons, or images.
+- **[Gauge](widgets/gauge.md)** — radial numeric indicator with ranges and thresholds.
+- **[Bar](widgets/bar.md)** — linear numeric indicator with fill or image progress.
+- **[Image](widgets/image.md)** — static or animated images and icons.
+- **[Power](widgets/power.md)** — battery and UPS states.
+- **[Media System](widgets/media-system.md)** — audio endpoint type and availability.
+- **[Media Player](widgets/media-player.md)** — media playback state.
 
-For widget configuration details, see [Widget Properties — Editor Tabs](https://jim1537.github.io/PinkieSysMon/widgets/properties-by-tab/) and [Widget Property Dictionary](https://jim1537.github.io/PinkieSysMon/widgets/properties/).
-
-***
+The [Properties by Tab](widgets/properties-by-tab.md) and [Property Dictionary](widgets/properties.md) describe Editor settings and their supported values.
 
 ## Dashboard Editor
 
-**PinkieSysMon Dashboard Editor** is designed for creating dashboards without manually editing their internal files.
-
+The visual Editor supports widget placement, resizing, grouping, contextual property editing, metric selection, and live previews. Dashboards are saved separately from the application binaries.
 
 <p align="center">
   <a href="images/PinkeySysMon_editor.png">
-    <img src="images/PinkeySysMon_editor.png"
-         alt="PinkeySysMon Editor"
-         width="50%">
+    <img src="images/PinkeySysMon_editor.png" alt="PinkieSysMon Dashboard Editor" width="50%">
   </a>
 </p>
 
-
-The editor allows you to:
-
-- add and remove widgets;
-- move and resize them directly on the canvas;
-- rotate elements;
-- select multiple elements at once;
-- apply shared changes to a group of selected elements;
-- organize elements into nested groups and layers;
-- change Z-order;
-- use a grid for precise positioning;
-- use Undo and Redo;
-- configure properties through contextual property panels;
-- select available telemetry metrics;
-- work with images and a shared icon library;
-- use System, Light, and Dark interface themes;
-- save dashboards and apply changes to Runtime.
-
-A dashboard is a self-contained layout and presentation configuration. You can create multiple dashboards for different purposes or visual styles and switch between them as needed.
-
-***
-
 ## Runtime
 
-**PinkieSysMon Runtime** is designed for continuous background operation.
-
-After startup, Runtime:
-
-- loads the selected dashboard;
-- determines which telemetry metrics it needs;
-- retrieves current values from available sources;
-- renders the dashboard;
-- sends rendered frames to the configured [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/);
-- monitors output status;
-- allows dashboard switching and access to the Editor from the system tray.
-
-Configuration files, dashboards, and user assets are stored separately from the application binaries, so updating the program does not require rebuilding or recreating your dashboard.
-
-***
-
-## Supported Devices
-
-Direct hardware output is available only for explicitly [supported devices](https://jim1537.github.io/PinkieSysMon/supported-devices/). The compatibility list records the implemented models, connection requirements, and their current validation status. Similar-looking hardware is not necessarily compatible.
-
-***
+Runtime loads the selected dashboard, collects the required metrics, renders frames, and sends them to the configured device. The system tray provides output status, dashboard selection, and access to the Editor. Saving a dashboard in the Editor does not silently replace the already loaded Runtime document; apply or reload it explicitly.
 
 ## System Requirements
 
-- 64-bit Windows;
-- Windows 11 x64 is recommended as the primary supported desktop platform; Windows 10 is supported only in configurations compatible with the current .NET 10 runtime;
-- a [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/) when using direct hardware output.
+- 64-bit Windows; Windows 11 x64 is the primary tested platform. Compatible Windows 10 configurations depend on the .NET 10 Windows runtime requirements.
+- A [supported output device](supported-devices.md) for direct USB display output.
+- Optional Libre Hardware Monitor (local Remote Web Server) or Corsair iCUE (Sensor Logging) for their respective metrics.
 
-The following software is optional and is only required for the corresponding telemetry source:
+Published Runtime and Editor builds are self-contained and require no separate .NET Runtime installation.
 
-- **Libre Hardware Monitor**, running with its local Remote Web Server enabled, for extended hardware telemetry;
-- **Corsair iCUE**, with Sensor Logging enabled, for Corsair hardware telemetry.
-
-Published Runtime and Editor builds are self-contained x64 applications.
-
-***
-
-## Documentation
-
-- [Supported Devices](https://jim1537.github.io/PinkieSysMon/supported-devices/)
-- [Building, deployment, and development](https://jim1537.github.io/PinkieSysMon/development/building/)
-- [System provider](https://jim1537.github.io/PinkieSysMon/telemetry/system/)
-- [Libre Hardware Monitor](https://jim1537.github.io/PinkieSysMon/telemetry/libre-hardware-monitor/)
-- [iCUE Sensor Logging](https://jim1537.github.io/PinkieSysMon/telemetry/icue-sensor-logging/)
-- [Widget reference](https://jim1537.github.io/PinkieSysMon/widgets/text-value/)
-- [Widget property dictionary](https://jim1537.github.io/PinkieSysMon/widgets/properties/)
-
-
-PinkieSysMon is an independent fan-made project and is not affiliated with or endorsed by Hasbro. The project source code is distributed under the [MIT License](https://github.com/Jim1537/PinkieSysMon/blob/main/LICENSE).
+PinkieSysMon was developed through [AI-assisted vibe coding](development/vibe-coding.md). It is an independent fan-made project, not affiliated with or endorsed by Hasbro. Source code is released under the [MIT License](https://github.com/Jim1537/PinkieSysMon/blob/main/LICENSE).

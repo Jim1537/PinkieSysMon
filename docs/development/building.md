@@ -1,6 +1,6 @@
 # Building, Deployment, and Development
 
-This page preserves the build, packaging, deployment, compatibility, and licensing instructions previously maintained in the root repository README. For the product overview and complete documentation, see the [project overview](../README.md).
+Build, regression, local deployment, and portable packaging instructions. For application features, see the [Overview](../README.md).
 
 ## Requirements
 
@@ -105,7 +105,7 @@ C:\PinkieSysMon
 
 !!! info "Publish local: replaced vs. preserved"
     - **Replaced:** `Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard.
-    - **Included:** Two launch shortcuts in the installation root: `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. They are intended to remain usable when the portable tree moves, but **this did not work on the second test workstation with candidate `1.20.0`** ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52)). Until fixed, launch `bin\PinkieSysMon.exe` or `bin\PinkieSysMon.Editor.exe` directly. The application does **not** create Desktop or Start Menu shortcuts.
+    - **Included:** Root shortcuts `Pinkie's System Monitor.lnk` and `PinkieSysMon Dashboard Editor.lnk`. Portable relocation of these shortcuts is currently broken ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52)); launch `bin\PinkieSysMon.exe` or `bin\PinkieSysMon.Editor.exe` directly. No Desktop or Start Menu shortcuts are created.
     - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
     - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 

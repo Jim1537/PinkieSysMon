@@ -484,23 +484,6 @@ Repeated transport and protocol warnings are limited by a throttle interval of:
 This preserves useful diagnostics without continuously flooding the application log while Libre Hardware Monitor remains unavailable.
 
 
-### Existing Regression Coverage
-
-The current regression suite contains dedicated deterministic guards for provider-specific contracts:
-
-- `LHM duplicate sensor ID disambiguation`
-- `LHM throughput unit semantics`
-
-The first protects duplicate SensorId resolution rules, synthetic metric IDs, the prohibition against choosing an arbitrary winner, and compatibility parsing of formatted `RawValue` data.
-
-The second protects the distinction between:
-
-- regular `Throughput` → bytes per second;
-- `Connection Speed` → bits per second;
-
-and the associated data-rate conversions.
-
-
 ### Maintenance Contracts
 
 The following contracts are specific to the Libre Hardware Monitor provider and should be preserved unless compatibility is intentionally changed:

@@ -346,6 +346,4 @@ Changing these persisted or rendering contracts requires intentional compatibili
 
 ### Implementation References
 
-Source reviewed: [GitHub commit 84728cd](https://github.com/Jim1537/PinkieSysMon/tree/84728cd957c7b674065a4783c84e7c40d19eb286) (`main` at the time of review).
-
 Key files: `src/PinkieSysMon/DashboardModel/WidgetDefinitions.cs`, `src/PinkieSysMon/DashboardModel/ImageDefinitions.cs`, `src/PinkieSysMon/BarImageContract.cs`, `src/PinkieSysMon/Widgets/BarWidgetRenderer.cs`, `src/PinkieSysMon/Widgets/QuantitativeIndicator.cs`, and `src/PinkieSysMon.Editor/CanonicalPropertyViews.cs`.
