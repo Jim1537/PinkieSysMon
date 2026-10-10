@@ -88,6 +88,16 @@ For widget configuration details, see [Widget Properties — Editor Tabs](https:
 
 **PinkieSysMon Dashboard Editor** is designed for creating dashboards without manually editing their internal files.
 
+
+<p align="center">
+  <a href="images/PinkeySysMon_editor.png">
+    <img src="images/PinkeySysMon_editor.png"
+         alt="PinkeySysMon Editor"
+         width="50%">
+  </a>
+</p>
+
+
 The editor allows you to:
 
 - add and remove widgets;
