@@ -23,9 +23,9 @@ The project is designed for fully local operation.
 
 > **⚠️ Compatibility Notice**
 >
-> Pinkie's System Monitor is considered release-ready by its author. However, real-world testing has so far been limited to **one Windows 11 Pro computer and one [supported output device](https://jim1537.github.io/PinkieSysMon/supported-devices/)**.
+> Pinkie's System Monitor has now been exercised on **two Windows 11 x64 computers**. Portable candidate **1.20.0** passed a basic Runtime, Editor, iCUE telemetry and real Trofeo display smoke test on a second computer. USB lifecycle and long-term system stability have **not** yet been verified.
 >
-> Compatibility with other configurations has not yet been verified. **Community testing and feedback are very welcome!**
+> **Community testing and feedback are welcome.**
 >
 > [**Read the full compatibility notice →**](https://jim1537.github.io/PinkieSysMon/compatibility/)
 
