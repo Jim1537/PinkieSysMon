@@ -127,12 +127,15 @@ internal sealed class DesktopOutputSession : IOutputSession
             !prepared.Target.Id.Equals(_id, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Invalid desktop output reconfiguration.", nameof(reconfiguration));
 
+        // Apply fallible native window configuration before transferring the prepared renderer.
+        // On a window error the prepared plan still owns its raster resources for rollback.
+        _window.Configure(prepared.Target.Name, prepared.Size,
+            LocationFor(prepared.Target), IntervalFor(prepared.Config, prepared.Target));
         var previous = _renderer;
         var wasPublishing = Publishing;
         _renderer = prepared.TakeRenderer();
         _config = prepared.Config;
         _target = prepared.Target;
-        _window.Configure(_target.Name, prepared.Size, LocationFor(_target), IntervalFor(_config, _target));
         if (wasPublishing && !Publishing)
             _metrics.Publish(OutputMetricContract.Unavailable(_target));
         _lastPublishAt = 0;
