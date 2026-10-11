@@ -45,6 +45,8 @@ internal static class Program
             ("Output metric clearing stop and restart", OutputPerformanceMetricTests.StopAndRestart),
             ("Desktop Z-order policy and persistence", DesktopZOrderStage14Tests.PolicyAndPersistence),
             ("Desktop Z-order lifecycle reconciliation", DesktopZOrderStage14Tests.SessionLifecycle),
+            ("Multiple Desktop session dashboard and removal isolation", DesktopMultiSessionStage15Tests.SharedBoardReloadAndRemoval),
+            ("Multiple Desktop session failed-start recovery", DesktopMultiSessionStage15Tests.FailedPanelCreationIsolation),
             ("Dynamic output provider registration", OutputProviderStage07Tests.ProviderCatalog),
             ("Dynamic output selector branches and switches", OutputProviderStage07Tests.Selector),
             ("Output provider passive status and removal", OutputProviderStage07Tests.PassiveLifecycle),
