@@ -10,7 +10,7 @@ using CanonicalDashboardDefinition = global::PinkieSysMon.DashboardModel.Dashboa
 namespace PinkieSysMon;
 
 // A Desktop output owns its own canonical renderer and a native Windows window, not a USB transport.
-internal sealed class DesktopOutputSession : IOutputSession
+internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSession
 {
     private const int MetricsPublishIntervalMs = 1000;
     private readonly string _id;
@@ -91,6 +91,17 @@ internal sealed class DesktopOutputSession : IOutputSession
     }
 
     public string TargetId => _id;
+    bool IDesktopStackSession.IsStackVisible => _window.IsVisible;
+
+    void IDesktopStackSession.PlaceBehind(IDesktopStackSession higher)
+    {
+        // Fake windows have no native handle. Production windows are positioned only
+        // relative to another owned Desktop window, never a foreign HWND.
+        if (_window is DesktopOutputWindow lowerWindow &&
+            higher is DesktopOutputSession higherSession &&
+            higherSession._window is DesktopOutputWindow higherWindow)
+            lowerWindow.PlaceBehind(higherWindow);
+    }
     public string TargetName => _target.Name;
     public bool IsConnected => _started && !_suspended && _window.IsVisible;
     public long SentFrames => Interlocked.Read(ref _frameCount);
@@ -324,6 +335,31 @@ internal static class DesktopPointerStyle
     }
 }
 
+// Only an active Desktop session participates in native sibling stacking.
+// Separate from IOutputSession: physical transports never receive window operations.
+internal interface IDesktopStackSession
+{
+    bool IsStackVisible { get; }
+    void PlaceBehind(IDesktopStackSession higher);
+}
+
+internal static class DesktopZOrderPolicy
+{
+    // Smaller ZOrder values are farther back; ties preserve persisted Targets order.
+    internal static IReadOnlyList<string> BackToFront(
+        IEnumerable<OutputTargetConfig> targets, IEnumerable<string> activeIds)
+    {
+        var active = activeIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return targets.Select((target, index) => (target, index))
+            .Where(entry => entry.target.Kind == OutputTargetContract.DesktopKind &&
+                            entry.target.Desktop?.BoardEnabled == true && active.Contains(entry.target.Id))
+            .OrderBy(entry => entry.target.Desktop!.ZOrder)
+            .ThenBy(entry => entry.index)
+            .Select(entry => entry.target.Id)
+            .ToArray();
+    }
+}
+
 // Native Windows Desktop presentation and persistence are UI-thread owned.
 internal interface IDesktopOutputWindow : IDisposable
 {
@@ -339,6 +375,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 {
     private const int GwlExStyle = -20;
     private const uint SwpFrameChangedNoMove = 0x0001u | 0x0002u | 0x0004u | 0x0010u | 0x0020u;
+    // Reorder only normal (non-topmost) sibling windows, without resizing or activation.
+    internal const uint StackFlags = 0x0001u | 0x0002u | 0x0010u | 0x0200u;
     private const int WmNcHitTest = 0x0084;
     private const int WmDpiChanged = 0x02E0;
     private readonly Action _render;
@@ -438,6 +476,16 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(
         IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
+
+    internal void PlaceBehind(DesktopOutputWindow higher)
+    {
+        if (_disposed || higher._disposed || !Visible || !higher.Visible ||
+            !IsHandleCreated || !higher.IsHandleCreated)
+            return;
+        if (!SetWindowPos(Handle, higher.Handle, 0, 0, 0, 0, StackFlags))
+            throw new Win32Exception(Marshal.GetLastWin32Error(),
+                "Cannot restore Desktop sibling window stacking order.");
+    }
 
     public void ShowWindow()
     {

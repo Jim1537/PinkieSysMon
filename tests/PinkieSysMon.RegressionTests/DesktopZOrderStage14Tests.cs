@@ -1,0 +1,182 @@
+using System.Text.Json;
+using PinkieSysMon;
+using C = PinkieSysMon.DashboardModel;
+
+namespace PinkieSysMon.RegressionTests;
+
+internal static class DesktopZOrderStage14Tests
+{
+    public static void PolicyAndPersistence()
+    {
+        var config = CreateConfig();
+        var active = new[] { "d1", "d2", "d3", "usb-off" };
+        Check(DesktopZOrderPolicy.BackToFront(config.Outputs.Targets, active)
+                .SequenceEqual(new[] { "d2", "d1", "d3" }),
+            "Desktop ZOrder must be ordered back-to-front without physical outputs.");
+
+        config.Outputs.Targets[0].Desktop!.ZOrder = 10;
+        config.Outputs.Targets[1].Desktop!.ZOrder = 10;
+        Check(DesktopZOrderPolicy.BackToFront(config.Outputs.Targets, active)
+                .SequenceEqual(new[] { "d1", "d2", "d3" }),
+            "Equal ZOrder values must preserve configured list order.");
+
+        config.Outputs.Targets[1].Desktop!.BoardEnabled = false;
+        Check(DesktopZOrderPolicy.BackToFront(config.Outputs.Targets, active)
+                .SequenceEqual(new[] { "d1", "d3" }),
+            "Disabled Desktop must never participate in native stacking.");
+
+        var saved = JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(config))
+            ?? throw new InvalidOperationException("Missing deserialized configuration.");
+        Check(saved.Outputs.Targets[0].Desktop!.ZOrder == 10 &&
+              !saved.Outputs.Targets[1].Desktop!.BoardEnabled &&
+              saved.Outputs.Targets[2].Desktop!.ZOrder == 30,
+            "Panel ordering and visibility must persist in app configuration.");
+
+        const uint prohibited = 0x0004u | 0x0008u; // SWP_NOZORDER and SWP_NOREDRAW
+        Check((DesktopOutputWindow.StackFlags & prohibited) == 0 &&
+              (DesktopOutputWindow.StackFlags & 0x0010u) != 0 &&
+              (DesktopOutputWindow.StackFlags & 0x0200u) != 0,
+            "Native stacking must change Z-order without activation or owner reordering.");
+    }
+
+    public static void SessionLifecycle()
+    {
+        var root = Path.Combine(Path.GetTempPath(),
+            "pinkiesysmon-stage14-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var metrics = new MetricStore();
+            var log = new FileLogger(Path.Combine(root, "stage14.log"));
+            var board = new C.DashboardDefinition
+            {
+                BaseDirectory = root,
+                Canvas = new C.CanvasDefinition { Width = 40, Height = 20 },
+                Widgets = []
+            };
+            var events = new List<string>();
+            var physicalAttempts = 0;
+            using var manager = new OutputSessionManager(CreateConfig(), board, metrics, log,
+                (app, target, assigned, store, logger) =>
+                {
+                    if (target.Kind != OutputTargetContract.DesktopKind)
+                    {
+                        physicalAttempts++;
+                        throw new InvalidOperationException("Disabled USB must remain untouched.");
+                    }
+                    return new FakeStackSession(target.Id, events);
+                });
+
+            manager.Start();
+            AssertEvents(events, "d1<d3", "d2<d1");
+
+            events.Clear();
+            var reordered = CreateConfig();
+            reordered.Outputs.Targets[0].Desktop!.ZOrder = 0;
+            reordered.Outputs.Targets[1].Desktop!.ZOrder = 30;
+            reordered.Outputs.Targets[2].Desktop!.ZOrder = 20;
+            manager.Reconfigure(reordered, board);
+            AssertEvents(events, "d3<d2", "d1<d3");
+
+            events.Clear();
+            reordered.Outputs.Targets[2].Desktop!.BoardEnabled = false;
+            manager.Reconfigure(reordered, board);
+            AssertEvents(events, "d1<d2");
+
+            events.Clear();
+            reordered.Outputs.Targets[2].Desktop!.BoardEnabled = true;
+            manager.Reconfigure(reordered, board);
+            AssertEvents(events, "d3<d2", "d1<d3");
+
+            events.Clear();
+            Check(manager.StopTarget("d2"), "StopTarget must remove the active panel.");
+            AssertEvents(events, "d1<d3");
+
+            events.Clear();
+            manager.StartOrReloadTarget("d2");
+            AssertEvents(events, "d3<d2", "d1<d3");
+
+            events.Clear();
+            manager.Suspend();
+            manager.Resume();
+            AssertEvents(events, "d3<d2", "d1<d3");
+
+            Check(physicalAttempts == 0, "Window ordering must not start USB hardware.");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static AppConfig CreateConfig() => new()
+    {
+        Outputs = new OutputConfig
+        {
+            Targets =
+            [
+                Desktop("d1", 20),
+                Desktop("d2", 10),
+                Desktop("d3", 30),
+                new OutputTargetConfig
+                {
+                    Id = "usb-off", Name = "Disabled Trofeo",
+                    Kind = OutputTargetContract.TrofeoKind,
+                    Transport = OutputTargetContract.TrofeoTransport,
+                    DeviceEnabled = false
+                }
+            ]
+        }
+    };
+
+    private static OutputTargetConfig Desktop(string id, int zOrder) => new()
+    {
+        Id = id,
+        Name = id,
+        Kind = OutputTargetContract.DesktopKind,
+        Transport = OutputTargetContract.DesktopTransport,
+        Dashboard = "stage14",
+        Desktop = new DesktopOutputConfig { BoardEnabled = true, ZOrder = zOrder }
+    };
+
+    private static void AssertEvents(List<string> actual, params string[] expected)
+    {
+        Check(actual.SequenceEqual(expected),
+            $"Unexpected panel stack: {string.Join(", ", actual)}; expected {string.Join(", ", expected)}.");
+    }
+
+    private sealed class FakeStackSession(string id, List<string> events)
+        : IOutputSession, IDesktopStackSession
+    {
+        private bool _visible;
+        public string TargetId => id;
+        public string TargetName => id;
+        public bool IsConnected => _visible;
+        public bool IsStackVisible => _visible;
+        public long SentFrames => 0;
+        public double LastFrameMs => 0;
+        public int LastJpegBytes => 0;
+        public string UsbState => _visible ? "DISPLAYING" : "STOPPED";
+        public void Start() => _visible = true;
+        public void Suspend() => _visible = false;
+        public void Resume() => _visible = true;
+        public void Dispose() => _visible = false;
+        public void SetRuntimeMetricsPublisher(bool enabled) { }
+        public IOutputSessionReconfiguration PrepareReconfiguration(
+            AppConfig config, OutputTargetConfig target, C.DashboardDefinition dashboard) => new Plan();
+        public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration) { }
+        public void PlaceBehind(IDesktopStackSession higher) =>
+            events.Add($"{id}<{((FakeStackSession)higher).TargetId}");
+        private sealed class Plan : IOutputSessionReconfiguration
+        {
+            public void Dispose() { }
+        }
+    }
+
+    private static void Check(bool condition, string message)
+    {
+        if (!condition)
+            throw new InvalidOperationException(message);
+    }
+}

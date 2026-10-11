@@ -168,6 +168,7 @@ internal sealed class OutputSessionManager : IDisposable
                     _sessions.Add(session.TargetId, session);
 
                 UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
             }
         }
         catch
@@ -319,7 +320,10 @@ internal sealed class OutputSessionManager : IDisposable
 
             DisposeSessionsBestEffort(removed);
             lock (_sync)
+            {
                 UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
+            }
         }
         catch
         {
@@ -396,6 +400,7 @@ internal sealed class OutputSessionManager : IDisposable
                 _started = true;
                 _stoppedTargets.Remove(target.Id);
                 UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
             }
         }
         catch
@@ -442,7 +447,10 @@ internal sealed class OutputSessionManager : IDisposable
         {
             DisposeSessionsBestEffort([removed]);
             lock (_sync)
+            {
                 UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
+            }
         }
         return removed is not null;
     }
@@ -508,6 +516,7 @@ internal sealed class OutputSessionManager : IDisposable
                 foreach (var session in created) _sessions.Add(session.TargetId, session);
                 _boards = candidateBoards;
                 UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
             }
         }
         catch
@@ -592,6 +601,11 @@ internal sealed class OutputSessionManager : IDisposable
                 _log.Warn($"Output target '{session.TargetName}' resume failed; continuing with sibling sessions.", ex);
             }
         }
+        lock (_sync)
+        {
+            if (!_disposed)
+                RestoreDesktopStackLocked();
+        }
     }
 
     public IReadOnlyList<OutputSessionStatus> GetStatuses()
@@ -626,6 +640,29 @@ internal sealed class OutputSessionManager : IDisposable
                     session.LastFrameMs,
                     session.LastJpegBytes);
             }).ToArray();
+        }
+    }
+
+    // Restore sibling order after creation, configuration reload, and visibility changes.
+    // Native operations are best-effort: a failed window move must not roll back the
+    // committed session/configuration transaction or affect USB sessions.
+    private void RestoreDesktopStackLocked()
+    {
+        var ordered = DesktopZOrderPolicy.BackToFront(_config.Outputs.Targets, _sessions.Keys)
+            .Select(id => _sessions[id])
+            .OfType<IDesktopStackSession>()
+            .Where(session => session.IsStackVisible)
+            .ToArray();
+
+        // Anchor each lower panel immediately behind the next higher panel. Never
+        // promote a window with HWND_TOP/HWND_TOPMOST or alter another process's HWND.
+        for (var index = ordered.Length - 2; index >= 0; index--)
+        {
+            try { ordered[index].PlaceBehind(ordered[index + 1]); }
+            catch (Exception ex)
+            {
+                _log.Warn("Desktop sibling stacking adjustment failed; continuing other outputs.", ex);
+            }
         }
     }
 
