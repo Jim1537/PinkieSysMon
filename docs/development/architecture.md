@@ -23,7 +23,7 @@ Both processes use classes from `PinkieSysMon.dll`. **The shared assembly is not
           |                    |        +-- independent preview and sample data
     TelemetryEngine      OutputSessionManager
           |                    |        +-- Runtime IPC client ------+
-      IMetricSource[]     per-target FramePump                     |
+      IMetricSource[]     per-target session                       |
           |                    |                                    |
           v                    |                                    v
       MetricStore -------------+                           Runtime IPC server
@@ -33,7 +33,7 @@ Both processes use classes from `PinkieSysMon.dll`. **The shared assembly is not
                                |
                            frame bytes
                                |
-                         device transport
+                    Desktop window / device transport
 
 The horizontal link from `MetricStore` to output sessions carries **data snapshots**, not commands. The IPC connection carries **control requests and status**, not live widget objects or a stream of rendered frames. The persistence link is file-based.
 
@@ -53,13 +53,13 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 ## Runtime output ownership
 
-`OutputSessionManager` owns the set of active output sessions. Each active configured target has its own `FramePump`, renderer instance, connection state, and output worker.
+`OutputSessionManager` owns the set of active output sessions. Physical targets have an independent `FramePump` worker and renderer; Desktop targets have an independent `DesktopOutputSession`, renderer and WinForms UI-thread repaint timer.
 
 Each configured Output has an independent dynamic metric provider identified by its stable Output ID, not its display label or physical device path. Its passive lifecycle state can remain available without enabling a physical device or a Desktop panel. Per-output performance readings use the `system.output.<OutputId>.*` namespace and are gated by each Output's independent Provider Enabled switch; the global System switch affects only System metrics. The global `system.runtime.version` remains application-level; the former global frame/FPS/JPEG/USB statistics are retired without compatibility aliases. See [System → Runtime and Output Performance Metrics](../telemetry/system.md#runtime-and-output-performance-metrics) for the canonical ID table and physical-versus-Desktop field contract.
 
 **Runtime owns independently loaded canonical dashboards keyed by stable Output ID.** Each active physical session receives its assigned document, not a global active board. Two Outputs may select the same saved dashboard, but each gets a separate in-memory definition/renderer instance. A target-scoped Start/Reload loads and commits only that target's board; a full configuration reload validates all assigned dashboards before applying them and has rollback paths for failed session commits. Desktop outputs with `BoardEnabled=true` instantiate an independent `DesktopOutputSession` with a native borderless, non-resizable WinForms window; disabled boards instantiate no window and demand no telemetry. Each Desktop window paints Stage 08's alpha-capable logical BGRA raster (presented onto an opaque black GDI+ surface in Stage 09), on a UI-thread timer using its Output refresh interval and own renderer. Logical Canvas dimensions after orientation map to **physical client pixels** with `AutoScaleMode=None`; per-monitor DPI relocation and window alpha are Stage 11/10 respectively. Physical Trofeo outputs still require explicit `DeviceEnabled=true`; disabled devices never start USB I/O.
 
-A frame worker reads the most recent `MetricStore` snapshot, renders via the shared widget implementation, and delegates the resulting frame to the selected device transport. Runtime's `DashboardRenderer` owns the rendering surfaces and its resource caches; `FramePump` owns the periodic worker and live transport instance. Model-specific wire details are documented only in [Device Integration](devices/trofeo-vision-9.16.md).
+Each active output consumes the latest `MetricStore` snapshot through the same canonical widget renderer. Physical `FramePump` workers encode and send frames through the device transport; Desktop sessions paint the alpha-capable raster through their own window. `DashboardRenderer` owns its Skia surfaces and resource caches; the physical `FramePump` owns the USB worker and transport lifecycle. Model-specific wire details are documented only in [Device Integration](devices/trofeo-vision-9.16.md).
 
 `DashboardRenderer` rasterizes one canonical logical Canvas in premultiplied BGRA, including `#AARRGGBB` transparency, Canvas image layers and the same widget registry used by the Editor preview. `RenderBgra` returns a **caller-owned** logical-size bitmap with per-pixel alpha intact for future Desktop sessions (Stage 09); its pixels are independent of subsequent renders and must be disposed by the caller. The existing Trofeo `RenderJpeg` continues to rotate/composite that logical frame onto an opaque black native-size wire surface before JPEG encoding. Desktop windows, placement and visible Runtime behavior are not part of Stage 08.
 
