@@ -80,7 +80,12 @@ internal static class DesktopTransparencyStage10Tests
             "pinkiesysmon-desktop10-" + Guid.NewGuid().ToString("N"));
         try
         {
-            Directory.CreateDirectory(directory);
+            // The canonical renderer resolves global assets from a real app root:
+            // both config/app.json and dashboards/ must exist, even for a
+            // no-widget Canvas. Match the existing Stage09 sandbox contract.
+            Directory.CreateDirectory(Path.Combine(directory, "config"));
+            Directory.CreateDirectory(Path.Combine(directory, "dashboards", "Default"));
+            File.WriteAllText(Path.Combine(directory, "config", "app.json"), "{}");
             var log = new FileLogger(Path.Combine(directory, "stage10.log"));
             var config = new AppConfig
             {
