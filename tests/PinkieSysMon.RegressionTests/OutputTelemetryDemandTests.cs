@@ -128,14 +128,34 @@ internal static class OutputTelemetryDemandTests
                   "Disabling physical devices on configuration reload must drop board demand.");
 
             // Start All / Stop All use the same singleton scheduler as target commands.
+            // Crucially, Start All must NOT override DeviceEnabled=false.
             manager.StopAll();
             Reconcile();
             Check(manager.GetRequiredMetrics().Count == 0,
                 "Stop All must clear demand from every output.");
             manager.StartOrReloadAll();
             Reconcile();
+            Check(manager.GetRequiredMetrics().Count == 0 &&
+                  manager.GetStatuses().All(status => !status.IsActive),
+                "Start All must not reactivate devices explicitly disabled in configuration.");
+
+            // Restore the original simulated on-disk board and explicitly re-enable
+            // both physical devices BEFORE testing restoration after Stop All.
+            requested["a"] = boards["a"];
+            manager.Reconfigure(cfg, boards);
+            Reconcile();
             Check(manager.GetRequiredMetrics().SetEquals(new[] { Shared, Left, Right }),
-                "Start All must restore the deduplicated union after a complete stop.");
+                "Explicitly re-enabled physical targets must restore shared metric demand.");
+
+            manager.StopAll();
+            Reconcile();
+            Check(manager.GetRequiredMetrics().Count == 0 &&
+                  store.Snapshot().TryGetValue(Shared, out var allStopped) && allStopped is null,
+                "Stop All must clear previously active shared metric values.");
+            manager.StartOrReloadAll();
+            Reconcile();
+            Check(manager.GetRequiredMetrics().SetEquals(new[] { Shared, Left, Right }),
+                "Start All must restore the deduplicated union of enabled devices after a complete stop.");
 
             // Provider availability and per-metric policy remain authoritative
             // even when an active board requests a metric.
