@@ -349,8 +349,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _mediaTelemetry.ApplyEndpointTypeOverrides(mediaOverrides);
             mediaCommitted = true;
 
-            _config = app;
             MetricContract.ReplaceOutputDescriptors(app.Outputs.Targets);
+            _config = app;
             _metrics.Publish(RuntimeMetricContract.Version,
                 MetricProviderContract.IsEnabled(app.MetricProviders, MetricProviderContract.System)
                     ? RuntimeVersion.Current : null);

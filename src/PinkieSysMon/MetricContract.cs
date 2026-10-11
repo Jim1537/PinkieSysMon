@@ -166,8 +166,7 @@ internal static class MetricContract
             return null;
 
         var index = Volatile.Read(ref _descriptorIndex);
-        return index.TryGetValue(id, out var descriptor) ? descriptor :
-            OutputMetricContract.DescribeKnownId(id);
+        return index.TryGetValue(id, out var descriptor) ? descriptor : null;
     }
 
     public static void ReplaceProviderDescriptors(string providerId, IEnumerable<MetricDescriptor> descriptors)
@@ -207,12 +206,18 @@ internal static class MetricContract
         }
         lock (DescriptorSync)
         {
+            // Build first; never publish a partly updated registry after a collision.
+            var merged = BuildDescriptorIndexLocked(next);
             OutputDescriptors = next;
-            RebuildDescriptorIndexLocked();
+            Volatile.Write(ref _descriptorIndex, merged);
         }
     }
 
-    private static void RebuildDescriptorIndexLocked()
+    private static void RebuildDescriptorIndexLocked() =>
+        Volatile.Write(ref _descriptorIndex, BuildDescriptorIndexLocked(OutputDescriptors));
+
+    private static Dictionary<string, MetricDescriptor> BuildDescriptorIndexLocked(
+        IReadOnlyDictionary<string, MetricDescriptor> selectedOutputs)
     {
         var merged = new Dictionary<string, MetricDescriptor>(StaticDescriptorIndex, StringComparer.OrdinalIgnoreCase);
         foreach (var (provider, items) in DynamicProviderDescriptors)
@@ -222,11 +227,11 @@ internal static class MetricContract
                     throw new InvalidOperationException(
                         $"Metric '{pair.Key}' collides with provider '{provider}' descriptors.");
         }
-        foreach (var pair in OutputDescriptors)
+        foreach (var pair in selectedOutputs)
             if (!merged.TryAdd(pair.Key, pair.Value))
                 throw new InvalidOperationException(
                     $"Output metric '{pair.Key}' collides with another provider descriptor.");
-        Volatile.Write(ref _descriptorIndex, merged);
+        return merged;
     }
 
     public static IReadOnlyList<MetricPresentationOption> GetFormats(MetricDescriptor descriptor) =>

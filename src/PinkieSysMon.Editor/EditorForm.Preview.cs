@@ -159,21 +159,31 @@ internal sealed partial class EditorForm
             CaptureSourceMetrics(result, _mediaTelemetry, _previewMediaMetrics);
 
             AddPreviewMetric(result, RuntimeMetricContract.Version, RuntimeVersion.Current);
-            foreach (var output in _appConfig.Outputs.Targets.Where(t => t.ProviderEnabled))
+        }
+
+        // Output providers are independent from the global System telemetry provider.
+        // Preview values are illustrative, never read from live USB or hidden panels.
+        foreach (var output in _appConfig.Outputs.Targets.Where(t => t.ProviderEnabled))
+        {
+            // Pure illustrative snapshot; never infer live device state.
+            var id = output.Id;
+            var isPhysical = output.Kind == OutputTargetContract.TrofeoKind;
+            var isBoardActive = isPhysical ? output.DeviceEnabled : output.Desktop?.BoardEnabled == true;
+            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Status),
+                isPhysical ? (output.DeviceEnabled ? "EDITOR" : "DISABLED") : "DESKTOP_PENDING");
+
+            if (!isBoardActive)
+                continue;
+            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameCount), 12_345L);
+            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Fps), 24.0);
+            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.RenderDuration), 18.4);
+            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameDuration), 41.7);
+            if (isPhysical)
             {
-                // Illustrative Editor-only values, not readings from a live session.
-                var id = output.Id;
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameCount), 12_345L);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Fps), 24.0);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.RenderDuration), 18.4);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameDuration), 41.7);
-                if (output.Kind == OutputTargetContract.TrofeoKind)
-                {
-                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.EncodeDuration), 7.1);
-                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbDuration), 16.2);
-                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.JpegSize), 184_321);
-                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbState), "EDITOR");
-                }
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.EncodeDuration), 7.1);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbDuration), 16.2);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.JpegSize), 184_321);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbState), "EDITOR");
             }
         }
 

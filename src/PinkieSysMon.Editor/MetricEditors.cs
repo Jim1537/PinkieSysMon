@@ -39,9 +39,14 @@ internal static class MetricSelectorEnvironment
         if (systemEnabled)
         {
             metrics.AddRange(MetricContract.Descriptors
-                .Where(descriptor => descriptor.Id.StartsWith(MetricProviderContract.System + ".", StringComparison.OrdinalIgnoreCase))
+                .Where(descriptor =>
+                    descriptor.Id.StartsWith(MetricProviderContract.System + ".", StringComparison.OrdinalIgnoreCase) &&
+                    !descriptor.Id.StartsWith(OutputMetricContract.Prefix, StringComparison.OrdinalIgnoreCase))
                 .Select(descriptor => CreateRawMetric(descriptor.Id, available: true)));
         }
+
+        var outputPicker = OutputMetricSelectorCatalog.Build(config, currentMetric);
+        metrics.AddRange(outputPicker.Metrics);
 
         var lhmDiscoverySucceeded = false;
         if (lhmEnabled)
@@ -159,6 +164,11 @@ internal static class MetricSelectorEnvironment
             statusMessages.Add("iCUE Sensor Logging is unavailable. Existing iCUE metrics remain unchanged and are shown as unavailable.");
         else if (currentIcueUnavailable)
             statusMessages.Add("The current iCUE metric is not present in the discovered catalog.");
+
+        if (ghostMetric is null)
+            ghostMetric = outputPicker.GhostMetric;
+        if (outputPicker.StatusText is not null)
+            statusMessages.Add(outputPicker.StatusText);
 
         var status = statusMessages.Count == 0 ? null : string.Join(" ", statusMessages);
         return new MetricSelectorCatalogSnapshot(metrics, ghostMetric, status);

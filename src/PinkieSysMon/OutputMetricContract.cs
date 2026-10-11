@@ -13,13 +13,15 @@ internal static class OutputMetricContract
     public const string UsbDuration = "usb.duration";
     public const string JpegSize = "jpeg.size";
     public const string UsbState = "usb";
+    public const string Status = "status";
 
     private static readonly (string Suffix, MetricValueKind Kind, MetricUnit Unit)[] Common =
     [
         (FrameCount, MetricValueKind.Number, MetricUnit.None),
         (RenderDuration, MetricValueKind.Duration, MetricUnit.Milliseconds),
         (FrameDuration, MetricValueKind.Duration, MetricUnit.Milliseconds),
-        (Fps, MetricValueKind.Number, MetricUnit.FramesPerSecond)
+        (Fps, MetricValueKind.Number, MetricUnit.FramesPerSecond),
+        (Status, MetricValueKind.Text, MetricUnit.None)
     ];
 
     private static readonly (string Suffix, MetricValueKind Kind, MetricUnit Unit)[] Physical =

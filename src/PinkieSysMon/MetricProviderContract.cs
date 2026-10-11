@@ -18,6 +18,24 @@ internal static class MetricProviderContract
         new(Icue, "iCUE", false)
     ];
 
+    // Dynamic Output providers are identified by stable configured Output IDs.
+    // They are intentionally independent from the global System/LHM/iCUE switches.
+    public static IReadOnlyList<MetricProviderDescriptor> GetDescriptors(
+        IEnumerable<OutputTargetConfig> outputs)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+        var outputProviders = new List<MetricProviderDescriptor>();
+        var keys = new HashSet<string>(Descriptors.Select(d => d.Id), StringComparer.OrdinalIgnoreCase);
+        foreach (var output in outputs)
+        {
+            var id = OutputProviderContract.Id(output.Id);
+            if (!keys.Add(id))
+                throw new InvalidDataException($"Duplicate Output provider ID '{id}'.");
+            outputProviders.Add(new MetricProviderDescriptor(id, output.Name, false));
+        }
+        return [.. Descriptors, .. outputProviders];
+    }
+
     public static Dictionary<string, bool> CreateDefaults() =>
         Descriptors.ToDictionary(
             descriptor => descriptor.Id,

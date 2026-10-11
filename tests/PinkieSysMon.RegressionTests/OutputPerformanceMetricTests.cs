@@ -12,9 +12,9 @@ internal static class OutputPerformanceMetricTests
         var physicalIds = OutputMetricContract.DescriptorsFor(physical);
         var desktopIds = OutputMetricContract.DescriptorsFor(desktop);
 
-        Check(physicalIds.Length == 8 && desktopIds.Length == 4,
-            "Physical and Desktop Outputs must expose exactly their applicable performance fields.");
-        Check(physicalIds.Select(d => d.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 8,
+        Check(physicalIds.Length == 9 && desktopIds.Length == 5,
+            "Physical and Desktop Outputs must expose their applicable performance and passive-status fields.");
+        Check(physicalIds.Select(d => d.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 9,
             "Per-Output metric suffixes must be unique.");
         Check(desktopIds.All(d => d.Id.StartsWith("system.output.desktop-a.", StringComparison.Ordinal)) &&
               desktopIds.All(d => !d.Id.Contains(".usb", StringComparison.Ordinal) &&

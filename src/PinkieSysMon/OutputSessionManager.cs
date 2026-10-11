@@ -298,6 +298,10 @@ internal sealed class OutputSessionManager : IDisposable
                     session.SetRuntimeMetricsPublisher(false);
                     ClearOutputMetricsLocked(FindConfiguredTargetLocked(session.TargetId));
                 }
+                foreach (var oldTarget in _config.Outputs.Targets)
+                    if (!config.Outputs.Targets.Any(target =>
+                        target.Id.Equals(oldTarget.Id, StringComparison.OrdinalIgnoreCase)))
+                        ClearOutputMetricsLocked(oldTarget);
                 foreach (var session in created)
                     _sessions.Add(session.TargetId, session);
 
@@ -312,6 +316,8 @@ internal sealed class OutputSessionManager : IDisposable
             }
 
             DisposeSessionsBestEffort(removed);
+            lock (_sync)
+                UpdateRuntimeMetricPublisherLocked();
         }
         catch
         {
@@ -426,12 +432,16 @@ internal sealed class OutputSessionManager : IDisposable
             {
                 removed.SetRuntimeMetricsPublisher(false);
                 ClearOutputMetricsLocked(target);
-                UpdateRuntimeMetricPublisherLocked();
             }
+            UpdateRuntimeMetricPublisherLocked();
         }
 
         if (removed is not null)
+        {
             DisposeSessionsBestEffort([removed]);
+            lock (_sync)
+                UpdateRuntimeMetricPublisherLocked();
+        }
         return removed is not null;
     }
 
@@ -526,9 +536,12 @@ internal sealed class OutputSessionManager : IDisposable
             _sessions.Clear();
             foreach (var target in _config.Outputs.Targets)
                 ClearOutputMetricsLocked(target);
+            UpdateRuntimeMetricPublisherLocked();
         }
 
         DisposeSessionsBestEffort(sessions);
+        lock (_sync)
+            UpdateRuntimeMetricPublisherLocked();
     }
 
     public void Suspend()
@@ -538,6 +551,7 @@ internal sealed class OutputSessionManager : IDisposable
         {
             ThrowIfDisposed();
             _suspended = true;
+            UpdateRuntimeMetricPublisherLocked();
             sessions = _sessions.Values.ToArray();
         }
 
@@ -561,6 +575,7 @@ internal sealed class OutputSessionManager : IDisposable
         {
             ThrowIfDisposed();
             _suspended = false;
+            UpdateRuntimeMetricPublisherLocked();
             sessions = _sessions.Values.ToArray();
         }
 
@@ -622,13 +637,23 @@ internal sealed class OutputSessionManager : IDisposable
 
     private void UpdateRuntimeMetricPublisherLocked()
     {
-        // No elected global publisher: every active Output owns its own namespace.
-        foreach (var session in _sessions.Values)
+        foreach (var target in _config.Outputs.Targets)
         {
-            var target = FindConfiguredTargetLocked(session.TargetId);
-            session.SetRuntimeMetricsPublisher(
-                target.ProviderEnabled &&
-                MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System));
+            if (_sessions.TryGetValue(target.Id, out var session))
+                session.SetRuntimeMetricsPublisher(target.ProviderEnabled);
+
+            // This is existing manager-observed lifecycle state only.
+            // Disabled Desktop / Trofeo outputs do not open a device or render
+            // simply because ProviderEnabled is true.
+            var state = _suspended && session is not null ? "SUSPENDED" :
+                _stoppedTargets.Contains(target.Id) ? "STOPPED" :
+                target.Kind == OutputTargetContract.DesktopKind ? "DESKTOP_PENDING" :
+                !target.DeviceEnabled ? "DISABLED" :
+                session?.UsbState ?? "STOPPED";
+            if (!target.ProviderEnabled)
+                ClearOutputMetricsLocked(target);
+            else
+                _metrics.Publish(OutputProviderContract.PassiveStatus(target, state));
         }
     }
 

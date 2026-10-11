@@ -47,7 +47,7 @@ The horizontal link from `MetricStore` to output sessions carries **data snapsho
 
 `MetricStore` replaces the published dictionary on updates. Readers obtain its current snapshot without holding a per-frame read lock, and previously published dictionaries are never subsequently mutated. This is the **ownership boundary between polling and frame production**; neither side requires the other to complete a poll for every frame.
 
-Some metrics use a publication path outside the normal source scheduler. Their ownership and namespace rules are specified in [System → Runtime Metrics](../telemetry/system.md#runtime-metrics), not here.
+Some metrics use a publication path outside the normal source scheduler. Their ownership and namespace rules are specified in [System → Runtime and Output Performance Metrics](../telemetry/system.md#runtime-and-output-performance-metrics), not here.
 
 **Source anchors:** [TelemetryEngine](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/Telemetry.cs), [MetricStore](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricStore.cs), [DashboardMetricUsage](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardMetricUsage.cs).
 
@@ -55,7 +55,7 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 `OutputSessionManager` owns the set of active output sessions. Each active configured target has its own `FramePump`, renderer instance, connection state, and output worker.
 
-Each physical Output publishes status and performance telemetry under its own `system.output.<OutputId>.*` namespace. The global `system.runtime.version` remains application-level; the former global frame/FPS/JPEG/USB statistics are retired without compatibility aliases. See [System → Runtime and Output Performance Metrics](../telemetry/system.md#runtime-and-output-performance-metrics) for the canonical ID table and physical-versus-Desktop field contract.
+Each configured Output has an independent dynamic metric provider identified by its stable Output ID, not its display label or physical device path. Its passive lifecycle state can remain available without enabling a physical device or a Desktop panel. Per-output performance readings use the `system.output.<OutputId>.*` namespace and are gated by each Output's independent Provider Enabled switch; the global System switch affects only System metrics. The global `system.runtime.version` remains application-level; the former global frame/FPS/JPEG/USB statistics are retired without compatibility aliases. See [System → Runtime and Output Performance Metrics](../telemetry/system.md#runtime-and-output-performance-metrics) for the canonical ID table and physical-versus-Desktop field contract.
 
 **Runtime owns independently loaded canonical dashboards keyed by stable Output ID.** Each active physical session receives its assigned document, not a global active board. Two Outputs may select the same saved dashboard, but each gets a separate in-memory definition/renderer instance. A target-scoped Start/Reload loads and commits only that target's board; a full configuration reload validates all assigned dashboards before applying them and has rollback paths for failed session commits. Desktop output definitions can be assigned and validated but are not displayed until the desktop window session is introduced in Stage 09. Physical Trofeo outputs require explicit `DeviceEnabled=true`; disabled devices never start USB I/O.
 
@@ -72,7 +72,7 @@ The Editor creates its own `DashboardPreviewRenderer` from the canonical documen
 Editor telemetry is an independently captured **dashboard-demanded snapshot**. The preview render timer consumes that snapshot and does not initiate potentially blocking provider capture calls. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior.
 
 !!! info "Preview Runtime metrics are illustrative"
-    Importantly, **Editor preview synthesizes representative `system.runtime.*` values** (for example frame count, FPS, and an `EDITOR` USB state). These are preview fixtures, not live Runtime performance or connection measurements.
+    The Editor preview can synthesize illustrative `system.output.<OutputId>.*` performance values only for configured, provider-enabled Outputs with rendering/device enablement. It can show passive status with no active device or visible Desktop panel. These preview fixtures are not measurements of the live Runtime, USB connection, or Desktop rendering.
 
 The two processes can load the same persisted dashboard from disk without sharing an editable object. **Save** commits the Editor's document to disk; the already-running Runtime retains its own loaded definition until an explicit reload/start operation is requested.
 

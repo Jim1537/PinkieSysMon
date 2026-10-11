@@ -662,7 +662,11 @@ internal sealed class FramePump : IOutputSession
 
     private void PublishRuntimeMetricIdentityLocked()
     {
-        _metrics.Publish(OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState), _usbState);
+        _metrics.Publish(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState)] = _usbState,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.Status)] = _usbState
+        });
     }
 
     private void SetUsbStateLocked(string state)
@@ -679,13 +683,16 @@ internal sealed class FramePump : IOutputSession
                 // frame timings or JPEG sizes as currently available readings.
                 ClearRuntimeMetrics();
             }
-            _metrics.Publish(OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState), state);
+            _metrics.Publish(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState)] = state,
+                [OutputMetricContract.Id(_targetId, OutputMetricContract.Status)] = state
+            });
         }
     }
 
     private bool RuntimeMetricsEnabled =>
-        _publishRuntimeMetrics && _target.ProviderEnabled &&
-        MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System);
+        _publishRuntimeMetrics && _target.ProviderEnabled;
 
     private void ClearRuntimeMetrics()
     {

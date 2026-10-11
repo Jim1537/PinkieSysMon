@@ -496,16 +496,19 @@ The System provider publishes application identity as the global `system.runtime
 | `render.duration` | Yes | Yes | Milliseconds |
 | `frame.duration` | Yes | Yes | Milliseconds |
 | `fps` | Yes | Yes | Frames per second |
+| `status` | Yes | Yes | Manager-observed lifecycle text |
 | `encode.duration` | No | Yes | Milliseconds |
 | `usb.duration` | No | Yes | Milliseconds |
 | `jpeg.size` | No | Yes | Bytes |
 | `usb` | No | Yes | Text |
 
-The Editor's System metric selector shows Output-scoped descriptors from the currently configured Outputs. A Desktop output does **not** pretend to have USB transport or JPEG metrics. The first Desktop renderer is scheduled for Stage 09; until then, no Desktop performance frames are produced.
+Each configured Output registers its own dynamic metric-provider identity `system.output.<OutputId>`, independent of the global **System** provider switch, Libre Hardware Monitor and iCUE. The Editor selector shows branches `Outputs → <display name> [<OutputId>] → <field>` only when that Output's **Provider Enabled** switch is ON (default OFF). The display name may change without breaking saved metric IDs. Disabled providers are omitted from the selector, and existing widget references can appear as unavailable entries rather than being silently reassigned. Removing an Output withdraws its descriptors and invalidates its published values.
 
-Each active physical Output session publishes its own values directly to the shared `MetricStore` at up to one publication batch per **1000 ms** on completed frames, plus state transitions. The Output's `ProviderEnabled` and global System-provider setting both govern publication; `DeviceEnabled` independently governs USB frame activity. Disabled, stopped and disposed outputs clear only their own metrics to `null`, without changing siblings' values. When a hardware connection becomes unavailable, prior performance counters are marked unavailable rather than remaining falsely current. Possible state strings include `WAITING`, `CONNECTED`, `SUSPENDED`, `ERROR` and `AMBIGUOUS`.
+**Provider Enabled does not enable a device or make a Desktop board visible.** An enabled provider can publish the passive `status` metric (for example `DISABLED`, `DESKTOP_PENDING`, `STOPPED`, `SUSPENDED`) from Runtime's existing session manager even when no session exists and no USB device has been opened. This is manager-observed state, **not** proof of connection or a probe. The `usb` metric remains a physical-only transport state. Dynamic FPS/frame counters are unavailable (`null`) while no frames are produced, and Desktop has no fictional USB/JPEG counters. The first Desktop renderer is scheduled for Stage 09.
 
-Metric descriptions belong to the System provider, but these values are **not polled** by `TelemetryEngine` and have no per-device acquisition thread beyond the existing frame worker.
+Active physical Outputs publish their independent frame measurements to the shared `MetricStore` at up to one batch per **1000 ms** on completed frames, plus state transitions. Only the Output's `ProviderEnabled` switch controls its own publication, independently of System. `DeviceEnabled` governs USB I/O separately; `Desktop.BoardEnabled` governs virtual rendering/visibility separately. Disabled, stopped, disconnected and disposed outputs invalidate unavailable frame measurements without clearing siblings. Possible transport states include `WAITING`, `CONNECTED`, `SUSPENDED`, `ERROR` and `AMBIGUOUS`.
+
+These Output metrics are pushed from existing session/manager observations, **not polled** by `TelemetryEngine`. No additional USB read, output-specific acquisition thread or live Editor hardware polling is introduced.
 
 ### Demand-Driven Polling
 
@@ -609,7 +612,7 @@ When the System provider is disabled:
 - deactivated scheduled metrics are published as `null`;
 - Editor stops System preview capture;
 - System metrics are no longer offered in the normal Metric selector;
-- global version publication and all per-output `system.output.<OutputId>.*` measurements are disabled; current values are cleared to `null`.
+- global `system.runtime.version` publication is disabled and its value cleared; independent per-Output providers are unaffected by the global System switch and remain governed by their own `ProviderEnabled` settings.
 
 
 ### Logging and Diagnostics
@@ -656,6 +659,6 @@ The following contracts are specific to the System provider and should be preser
 - Public media playback metrics remain provider-neutral even when a source-specific fallback is used.
 - AIMP Remote Access remains a narrow fallback for playback progress only when the SMTC timeline is unavailable and does not become a separate public metric namespace.
 - Only `system.runtime.version` remains globally published; retired `system.runtime.frame` / `fps` / duration / JPEG / USB names must not be reinstated as aliases.
-- Every active Output owns its performance namespace; stopping one must not clear or overwrite a sibling's metrics.
+- Every Output owns an independently enabled dynamic provider under its stable ID; stopping one must not clear or overwrite a sibling's metrics. Disabled, removed and inactive values are `null` apart from observed passive `status` when that provider remains enabled.
 - Disabling the provider or deactivating a metric must not leave stale values in `MetricStore`.
 - Changes to System metric IDs, value kinds, units, polling semantics, power-state mapping, endpoint-type mapping, or runtime publication semantics are compatibility-sensitive and should receive deterministic regression coverage whenever the corresponding contract can be tested reliably.
