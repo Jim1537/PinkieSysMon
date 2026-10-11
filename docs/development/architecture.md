@@ -39,7 +39,7 @@ The horizontal link from `MetricStore` to output sessions carries **data snapsho
 
 ## Runtime data path
 
-[The Runtime composition root](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs) loads configuration and each Output's assigned canonical dashboard, computes the union of metrics required by enabled physical outputs, and creates the long-lived telemetry and output services. **This initial union is refined for active/visible outputs in Stage 05.**
+[The Runtime composition root](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs) loads configuration and each Output's assigned canonical dashboard. Telemetry demand is the **deduplicated union of metrics referenced by actively running, visible Outputs**: enabled physical sessions and active Desktop sessions with `BoardEnabled=true`. `ProviderEnabled` independently controls an Output's own metrics publication and does not create dashboard demand. The union is reconciled on output start/stop/reload, and configuration changes use the current committed active-session set. A Desktop session implementation is introduced in Stage 09; invisible-panel render suppression belongs to Stage 13.
 
 `TelemetryEngine` runs an acquisition worker independently of rendering. It combines dashboard-demanded metric IDs (`DashboardMetricUsage`), enabled providers, and `telemetry.json` policies to schedule captures; individual sources supply default intervals when no metric-specific policy exists. Deactivated metrics are cleared instead of retaining stale valid readings. It publishes completed capture batches into `MetricStore`.
 

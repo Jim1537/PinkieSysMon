@@ -28,6 +28,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
     private TelemetryEngine _telemetry;
     private OutputSessionManager _outputSessions;
+    private HashSet<string> _lastRequiredMetrics = new(StringComparer.OrdinalIgnoreCase);
     private bool _exiting;
 
     private string AppConfigPath => Path.Combine(_baseDir, "config", "app.json");
@@ -51,7 +52,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         (_config, _telemetryConfig, _boards) = LoadInitial();
         _mediaTelemetry.SetEndpointTypeOverrides(_config.Media.EndpointTypeOverrides);
-        var requiredMetrics = CollectRequiredMetrics(_config, _boards);
+        // No session has been activated yet. A configured but inactive board
+        // must never cause background polling or retain a stale valid value.
+        var requiredMetrics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _telemetry = new TelemetryEngine(
             _metrics,
             _sources,
@@ -75,6 +78,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _telemetry.Start();
         if (startOutputSessions)
             _outputSessions.Start();
+        ReconcileTelemetryDemand();
         _ipcServer.Start();
 
         _log.Info(
@@ -82,7 +86,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             $"assignedBoards={string.Join(",", _config.Outputs.Targets.Select(t => $"{t.Id}:{t.Dashboard}"))}; " +
             $"providers={string.Join(",", MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))}; " +
             $"configEnabledMetrics={_telemetryConfig.Metrics.Count(x => x.Value.Enabled)}; " +
-            $"dashboardMetrics={requiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}; " +
+            $"dashboardMetrics={_lastRequiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}; " +
             $"outputAutostart={(startOutputSessions ? "enabled" : "suppressed")}.");
     }
 
@@ -125,15 +129,18 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         return (app, telemetry, RuntimeConfigurationValidator.LoadAssignments(app, _baseDir));
     }
 
-    private static IReadOnlySet<string> CollectRequiredMetrics(
-        AppConfig app, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
+    // OutputSessionManager supplies an atomic active-session/board snapshot.
+    // Inactive physical hardware and invisible desktop outputs never demand metrics.
+    private void ReconcileTelemetryDemand()
     {
-        // Stage 05 will narrow the union to live visible/session demand.
-        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var target in app.Outputs.Targets)
-            if (target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled)
-                result.UnionWith(DashboardMetricUsage.Collect(boards[target.Id]));
-        return result;
+        var required = _outputSessions.GetRequiredMetrics();
+        if (_lastRequiredMetrics.SetEquals(required))
+            return;
+
+        _telemetry.Reconfigure(_telemetryConfig,
+            MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders),
+            required);
+        _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     // Kept only for the old IPC field until Stage 24 adds target-scoped status.
@@ -199,6 +206,13 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case RuntimeIpcCommandKind.StopAll:
                 {
                     var response = _outputControl.Execute(parsed);
+                    if (response.Success)
+                    {
+                        // Keep Runtime's rollback snapshot aligned with target-scoped
+                        // dashboard reloads, not just full configuration reloads.
+                        _boards = _outputSessions.GetDashboardAssignments();
+                        ReconcileTelemetryDemand();
+                    }
                     RefreshTrayStatus();
 
                     if (response.Success && _outputControl.ShouldExitRuntimeAfter(parsed))
@@ -296,11 +310,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         // Phase 1: prepare every operation that can fail before the live runtime is mutated.
         // OutputSessionManager performs its own renderer/session preparation internally.
-        var requiredMetrics = CollectRequiredMetrics(app, boards);
-        var telemetryPlan = _telemetry.PrepareReconfiguration(
-            telemetry,
-            MetricProviderContract.GetEnabledProviderIds(app.MetricProviders),
-            requiredMetrics);
         var mediaOverrides =
             WindowsMediaTelemetrySource.PrepareEndpointTypeOverrides(app.Media.EndpointTypeOverrides);
 
@@ -309,7 +318,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         var previousBoards = _boards;
         var previousMediaOverrides =
             WindowsMediaTelemetrySource.PrepareEndpointTypeOverrides(previousApp.Media.EndpointTypeOverrides);
-        var previousRequiredMetrics = CollectRequiredMetrics(previousApp, previousBoards);
+        var previousRequiredMetrics = _outputSessions.GetRequiredMetrics();
 
         var outputCommitted = false;
         var telemetryCommitted = false;
@@ -322,6 +331,14 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _outputSessions.Reconfigure(app, boards);
             outputCommitted = true;
 
+            // Live session creation/removal has committed; derive real demand,
+            // not merely configured/DeviceEnabled targets. Preparation still
+            // precedes the telemetry scheduler's own atomic commit.
+            var requiredMetrics = _outputSessions.GetRequiredMetrics();
+            var telemetryPlan = _telemetry.PrepareReconfiguration(
+                telemetry,
+                MetricProviderContract.GetEnabledProviderIds(app.MetricProviders),
+                requiredMetrics);
             _telemetry.CommitReconfiguration(telemetryPlan);
             telemetryCommitted = true;
 
@@ -331,6 +348,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _config = app;
             _telemetryConfig = telemetry;
             _boards = boards;
+            _lastRequiredMetrics = requiredMetrics.ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception applyEx)
         {
@@ -456,10 +474,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case PowerModes.Suspend:
                     _log.Info("Windows power event: suspend.");
                     _outputSessions.Suspend();
+                    ReconcileTelemetryDemand();
                     break;
                 case PowerModes.Resume:
                     _log.Info("Windows power event: resume.");
                     _outputSessions.Resume();
+                    ReconcileTelemetryDemand();
                     break;
                 case PowerModes.StatusChange:
                     _log.Info("Windows power event: status change.");

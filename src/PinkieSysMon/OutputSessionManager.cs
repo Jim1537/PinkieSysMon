@@ -112,6 +112,31 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
+    // A targeted reload can change an in-memory document without changing app.json.
+    // Expose a coherent snapshot for the composition root's rollback ownership.
+    public IReadOnlyDictionary<string, CanonicalDashboardDefinition> GetDashboardAssignments()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _boards.ToDictionary(
+                pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    // One atomic snapshot of the active session set and its loaded documents.
+    // Stopped and not-yet-created outputs never demand telemetry.
+    public IReadOnlySet<string> GetRequiredMetrics()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _suspended
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : OutputTelemetryDemand.Collect(_config, _boards, _sessions.Keys);
+        }
+    }
+
     public void Start()
     {
         List<IOutputSession> created = [];
