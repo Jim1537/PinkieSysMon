@@ -51,6 +51,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         ];
 
         (_config, _telemetryConfig, _boards) = LoadInitial();
+        MetricContract.ReplaceOutputDescriptors(_config.Outputs.Targets);
+        _metrics.Publish(RuntimeMetricContract.Version,
+            MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System)
+                ? RuntimeVersion.Current : null);
         _mediaTelemetry.SetEndpointTypeOverrides(_config.Media.EndpointTypeOverrides);
         // No session has been activated yet. A configured but inactive board
         // must never cause background polling or retain a stale valid value.
@@ -346,6 +350,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             mediaCommitted = true;
 
             _config = app;
+            MetricContract.ReplaceOutputDescriptors(app.Outputs.Targets);
+            _metrics.Publish(RuntimeMetricContract.Version,
+                MetricProviderContract.IsEnabled(app.MetricProviders, MetricProviderContract.System)
+                    ? RuntimeVersion.Current : null);
             _telemetryConfig = telemetry;
             _boards = boards;
             _lastRequiredMetrics = requiredMetrics.ToHashSet(StringComparer.OrdinalIgnoreCase);

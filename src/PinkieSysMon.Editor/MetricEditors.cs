@@ -29,6 +29,7 @@ internal static class MetricSelectorEnvironment
             return new MetricSelectorCatalogSnapshot([], null, null);
 
         var config = configAccessor();
+        MetricContract.ReplaceOutputDescriptors(config.Outputs.Targets);
         var systemEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.System);
         var lhmEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.LibreHardwareMonitor);
         var icueEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.Icue);

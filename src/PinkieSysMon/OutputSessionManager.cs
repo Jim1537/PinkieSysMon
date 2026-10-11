@@ -296,6 +296,7 @@ internal sealed class OutputSessionManager : IDisposable
                 {
                     _sessions.Remove(session.TargetId);
                     session.SetRuntimeMetricsPublisher(false);
+                    ClearOutputMetricsLocked(FindConfiguredTargetLocked(session.TargetId));
                 }
                 foreach (var session in created)
                     _sessions.Add(session.TargetId, session);
@@ -424,6 +425,7 @@ internal sealed class OutputSessionManager : IDisposable
             if (_sessions.Remove(target.Id, out removed))
             {
                 removed.SetRuntimeMetricsPublisher(false);
+                ClearOutputMetricsLocked(target);
                 UpdateRuntimeMetricPublisherLocked();
             }
         }
@@ -522,7 +524,8 @@ internal sealed class OutputSessionManager : IDisposable
             foreach (var session in sessions)
                 session.SetRuntimeMetricsPublisher(false);
             _sessions.Clear();
-            ClearRuntimeMetricsLocked();
+            foreach (var target in _config.Outputs.Targets)
+                ClearOutputMetricsLocked(target);
         }
 
         DisposeSessionsBestEffort(sessions);
@@ -619,37 +622,18 @@ internal sealed class OutputSessionManager : IDisposable
 
     private void UpdateRuntimeMetricPublisherLocked()
     {
-        IOutputSession? publisher = null;
-        foreach (var target in _config.Outputs.Targets)
-        {
-            if (_sessions.TryGetValue(target.Id, out publisher))
-                break;
-        }
-
-        if (publisher is null)
-        {
-            ClearRuntimeMetricsLocked();
-            return;
-        }
-
-        // Legacy system.runtime.* metrics are global. Until that namespace is ever made
-        // target-specific, exactly one active output session owns publication. Enable the
-        // replacement first so a publisher handoff does not clear live values.
-        publisher.SetRuntimeMetricsPublisher(true);
+        // No elected global publisher: every active Output owns its own namespace.
         foreach (var session in _sessions.Values)
         {
-            if (!ReferenceEquals(session, publisher))
-                session.SetRuntimeMetricsPublisher(false);
+            var target = FindConfiguredTargetLocked(session.TargetId);
+            session.SetRuntimeMetricsPublisher(
+                target.ProviderEnabled &&
+                MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System));
         }
     }
 
-    private void ClearRuntimeMetricsLocked()
-    {
-        _metrics.Publish(RuntimeMetricContract.Descriptors.ToDictionary(
-            descriptor => descriptor.Id,
-            _ => (object?)null,
-            StringComparer.OrdinalIgnoreCase));
-    }
+    private void ClearOutputMetricsLocked(OutputTargetConfig target) =>
+        _metrics.Publish(OutputMetricContract.Unavailable(target));
 
     private static void StartSessions(IEnumerable<IOutputSession> sessions)
     {
@@ -692,5 +676,7 @@ internal sealed class OutputSessionManager : IDisposable
         }
 
         DisposeSessionsBestEffort(sessions);
+        foreach (var target in _config.Outputs.Targets)
+            _metrics.Publish(OutputMetricContract.Unavailable(target));
     }
 }

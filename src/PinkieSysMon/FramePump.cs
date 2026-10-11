@@ -182,8 +182,12 @@ internal sealed class FramePump : IOutputSession
             if (_publishRuntimeMetrics == enabled)
                 return;
 
+            var wasEnabled = RuntimeMetricsEnabled;
             _publishRuntimeMetrics = enabled;
-            if (RuntimeMetricsEnabled)
+            var isEnabled = RuntimeMetricsEnabled;
+            if (wasEnabled && !isEnabled)
+                ClearRuntimeMetrics();
+            else if (!wasEnabled && isEnabled)
             {
                 _lastRuntimeMetricsPublishAtMs = 0;
                 PublishRuntimeMetricIdentityLocked();
@@ -645,21 +649,20 @@ internal sealed class FramePump : IOutputSession
         _lastRuntimeMetricsPublishAtMs = now;
         _metrics.Publish(new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            [RuntimeMetricContract.FrameCount] = frameNumber,
-            [RuntimeMetricContract.RenderDuration] = _lastRenderMs,
-            [RuntimeMetricContract.EncodeDuration] = _lastEncodeMs,
-            [RuntimeMetricContract.UsbDuration] = _lastUsbMs,
-            [RuntimeMetricContract.FrameDuration] = _lastFrameMs,
-            [RuntimeMetricContract.Fps] = _lastFps,
-            [RuntimeMetricContract.JpegSize] = _lastJpegBytes,
-            [RuntimeMetricContract.UsbState] = "CONNECTED"
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.FrameCount)] = frameNumber,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.RenderDuration)] = _lastRenderMs,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.EncodeDuration)] = _lastEncodeMs,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.UsbDuration)] = _lastUsbMs,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.FrameDuration)] = _lastFrameMs,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.Fps)] = _lastFps,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.JpegSize)] = _lastJpegBytes,
+            [OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState)] = "CONNECTED"
         });
     }
 
     private void PublishRuntimeMetricIdentityLocked()
     {
-        _metrics.Publish(RuntimeMetricContract.Version, RuntimeVersion.Current);
-        _metrics.Publish(RuntimeMetricContract.UsbState, _usbState);
+        _metrics.Publish(OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState), _usbState);
     }
 
     private void SetUsbStateLocked(string state)
@@ -669,19 +672,24 @@ internal sealed class FramePump : IOutputSession
 
         _usbState = state;
         if (RuntimeMetricsEnabled)
-            _metrics.Publish(RuntimeMetricContract.UsbState, state);
+        {
+            if (!state.Equals("CONNECTED", StringComparison.Ordinal))
+            {
+                // A disconnected/suspended display must not keep prior FPS,
+                // frame timings or JPEG sizes as currently available readings.
+                ClearRuntimeMetrics();
+            }
+            _metrics.Publish(OutputMetricContract.Id(_targetId, OutputMetricContract.UsbState), state);
+        }
     }
 
     private bool RuntimeMetricsEnabled =>
-        _publishRuntimeMetrics &&
+        _publishRuntimeMetrics && _target.ProviderEnabled &&
         MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System);
 
     private void ClearRuntimeMetrics()
     {
-        _metrics.Publish(RuntimeMetricContract.Descriptors.ToDictionary(
-            descriptor => descriptor.Id,
-            _ => (object?)null,
-            StringComparer.OrdinalIgnoreCase));
+        _metrics.Publish(OutputMetricContract.Unavailable(_target));
     }
 
     public void Dispose()
@@ -723,6 +731,10 @@ internal sealed class FramePump : IOutputSession
         }
         finally
         {
+            // The worker has fully stopped: no later publication can overwrite
+            // this Output's unavailable values with an in-flight frame.
+            lock (_sync)
+                ClearRuntimeMetrics();
             _transportIoCancellation.Dispose();
             _wakeSignal.Dispose();
             _cts.Dispose();

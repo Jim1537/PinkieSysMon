@@ -152,6 +152,8 @@ internal static class MetricContract
         BuildStaticDescriptors().ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, IReadOnlyDictionary<string, MetricDescriptor>> DynamicProviderDescriptors =
         new(StringComparer.OrdinalIgnoreCase);
+    private static IReadOnlyDictionary<string, MetricDescriptor> OutputDescriptors =
+        new Dictionary<string, MetricDescriptor>(StringComparer.OrdinalIgnoreCase);
     private static Dictionary<string, MetricDescriptor> _descriptorIndex =
         new(StaticDescriptorIndex, StringComparer.OrdinalIgnoreCase);
 
@@ -164,7 +166,8 @@ internal static class MetricContract
             return null;
 
         var index = Volatile.Read(ref _descriptorIndex);
-        return index.TryGetValue(id, out var descriptor) ? descriptor : null;
+        return index.TryGetValue(id, out var descriptor) ? descriptor :
+            OutputMetricContract.DescribeKnownId(id);
     }
 
     public static void ReplaceProviderDescriptors(string providerId, IEnumerable<MetricDescriptor> descriptors)
@@ -187,21 +190,43 @@ internal static class MetricContract
         lock (DescriptorSync)
         {
             DynamicProviderDescriptors[normalizedProviderId] = providerIndex;
-            var merged = new Dictionary<string, MetricDescriptor>(StaticDescriptorIndex, StringComparer.OrdinalIgnoreCase);
-            foreach (var (dynamicProviderId, dynamicDescriptors) in DynamicProviderDescriptors)
-            {
-                foreach (var pair in dynamicDescriptors)
-                {
-                    if (!merged.TryAdd(pair.Key, pair.Value))
-                    {
-                        throw new InvalidOperationException(
-                            $"Metric '{pair.Key}' from provider '{dynamicProviderId}' collides with another metric descriptor.");
-                    }
-                }
-            }
-
-            Volatile.Write(ref _descriptorIndex, merged);
+            RebuildDescriptorIndexLocked();
         }
+    }
+
+    public static void ReplaceOutputDescriptors(IEnumerable<OutputTargetConfig> outputs)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+        var next = new Dictionary<string, MetricDescriptor>(StringComparer.OrdinalIgnoreCase);
+        foreach (var output in outputs)
+        {
+            foreach (var descriptor in OutputMetricContract.DescriptorsFor(output))
+                if (!next.TryAdd(descriptor.Id, descriptor))
+                    throw new InvalidDataException(
+                        $"Output metric ID '{descriptor.Id}' collides with another Output.");
+        }
+        lock (DescriptorSync)
+        {
+            OutputDescriptors = next;
+            RebuildDescriptorIndexLocked();
+        }
+    }
+
+    private static void RebuildDescriptorIndexLocked()
+    {
+        var merged = new Dictionary<string, MetricDescriptor>(StaticDescriptorIndex, StringComparer.OrdinalIgnoreCase);
+        foreach (var (provider, items) in DynamicProviderDescriptors)
+        {
+            foreach (var pair in items)
+                if (!merged.TryAdd(pair.Key, pair.Value))
+                    throw new InvalidOperationException(
+                        $"Metric '{pair.Key}' collides with provider '{provider}' descriptors.");
+        }
+        foreach (var pair in OutputDescriptors)
+            if (!merged.TryAdd(pair.Key, pair.Value))
+                throw new InvalidOperationException(
+                    $"Output metric '{pair.Key}' collides with another provider descriptor.");
+        Volatile.Write(ref _descriptorIndex, merged);
     }
 
     public static IReadOnlyList<MetricPresentationOption> GetFormats(MetricDescriptor descriptor) =>

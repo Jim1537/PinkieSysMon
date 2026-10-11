@@ -1891,7 +1891,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     Y = 100,
                     Width = 300,
                     Height = 20,
-                    Metric = RuntimeMetricContract.Fps,
+                    Metric = OutputMetricContract.Id(_appConfig.Outputs.Targets[0].Id, OutputMetricContract.Fps),
                     Min = 0,
                     Max = 100,
                     ContentMode = BarImageContract.ContentModeFill
@@ -1904,7 +1904,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     Y = 100,
                     Width = 200,
                     Height = 200,
-                    Metric = RuntimeMetricContract.Fps,
+                    Metric = OutputMetricContract.Id(_appConfig.Outputs.Targets[0].Id, OutputMetricContract.Fps),
                     Min = 0,
                     Max = 100,
                     StartAngle = 30,

@@ -14,6 +14,8 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class Program
 {
+    private const string FixtureOutputFps = "system.output.desktop-1.fps";
+
     [STAThread]
     private static int Main()
     {
@@ -38,6 +40,9 @@ internal static class Program
             ("Output telemetry demand active union", OutputTelemetryDemandTests.ActiveUnion),
             ("Output telemetry demand activation and clearing", OutputTelemetryDemandTests.Transitions),
             ("Output telemetry demand independent Desktop switches", OutputTelemetryDemandTests.DesktopPolicy),
+            ("Output metric identity and physical catalog", OutputPerformanceMetricTests.IdentityAndCatalog),
+            ("Output metric multi-session isolation", OutputPerformanceMetricTests.PublisherIsolation),
+            ("Output metric clearing stop and restart", OutputPerformanceMetricTests.StopAndRestart),
             ("Trofeo wire framing contract", TrofeoWireFramingContract),
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
             ("USB diagnostic config contract", UsbDiagnosticConfigContract),
@@ -277,14 +282,14 @@ internal static class Program
             WidgetTypeContract.Binary => new C.BinaryWidgetDefinition
             {
                 Id = id,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Width = width,
                 Height = height
             },
             WidgetTypeContract.Gauge => new C.GaugeWidgetDefinition
             {
                 Id = id,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Width = width,
                 Height = width,
                 Min = 0,
@@ -293,7 +298,7 @@ internal static class Program
             WidgetTypeContract.Bar => new C.BarWidgetDefinition
             {
                 Id = id,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Width = width,
                 Height = height,
                 Min = 0,
@@ -1029,8 +1034,8 @@ internal static class Program
             manager.Start();
             Assert(created.Count == 2 && created.All(session => session.StartCount == 1),
                 "Starting the runtime must create and start one independent session per configured output target.");
-            Assert(created.Count(session => session.PublishesRuntimeMetrics) == 1 && created[0].PublishesRuntimeMetrics,
-                "Exactly the first active configured output session must own the legacy global runtime metrics.");
+            Assert(created.All(session => session.PublishesRuntimeMetrics),
+                "Every active output session must publish independently when its provider is enabled.");
 
             var statuses = manager.GetStatuses();
             Assert(statuses.Count == 2 && statuses.All(status => status.IsActive),
@@ -1040,13 +1045,13 @@ internal static class Program
             Assert(created[0].DisposeCount == 1 && created[1].DisposeCount == 0,
                 "Stopping one output target must dispose only that target session.");
             Assert(created[1].PublishesRuntimeMetrics,
-                "Runtime-metric ownership must move to the next active target when the previous publisher stops.");
+                "Stopping one output must leave the sibling's metric publisher enabled.");
 
             manager.StartOrReloadTarget("screen-a");
             Assert(created.Count == 3 && created[2].StartCount == 1,
                 "Starting a stopped target must create a fresh session without restarting unrelated targets.");
-            Assert(created[2].PublishesRuntimeMetrics && !created[1].PublishesRuntimeMetrics,
-                "Restarting the first configured target must restore deterministic runtime-metric ownership.");
+            Assert(created[2].PublishesRuntimeMetrics && created[1].PublishesRuntimeMetrics,
+                "Restarting an output must restore its own publisher without suppressing the sibling.");
 
             manager.Suspend();
             Assert(created[1].SuspendCount == 1 && created[2].SuspendCount == 1,
@@ -2017,14 +2022,16 @@ internal static class Program
                     Id = "screen-a",
                     Name = "Left Trofeo",
                     DeviceId = "trofeo:" + new string('a', 64),
-                    DeviceEnabled = true
+                    DeviceEnabled = true,
+                    ProviderEnabled = true
                 },
                 new OutputTargetConfig
                 {
                     Id = "screen-b",
                     Name = "Right Trofeo",
                     DeviceId = "trofeo:" + new string('b', 64),
-                    DeviceEnabled = true
+                    DeviceEnabled = true,
+                    ProviderEnabled = true
                 }
             ]
         }
@@ -3091,7 +3098,7 @@ internal static class Program
         var widget = new C.BinaryWidgetDefinition
         {
             Id = "binary-state-image-properties",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 96f,
             Height = 96f
         };
@@ -3134,7 +3141,7 @@ internal static class Program
 
     private static void BinaryValueStateVisual()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-value-regression");
         try
         {
@@ -3245,7 +3252,7 @@ internal static class Program
 
     private static void BinaryValueContainerLayout()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-value-layout-regression");
         try
         {
@@ -3318,7 +3325,7 @@ internal static class Program
 
     private static void BinaryValueContainerHeightClip()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-value-height-clip-regression");
         try
         {
@@ -3386,7 +3393,7 @@ internal static class Program
 
     private static void BinaryValueAutoWidthGeometry()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-value-autowidth-regression");
         try
         {
@@ -3439,7 +3446,7 @@ internal static class Program
 
     private static void BinaryValueOnlyGeometryValidation()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-value-validation-regression");
         try
         {
@@ -4181,9 +4188,9 @@ internal static class Program
 
         C.WidgetDefinition[] metricOnly =
         [
-            new C.BinaryWidgetDefinition { Id = "source-binary", Metric = RuntimeMetricContract.Fps, Width = 100f, Height = 40f },
-            new C.GaugeWidgetDefinition { Id = "source-gauge", Metric = RuntimeMetricContract.Fps, Width = 100f, Height = 100f },
-            new C.BarWidgetDefinition { Id = "source-bar", Metric = RuntimeMetricContract.Fps, Width = 100f, Height = 20f }
+            new C.BinaryWidgetDefinition { Id = "source-binary", Metric = FixtureOutputFps, Width = 100f, Height = 40f },
+            new C.GaugeWidgetDefinition { Id = "source-gauge", Metric = FixtureOutputFps, Width = 100f, Height = 100f },
+            new C.BarWidgetDefinition { Id = "source-bar", Metric = FixtureOutputFps, Width = 100f, Height = 20f }
         ];
         foreach (var widget in metricOnly)
         {
@@ -4537,7 +4544,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Binary,
             Id = "appearance-binary-value",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 40f
         };
@@ -4671,7 +4678,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Gauge,
             Id = "gauge-tab-hierarchy",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 100f
         };
@@ -4748,7 +4755,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Bar,
             Id = "gauge-tab-bar",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 20f
         };
@@ -4770,7 +4777,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Binary,
             Id = "states-tab-binary",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Fit = "contain",
             Loop = false,
             Width = 100f,
@@ -4885,7 +4892,7 @@ internal static class Program
         var bar = new C.BarWidgetDefinition
         {
             Id = "image-tab-bar",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 20f,
             Min = 0,
@@ -4923,7 +4930,7 @@ internal static class Program
         var binary = new C.BinaryWidgetDefinition
         {
             Id = "image-tab-binary-stage3",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 40f
         };
@@ -5033,7 +5040,7 @@ internal static class Program
                       "id": "binary-schema11",
                       "width": 96,
                       "height": 96,
-                      "metric": "{{RuntimeMetricContract.Fps}}",
+                      "metric": "{{FixtureOutputFps}}",
                       {{ProfilesJson(includeFitLoop: true)}}
                     }
                   ]
@@ -5090,7 +5097,7 @@ internal static class Program
                           "id": "binary-obsolete-fit-loop",
                           "width": 96,
                           "height": 96,
-                          "metric": "{{RuntimeMetricContract.Fps}}",
+                          "metric": "{{FixtureOutputFps}}",
                           "fit": "contain",
                           "loop": true,
                           {{ProfilesJson(includeFitLoop: true)}}
@@ -5121,7 +5128,7 @@ internal static class Program
                           "id": "binary-missing-state-fit-loop",
                           "width": 96,
                           "height": 96,
-                          "metric": "{{RuntimeMetricContract.Fps}}",
+                          "metric": "{{FixtureOutputFps}}",
                           {{ProfilesJson(includeFitLoop: false)}}
                         }
                       ]
@@ -5191,7 +5198,7 @@ internal static class Program
                 ["id"] = "binary-state-text-schema",
                 ["width"] = 120f,
                 ["height"] = 40f,
-                ["metric"] = RuntimeMetricContract.Fps,
+                ["metric"] = FixtureOutputFps,
                 ["profiles"] = new JsonObject
                 {
                     [BinarySignalContract.TrueKey] = ProfileNode(
@@ -5311,7 +5318,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Binary,
             Id = "binary-state-text-independence",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 120f,
             Height = 40f
         };
@@ -5401,7 +5408,7 @@ internal static class Program
 
     private static void BinaryStateTextRendering()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-binary-state-text-rendering");
         try
         {
@@ -6501,7 +6508,7 @@ internal static class Program
                   "id": "binary-explicit-legacy-image-settings",
                   "width": 96,
                   "height": 96,
-                  "metric": "{{RuntimeMetricContract.Fps}}",
+                  "metric": "{{FixtureOutputFps}}",
                   "fit": "CoVeR",
                   "loop": false,
                   "fontFamily": "Roboto",
@@ -6525,7 +6532,7 @@ internal static class Program
                   "id": "binary-fit-only-legacy-image-settings",
                   "width": 96,
                   "height": 96,
-                  "metric": "{{RuntimeMetricContract.Fps}}",
+                  "metric": "{{FixtureOutputFps}}",
                   "fit": "contain"
                 },
                 {
@@ -6533,7 +6540,7 @@ internal static class Program
                   "id": "binary-implicit-legacy-image-settings",
                   "width": 96,
                   "height": 96,
-                  "metric": "{{RuntimeMetricContract.Fps}}"
+                  "metric": "{{FixtureOutputFps}}"
                 },
                 {
                   "type": "image",
@@ -6814,7 +6821,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Binary,
             Id = "text-tab-binary-icon",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 40f
         };
@@ -6864,7 +6871,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Gauge,
             Id = "text-tab-gauge",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 100f
         };
@@ -6979,7 +6986,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Gauge,
             Id = "applicability-gauge",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 100f,
             TrackEnabled = false,
@@ -7049,7 +7056,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Binary,
             Id = "applicability-binary",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 100f,
             Height = 40f,
             EvaluationMode = BinarySignalContract.EvaluationModeAuto
@@ -7078,7 +7085,7 @@ internal static class Program
         {
             Type = WidgetTypeContract.Gauge,
             Id = "context-editor-disabled-gauge",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             TrackEnabled = true,
             NeedleEnabled = false
         };
@@ -7112,14 +7119,14 @@ internal static class Program
         {
             Type = WidgetTypeContract.Gauge,
             Id = "context-editor-mixed-disabled",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             NeedleEnabled = false
         };
         var mixedEnabled = new WidgetDefinition
         {
             Type = WidgetTypeContract.Gauge,
             Id = "context-editor-mixed-enabled",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             NeedleEnabled = true
         };
         var mixedProperties = new EditorMultiPropertyView([
@@ -7260,7 +7267,7 @@ internal static class Program
             Id = "multi-value-a",
             Name = "A",
             SourceKind = C.ValueSourceKind.Metric,
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             X = 10f,
             Y = 20f,
             Width = 110f,
@@ -7271,7 +7278,7 @@ internal static class Program
             Id = "multi-value-b",
             Name = "B",
             SourceKind = C.ValueSourceKind.Metric,
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             X = 30f,
             Y = 20f,
             Width = 140f,
@@ -7325,7 +7332,7 @@ internal static class Program
         var gauge = new C.GaugeWidgetDefinition
         {
             Id = "multi-gauge",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             X = 5f,
             Y = 6f,
             Width = 100f,
@@ -8917,7 +8924,7 @@ internal static class Program
         var barFill = new C.BarWidgetDefinition
         {
             Id = "coverage-bar-fill",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             ContentMode = BarImageContract.ContentModeFill,
             Width = 160f,
             Height = 24f
@@ -8929,7 +8936,7 @@ internal static class Program
         Check(new C.BarWidgetDefinition
         {
             Id = "coverage-bar-image",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             ContentMode = BarImageContract.ContentModeImage,
             Width = 160f,
             Height = 24f,
@@ -8939,7 +8946,7 @@ internal static class Program
         var gauge = new C.GaugeWidgetDefinition
         {
             Id = "coverage-gauge",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 120f,
             Height = 120f
         };
@@ -8981,7 +8988,7 @@ internal static class Program
         var binaryIcon = new C.BinaryWidgetDefinition
         {
             Id = "coverage-binary-icon",
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Width = 140f,
             Height = 40f
         };
@@ -9328,7 +9335,7 @@ internal static class Program
                       "schemaVersion": {{DashboardSchemaMigration.CanvasImageLayerSchemaVersion}},
                       "canvas": { "width": 1920, "height": 480, "orientation": 0, "backgroundColor": "#000000" },
                       "widgets": [
-                        { "type": "bar", "id": "bar-missing-height", "width": 20, "metric": "system.runtime.fps", "min": 0, "max": 100, "color": "#FFFFFFFF" }
+                        { "type": "bar", "id": "bar-missing-height", "width": 20, "metric": "system.output.desktop-1.fps", "min": 0, "max": 100, "color": "#FFFFFFFF" }
                       ]
                     }
                     """,
@@ -9350,7 +9357,7 @@ internal static class Program
                       "schemaVersion": {{DashboardSchemaMigration.CanvasImageLayerSchemaVersion}},
                       "canvas": { "width": 1920, "height": 480, "orientation": 0, "backgroundColor": "#000000" },
                       "widgets": [
-                        { "type": "bar", "id": "bar-obsolete-diameter", "width": 20, "height": 20, "diameter": 20, "metric": "system.runtime.fps", "min": 0, "max": 100, "color": "#FFFFFFFF" }
+                        { "type": "bar", "id": "bar-obsolete-diameter", "width": 20, "height": 20, "diameter": 20, "metric": "system.output.desktop-1.fps", "min": 0, "max": 100, "color": "#FFFFFFFF" }
                       ]
                     }
                     """,
@@ -9367,7 +9374,7 @@ internal static class Program
             {
                 Type = WidgetTypeContract.Gauge,
                 Id = "gauge-mismatched-size",
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Width = 100f,
                 Height = 99f,
                 Min = 0,
@@ -9412,7 +9419,7 @@ internal static class Program
                           "id": "gauge-obsolete-fill",
                           "width": 100,
                           "height": 100,
-                          "metric": "{{RuntimeMetricContract.Fps}}",
+                          "metric": "{{FixtureOutputFps}}",
                           "min": 0,
                           "max": 100,
                           "fillColor": "#FF0000FF"
@@ -9440,7 +9447,7 @@ internal static class Program
                       "id": "gauge-foreground-color",
                       "width": 100,
                       "height": 100,
-                      "metric": "{{RuntimeMetricContract.Fps}}",
+                      "metric": "{{FixtureOutputFps}}",
                       "min": 0,
                       "max": 100,
                       "color": "#FF123456"
@@ -9467,7 +9474,7 @@ internal static class Program
                           "id": "bar-obsolete-fill",
                           "width": 100,
                           "height": 20,
-                          "metric": "{{RuntimeMetricContract.Fps}}",
+                          "metric": "{{FixtureOutputFps}}",
                           "min": 0,
                           "max": 100,
                           "fillColor": "#FF00FF00"
@@ -9495,7 +9502,7 @@ internal static class Program
                       "id": "bar-foreground-color",
                       "width": 100,
                       "height": 20,
-                      "metric": "{{RuntimeMetricContract.Fps}}",
+                      "metric": "{{FixtureOutputFps}}",
                       "min": 0,
                       "max": 100,
                       "color": "#FF654321"
@@ -9516,7 +9523,7 @@ internal static class Program
 
     private static void BarForegroundColorRendering()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-bar-foreground-rendering-regression");
         try
         {
@@ -9580,7 +9587,7 @@ internal static class Program
             Id = "bar-image-properties",
             Width = 100f,
             Height = 20f,
-            Metric = RuntimeMetricContract.Fps,
+            Metric = FixtureOutputFps,
             Min = 0,
             Max = 100,
             ContentMode = BarImageContract.ContentModeFill,
@@ -9630,7 +9637,7 @@ internal static class Program
 
     private static void BarImageProgressModes()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-bar-progress-regression");
         try
         {
@@ -9708,7 +9715,7 @@ internal static class Program
 
     private static void BarImageFitModes()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-bar-fit-regression");
         try
         {
@@ -9791,7 +9798,7 @@ internal static class Program
                 Y = 10,
                 Width = 40,
                 Height = 40,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Min = 0,
                 Max = 100,
                 TrackEnabled = false,
@@ -9832,7 +9839,7 @@ internal static class Program
 
     private static void GaugeNeedleOffsetsAndPointer()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-gauge-needle-regression");
         try
         {
@@ -9895,7 +9902,7 @@ internal static class Program
 
     private static void GaugeNeedleRendersAboveTrack()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-gauge-layer-regression");
         try
         {
@@ -10144,7 +10151,7 @@ internal static class Program
             {
                 Id = "gauge-shadow",
                 Type = WidgetTypeContract.Gauge,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 X = 10,
                 Y = 10,
                 Width = 30,
@@ -10183,7 +10190,7 @@ internal static class Program
 
     private static void NumericWidgetShadowInvalidatesOnValueChange()
     {
-        const string metric = RuntimeMetricContract.Fps;
+        const string metric = FixtureOutputFps;
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-shadow-regression");
         try
         {
@@ -10240,7 +10247,7 @@ internal static class Program
             {
                 Id = "translated-shadow",
                 Type = WidgetTypeContract.Gauge,
-                Metric = RuntimeMetricContract.Fps,
+                Metric = FixtureOutputFps,
                 Min = 0,
                 Max = 100,
                 X = 10,
@@ -10465,7 +10472,7 @@ internal static class Program
                       "y": 10,
                       "width": 20,
                       "height": 20,
-                      "metric": "system.runtime.fps",
+                      "metric": "system.output.desktop-1.fps",
                       "min": 0,
                       "max": 100,
                       "color": "#FFFFFFFF"
@@ -10478,7 +10485,7 @@ internal static class Program
             var widget = canonicalDefinition.Widgets.Single();
 
             using var preview = new DashboardPreviewRenderer(canonicalDefinition);
-            var metrics = new Dictionary<string, object?> { [RuntimeMetricContract.Fps] = 100d };
+            var metrics = new Dictionary<string, object?> { [FixtureOutputFps] = 100d };
             using var before = SkiaSharp.SKBitmap.Decode(preview.RenderToPng(metrics));
             Assert(before.GetPixel(35, 15) == SkiaSharp.SKColors.Black,
                 "Bar unexpectedly occupied the post-resize area before geometry changed.");
@@ -11203,7 +11210,7 @@ internal static class Program
                 new C.BinaryWidgetDefinition
                 {
                     Id = "text-parity-binary",
-                    Metric = RuntimeMetricContract.Fps,
+                    Metric = FixtureOutputFps,
                     Profiles = new Dictionary<string, C.StateVisualProfileDefinition>(StringComparer.OrdinalIgnoreCase)
                     {
                         [BinarySignalContract.TrueKey] = state

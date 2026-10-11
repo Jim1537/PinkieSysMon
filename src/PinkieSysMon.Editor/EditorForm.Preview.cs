@@ -159,14 +159,22 @@ internal sealed partial class EditorForm
             CaptureSourceMetrics(result, _mediaTelemetry, _previewMediaMetrics);
 
             AddPreviewMetric(result, RuntimeMetricContract.Version, RuntimeVersion.Current);
-            AddPreviewMetric(result, RuntimeMetricContract.FrameCount, 12345L);
-            AddPreviewMetric(result, RuntimeMetricContract.Fps, 24.0);
-            AddPreviewMetric(result, RuntimeMetricContract.RenderDuration, 18.4);
-            AddPreviewMetric(result, RuntimeMetricContract.EncodeDuration, 7.1);
-            AddPreviewMetric(result, RuntimeMetricContract.UsbDuration, 16.2);
-            AddPreviewMetric(result, RuntimeMetricContract.FrameDuration, 41.7);
-            AddPreviewMetric(result, RuntimeMetricContract.JpegSize, 184_321);
-            AddPreviewMetric(result, RuntimeMetricContract.UsbState, "EDITOR");
+            foreach (var output in _appConfig.Outputs.Targets.Where(t => t.ProviderEnabled))
+            {
+                // Illustrative Editor-only values, not readings from a live session.
+                var id = output.Id;
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameCount), 12_345L);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Fps), 24.0);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.RenderDuration), 18.4);
+                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameDuration), 41.7);
+                if (output.Kind == OutputTargetContract.TrofeoKind)
+                {
+                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.EncodeDuration), 7.1);
+                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbDuration), 16.2);
+                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.JpegSize), 184_321);
+                    AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbState), "EDITOR");
+                }
+            }
         }
 
         if (MetricProviderContract.IsEnabled(_appConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor))

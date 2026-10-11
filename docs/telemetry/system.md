@@ -77,7 +77,7 @@ All four `IMetricSource` implementations are registered as separate telemetry so
 
   `ProviderId = "system"`
 
-`system.runtime.*` metrics are an exception: they do not pass through the regular `IMetricSource` scheduling path and are published directly by the active output session.
+`system.runtime.version` and `system.output.<OutputId>.*` metrics are exceptions: they bypass regular `IMetricSource` scheduling. Active output sessions publish only their own Output-scoped counters; application version is global.
 
 Provider enablement controls publication and scheduling of these metrics as a single user-facing category.
 
@@ -103,7 +103,7 @@ Primary metric families:
 - `system.network.*`
 - `system.power.*`
 - `system.media.*`
-- `system.runtime.*`
+- `system.runtime.version` (application identity) and `system.output.<OutputId>.*` (per-output performance)
 
 Metric IDs are part of the persistent dashboard contract and must not be renamed without an intentional compatibility change.
 
@@ -471,53 +471,41 @@ The window-message request timeout is:
 Failure of the AIMP fallback simply leaves playback progress unavailable.
 
 
-### Runtime Metrics
+### Runtime and Output Performance Metrics
 
-`system.runtime.*` metrics belong to the System provider but use a separate publication path.
+The System provider publishes application identity as the global `system.runtime.version` text metric, independently of device sessions when the System provider is enabled. **The previous global device statistics are deliberately retired**, with no compatibility aliases. Existing dashboard widgets referencing those IDs must be assigned a new output-scoped ID manually:
 
-They are not `IMetricSource` metrics and are not scheduled by the regular `TelemetryEngine`.
+| Retired ID | Replacement for a physical Output `screen-1` | Meaning |
+| --- | --- | --- |
+| `system.runtime.frame` | `system.output.screen-1.frame` | Completed transmitted frame count |
+| `system.runtime.render.duration` | `system.output.screen-1.render.duration` | Render time in milliseconds |
+| `system.runtime.encode.duration` | `system.output.screen-1.encode.duration` | JPEG encoding time in milliseconds |
+| `system.runtime.usb.duration` | `system.output.screen-1.usb.duration` | USB transmission time in milliseconds |
+| `system.runtime.frame.duration` | `system.output.screen-1.frame.duration` | Total completed frame time in milliseconds |
+| `system.runtime.fps` | `system.output.screen-1.fps` | Measured completed frames per second |
+| `system.runtime.jpeg.size` | `system.output.screen-1.jpeg.size` | Encoded JPEG bytes |
+| `system.runtime.usb` | `system.output.screen-1.usb` | Physical connection state (text) |
 
-Metric IDs:
+**Identity:** metric names are `system.output.<OutputId>.<Field>`, where `<OutputId>` is the stable, case-insensitive `Outputs.Targets[].Id` in `config/app.json`, not the display name or a USB serial. For example, `screen-a` and `screen-b` publish into separate namespaces. A rename of the display name does not change any metric IDs; changing an Output ID is a new identity.
 
-| Metric ID | Contract |
-| --- | --- |
-| `system.runtime.version` | Text |
-| `system.runtime.frame` | Number |
-| `system.runtime.render.duration` | Duration / Milliseconds |
-| `system.runtime.encode.duration` | Duration / Milliseconds |
-| `system.runtime.usb.duration` | Duration / Milliseconds |
-| `system.runtime.frame.duration` | Duration / Milliseconds |
-| `system.runtime.fps` | Number / FramesPerSecond |
-| `system.runtime.jpeg.size` | DataSize / Bytes |
-| `system.runtime.usb` | Text |
+**Supported fields:**
 
-These metrics are published directly by the `FramePump` of the active output session.
+| Field | Desktop | Trofeo | Base unit |
+| --- | --- | --- | --- |
+| `frame` | Yes (once Desktop rendering exists) | Yes | Count |
+| `render.duration` | Yes | Yes | Milliseconds |
+| `frame.duration` | Yes | Yes | Milliseconds |
+| `fps` | Yes | Yes | Frames per second |
+| `encode.duration` | No | Yes | Milliseconds |
+| `usb.duration` | No | Yes | Milliseconds |
+| `jpeg.size` | No | Yes | Bytes |
+| `usb` | No | Yes | Text |
 
-Publication interval for the current runtime performance metrics:
+The Editor's System metric selector shows Output-scoped descriptors from the currently configured Outputs. A Desktop output does **not** pretend to have USB transport or JPEG metrics. The first Desktop renderer is scheduled for Stage 09; until then, no Desktop performance frames are produced.
 
-  `1000 ms`
+Each active physical Output session publishes its own values directly to the shared `MetricStore` at up to one publication batch per **1000 ms** on completed frames, plus state transitions. The Output's `ProviderEnabled` and global System-provider setting both govern publication; `DeviceEnabled` independently governs USB frame activity. Disabled, stopped and disposed outputs clear only their own metrics to `null`, without changing siblings' values. When a hardware connection becomes unavailable, prior performance counters are marked unavailable rather than remaining falsely current. Possible state strings include `WAITING`, `CONNECTED`, `SUSPENDED`, `ERROR` and `AMBIGUOUS`.
 
-`system.runtime.version` and the current USB state are published when the runtime metric publisher is assigned.
-
-Runtime metrics use a global legacy namespace and are not per-output metrics in the current architecture.
-
-If multiple output sessions are active at the same time, exactly one session is assigned as the publisher for `system.runtime.*`. The remaining sessions do not publish this namespace.
-
-This prevents multiple output targets from writing competing values to the same global metric IDs.
-
-When there is no active output session, all `system.runtime.*` metrics are cleared to `null`.
-
-When the System provider is disabled, runtime metrics also stop being published and are cleared.
-
-The `usb` names in these metric IDs are **existing runtime contracts**, not claims that arbitrary USB-connected displays are compatible. Refer to [Supported Devices](../supported-devices.md) for the actual hardware compatibility list.
-
-Known USB state values currently produced by `FramePump` include:
-
-- `WAITING`
-- `CONNECTED`
-- `SUSPENDED`
-- `ERROR`
-
+Metric descriptions belong to the System provider, but these values are **not polled** by `TelemetryEngine` and have no per-device acquisition thread beyond the existing frame worker.
 
 ### Demand-Driven Polling
 
@@ -536,7 +524,7 @@ The minimum telemetry interval allowed by the shared telemetry configuration is:
 
   `100 ms`
 
-`system.runtime.*` metrics are an exception to this mechanism. They are published directly by the output session and are not controlled by individual `telemetry.json` entries.
+`system.runtime.version` and `system.output.<OutputId>.*` metrics are exceptions to this mechanism. They are published directly by the output session and are not controlled by individual `telemetry.json` entries.
 
 
 ### Availability and Failure Isolation
@@ -621,7 +609,7 @@ When the System provider is disabled:
 - deactivated scheduled metrics are published as `null`;
 - Editor stops System preview capture;
 - System metrics are no longer offered in the normal Metric selector;
-- `system.runtime.*` publication is disabled and current runtime values are cleared.
+- global version publication and all per-output `system.output.<OutputId>.*` measurements are disabled; current values are cleared to `null`.
 
 
 ### Logging and Diagnostics
@@ -656,7 +644,7 @@ The following contracts are specific to the System provider and should be preser
 - The System provider is enabled by default.
 - The provider does not require an external telemetry application for its primary Windows metrics.
 - The persistent metric namespace remains `system.*`.
-- System metric descriptors are a static application contract, not a dynamic hardware catalog.
+- System provider-level descriptors are static; Output-scoped performance descriptors derive from configured Output IDs and kinds, not from hardware discovery.
 - Absence of a current value must be represented as unavailable / `null`, not by retaining a stale value.
 - Failure of one System source must not block the remaining sources or the telemetry engine.
 - Network connectivity remains Windows NLM state rather than an arbitrary external connectivity probe.
@@ -667,7 +655,7 @@ The following contracts are specific to the System provider and should be preser
 - Endpoint type override is presentation metadata and does not change endpoint identity.
 - Public media playback metrics remain provider-neutral even when a source-specific fallback is used.
 - AIMP Remote Access remains a narrow fallback for playback progress only when the SMTC timeline is unavailable and does not become a separate public metric namespace.
-- `system.runtime.*` remains a global legacy namespace until a separate decision is made to move to per-output identity.
-- Exactly one active output session must own publication of the global runtime metrics.
+- Only `system.runtime.version` remains globally published; retired `system.runtime.frame` / `fps` / duration / JPEG / USB names must not be reinstated as aliases.
+- Every active Output owns its performance namespace; stopping one must not clear or overwrite a sibling's metrics.
 - Disabling the provider or deactivating a metric must not leave stale values in `MetricStore`.
 - Changes to System metric IDs, value kinds, units, polling semantics, power-state mapping, endpoint-type mapping, or runtime publication semantics are compatibility-sensitive and should receive deterministic regression coverage whenever the corresponding contract can be tested reliably.
