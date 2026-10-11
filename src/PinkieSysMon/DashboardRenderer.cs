@@ -153,9 +153,29 @@ internal sealed class DashboardRenderer : IDisposable
             RenderQuality.Antialias);
     }
 
-    public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, int wireRotationDegrees, int jpegQuality)
+    // Return an independent premultiplied BGRA frame before opaque wire compositing.
+    public RenderedBgra RenderBgra(IReadOnlyDictionary<string, object?> metrics)
     {
-        var renderStartedAt = Stopwatch.GetTimestamp();
+        var startedAt = Stopwatch.GetTimestamp();
+        RenderLogicalFrame(metrics);
+        var bitmap = new SKBitmap(new SKImageInfo(
+            _logicalWidth, _logicalHeight, SKColorType.Bgra8888, SKAlphaType.Premul));
+        try
+        {
+            if (!_logicalSurface.ReadPixels(bitmap.Info, bitmap.GetPixels(), bitmap.RowBytes, 0, 0))
+                throw new InvalidOperationException("Skia failed to copy the alpha-preserving logical frame.");
+
+            return new RenderedBgra(bitmap, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+        }
+        catch
+        {
+            bitmap.Dispose();
+            throw;
+        }
+    }
+
+    private void RenderLogicalFrame(IReadOnlyDictionary<string, object?> metrics)
+    {
         var logicalCanvas = _logicalSurface.Canvas;
         logicalCanvas.Clear(_backgroundColor);
         DrawCanvasImage(logicalCanvas, _backgroundImage);
@@ -166,6 +186,12 @@ internal sealed class DashboardRenderer : IDisposable
 
         DrawCanvasImage(logicalCanvas, _foregroundImage);
         logicalCanvas.Flush();
+    }
+
+    public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, int wireRotationDegrees, int jpegQuality)
+    {
+        var renderStartedAt = Stopwatch.GetTimestamp();
+        RenderLogicalFrame(metrics);
 
         var wireCanvas = _wireSurface.Canvas;
         wireCanvas.Clear(SKColors.Black);
@@ -192,6 +218,26 @@ internal sealed class DashboardRenderer : IDisposable
             encoded,
             Stopwatch.GetElapsedTime(renderStartedAt, renderCompletedAt).TotalMilliseconds,
             Stopwatch.GetElapsedTime(encodeStartedAt, encodeCompletedAt).TotalMilliseconds);
+    }
+
+    internal sealed class RenderedBgra : IDisposable
+    {
+        private SKBitmap? _bitmap;
+
+        public RenderedBgra(SKBitmap bitmap, double renderMs)
+        {
+            _bitmap = bitmap ?? throw new ArgumentNullException(nameof(bitmap));
+            RenderMs = renderMs;
+        }
+
+        public SKBitmap Bitmap => _bitmap ?? throw new ObjectDisposedException(nameof(RenderedBgra));
+        public double RenderMs { get; }
+
+        public void Dispose()
+        {
+            var bitmap = Interlocked.Exchange(ref _bitmap, null);
+            bitmap?.Dispose();
+        }
     }
 
     internal sealed class RenderedJpeg : IDisposable
