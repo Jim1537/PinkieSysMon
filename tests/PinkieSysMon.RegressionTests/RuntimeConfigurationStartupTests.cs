@@ -33,15 +33,20 @@ internal static class RuntimeConfigurationStartupTests
             {
                 manager.Start();
                 var statuses = manager.GetStatuses();
-                Check(sessions.Count == 0 && statuses.Count == 2 &&
-                      statuses.All(s => !s.IsActive && s.UsbState == "DESKTOP_PENDING"),
-                      "Desktop-only startup must not instantiate a USB frame pump or report phantom frames.");
+                Check(sessions.Count == 2 && statuses.Count == 2 &&
+                      sessions.All(s => s.TargetId.StartsWith("desktop-", StringComparison.Ordinal)) &&
+                      statuses.All(s => s.IsActive && !s.IsConnected &&
+                                        s.SentFrames == 0 && s.LastJpegBytes == 0),
+                      "Enabled Desktop outputs must each create a session, without USB or invented fake-session frames.");
                 Check(File.ReadAllBytes(path).SequenceEqual(saved),
                       "Startup must not rewrite the persisted app.json.");
-                Check(Throws<InvalidOperationException>(() => manager.StartOrReloadTarget("desktop-a")),
-                      "An unavailable Desktop session must fail truthfully until the Desktop renderer is implemented.");
+                manager.StartOrReloadTarget("desktop-a");
+                Check(sessions.Count == 2 && manager.GetStatuses().All(status => status.IsActive),
+                      "Reloading an enabled Desktop target must preserve the existing sessions.");
                 manager.StartOrReloadAll();
-                Check(sessions.Count == 0, "Start All must not create USB sessions for Desktop targets.");
+                Check(sessions.Count == 2 && sessions.All(s =>
+                          s.TargetId.StartsWith("desktop-", StringComparison.Ordinal)),
+                      "Start All must not duplicate Desktop sessions or create a USB session.");
             }
 
             // Parsing a default file without Outputs must not invent a physical display.
@@ -83,9 +88,12 @@ internal static class RuntimeConfigurationStartupTests
             Check(selected == "Hardware", "An enabled physical output must select the temporary legacy runtime document.");
             using var manager = MakeManager(loaded, log, out var sessions);
             manager.Start();
-            Check(sessions.Count == 1 && sessions[0].TargetId == "usb-on" &&
+            Check(sessions.Count == 2 &&
+                  sessions.Any(s => s.TargetId == "desktop") &&
+                  sessions.Any(s => s.TargetId == "usb-on") &&
+                  sessions.All(s => s.TargetId != "usb-off") &&
                   manager.GetStatuses().Single(s => s.TargetId == "usb-off").UsbState == "DISABLED",
-                  "Only explicitly enabled Trofeo targets may create sessions.");
+                  "Enabled Desktop and explicitly enabled Trofeo outputs must start independently; disabled USB must not.");
             Check(Throws<InvalidOperationException>(() => manager.StartOrReloadTarget("usb-off")),
                   "Starting a disabled physical target must not open USB.");
 
@@ -95,10 +103,18 @@ internal static class RuntimeConfigurationStartupTests
             var reloaded = AppConfig.Load(path, log);
             RuntimeConfigurationValidator.ValidateAndSelect(reloaded, root);
             manager.Reconfigure(reloaded, new C.DashboardDefinition());
-            Check(manager.GetStatuses().All(s => !s.IsActive) && sessions.Count == 1,
-                  "Reload must stop an output disabled in its new saved configuration.");
+            Check(manager.GetStatuses().Single(s => s.TargetId == "desktop").IsActive &&
+                  !manager.GetStatuses().Single(s => s.TargetId == "usb-on").IsActive &&
+                  !manager.GetStatuses().Single(s => s.TargetId == "usb-off").IsActive &&
+                  sessions.Single(s => s.TargetId == "usb-on").Disposed &&
+                  sessions.Count == 2,
+                  "Reload must dispose newly disabled USB without stopping the independent Desktop.");
             manager.StartOrReloadAll();
-            Check(sessions.Count == 1, "Reload and Start All must not revive disabled hardware.");
+            Check(sessions.Count == 2 &&
+                  manager.GetStatuses().Single(s => s.TargetId == "desktop").IsActive &&
+                  manager.GetStatuses().Where(s => s.TargetId.StartsWith("usb-", StringComparison.Ordinal))
+                      .All(s => !s.IsActive),
+                  "Start All must not revive either disabled physical output or duplicate the Desktop session.");
         });
     }
 
@@ -232,7 +248,8 @@ internal static class RuntimeConfigurationStartupTests
         public void SetRuntimeMetricsPublisher(bool enabled) { }
         public void Suspend() { }
         public void Resume() { }
-        public void Dispose() { }
+        public bool Disposed { get; private set; }
+        public void Dispose() => Disposed = true;
         private sealed class FakePlan : IOutputSessionReconfiguration { public void Dispose() { } }
     }
 }
