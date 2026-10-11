@@ -206,6 +206,8 @@ internal static class Program
             ("Desktop session lifecycle and no USB", DesktopSessionStage09Tests.DesktopLifecycle),
             ("Desktop session reconfigure and orientation", DesktopSessionStage09Tests.ReconfigureGeometry),
             ("Desktop Board Enabled versus Provider Enabled", DesktopSessionStage09Tests.IndependentSwitches),
+            ("Desktop layered BGRA stride, alpha and blending", DesktopTransparencyStage10Tests.PremultipliedTransfer),
+            ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
             ("Runtime JPEG zero-copy transport contract", RuntimeJpegZeroCopyTransportContract),
             ("Stable widget shadow cache", StableWidgetShadowIsReused),
             ("Numeric widget shadow cache invalidation", NumericWidgetShadowInvalidatesOnValueChange),
