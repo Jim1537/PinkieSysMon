@@ -154,9 +154,19 @@ internal static class SharedAlphaStage08Tests
     private static void InSandbox(Action<string> work)
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-alpha08-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try { work(root); }
-        finally { Directory.Delete(root, recursive: true); }
+        var dashboard = Path.Combine(root, "dashboards", "stage08");
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "config"));
+            Directory.CreateDirectory(dashboard);
+            File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
+            work(dashboard);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void AssertNear(SKColor expected, SKColor actual, int tolerance, string message)
