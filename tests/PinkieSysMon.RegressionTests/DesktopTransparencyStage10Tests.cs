@@ -168,9 +168,10 @@ internal static class DesktopTransparencyStage10Tests
         private SKColor _center;
         public bool IsVisible { get; private set; }
 
-        public void Configure(string title, Size pixels, Point location, int refreshMs)
+        public void Configure(string title, Size pixels, Point location, int refreshMs, bool locked)
         {
             _ = title;
+            _ = locked;
             _ = pixels;
             _ = location;
             _ = refreshMs;

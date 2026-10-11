@@ -208,6 +208,8 @@ internal static class Program
             ("Desktop Board Enabled versus Provider Enabled", DesktopSessionStage09Tests.IndependentSwitches),
             ("Desktop layered BGRA stride, alpha and blending", DesktopTransparencyStage10Tests.PremultipliedTransfer),
             ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
+            ("Desktop placement multi-monitor and recovery", DesktopPositionStage11Tests.MonitorRecovery),
+            ("Desktop per-target placement JSON persistence", DesktopPositionStage11Tests.ScopedPersistence),
             ("Runtime JPEG zero-copy transport contract", RuntimeJpegZeroCopyTransportContract),
             ("Stable widget shadow cache", StableWidgetShadowIsReused),
             ("Numeric widget shadow cache invalidation", NumericWidgetShadowInvalidatesOnValueChange),

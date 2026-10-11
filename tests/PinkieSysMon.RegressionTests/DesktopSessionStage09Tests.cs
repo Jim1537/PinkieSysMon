@@ -194,9 +194,10 @@ internal static class DesktopSessionStage09Tests
         public int IntervalMs { get; private set; }
         public int DisposeCount { get; private set; }
 
-        public void Configure(string title, Size clientPixels, Point location, int refreshMs)
+        public void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked)
         {
             _ = title;
+            _ = locked;
             ClientPixels = clientPixels;
             Location = location;
             IntervalMs = refreshMs;
