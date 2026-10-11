@@ -170,9 +170,9 @@ internal sealed class FramePump : IOutputSession
 
         SignalWake();
         _log.Info(
-            $"Output session '{TargetName}' reconfigured. refresh={prepared.Config.Display.RefreshIntervalMs}ms; " +
+            $"Output session '{TargetName}' reconfigured. refresh={prepared.Target.RefreshIntervalMs ?? prepared.Config.Display.RefreshIntervalMs}ms; " +
             $"canvas={prepared.CanvasWidth}x{prepared.CanvasHeight}; orientation={prepared.Orientation}; " +
-            $"targetId={_targetId}; jpegQuality={prepared.Config.Renderer.JpegQuality}.");
+            $"targetId={_targetId}; jpegQuality={prepared.Target.JpegQuality ?? prepared.Config.Renderer.JpegQuality}.");
     }
 
     public void SetRuntimeMetricsPublisher(bool enabled)
@@ -229,7 +229,7 @@ internal sealed class FramePump : IOutputSession
             try
             {
                 lock (_sync)
-                    intervalMs = _config.Display.RefreshIntervalMs;
+                    intervalMs = _target.RefreshIntervalMs ?? _config.Display.RefreshIntervalMs;
 
                 // The output worker is the sole owner of all WinUSB operations and disposal.
                 // No potentially blocking device operation may execute under _sync.
@@ -536,7 +536,7 @@ internal sealed class FramePump : IOutputSession
                 rendered = _renderer.RenderJpeg(
                     _metrics.Snapshot(),
                     display.WireRotationDegrees,
-                    _config.Renderer.JpegQuality);
+                    _target.JpegQuality ?? _config.Renderer.JpegQuality);
             }
         }
         catch (Exception ex)

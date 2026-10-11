@@ -17,7 +17,9 @@ internal sealed class AppConfig
         if (!File.Exists(path))
         {
             log.Info("Config file not found; using defaults.");
-            return new AppConfig();
+            var defaults = new AppConfig();
+            defaults.Validate();
+            return defaults;
         }
 
         var json = File.ReadAllText(path);
@@ -60,7 +62,9 @@ internal sealed class AppConfig
 
         Outputs ??= new OutputConfig();
         Outputs.Targets ??= OutputTargetContract.CreateDefaults();
-        OutputTargetContract.ValidateAndNormalize(Outputs.Targets);
+        OutputTargetContract.ValidateAndNormalize(
+            Outputs.Targets, Dashboard.Active, Display.RefreshIntervalMs,
+            Renderer.JpegQuality, Usb);
 
         if (Renderer.JpegQuality is < 10 or > 100)
             throw new InvalidDataException("Renderer.JpegQuality must be in the range 10..100.");
@@ -102,20 +106,39 @@ internal sealed class OutputTargetConfig
 {
     public string Id { get; set; } = OutputTargetContract.DefaultTargetId;
     public string Name { get; set; } = OutputTargetContract.DefaultTargetName;
+    public string Kind { get; set; } = OutputTargetContract.TrofeoKind;
     public string Transport { get; set; } = OutputTargetContract.TrofeoTransport;
     public string DeviceId { get; set; } = string.Empty;
+
+    // Null values on old app.json files inherit the previous global settings.
+    public string? Dashboard { get; set; }
+    public int? RefreshIntervalMs { get; set; }
+    public bool ProviderEnabled { get; set; }
+    public bool DeviceEnabled { get; set; }
+    public int? JpegQuality { get; set; }
+    public UsbConfig? Usb { get; set; }
+    public DesktopOutputConfig? Desktop { get; set; }
+}
+
+internal sealed class DesktopOutputConfig
+{
+    public bool BoardEnabled { get; set; } = true;
+    public bool Lock { get; set; } = true;
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int ZOrder { get; set; }
 }
 
 internal static class OutputTargetContract
 {
+    public const string TrofeoKind = "trofeo";
+    public const string DesktopKind = "desktop";
     public const string TrofeoTransport = "trofeo";
+    public const string DesktopTransport = "desktop";
     public const string DefaultTargetId = "screen-1";
     public const string DefaultTargetName = "Thermalright Trofeo Vision 9.16";
 
-    public static List<OutputTargetConfig> CreateDefaults() =>
-    [
-        new OutputTargetConfig()
-    ];
+    public static List<OutputTargetConfig> CreateDefaults() => [new OutputTargetConfig()];
 
     public static OutputTargetConfig GetPrimary(AppConfig config)
     {
@@ -126,20 +149,34 @@ internal static class OutputTargetContract
     }
 
     public static bool ConnectionEquals(OutputTargetConfig left, OutputTargetConfig right) =>
+        left.Kind.Equals(right.Kind, StringComparison.OrdinalIgnoreCase) &&
         left.Transport.Equals(right.Transport, StringComparison.OrdinalIgnoreCase) &&
         left.DeviceId.Equals(right.DeviceId, StringComparison.OrdinalIgnoreCase);
 
-    public static void ValidateAndNormalize(List<OutputTargetConfig> targets)
+    public static void ValidateAndNormalize(
+        List<OutputTargetConfig> targets,
+        string legacyDashboard = "Default",
+        int legacyRefreshIntervalMs = 1000,
+        int legacyJpegQuality = 92,
+        UsbConfig? legacyUsb = null)
     {
+        ArgumentNullException.ThrowIfNull(targets);
         if (targets.Count == 0)
             throw new InvalidDataException("Outputs.Targets must contain at least one target.");
 
+        var physicalCount = targets.Count(t =>
+            t is not null && string.Equals(t.Kind, TrofeoKind, StringComparison.OrdinalIgnoreCase));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var explicitBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var target in targets)
         {
+            if (target is null)
+                throw new InvalidDataException("Outputs.Targets contains a null entry.");
+
             target.Id = target.Id?.Trim() ?? string.Empty;
             target.Name = target.Name?.Trim() ?? string.Empty;
+            target.Kind = target.Kind?.Trim().ToLowerInvariant() ?? string.Empty;
             target.Transport = target.Transport?.Trim().ToLowerInvariant() ?? string.Empty;
             target.DeviceId = target.DeviceId?.Trim() ?? string.Empty;
 
@@ -149,23 +186,62 @@ internal static class OutputTargetContract
                 throw new InvalidDataException($"Duplicate output target Id '{target.Id}'.");
             if (target.Name.Length == 0)
                 throw new InvalidDataException($"Output target '{target.Id}' Name must not be empty.");
-            if (!target.Transport.Equals(TrofeoTransport, StringComparison.Ordinal))
+            if (target.Kind is not (TrofeoKind or DesktopKind))
+                throw new InvalidDataException($"Unsupported output Kind '{target.Kind}'.");
+
+            target.Dashboard ??= legacyDashboard;
+            target.Dashboard = target.Dashboard.Trim();
+            if (!WindowsPathComponentValidator.IsSafe(target.Dashboard))
+                throw new InvalidDataException($"Output target '{target.Id}' has invalid Dashboard reference '{target.Dashboard}'.");
+
+            target.RefreshIntervalMs ??= legacyRefreshIntervalMs;
+            if (target.RefreshIntervalMs < 10)
+                throw new InvalidDataException($"Output target '{target.Id}' RefreshIntervalMs must be at least 10 ms.");
+
+            if (target.Kind == DesktopKind)
+            {
+                // The legacy transport initializer is 'trofeo' even when Kind is Desktop.
+                if (target.Transport is not (TrofeoTransport or DesktopTransport))
+                    throw new InvalidDataException($"Desktop output '{target.Id}' has unsupported transport '{target.Transport}'.");
+                if (target.DeviceId.Length != 0 || target.DeviceEnabled ||
+                    target.JpegQuality is not null || target.Usb is not null)
+                    throw new InvalidDataException($"Desktop output '{target.Id}' must not own device/USB/JPEG configuration.");
+
+                target.Transport = DesktopTransport;
+                target.Desktop ??= new DesktopOutputConfig();
+                continue;
+            }
+
+            if (target.Transport != TrofeoTransport)
                 throw new InvalidDataException($"Output target '{target.Id}' uses unsupported transport '{target.Transport}'.");
-            if (target.DeviceId.Length > 0 && !target.DeviceId.StartsWith("trofeo:", StringComparison.OrdinalIgnoreCase))
+            if (target.Desktop is not null)
+                throw new InvalidDataException($"Trofeo output '{target.Id}' must not contain Desktop settings.");
+            if (target.DeviceId.Length > 0 &&
+                !target.DeviceId.StartsWith("trofeo:", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException($"Output target '{target.Id}' has an invalid Trofeo DeviceId.");
 
-            if (targets.Count > 1 && target.DeviceId.Length == 0)
-            {
+            if (physicalCount > 1 && target.DeviceId.Length == 0)
                 throw new InvalidDataException(
-                    $"Output target '{target.Id}' must have an explicit DeviceId when multiple targets are configured.");
-            }
+                    $"Output target '{target.Id}' must have an explicit DeviceId when multiple physical targets are configured.");
 
             if (target.DeviceId.Length > 0 &&
                 !explicitBindings.Add($"{target.Transport}\n{target.DeviceId}"))
-            {
                 throw new InvalidDataException(
                     $"Multiple output targets are bound to the same physical device '{target.DeviceId}'.");
-            }
+
+            target.JpegQuality ??= legacyJpegQuality;
+            if (target.JpegQuality is < 10 or > 100)
+                throw new InvalidDataException($"Output target '{target.Id}' JpegQuality must be in the range 10..100.");
+
+            var defaults = legacyUsb ?? new UsbConfig();
+            target.Usb ??= new UsbConfig
+            {
+                RetryIntervalMs = defaults.RetryIntervalMs,
+                TransferTimeoutMs = defaults.TransferTimeoutMs,
+                DiagnosticJournalEnabled = defaults.DiagnosticJournalEnabled
+            };
+            if (target.Usb.RetryIntervalMs < 500 || target.Usb.TransferTimeoutMs < 500)
+                throw new InvalidDataException($"Output target '{target.Id}' USB intervals must be at least 500 ms.");
         }
     }
 }
