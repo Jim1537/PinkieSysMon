@@ -292,8 +292,13 @@ function Write-PortableReleaseConfig {
     $config.MetricProviders.icue = $false
 
     foreach ($target in @($config.Outputs.Targets)) {
-        if ($null -ne $target) {
-            $target.DeviceId = ''
+        if ($null -eq $target) { continue }
+
+        # ConvertFrom-Json omits absent optional fields. Desktop-only outputs
+        # have no DeviceId; do not manufacture a USB identity field for them.
+        $deviceIdProperty = $target.PSObject.Properties['DeviceId']
+        if ($null -ne $deviceIdProperty) {
+            $deviceIdProperty.Value = ''
         }
     }
 
@@ -366,7 +371,11 @@ function Assert-PortableReleaseStaging {
         throw 'Portable release config must enable only the System metric provider.'
     }
     foreach ($target in @($config.Outputs.Targets)) {
-        if ($null -ne $target -and -not [string]::IsNullOrWhiteSpace([string]$target.DeviceId)) {
+        if ($null -eq $target) { continue }
+
+        $deviceIdProperty = $target.PSObject.Properties['DeviceId']
+        if ($null -ne $deviceIdProperty -and
+            -not [string]::IsNullOrWhiteSpace([string]$deviceIdProperty.Value)) {
             throw 'Portable release config must not contain a device-specific DeviceId.'
         }
     }
@@ -911,7 +920,11 @@ function Assert-GitHubPublishReady {
     }
 
     foreach ($target in @($publicConfig.Outputs.Targets)) {
-        if ($null -ne $target -and -not [string]::IsNullOrWhiteSpace([string]$target.DeviceId)) {
+        if ($null -eq $target) { continue }
+
+        $deviceIdProperty = $target.PSObject.Properties['DeviceId']
+        if ($null -ne $deviceIdProperty -and
+            -not [string]::IsNullOrWhiteSpace([string]$deviceIdProperty.Value)) {
             throw 'GitHub publish blocked: public config contains a device-specific DeviceId.'
         }
     }
