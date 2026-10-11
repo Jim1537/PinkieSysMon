@@ -121,7 +121,7 @@ internal sealed class DesktopLayeredSurface : IDisposable
             throw new ArgumentException("Invalid BGRA source or destination stride.");
 
         var source = (byte*)bitmap.GetPixels();
-        if (source is null)
+        if (source == null)
             throw new ObjectDisposedException(nameof(bitmap));
         var dest = (byte*)destination;
         for (var y = 0; y < bitmap.Height; y++)
