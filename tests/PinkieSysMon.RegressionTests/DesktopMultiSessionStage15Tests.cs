@@ -231,9 +231,20 @@ internal static class DesktopMultiSessionStage15Tests
     private static void InSandbox(Action<string, FileLogger> work)
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-stage15-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try { work(root, new FileLogger(Path.Combine(root, "stage15.log"))); }
-        finally { Directory.Delete(root, recursive: true); }
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "dashboards"));
+            Directory.CreateDirectory(Path.Combine(root, "config"));
+            // DesktopOutputSession resolves assets from an application root that
+            // contains both config/app.json and dashboards/. Match the real layout.
+            File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
+            work(root, new FileLogger(Path.Combine(root, "stage15.log")));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static bool Throws<T>(Action action) where T : Exception
