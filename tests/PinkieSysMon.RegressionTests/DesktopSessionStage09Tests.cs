@@ -35,13 +35,14 @@ internal static class DesktopSessionStage09Tests
                 });
 
             manager.Start();
-            Check(window is { IsVisible: true, ClientPixels.Width: 64, ClientPixels.Height: 32 } &&
+            var activeWindow = window ?? throw new InvalidOperationException("Desktop window was not created.");
+            Check(activeWindow is { IsVisible: true, ClientPixels.Width: 64, ClientPixels.Height: 32 } &&
                   physicalAttempts == 0, "Desktop-only start must show its window without attempting USB.");
             Check(manager.GetStatuses().Single(s => s.TargetId == "desk-1").IsConnected &&
                   !manager.GetStatuses().Single(s => s.TargetId == "physical-disabled").IsActive,
                 "The manager must report an independent live Desktop and an inactive physical output.");
 
-            var pixel = window.Draw();
+            var pixel = activeWindow.Draw();
             Check(pixel.R > 230 && pixel.G < 20 && pixel.B < 20,
                 "Desktop paint must present the canonical red BGRA Canvas.");
             var frameKey = OutputMetricContract.Id("desk-1", OutputMetricContract.FrameCount);
@@ -53,11 +54,11 @@ internal static class DesktopSessionStage09Tests
                 "A Desktop must not publish a fictitious USB counter.");
 
             manager.Suspend();
-            Check(!window.IsVisible && Equals(store.Snapshot()[statusKey], "SUSPENDED"),
+            Check(!activeWindow.IsVisible && Equals(store.Snapshot()[statusKey], "SUSPENDED"),
                 "System suspend must hide the Desktop and publish its lifecycle state.");
             manager.Resume();
-            Check(window.IsVisible, "System resume must restore the active Desktop window.");
-            Check(manager.StopTarget("desk-1") && window.DisposeCount == 1 &&
+            Check(activeWindow.IsVisible, "System resume must restore the active Desktop window.");
+            Check(manager.StopTarget("desk-1") && activeWindow.DisposeCount == 1 &&
                   !manager.GetStatuses().Single(s => s.TargetId == "desk-1").IsActive,
                 "StopTarget must close only the Desktop session and dispose its window.");
         });
