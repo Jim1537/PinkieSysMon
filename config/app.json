@@ -8,10 +8,20 @@
   "Outputs": {
     "Targets": [
       {
-        "Id": "screen-1",
-        "Name": "Thermalright Trofeo Vision 9.16",
-        "Transport": "trofeo",
-        "DeviceId": ""
+        "Id": "desktop-1",
+        "Name": "Desktop 1",
+        "Kind": "desktop",
+        "Transport": "desktop",
+        "Dashboard": "Default",
+        "RefreshIntervalMs": 1000,
+        "ProviderEnabled": false,
+        "Desktop": {
+          "BoardEnabled": true,
+          "Lock": true,
+          "X": 0,
+          "Y": 0,
+          "ZOrder": 0
+        }
       }
     ]
   },

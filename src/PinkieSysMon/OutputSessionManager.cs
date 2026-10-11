@@ -89,7 +89,7 @@ internal sealed class OutputSessionManager : IDisposable
                 if (_started)
                     return;
 
-                foreach (var target in _config.Outputs.Targets)
+                foreach (var target in _config.Outputs.Targets.Where(CanStartTarget))
                     created.Add(_factory(_config, target, _dashboard, _metrics, _log));
 
                 // Do not publish a partially started output set. A session that cannot enter
@@ -145,7 +145,8 @@ internal sealed class OutputSessionManager : IDisposable
                 // contract after successful preparation.
                 foreach (var pair in _sessions)
                 {
-                    if (newTargets.TryGetValue(pair.Key, out var replacementTarget))
+                    if (newTargets.TryGetValue(pair.Key, out var replacementTarget) &&
+                        CanStartTarget(replacementTarget))
                     {
                         prepared.Add((
                             pair.Value,
@@ -173,7 +174,9 @@ internal sealed class OutputSessionManager : IDisposable
                 {
                     foreach (var target in config.Outputs.Targets)
                     {
-                        if (_sessions.ContainsKey(target.Id) || stoppedForNewConfig.Contains(target.Id))
+                        if (!CanStartTarget(target) ||
+                            _sessions.ContainsKey(target.Id) ||
+                            stoppedForNewConfig.Contains(target.Id))
                             continue;
 
                         created.Add(_factory(config, target, dashboard, _metrics, _log));
@@ -273,6 +276,11 @@ internal sealed class OutputSessionManager : IDisposable
             {
                 ThrowIfDisposed();
                 var target = FindConfiguredTargetLocked(targetId);
+                if (!CanStartTarget(target))
+                    throw new InvalidOperationException(
+                        target.Kind == OutputTargetContract.DesktopKind
+                            ? $"Desktop output '{target.Id}' has no window session yet (Stage 09)."
+                            : $"Physical output '{target.Id}' is disabled. Device Enabled must be explicitly enabled.");
 
                 if (_sessions.TryGetValue(target.Id, out var existing))
                 {
@@ -348,6 +356,9 @@ internal sealed class OutputSessionManager : IDisposable
 
                 foreach (var target in _config.Outputs.Targets)
                 {
+                    if (!CanStartTarget(target))
+                        continue;
+
                     if (_sessions.TryGetValue(target.Id, out var existing))
                     {
                         prepared.Add((
@@ -470,7 +481,9 @@ internal sealed class OutputSessionManager : IDisposable
                         target.Name,
                         false,
                         false,
-                        "STOPPED",
+                        _stoppedTargets.Contains(target.Id) ? "STOPPED" :
+                        target.Kind == OutputTargetContract.DesktopKind ? "DESKTOP_PENDING" :
+                        !target.DeviceEnabled ? "DISABLED" : "STOPPED",
                         0,
                         0,
                         0);
@@ -488,6 +501,9 @@ internal sealed class OutputSessionManager : IDisposable
             }).ToArray();
         }
     }
+
+    private static bool CanStartTarget(OutputTargetConfig target) =>
+        target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled;
 
     private OutputTargetConfig FindConfiguredTargetLocked(string targetId) =>
         _config.Outputs.Targets.FirstOrDefault(target =>

@@ -29,6 +29,9 @@ internal static class Program
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),
             ("Output desktop-only configuration", OutputConfigurationModelTests.DesktopOnly),
             ("Output per-instance invalid references and identity", OutputConfigurationModelTests.InvalidReferences),
+            ("Runtime config clean desktop-only bootstrap", RuntimeConfigurationStartupTests.DesktopOnly),
+            ("Runtime config mixed enablement and reload", RuntimeConfigurationStartupTests.MixedTargets),
+            ("Runtime config invalid dashboard and malformed input", RuntimeConfigurationStartupTests.InvalidInput),
             ("Trofeo wire framing contract", TrofeoWireFramingContract),
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
             ("USB diagnostic config contract", UsbDiagnosticConfigContract),
@@ -381,18 +384,23 @@ internal static class Program
 
             var config = AppConfig.Load(path, log);
             var target = OutputTargetContract.GetPrimary(config);
-            Assert(target.Id == OutputTargetContract.DefaultTargetId &&
-                   target.Name == OutputTargetContract.DefaultTargetName &&
-                   target.Transport == OutputTargetContract.TrofeoTransport &&
+            Assert(target.Id == "desktop-1" &&
+                   target.Kind == OutputTargetContract.DesktopKind &&
+                   target.Transport == OutputTargetContract.DesktopTransport &&
                    target.DeviceId.Length == 0,
-                "Legacy app.json must acquire one compatible default logical output target without requiring a manual migration.");
+                "Configuration without Outputs must safely default to a disabled-hardware Desktop model.");
 
-            target.DeviceId = "trofeo:" + new string('a', 64);
+            config.Outputs.Targets =
+            [
+                new OutputTargetConfig { Id = "physical-1", Name = "Legacy Trofeo",
+                    DeviceId = "trofeo:" + new string('a', 64) }
+            ];
             config.Save(path);
             var reloaded = AppConfig.Load(path, log);
             var persistedTarget = OutputTargetContract.GetPrimary(reloaded);
-            Assert(persistedTarget.DeviceId == target.DeviceId,
-                "Explicit output-device binding must persist through app.json save/load.");
+            Assert(persistedTarget.DeviceId == config.Outputs.Targets[0].DeviceId &&
+                   !persistedTarget.DeviceEnabled,
+                "Explicit output-device binding must persist while physical hardware remains disabled by default.");
         }
         finally
         {
@@ -1087,13 +1095,15 @@ internal static class Program
                         {
                             Id = "screen-b",
                             Name = "Right Trofeo",
-                            DeviceId = "trofeo:" + new string('b', 64)
+                            DeviceId = "trofeo:" + new string('b', 64),
+                            DeviceEnabled = true
                         },
                         new OutputTargetConfig
                         {
                             Id = "screen-c",
                             Name = "Aux Trofeo",
-                            DeviceId = "trofeo:" + new string('c', 64)
+                            DeviceId = "trofeo:" + new string('c', 64),
+                            DeviceEnabled = true
                         }
                     ]
                 }
@@ -1348,13 +1358,15 @@ internal static class Program
                         {
                             Id = "screen-b",
                             Name = "Right Trofeo",
-                            DeviceId = "trofeo:" + new string('b', 64)
+                            DeviceId = "trofeo:" + new string('b', 64),
+                            DeviceEnabled = true
                         },
                         new OutputTargetConfig
                         {
                             Id = "screen-c",
                             Name = "Aux Trofeo",
-                            DeviceId = "trofeo:" + new string('c', 64)
+                            DeviceId = "trofeo:" + new string('c', 64),
+                            DeviceEnabled = true
                         }
                     ]
                 }
@@ -1998,13 +2010,15 @@ internal static class Program
                 {
                     Id = "screen-a",
                     Name = "Left Trofeo",
-                    DeviceId = "trofeo:" + new string('a', 64)
+                    DeviceId = "trofeo:" + new string('a', 64),
+                    DeviceEnabled = true
                 },
                 new OutputTargetConfig
                 {
                     Id = "screen-b",
                     Name = "Right Trofeo",
-                    DeviceId = "trofeo:" + new string('b', 64)
+                    DeviceId = "trofeo:" + new string('b', 64),
+                    DeviceEnabled = true
                 }
             ]
         }

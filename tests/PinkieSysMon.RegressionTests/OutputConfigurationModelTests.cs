@@ -106,9 +106,10 @@ internal static class OutputConfigurationModelTests
             File.WriteAllText(path,
                 """{"Dashboard":{"Active":"Legacy"},"Display":{"RefreshIntervalMs":740},"Renderer":{"JpegQuality":81}}""");
             var legacy = OutputTargetContract.GetPrimary(AppConfig.Load(path, log));
-            Check(legacy.Dashboard == "Legacy" && legacy.RefreshIntervalMs == 740 &&
-                  legacy.JpegQuality == 81 && !legacy.DeviceEnabled && !legacy.ProviderEnabled,
-                  "Missing per-output fields must safely inherit legacy defaults with switches OFF.");
+            Check(legacy.Kind == OutputTargetContract.DesktopKind &&
+                  legacy.Dashboard == "Legacy" && legacy.RefreshIntervalMs == 740 &&
+                  legacy.JpegQuality is null && !legacy.DeviceEnabled && !legacy.ProviderEnabled,
+                  "Configuration with no Outputs must use Desktop defaults and inherit dashboard/cadence.");
         });
     }
 
@@ -169,10 +170,18 @@ internal static class OutputConfigurationModelTests
             var sharedDevice = new AppConfig();
             sharedDevice.Outputs.Targets =
             [
-                new OutputTargetConfig { Id = "physical-a", DeviceId = "trofeo:abc" },
-                new OutputTargetConfig { Id = "physical-b", DeviceId = "trofeo:abc" }
+                new OutputTargetConfig { Id = "physical-a", DeviceId = "trofeo:" + new string('a', 64) },
+                new OutputTargetConfig { Id = "physical-b", DeviceId = "trofeo:" + new string('a', 64) }
             ];
             Invalid(() => sharedDevice.Save(path), "A device must not be bound to two outputs.");
+
+            var invalidPhysicalIdentity = new AppConfig();
+            invalidPhysicalIdentity.Outputs.Targets =
+            [
+                new OutputTargetConfig { Id = "device", DeviceId = "trofeo:abc" }
+            ];
+            Invalid(() => invalidPhysicalIdentity.Save(path),
+                "Malformed persisted physical identity must be rejected.");
 
             var mixed = MakeValid();
             mixed.Outputs.Targets.Add(new OutputTargetConfig

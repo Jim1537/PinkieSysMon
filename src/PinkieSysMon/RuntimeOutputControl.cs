@@ -47,7 +47,7 @@ internal sealed class RuntimeOutputControl
 
             case RuntimeIpcCommandKind.StartOrReloadAll:
                 _sessions.StartOrReloadAll();
-                return new RuntimeIpcResponse(true, "All configured output targets started/reloaded.");
+                return new RuntimeIpcResponse(true, "Eligible physical outputs started/reloaded; disabled devices and Desktop outputs remain inactive.");
 
             case RuntimeIpcCommandKind.StopAll:
                 _sessions.StopAll();

@@ -124,50 +124,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         var app = AppConfig.Load(AppConfigPath, _log);
         var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
+        var (selected, dashboard) = RuntimeConfigurationValidator.ValidateAndSelect(app, _baseDir);
 
-        try
-        {
-            var dashboard = LoadDashboard(app.Dashboard.Active);
-            return (app, telemetry, dashboard);
-        }
-        catch (Exception ex)
-        {
-            _log.Error($"Configured dashboard '{app.Dashboard.Active}' could not be loaded; searching for a fallback", ex);
-        }
-
-        foreach (var name in DashboardCatalog.Discover(_baseDir))
-        {
-            if (name.Equals(app.Dashboard.Active, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            CanonicalDashboardDefinition dashboard;
-            try
-            {
-                dashboard = LoadDashboard(name);
-            }
-            catch (Exception ex)
-            {
-                _log.Error($"Fallback dashboard '{name}' could not be loaded", ex);
-                continue;
-            }
-
-            app.Dashboard.Active = name;
-            try
-            {
-                app.Save(AppConfigPath);
-            }
-            catch (Exception saveEx)
-            {
-                _log.Warn(
-                    $"Fallback dashboard '{name}' loaded successfully, but app.json could not persist the selection; continuing with the valid in-memory fallback.",
-                    saveEx);
-            }
-
-            _log.Info($"Using fallback dashboard '{name}'.");
-            return (app, telemetry, dashboard);
-        }
-
-        throw new InvalidDataException("No valid dashboard is available in the dashboards directory.");
+        // Temporary single-dashboard Runtime bridge until Stage 04. Never rewrite app.json
+        // as a side effect of startup or silently substitute an unrelated dashboard.
+        app.Dashboard.Active = selected;
+        return (app, telemetry, dashboard);
     }
 
     private CanonicalDashboardDefinition LoadDashboard(string name)
@@ -182,7 +144,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             var app = AppConfig.Load(AppConfigPath, _log);
             var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-            var dashboard = LoadDashboard(app.Dashboard.Active);
+            var (selected, dashboard) = RuntimeConfigurationValidator.ValidateAndSelect(app, _baseDir);
+            app.Dashboard.Active = selected;
 
             ApplyConfiguration(app, telemetry, dashboard);
             _log.Info($"Configuration, telemetry policy, and dashboard '{app.Dashboard.Active}' reloaded successfully.");

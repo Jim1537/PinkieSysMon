@@ -55,9 +55,11 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 `OutputSessionManager` owns the set of active output sessions. Each active configured target has its own `FramePump`, renderer instance, connection state, and output worker.
 
-**The current application has one active dashboard definition shared across all configured output targets.** Output targets have individual transport/device bindings, but no independent dashboard selection field. Multiple output sessions do not imply independent per-device dashboard documents.
+**Runtime still uses one shared dashboard definition for active hardware sessions.** The output configuration model now persists separate dashboard assignments, but Runtime does not yet apply those assignments per session. A Desktop output is represented in configuration but remains inactive without a window until the Desktop session renderer is implemented. Only physical targets with explicit `DeviceEnabled=true` may start a Trofeo session; a disabled device never starts USB I/O. Multiple persisted outputs therefore do not yet imply independently rendered dashboard documents.
 
 A frame worker reads the most recent `MetricStore` snapshot, renders via the shared widget implementation, and delegates the resulting frame to the selected device transport. Runtime's `DashboardRenderer` owns the rendering surfaces and its resource caches; `FramePump` owns the periodic worker and live transport instance. Model-specific wire details are documented only in [Device Integration](devices/trofeo-vision-9.16.md).
+
+Startup and configuration reload validate every assigned canonical dashboard. Missing/corrupt assignments produce an output-specific error rather than silently selecting another document or rewriting `app.json`. Runtime temporarily selects an enabled physical output's dashboard (or the first configured output's dashboard) for the legacy shared session path until independent Runtime dashboard ownership is implemented.
 
 **Source anchors:** [OutputSessionManager](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [FramePump](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/FramePump.cs), [DashboardRenderer](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardRenderer.cs), [OutputTargetConfig](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/AppConfig.cs).
 
@@ -83,7 +85,7 @@ These files have different owners and must not be conflated:
 | `dashboards/<name>/dashboard.json` | Portable canonical canvas and widget model consumed by both processes. |
 | `dashboards/<name>/.editor.json` | Editor-specific group/layer hierarchy sidecar; it is **not** the canonical widget schema. |
 | `config/editor.json` | Local Editor preferences and per-dashboard view state. |
-| `config/app.json` / `config/telemetry.json` | Application/output/provider configuration and telemetry scheduling policy, respectively. |
+| `config/app.json` / `config/telemetry.json` | Application/output/provider configuration and telemetry scheduling policy, respectively. New application defaults configure a Desktop output with no physical device enabled. |
 
 `DashboardModel.DashboardDefinition.Load` upgrades supported older persisted documents through `DashboardSchemaMigration`, then validates the canonical model through `DashboardJson`. Current-schema persistence requires validation; Editor undo/redo snapshots use a separate serialization path that can represent intermediate, not-yet-persistable editing state. **A schema change is therefore a shared Runtime/Editor compatibility change**, not a local change to a widget property panel.
 

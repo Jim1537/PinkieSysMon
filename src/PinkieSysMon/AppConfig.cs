@@ -23,7 +23,17 @@ internal sealed class AppConfig
         }
 
         var json = File.ReadAllText(path);
-        var config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions()) ?? new AppConfig();
+        AppConfig config;
+        try
+        {
+            config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions())
+                ?? throw new InvalidDataException($"Application config '{path}' must contain a JSON object.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"Application config '{path}' contains invalid JSON: {ex.Message}", ex);
+        }
+
         config.Validate();
         return config;
     }
@@ -54,14 +64,18 @@ internal sealed class AppConfig
 
     private void Validate()
     {
+        if (Dashboard is null || Display is null || Outputs is null ||
+            Renderer is null || Usb is null || Media is null)
+            throw new InvalidDataException("Application config requires Dashboard, Display, Outputs, Renderer, Usb and Media objects.");
+        if (Outputs.Targets is null)
+            throw new InvalidDataException("Outputs.Targets must be an array of configured outputs.");
+
         if (string.IsNullOrWhiteSpace(Dashboard.Active))
             throw new InvalidDataException("Dashboard.Active must not be empty.");
 
         if (Display.RefreshIntervalMs < 10)
             throw new InvalidDataException("Display.RefreshIntervalMs must be at least 10 ms.");
 
-        Outputs ??= new OutputConfig();
-        Outputs.Targets ??= OutputTargetContract.CreateDefaults();
         OutputTargetContract.ValidateAndNormalize(
             Outputs.Targets, Dashboard.Active, Display.RefreshIntervalMs,
             Renderer.JpegQuality, Usb);
@@ -138,7 +152,19 @@ internal static class OutputTargetContract
     public const string DefaultTargetId = "screen-1";
     public const string DefaultTargetName = "Thermalright Trofeo Vision 9.16";
 
-    public static List<OutputTargetConfig> CreateDefaults() => [new OutputTargetConfig()];
+    // A new installation has a virtual output, not an implicitly enabled USB device.
+    // Explicit older Trofeo entries remain readable, but DeviceEnabled is opt-in.
+    public static List<OutputTargetConfig> CreateDefaults() =>
+    [
+        new OutputTargetConfig
+        {
+            Id = "desktop-1",
+            Name = "Desktop 1",
+            Kind = DesktopKind,
+            Transport = DesktopTransport,
+            Desktop = new DesktopOutputConfig()
+        }
+    ];
 
     public static OutputTargetConfig GetPrimary(AppConfig config)
     {
@@ -217,8 +243,11 @@ internal static class OutputTargetContract
             if (target.Desktop is not null)
                 throw new InvalidDataException($"Trofeo output '{target.Id}' must not contain Desktop settings.");
             if (target.DeviceId.Length > 0 &&
-                !target.DeviceId.StartsWith("trofeo:", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"Output target '{target.Id}' has an invalid Trofeo DeviceId.");
+                (target.DeviceId.Length != 71 ||
+                 !target.DeviceId.StartsWith("trofeo:", StringComparison.OrdinalIgnoreCase) ||
+                 !target.DeviceId.AsSpan(7).ToString().All(Uri.IsHexDigit)))
+                throw new InvalidDataException(
+                    $"Output target '{target.Id}' has an invalid Trofeo DeviceId (expected trofeo: followed by 64 hex digits).");
 
             if (physicalCount > 1 && target.DeviceId.Length == 0)
                 throw new InvalidDataException(
