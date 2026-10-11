@@ -2,50 +2,56 @@ using CanonicalDashboardDefinition = global::PinkieSysMon.DashboardModel.Dashboa
 
 namespace PinkieSysMon;
 
-// Startup/reload validation is read-only: a broken board assignment is diagnosed,
-// never repaired by switching app.json to a different dashboard behind the owner's back.
+// Each output owns an independently loaded document. Sharing the same saved
+// dashboard name does not share mutable renderer/dashboard state between outputs.
 internal static class RuntimeConfigurationValidator
 {
-    public static (string DashboardName, CanonicalDashboardDefinition Dashboard) ValidateAndSelect(
+    public static Dictionary<string, CanonicalDashboardDefinition> LoadAssignments(
         AppConfig config, string applicationRoot)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationRoot);
-
-        var loaded = new Dictionary<string, CanonicalDashboardDefinition>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, CanonicalDashboardDefinition>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in config.Outputs.Targets)
         {
-            var name = target.Dashboard
-                ?? throw new InvalidDataException($"Output '{target.Id}' has no dashboard assignment.");
-
-            if (!WindowsPathComponentValidator.IsSafe(name))
-                throw new InvalidDataException($"Output '{target.Id}' has invalid dashboard assignment '{name}'.");
-
-            if (loaded.ContainsKey(name))
-                continue;
-
-            try
-            {
-                loaded.Add(name, CanonicalDashboardDefinition.Load(
-                    DashboardCatalog.GetDefinitionPath(applicationRoot, name)));
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
-                                       or System.Text.Json.JsonException or ArgumentException)
-            {
-                throw new InvalidDataException(
-                    $"Output '{target.Id}' ('{target.Name}') references dashboard '{name}' that cannot be loaded: {ex.Message}",
-                    ex);
-            }
+            if (!result.TryAdd(target.Id, LoadTarget(target, applicationRoot)))
+                throw new InvalidDataException($"Duplicate output ID '{target.Id}' during dashboard loading.");
         }
-
-        if (config.Outputs.Targets.Count == 0)
+        if (result.Count == 0)
             throw new InvalidDataException("No outputs configured.");
+        return result;
+    }
 
-        // Stage 03 bridge: when hardware is enabled use its document for the legacy
-        // single-dashboard Runtime. Stage 04 will load per-session dashboards.
-        var activePhysical = config.Outputs.Targets.FirstOrDefault(target =>
-            target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled);
-        var selectedName = activePhysical?.Dashboard ?? config.Outputs.Targets[0].Dashboard!;
-        return (selectedName, loaded[selectedName]);
+    public static CanonicalDashboardDefinition LoadTarget(OutputTargetConfig target, string applicationRoot)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        var name = target.Dashboard
+            ?? throw new InvalidDataException($"Output '{target.Id}' has no dashboard assignment.");
+        if (!WindowsPathComponentValidator.IsSafe(name))
+            throw new InvalidDataException($"Output '{target.Id}' has invalid dashboard assignment '{name}'.");
+
+        try
+        {
+            return CanonicalDashboardDefinition.Load(DashboardCatalog.GetDefinitionPath(applicationRoot, name));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
+                                   or System.Text.Json.JsonException or ArgumentException)
+        {
+            throw new InvalidDataException(
+                $"Output '{target.Id}' ('{target.Name}') references dashboard '{name}' that cannot be loaded: {ex.Message}",
+                ex);
+        }
+    }
+
+    // Legacy helper used by the Stage 03 regression contract. Runtime and output
+    // sessions use LoadAssignments and do not use the single-board selection.
+    public static (string DashboardName, CanonicalDashboardDefinition Dashboard) ValidateAndSelect(
+        AppConfig config, string applicationRoot)
+    {
+        var assignments = LoadAssignments(config, applicationRoot);
+        var target = config.Outputs.Targets.FirstOrDefault(t =>
+            t.Kind == OutputTargetContract.TrofeoKind && t.DeviceEnabled)
+            ?? config.Outputs.Targets[0];
+        return (target.Dashboard!, assignments[target.Id]);
     }
 }

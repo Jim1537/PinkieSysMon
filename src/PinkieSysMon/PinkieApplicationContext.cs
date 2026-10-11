@@ -25,7 +25,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private AppConfig _config;
     private TelemetryConfig _telemetryConfig;
-    private CanonicalDashboardDefinition _dashboard;
+    private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
     private TelemetryEngine _telemetry;
     private OutputSessionManager _outputSessions;
     private bool _exiting;
@@ -49,9 +49,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             new IcueSensorLogTelemetrySource(baseDir, log)
         ];
 
-        (_config, _telemetryConfig, _dashboard) = LoadInitial();
+        (_config, _telemetryConfig, _boards) = LoadInitial();
         _mediaTelemetry.SetEndpointTypeOverrides(_config.Media.EndpointTypeOverrides);
-        var requiredMetrics = DashboardMetricUsage.Collect(_dashboard);
+        var requiredMetrics = CollectRequiredMetrics(_config, _boards);
         _telemetry = new TelemetryEngine(
             _metrics,
             _sources,
@@ -59,8 +59,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders),
             requiredMetrics,
             _log);
-        _outputSessions = new OutputSessionManager(_config, _dashboard, _metrics, _log);
-        _outputControl = new RuntimeOutputControl(_outputSessions, () => _config.Dashboard.Active);
+        _outputSessions = new OutputSessionManager(_config, _boards, _metrics, _log,
+            reloadBoard: target => RuntimeConfigurationValidator.LoadTarget(target, _baseDir));
+        _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus);
         _notifications = new WindowsAppNotificationService(log);
 
         BuildTray();
@@ -78,8 +79,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         _log.Info(
             $"PinkieSysMon started. Direct Skia renderer; no WebView2. " +
-            $"dashboard={_config.Dashboard.Active}; refresh={_config.Display.RefreshIntervalMs}ms; " +
-            $"canvas={_dashboard.Canvas.Width}x{_dashboard.Canvas.Height}; orientation={_dashboard.Canvas.Orientation}; " +
+            $"assignedBoards={string.Join(",", _config.Outputs.Targets.Select(t => $"{t.Id}:{t.Dashboard}"))}; " +
             $"providers={string.Join(",", MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))}; " +
             $"configEnabledMetrics={_telemetryConfig.Metrics.Count(x => x.Value.Enabled)}; " +
             $"dashboardMetrics={requiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}; " +
@@ -100,11 +100,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         openLogs.Click += (_, _) => OpenFolder(Path.Combine(_baseDir, "logs"));
         menu.Items.Add(openLogs);
 
-        var editDashboard = new ToolStripMenuItem("Edit Current Dashboard...");
-        editDashboard.Click += (_, _) => OpenDashboardEditor();
-        menu.Items.Add(editDashboard);
-
-        menu.Items.Add(new ToolStripSeparator());
+        // Dashboard selection belongs to each Output, never a global tray switch.
+        _dashboardsMenu.Text = "Edit Output Dashboard";
         _dashboardsMenu.DropDownOpening += (_, _) => RefreshDashboardMenuSafe();
         menu.Items.Add(_dashboardsMenu);
         RefreshDashboardMenuSafe();
@@ -120,23 +117,30 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _trayIcon.Visible = true;
     }
 
-    private (AppConfig App, TelemetryConfig Telemetry, CanonicalDashboardDefinition Dashboard) LoadInitial()
+    private (AppConfig App, TelemetryConfig Telemetry,
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> Boards) LoadInitial()
     {
         var app = AppConfig.Load(AppConfigPath, _log);
         var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-        var (selected, dashboard) = RuntimeConfigurationValidator.ValidateAndSelect(app, _baseDir);
-
-        // Temporary single-dashboard Runtime bridge until Stage 04. Never rewrite app.json
-        // as a side effect of startup or silently substitute an unrelated dashboard.
-        app.Dashboard.Active = selected;
-        return (app, telemetry, dashboard);
+        return (app, telemetry, RuntimeConfigurationValidator.LoadAssignments(app, _baseDir));
     }
 
-    private CanonicalDashboardDefinition LoadDashboard(string name)
+    private static IReadOnlySet<string> CollectRequiredMetrics(
+        AppConfig app, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
     {
-        var path = DashboardCatalog.GetDefinitionPath(_baseDir, name);
-        return CanonicalDashboardDefinition.Load(path);
+        // Stage 05 will narrow the union to live visible/session demand.
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in app.Outputs.Targets)
+            if (target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled)
+                result.UnionWith(DashboardMetricUsage.Collect(boards[target.Id]));
+        return result;
     }
+
+    // Kept only for the old IPC field until Stage 24 adds target-scoped status.
+    private string LegacyDashboardStatus() =>
+        _config.Outputs.Targets.Count == 1
+            ? _config.Outputs.Targets[0].Dashboard ?? string.Empty
+            : "(per-output dashboards)";
 
     private RuntimeIpcResponse ReloadConfiguration(bool showNotification = true)
     {
@@ -144,14 +148,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             var app = AppConfig.Load(AppConfigPath, _log);
             var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-            var (selected, dashboard) = RuntimeConfigurationValidator.ValidateAndSelect(app, _baseDir);
-            app.Dashboard.Active = selected;
-
-            ApplyConfiguration(app, telemetry, dashboard);
-            _log.Info($"Configuration, telemetry policy, and dashboard '{app.Dashboard.Active}' reloaded successfully.");
+            var boards = RuntimeConfigurationValidator.LoadAssignments(app, _baseDir);
+            ApplyConfiguration(app, telemetry, boards);
+            _log.Info($"Configuration and independent dashboards for {app.Outputs.Targets.Count} outputs reloaded.");
             if (showNotification)
                 _notifications.Show("Configuration reloaded.");
-            return new RuntimeIpcResponse(true, $"Reloaded dashboard '{app.Dashboard.Active}'.");
+            return new RuntimeIpcResponse(true, $"Reloaded {app.Outputs.Targets.Count} output dashboards.");
         }
         catch (Exception ex)
         {
@@ -167,7 +169,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         var parsed = RuntimeIpcProtocol.ParseCommand(command);
 
         if (parsed.Kind == RuntimeIpcCommandKind.Ping)
-            return Task.FromResult(new RuntimeIpcResponse(true, _config.Dashboard.Active));
+            return Task.FromResult(new RuntimeIpcResponse(true, LegacyDashboardStatus()));
 
         if (_exiting || _uiInvoker.IsDisposed)
             return Task.FromResult(new RuntimeIpcResponse(false, "PinkieSysMon runtime is shutting down."));
@@ -289,48 +291,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         });
     }
 
-    private void SwitchDashboard(string dashboardName)
-    {
-        if (dashboardName.Equals(_config.Dashboard.Active, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        try
-        {
-            var app = AppConfig.Load(AppConfigPath, _log);
-            app.Dashboard.Active = dashboardName;
-
-            var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-            var dashboard = LoadDashboard(dashboardName);
-
-            ApplyConfiguration(app, telemetry, dashboard);
-
-            try
-            {
-                app.Save(AppConfigPath);
-            }
-            catch (Exception saveEx)
-            {
-                _log.Error($"Dashboard '{dashboardName}' is active but the selection could not be persisted", saveEx);
-                _notifications.Show("Dashboard switched, but app.json could not be saved.", RuntimeNotificationKind.Warning);
-                return;
-            }
-
-            _log.Info($"Dashboard switched to '{dashboardName}'.");
-            RefreshDashboardMenuSafe();
-            _notifications.Show($"Dashboard: {dashboardName}");
-        }
-        catch (Exception ex)
-        {
-            _log.Error($"Dashboard switch to '{dashboardName}' failed; previous dashboard remains active", ex);
-            _notifications.Show($"Dashboard switch failed: {ex.Message}", RuntimeNotificationKind.Error);
-        }
-    }
-
-    private void ApplyConfiguration(AppConfig app, TelemetryConfig telemetry, CanonicalDashboardDefinition dashboard)
+    private void ApplyConfiguration(AppConfig app, TelemetryConfig telemetry,
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
     {
         // Phase 1: prepare every operation that can fail before the live runtime is mutated.
         // OutputSessionManager performs its own renderer/session preparation internally.
-        var requiredMetrics = DashboardMetricUsage.Collect(dashboard);
+        var requiredMetrics = CollectRequiredMetrics(app, boards);
         var telemetryPlan = _telemetry.PrepareReconfiguration(
             telemetry,
             MetricProviderContract.GetEnabledProviderIds(app.MetricProviders),
@@ -340,10 +306,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         var previousApp = _config;
         var previousTelemetry = _telemetryConfig;
-        var previousDashboard = _dashboard;
+        var previousBoards = _boards;
         var previousMediaOverrides =
             WindowsMediaTelemetrySource.PrepareEndpointTypeOverrides(previousApp.Media.EndpointTypeOverrides);
-        var previousRequiredMetrics = DashboardMetricUsage.Collect(previousDashboard);
+        var previousRequiredMetrics = CollectRequiredMetrics(previousApp, previousBoards);
 
         var outputCommitted = false;
         var telemetryCommitted = false;
@@ -353,7 +319,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             // Phase 2: commit. Every stage has a prepared/validated rollback path. The output
             // manager is itself transactional across sibling sessions.
-            _outputSessions.Reconfigure(app, dashboard);
+            _outputSessions.Reconfigure(app, boards);
             outputCommitted = true;
 
             _telemetry.CommitReconfiguration(telemetryPlan);
@@ -364,7 +330,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
             _config = app;
             _telemetryConfig = telemetry;
-            _dashboard = dashboard;
+            _boards = boards;
         }
         catch (Exception applyEx)
         {
@@ -403,7 +369,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             {
                 try
                 {
-                    _outputSessions.Reconfigure(previousApp, previousDashboard);
+                    _outputSessions.Reconfigure(previousApp, previousBoards);
                 }
                 catch (Exception rollbackEx)
                 {
@@ -445,22 +411,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private void RefreshDashboardMenu()
     {
         _dashboardsMenu.DropDownItems.Clear();
-        var names = DashboardCatalog.Discover(_baseDir);
-
-        if (names.Count == 0)
+        foreach (var target in _config.Outputs.Targets)
         {
-            _dashboardsMenu.DropDownItems.Add(new ToolStripMenuItem("(no dashboards)") { Enabled = false });
-            return;
-        }
-
-        foreach (var name in names)
-        {
-            var dashboardName = name;
-            var item = new ToolStripMenuItem(dashboardName)
-            {
-                Checked = dashboardName.Equals(_config.Dashboard.Active, StringComparison.OrdinalIgnoreCase)
-            };
-            item.Click += (_, _) => SwitchDashboard(dashboardName);
+            var board = target.Dashboard ?? string.Empty;
+            var item = new ToolStripMenuItem($"{target.Name} — {board}");
+            item.Click += (_, _) => OpenDashboardEditor(board);
             _dashboardsMenu.DropDownItems.Add(item);
         }
     }
@@ -471,12 +426,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (statuses.Count == 1)
         {
             var status = statuses[0];
+            var board = _config.Outputs.Targets[0].Dashboard ?? "(unassigned)";
             _statusItem.Text = status.IsConnected
-                ? $"{status.TargetName} connected · {_config.Dashboard.Active} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms · {status.LastJpegBytes / 1024.0:F0} KiB"
-                : $"{status.TargetName} {status.UsbState.ToLowerInvariant()} · {_config.Dashboard.Active}";
-
+                ? $"{status.TargetName} connected · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms · {status.LastJpegBytes / 1024.0:F0} KiB"
+                : $"{status.TargetName} {status.UsbState.ToLowerInvariant()} · {board}";
             var tooltip = status.IsConnected
-                ? $"PinkieSysMon - {_config.Dashboard.Active}"
+                ? $"PinkieSysMon - {board}"
                 : "PinkieSysMon - output waiting";
             _trayIcon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..63];
             return;
@@ -484,11 +439,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         var active = statuses.Count(status => status.IsActive);
         var connected = statuses.Count(status => status.IsConnected);
-        _statusItem.Text = $"Outputs {connected}/{active} connected · {statuses.Count} configured · {_config.Dashboard.Active}";
-
-        var multiTooltip = connected == active && active > 0
-            ? $"PinkieSysMon - {_config.Dashboard.Active}"
-            : $"PinkieSysMon - outputs {connected}/{active}";
+        _statusItem.Text = $"Outputs {connected}/{active} connected · {statuses.Count} configured";
+        var multiTooltip = $"PinkieSysMon - outputs {connected}/{active}";
         _trayIcon.Text = multiTooltip.Length <= 63 ? multiTooltip : multiTooltip[..63];
     }
 
@@ -526,7 +478,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
-    private void OpenDashboardEditor()
+    private void OpenDashboardEditor(string dashboardName)
     {
         try
         {
@@ -542,7 +494,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             startInfo.ArgumentList.Add("--root");
             startInfo.ArgumentList.Add(_baseDir);
             startInfo.ArgumentList.Add("--dashboard");
-            startInfo.ArgumentList.Add(_config.Dashboard.Active);
+            startInfo.ArgumentList.Add(dashboardName);
             using var process = Process.Start(startInfo);
         }
         catch (Exception ex)

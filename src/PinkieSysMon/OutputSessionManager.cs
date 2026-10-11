@@ -57,26 +57,60 @@ internal sealed class OutputSessionManager : IDisposable
     private readonly HashSet<string> _stoppedTargets = new(StringComparer.OrdinalIgnoreCase);
 
     private AppConfig _config;
-    private CanonicalDashboardDefinition _dashboard;
+    private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
+    private readonly Func<OutputTargetConfig, CanonicalDashboardDefinition>? _reloadBoard;
     private bool _started;
     private bool _suspended;
     private bool _disposed;
 
-    public OutputSessionManager(
-        AppConfig config,
-        CanonicalDashboardDefinition dashboard,
-        MetricStore metrics,
-        FileLogger log,
-        OutputSessionFactory? factory = null)
+    // Legacy regression-fixture constructor. Production uses per-Output definitions.
+    public OutputSessionManager(AppConfig config, CanonicalDashboardDefinition dashboard,
+        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null)
+        : this(config, config.Outputs.Targets.ToDictionary(t => t.Id, _ => dashboard,
+              StringComparer.OrdinalIgnoreCase), metrics, log, factory) { }
+
+    public OutputSessionManager(AppConfig config,
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards,
+        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
+        Func<OutputTargetConfig, CanonicalDashboardDefinition>? reloadBoard = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
-        _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+        _boards = ValidateBoards(config, boards);
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _reloadBoard = reloadBoard;
         _factory = factory ?? (static (app, target, board, store, logger) =>
             new FramePump(app, target, board, store, logger));
     }
 
+    private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
+        AppConfig config, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
+    {
+        ArgumentNullException.ThrowIfNull(boards);
+        var result = new Dictionary<string, CanonicalDashboardDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in config.Outputs.Targets)
+        {
+            if (!boards.TryGetValue(target.Id, out var board) || board is null)
+                throw new InvalidDataException($"Output '{target.Id}' has no loaded dashboard '{target.Dashboard}'.");
+            result.Add(target.Id, board);
+        }
+        return result;
+    }
+
+    private static CanonicalDashboardDefinition BoardFor(
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards, OutputTargetConfig target) =>
+        boards.TryGetValue(target.Id, out var board) ? board :
+        throw new InvalidDataException($"Output '{target.Id}' has no loaded dashboard '{target.Dashboard}'.");
+
+    public string GetDashboardName(string targetId)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return FindConfiguredTargetLocked(targetId).Dashboard
+                ?? throw new InvalidDataException($"Output '{targetId}' has no board assignment.");
+        }
+    }
 
     public void Start()
     {
@@ -90,7 +124,7 @@ internal sealed class OutputSessionManager : IDisposable
                     return;
 
                 foreach (var target in _config.Outputs.Targets.Where(CanStartTarget))
-                    created.Add(_factory(_config, target, _dashboard, _metrics, _log));
+                    created.Add(_factory(_config, target, BoardFor(_boards, target), _metrics, _log));
 
                 // Do not publish a partially started output set. A session that cannot enter
                 // its worker lifecycle must leave the manager exactly as it was before Start.
@@ -117,10 +151,15 @@ internal sealed class OutputSessionManager : IDisposable
     }
 
 
-    public void Reconfigure(AppConfig config, CanonicalDashboardDefinition dashboard)
+    public void Reconfigure(AppConfig config, CanonicalDashboardDefinition dashboard) =>
+        Reconfigure(config, config.Outputs.Targets.ToDictionary(
+            t => t.Id, _ => dashboard, StringComparer.OrdinalIgnoreCase));
+
+    public void Reconfigure(AppConfig config,
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> dashboards)
     {
         ArgumentNullException.ThrowIfNull(config);
-        ArgumentNullException.ThrowIfNull(dashboard);
+        var nextBoards = ValidateBoards(config, dashboards);
 
         List<(IOutputSession Session, IOutputSessionReconfiguration Reconfiguration)> prepared = [];
         List<(IOutputSession Session, IOutputSessionReconfiguration Reconfiguration)> rollback = [];
@@ -150,7 +189,7 @@ internal sealed class OutputSessionManager : IDisposable
                     {
                         prepared.Add((
                             pair.Value,
-                            pair.Value.PrepareReconfiguration(config, replacementTarget, dashboard)));
+                            pair.Value.PrepareReconfiguration(config, replacementTarget, BoardFor(nextBoards, replacementTarget))));
 
                         if (!oldTargets.TryGetValue(pair.Key, out var oldTarget))
                             throw new InvalidOperationException(
@@ -158,7 +197,7 @@ internal sealed class OutputSessionManager : IDisposable
 
                         rollback.Add((
                             pair.Value,
-                            pair.Value.PrepareReconfiguration(_config, oldTarget, _dashboard)));
+                            pair.Value.PrepareReconfiguration(_config, oldTarget, BoardFor(_boards, oldTarget))));
                     }
                     else
                     {
@@ -179,7 +218,7 @@ internal sealed class OutputSessionManager : IDisposable
                             stoppedForNewConfig.Contains(target.Id))
                             continue;
 
-                        created.Add(_factory(config, target, dashboard, _metrics, _log));
+                        created.Add(_factory(config, target, BoardFor(nextBoards, target), _metrics, _log));
                     }
                 }
 
@@ -241,7 +280,7 @@ internal sealed class OutputSessionManager : IDisposable
                     _stoppedTargets.Add(targetId);
 
                 _config = config;
-                _dashboard = dashboard;
+                _boards = nextBoards;
 
                 UpdateRuntimeMetricPublisherLocked();
             }
@@ -270,6 +309,7 @@ internal sealed class OutputSessionManager : IDisposable
 
         IOutputSession? created = null;
         IOutputSessionReconfiguration? prepared = null;
+        IOutputSessionReconfiguration? rollbackPrepared = null;
         try
         {
             lock (_sync)
@@ -282,20 +322,43 @@ internal sealed class OutputSessionManager : IDisposable
                             ? $"Desktop output '{target.Id}' has no window session yet (Stage 09)."
                             : $"Physical output '{target.Id}' is disabled. Device Enabled must be explicitly enabled.");
 
+                // A targeted reload must never reload or commit a sibling dashboard.
+                var board = _reloadBoard is null ? BoardFor(_boards, target) : _reloadBoard(target);
                 if (_sessions.TryGetValue(target.Id, out var existing))
                 {
-                    prepared = existing.PrepareReconfiguration(_config, target, _dashboard);
-                    existing.CommitReconfiguration(prepared);
+                    prepared = existing.PrepareReconfiguration(_config, target, board);
+                    rollbackPrepared = existing.PrepareReconfiguration(
+                        _config, target, BoardFor(_boards, target));
+                    try
+                    {
+                        existing.CommitReconfiguration(prepared);
+                    }
+                    catch (Exception commitError)
+                    {
+                        try { existing.CommitReconfiguration(rollbackPrepared); }
+                        catch (Exception rollbackError)
+                        {
+                            _log.Error($"Output '{target.Id}' target reload rollback failed.", rollbackError);
+                            throw new AggregateException(
+                                $"Output '{target.Id}' reload failed and rollback was incomplete.",
+                                commitError, rollbackError);
+                        }
+                        throw;
+                    }
                 }
                 else
                 {
-                    created = _factory(_config, target, _dashboard, _metrics, _log);
+                    created = _factory(_config, target, board, _metrics, _log);
                     if (_suspended)
                         created.Suspend();
                     created.Start();
                     _sessions.Add(target.Id, created);
                 }
 
+                var updatedBoards = _boards.ToDictionary(
+                    pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+                updatedBoards[target.Id] = board;
+                _boards = updatedBoards;
                 _started = true;
                 _stoppedTargets.Remove(target.Id);
                 UpdateRuntimeMetricPublisherLocked();
@@ -317,6 +380,7 @@ internal sealed class OutputSessionManager : IDisposable
         finally
         {
             prepared?.Dispose();
+            rollbackPrepared?.Dispose();
         }
     }
 
@@ -346,46 +410,64 @@ internal sealed class OutputSessionManager : IDisposable
 
     public void StartOrReloadAll()
     {
-        List<(IOutputSession Session, IOutputSessionReconfiguration Reconfiguration)> prepared = [];
+        List<(IOutputSession Session, IOutputSessionReconfiguration Plan)> prepared = [];
+        List<(IOutputSession Session, IOutputSessionReconfiguration Plan)> rollback = [];
         List<IOutputSession> created = [];
         try
         {
             lock (_sync)
             {
                 ThrowIfDisposed();
+                // Load candidates before touching any live output.
+                var candidateBoards = _reloadBoard is null ? _boards :
+                    ValidateBoards(_config, _config.Outputs.Targets.ToDictionary(
+                        target => target.Id, target => _reloadBoard(target),
+                        StringComparer.OrdinalIgnoreCase));
 
                 foreach (var target in _config.Outputs.Targets)
                 {
                     if (!CanStartTarget(target))
                         continue;
-
                     if (_sessions.TryGetValue(target.Id, out var existing))
                     {
-                        prepared.Add((
-                            existing,
-                            existing.PrepareReconfiguration(_config, target, _dashboard)));
+                        prepared.Add((existing, existing.PrepareReconfiguration(
+                            _config, target, BoardFor(candidateBoards, target))));
+                        rollback.Add((existing, existing.PrepareReconfiguration(
+                            _config, target, BoardFor(_boards, target))));
                     }
                     else
-                    {
-                        created.Add(_factory(_config, target, _dashboard, _metrics, _log));
-                    }
+                        created.Add(_factory(_config, target, BoardFor(candidateBoards, target), _metrics, _log));
                 }
 
                 if (_suspended)
-                {
-                    foreach (var session in created)
-                        session.Suspend();
-                }
+                    foreach (var session in created) session.Suspend();
                 StartSessions(created);
-
-                foreach (var item in prepared)
-                    item.Session.CommitReconfiguration(item.Reconfiguration);
+                try
+                {
+                    foreach (var item in prepared)
+                        item.Session.CommitReconfiguration(item.Plan);
+                }
+                catch (Exception commitError)
+                {
+                    var errors = new List<Exception>();
+                    foreach (var item in rollback)
+                    {
+                        try { item.Session.CommitReconfiguration(item.Plan); }
+                        catch (Exception error)
+                        {
+                            errors.Add(error);
+                            _log.Error($"Output '{item.Session.TargetId}' Start All rollback failed.", error);
+                        }
+                    }
+                    if (errors.Count > 0)
+                        throw new AggregateException("Start All rollback was incomplete.", [commitError, .. errors]);
+                    throw;
+                }
 
                 _started = true;
                 _stoppedTargets.Clear();
-                foreach (var session in created)
-                    _sessions.Add(session.TargetId, session);
-
+                foreach (var session in created) _sessions.Add(session.TargetId, session);
+                _boards = candidateBoards;
                 UpdateRuntimeMetricPublisherLocked();
             }
         }
@@ -396,8 +478,8 @@ internal sealed class OutputSessionManager : IDisposable
         }
         finally
         {
-            foreach (var item in prepared)
-                item.Reconfiguration.Dispose();
+            foreach (var item in prepared) item.Plan.Dispose();
+            foreach (var item in rollback) item.Plan.Dispose();
         }
     }
 
