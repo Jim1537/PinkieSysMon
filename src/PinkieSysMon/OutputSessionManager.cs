@@ -151,7 +151,7 @@ internal sealed class OutputSessionManager : IDisposable
                     return;
 
                 foreach (var target in _config.Outputs.Targets.Where(CanStartTarget))
-                    created.Add(_factory(_config, target, BoardFor(_boards, target), _metrics, _log));
+                    created.Add(CreateSession(_config, target, BoardFor(_boards, target)));
 
                 // Do not publish a partially started output set. A session that cannot enter
                 // its worker lifecycle must leave the manager exactly as it was before Start.
@@ -246,7 +246,7 @@ internal sealed class OutputSessionManager : IDisposable
                             stoppedForNewConfig.Contains(target.Id))
                             continue;
 
-                        created.Add(_factory(config, target, BoardFor(nextBoards, target), _metrics, _log));
+                        created.Add(CreateSession(config, target, BoardFor(nextBoards, target)));
                     }
                 }
 
@@ -386,7 +386,7 @@ internal sealed class OutputSessionManager : IDisposable
                 }
                 else
                 {
-                    created = _factory(_config, target, board, _metrics, _log);
+                    created = CreateSession(_config, target, board);
                     if (_suspended)
                         created.Suspend();
                     created.Start();
@@ -483,7 +483,7 @@ internal sealed class OutputSessionManager : IDisposable
                             _config, target, BoardFor(_boards, target))));
                     }
                     else
-                        created.Add(_factory(_config, target, BoardFor(candidateBoards, target), _metrics, _log));
+                        created.Add(CreateSession(_config, target, BoardFor(candidateBoards, target)));
                 }
 
                 if (_suspended)
@@ -641,6 +641,28 @@ internal sealed class OutputSessionManager : IDisposable
                     session.LastJpegBytes);
             }).ToArray();
         }
+    }
+
+    private IOutputSession CreateSession(AppConfig config, OutputTargetConfig target,
+        CanonicalDashboardDefinition dashboard)
+    {
+        var session = _factory(config, target, dashboard, _metrics, _log);
+        if (session is IDesktopStackSession desktop)
+        {
+            // Native drag completion runs on the WinForms UI thread. Ignore callbacks
+            // from sessions already disabled, replaced, or stopped.
+            desktop.SetStackRestorer(() =>
+            {
+                lock (_sync)
+                {
+                    if (!_disposed &&
+                        _sessions.TryGetValue(session.TargetId, out var active) &&
+                        ReferenceEquals(active, session))
+                        RestoreDesktopStackLocked();
+                }
+            });
+        }
+        return session;
     }
 
     // Restore sibling order after creation, configuration reload, and visibility changes.

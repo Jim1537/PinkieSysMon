@@ -55,6 +55,7 @@ internal static class DesktopZOrderStage14Tests
                 Widgets = []
             };
             var events = new List<string>();
+            var sessions = new Dictionary<string, FakeStackSession>(StringComparer.OrdinalIgnoreCase);
             var physicalAttempts = 0;
             using var manager = new OutputSessionManager(CreateConfig(), board, metrics, log,
                 (app, target, assigned, store, logger) =>
@@ -64,10 +65,17 @@ internal static class DesktopZOrderStage14Tests
                         physicalAttempts++;
                         throw new InvalidOperationException("Disabled USB must remain untouched.");
                     }
-                    return new FakeStackSession(target.Id, events);
+                    var desktop = new FakeStackSession(target.Id, events);
+                    sessions[target.Id] = desktop;
+                    return desktop;
                 });
 
             manager.Start();
+            AssertEvents(events, "d1<d3", "d2<d1");
+
+            // Native drag release must restore order without a configuration reload.
+            events.Clear();
+            sessions["d2"].CompleteMove();
             AssertEvents(events, "d1<d3", "d2<d1");
 
             events.Clear();
@@ -79,9 +87,17 @@ internal static class DesktopZOrderStage14Tests
             AssertEvents(events, "d3<d2", "d1<d3");
 
             events.Clear();
+            sessions["d1"].CompleteMove();
+            AssertEvents(events, "d3<d2", "d1<d3");
+
+            events.Clear();
+            var disabledLater = sessions["d3"];
             reordered.Outputs.Targets[2].Desktop!.BoardEnabled = false;
             manager.Reconfigure(reordered, board);
             AssertEvents(events, "d1<d2");
+            events.Clear();
+            disabledLater.CompleteMove();
+            AssertEvents(events);
 
             events.Clear();
             reordered.Outputs.Targets[2].Desktop!.BoardEnabled = true;
@@ -150,6 +166,7 @@ internal static class DesktopZOrderStage14Tests
         : IOutputSession, IDesktopStackSession
     {
         private bool _visible;
+        private Action? _restoreStack;
         public string TargetId => id;
         public string TargetName => id;
         public bool IsConnected => _visible;
@@ -162,6 +179,8 @@ internal static class DesktopZOrderStage14Tests
         public void Suspend() => _visible = false;
         public void Resume() => _visible = true;
         public void Dispose() => _visible = false;
+        public void SetStackRestorer(Action restorer) => _restoreStack = restorer;
+        public void CompleteMove() => _restoreStack?.Invoke();
         public void SetRuntimeMetricsPublisher(bool enabled) { }
         public IOutputSessionReconfiguration PrepareReconfiguration(
             AppConfig config, OutputTargetConfig target, C.DashboardDefinition dashboard) => new Plan();

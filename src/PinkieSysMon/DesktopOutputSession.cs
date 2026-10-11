@@ -29,6 +29,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     private double _lastFrameMs;
     private long _lastFrameTimestamp;
     private long _lastPublishAt;
+    private Action? _restoreStack;
 
     public DesktopOutputSession(
         AppConfig config,
@@ -55,7 +56,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         try
         {
             window = (windowFactory ?? (render => new DesktopOutputWindow(render,
-                point => PersistPosition(dashboard.BaseDirectory, point))))(DrawFrame)
+                point => PersistPosition(dashboard.BaseDirectory, point),
+                () => _restoreStack?.Invoke())))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
             var size = FrameGeometry.GetLogicalSize(
                 dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
@@ -92,6 +94,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
     public string TargetId => _id;
     bool IDesktopStackSession.IsStackVisible => _window.IsVisible;
+    void IDesktopStackSession.SetStackRestorer(Action restorer) =>
+        _restoreStack = restorer ?? throw new ArgumentNullException(nameof(restorer));
 
     void IDesktopStackSession.PlaceBehind(IDesktopStackSession higher)
     {
@@ -289,6 +293,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         if (_disposed)
             return;
         _disposed = true;
+        _restoreStack = null;
         try { _window.Dispose(); }
         finally
         {
@@ -341,6 +346,7 @@ internal interface IDesktopStackSession
 {
     bool IsStackVisible { get; }
     void PlaceBehind(IDesktopStackSession higher);
+    void SetStackRestorer(Action restorer);
 }
 
 internal static class DesktopZOrderPolicy
@@ -378,9 +384,11 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     // Reorder only normal (non-topmost) sibling windows, without resizing or activation.
     internal const uint StackFlags = 0x0001u | 0x0002u | 0x0010u | 0x0200u;
     private const int WmNcHitTest = 0x0084;
+    internal const int WmExitSizeMove = 0x0232;
     private const int WmDpiChanged = 0x02E0;
     private readonly Action _render;
     private readonly Action<Point> _savePosition;
+    private readonly Action _restoreStack;
     private readonly System.Windows.Forms.Timer _refresh = new();
     private readonly System.Windows.Forms.Timer _moveDebounce = new() { Interval = 500 };
     private DesktopLayeredSurface? _surface;
@@ -401,10 +409,11 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
     }
 
-    public DesktopOutputWindow(Action render, Action<Point> savePosition)
+    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack)
     {
         _render = render ?? throw new ArgumentNullException(nameof(render));
         _savePosition = savePosition ?? throw new ArgumentNullException(nameof(savePosition));
+        _restoreStack = restoreStack ?? throw new ArgumentNullException(nameof(restoreStack));
         FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.None;
         StartPosition = FormStartPosition.Manual;
@@ -541,6 +550,15 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             base.WndProc(ref m);
             if (m.Result == (IntPtr)1) // HTCLIENT
                 m.Result = (IntPtr)2; // HTCAPTION
+            return;
+        }
+        // WM_EXITSIZEMOVE is sent when the native caption drag ends.
+        // Reconcile sibling order immediately on release, without timers or reload.
+        if (m.Msg == WmExitSizeMove)
+        {
+            base.WndProc(ref m);
+            if (!_disposed && !_locked && Visible)
+                _restoreStack();
             return;
         }
         if (m.Msg == WmDpiChanged)
