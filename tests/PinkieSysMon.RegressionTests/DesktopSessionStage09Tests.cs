@@ -1,5 +1,5 @@
 using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using PinkieSysMon;
 using C = PinkieSysMon.DashboardModel;
 
@@ -182,11 +182,12 @@ internal static class DesktopSessionStage09Tests
             throw new InvalidOperationException(message);
     }
 
-    // Headless presentation double: invokes the exact production render callback with GDI+ pixels,
-    // without creating a Win32 window in the automated regression process.
-    private sealed class FakeWindow(Action<Graphics> paint) : IDesktopOutputWindow
+    // Headless window: calls the actual Stage10 presentation callback and samples
+    // the unflattened BGRA frame, without creating a native Win32 window.
+    private sealed class FakeWindow(Action render) : IDesktopOutputWindow
     {
-        private readonly Action<Graphics> _paint = paint;
+        private readonly Action _render = render;
+        private Color _lastCenter;
         public bool IsVisible { get; private set; }
         public Size ClientPixels { get; private set; }
         public Point Location { get; private set; }
@@ -205,18 +206,18 @@ internal static class DesktopSessionStage09Tests
         public void HideWindow() => IsVisible = false;
         public void RequestFrame() { }
 
+        public void Present(SKBitmap bitmap)
+        {
+            var pixel = bitmap.GetPixel(ClientPixels.Width / 2, ClientPixels.Height / 2);
+            _lastCenter = Color.FromArgb(pixel.Alpha, pixel.Red, pixel.Green, pixel.Blue);
+        }
+
         public Color Draw()
         {
             if (!IsVisible)
                 throw new InvalidOperationException("Cannot paint a hidden Desktop window.");
-            using var bitmap = new Bitmap(ClientPixels.Width, ClientPixels.Height,
-                PixelFormat.Format32bppPArgb);
-            using (var graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.Clear(Color.Black);
-                _paint(graphics);
-            }
-            return bitmap.GetPixel(ClientPixels.Width / 2, ClientPixels.Height / 2);
+            _render();
+            return _lastCenter;
         }
 
         public void Dispose()
