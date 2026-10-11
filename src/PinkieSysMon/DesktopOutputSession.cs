@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Imaging;
+using SkiaSharp;
 using System.Windows.Forms;
 using CanonicalDashboardDefinition = global::PinkieSysMon.DashboardModel.DashboardDefinition;
 
@@ -33,7 +33,7 @@ internal sealed class DesktopOutputSession : IOutputSession
         CanonicalDashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<Action<Graphics>, IDesktopOutputWindow>? windowFactory = null)
+        Func<Action, IDesktopOutputWindow>? windowFactory = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -51,7 +51,7 @@ internal sealed class DesktopOutputSession : IOutputSession
         IDesktopOutputWindow? window = null;
         try
         {
-            window = (windowFactory ?? (draw => new DesktopOutputWindow(draw)))(DrawFrame)
+            window = (windowFactory ?? (render => new DesktopOutputWindow(render)))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
             var size = FrameGeometry.GetLogicalSize(
                 dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
@@ -181,7 +181,7 @@ internal sealed class DesktopOutputSession : IOutputSession
         ChangeState(_started ? "DISPLAYING" : "STOPPED");
     }
 
-    private void DrawFrame(Graphics graphics)
+    private void DrawFrame()
     {
         if (!_started || _suspended || !_window.IsVisible)
             return;
@@ -189,12 +189,10 @@ internal sealed class DesktopOutputSession : IOutputSession
         var startedAt = Stopwatch.GetTimestamp();
         try
         {
-            // GDI+ borrows Skia's premultiplied BGRA pixels only for this synchronous paint.
+            // Borrow the exact premultiplied BGRA pixels only until native presentation ends.
+            // The window does not retain the frame or fall back to opaque GDI+ painting.
             using var frame = _renderer.RenderBgra(_metrics.Snapshot());
-            using var pixels = new Bitmap(
-                frame.Bitmap.Width, frame.Bitmap.Height, frame.Bitmap.RowBytes,
-                PixelFormat.Format32bppPArgb, frame.Bitmap.GetPixels());
-            graphics.DrawImageUnscaled(pixels, 0, 0);
+            _window.Present(frame.Bitmap);
 
             var now = Stopwatch.GetTimestamp();
             Volatile.Write(ref _lastFrameMs, Stopwatch.GetElapsedTime(startedAt, now).TotalMilliseconds);
@@ -287,7 +285,6 @@ internal sealed class DesktopOutputSession : IOutputSession
 }
 
 // Session/window operations run on Runtime's WinForms UI thread.
-// Stage 09 presents an opaque GDI+ surface; per-pixel window alpha belongs to Stage 10.
 internal interface IDesktopOutputWindow : IDisposable
 {
     bool IsVisible { get; }
@@ -295,24 +292,37 @@ internal interface IDesktopOutputWindow : IDisposable
     void ShowWindow();
     void HideWindow();
     void RequestFrame();
+    // Pixels are borrowed for this call only. Always BGRA8888 premultiplied.
+    void Present(SKBitmap frame);
 }
 
 internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 {
-    private readonly Action<Graphics> _paint;
+    private const int WsExLayered = 0x00080000;
+    private readonly Action _render;
     private readonly System.Windows.Forms.Timer _timer = new();
+    private DesktopLayeredSurface? _surface;
+
     public bool IsVisible => Visible;
 
-    public DesktopOutputWindow(Action<Graphics> paint)
+    protected override CreateParams CreateParams
     {
-        _paint = paint ?? throw new ArgumentNullException(nameof(paint));
+        get
+        {
+            var parameters = base.CreateParams;
+            parameters.ExStyle |= WsExLayered;
+            return parameters;
+        }
+    }
+
+    public DesktopOutputWindow(Action render)
+    {
+        _render = render ?? throw new ArgumentNullException(nameof(render));
         FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.None;
         StartPosition = FormStartPosition.Manual;
-        BackColor = Color.Black;
-        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
-                 ControlStyles.OptimizedDoubleBuffer, true);
-        _timer.Tick += (_, _) => Invalidate();
+        // UpdateLayeredWindow owns every presented pixel: no black GDI+ backing.
+        _timer.Tick += (_, _) => _render();
     }
 
     public void Configure(string title, Size clientPixels, Point location, int refreshMs)
@@ -328,7 +338,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         if (!Visible)
             Show();
         _timer.Start();
-        Invalidate();
+        _render();
     }
 
     public void HideWindow()
@@ -337,18 +347,40 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         Hide();
     }
 
-    public void RequestFrame() => Invalidate();
-
-    protected override void OnPaint(PaintEventArgs e)
+    public void RequestFrame()
     {
-        base.OnPaint(e);
-        _paint(e.Graphics);
+        if (Visible)
+            _render();
     }
+
+    public void Present(SKBitmap frame)
+    {
+        if (!Visible || !IsHandleCreated)
+            return;
+
+        if (_surface is null || _surface.Width != frame.Width || _surface.Height != frame.Height)
+        {
+            var replacement = new DesktopLayeredSurface(frame.Width, frame.Height);
+            var previous = _surface;
+            _surface = replacement;
+            previous?.Dispose();
+        }
+
+        _surface.Present(Handle, Location, frame);
+    }
+
+    // A per-pixel layered Form must not repaint an opaque WinForms client surface.
+    protected override void OnPaint(PaintEventArgs e) { }
+    protected override void OnPaintBackground(PaintEventArgs e) { }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             _timer.Dispose();
+            _surface?.Dispose();
+            _surface = null;
+        }
         base.Dispose(disposing);
     }
 }
