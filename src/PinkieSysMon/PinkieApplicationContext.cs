@@ -453,8 +453,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             var status = statuses[0];
             var board = _config.Outputs.Targets[0].Dashboard ?? "(unassigned)";
+            var isDesktop = _config.Outputs.Targets[0].Kind == OutputTargetContract.DesktopKind;
             _statusItem.Text = status.IsConnected
-                ? $"{status.TargetName} connected · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms · {status.LastJpegBytes / 1024.0:F0} KiB"
+                ? isDesktop
+                    ? $"{status.TargetName} displaying · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms"
+                    : $"{status.TargetName} connected · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms · {status.LastJpegBytes / 1024.0:F0} KiB"
                 : $"{status.TargetName} {status.UsbState.ToLowerInvariant()} · {board}";
             var tooltip = status.IsConnected
                 ? $"PinkieSysMon - {board}"

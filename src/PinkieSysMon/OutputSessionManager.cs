@@ -80,7 +80,9 @@ internal sealed class OutputSessionManager : IDisposable
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _reloadBoard = reloadBoard;
         _factory = factory ?? (static (app, target, board, store, logger) =>
-            new FramePump(app, target, board, store, logger));
+            target.Kind == OutputTargetContract.DesktopKind
+                ? new DesktopOutputSession(app, target, board, store, logger)
+                : new FramePump(app, target, board, store, logger));
     }
 
     private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
@@ -351,7 +353,7 @@ internal sealed class OutputSessionManager : IDisposable
                 if (!CanStartTarget(target))
                     throw new InvalidOperationException(
                         target.Kind == OutputTargetContract.DesktopKind
-                            ? $"Desktop output '{target.Id}' has no window session yet (Stage 09)."
+                            ? $"Desktop output '{target.Id}' is disabled (Board Enabled is off)."
                             : $"Physical output '{target.Id}' is disabled. Device Enabled must be explicitly enabled.");
 
                 // A targeted reload must never reload or commit a sibling dashboard.
@@ -628,7 +630,8 @@ internal sealed class OutputSessionManager : IDisposable
     }
 
     private static bool CanStartTarget(OutputTargetConfig target) =>
-        target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled;
+        (target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled) ||
+        (target.Kind == OutputTargetContract.DesktopKind && target.Desktop?.BoardEnabled == true);
 
     private OutputTargetConfig FindConfiguredTargetLocked(string targetId) =>
         _config.Outputs.Targets.FirstOrDefault(target =>
@@ -647,7 +650,8 @@ internal sealed class OutputSessionManager : IDisposable
             // simply because ProviderEnabled is true.
             var state = _suspended && session is not null ? "SUSPENDED" :
                 _stoppedTargets.Contains(target.Id) ? "STOPPED" :
-                target.Kind == OutputTargetContract.DesktopKind ? "DESKTOP_PENDING" :
+                target.Kind == OutputTargetContract.DesktopKind
+                    ? session?.UsbState ?? "DESKTOP_PENDING" :
                 !target.DeviceEnabled ? "DISABLED" :
                 session?.UsbState ?? "STOPPED";
             if (!target.ProviderEnabled)
