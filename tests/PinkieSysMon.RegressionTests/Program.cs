@@ -210,6 +210,8 @@ internal static class Program
             ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
             ("Desktop placement multi-monitor and recovery", DesktopPositionStage11Tests.MonitorRecovery),
             ("Desktop per-target placement JSON persistence", DesktopPositionStage11Tests.ScopedPersistence),
+            ("Desktop locked layered style and unlocked hit-testing", DesktopLockStage12Tests.NativeStylePolicy),
+            ("Desktop Lock changes on live output reconfiguration", DesktopLockStage12Tests.LiveLockToggle),
             ("Runtime JPEG zero-copy transport contract", RuntimeJpegZeroCopyTransportContract),
             ("Stable widget shadow cache", StableWidgetShadowIsReused),
             ("Numeric widget shadow cache invalidation", NumericWidgetShadowInvalidatesOnValueChange),

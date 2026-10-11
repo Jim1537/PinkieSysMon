@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Drawing;
 using SkiaSharp;
@@ -307,6 +309,21 @@ internal sealed class DesktopOutputSession : IOutputSession
     }
 }
 
+// Native per-pixel layered-window hit-testing is independent of the pixels:
+// locked panels ignore *all* mouse input, including over opaque widgets.
+// Preserve unrelated extended styles and WS_EX_LAYERED through each toggle.
+internal static class DesktopPointerStyle
+{
+    internal const int WsExLayered = 0x00080000;
+    internal const int WsExTransparent = 0x00000020;
+
+    internal static int ForLock(int existingStyles, bool locked)
+    {
+        var layered = existingStyles | WsExLayered;
+        return locked ? layered | WsExTransparent : layered & ~WsExTransparent;
+    }
+}
+
 // Native Windows Desktop presentation and persistence are UI-thread owned.
 internal interface IDesktopOutputWindow : IDisposable
 {
@@ -320,7 +337,8 @@ internal interface IDesktopOutputWindow : IDisposable
 
 internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 {
-    private const int WsExLayered = 0x00080000;
+    private const int GwlExStyle = -20;
+    private const uint SwpFrameChangedNoMove = 0x0001u | 0x0002u | 0x0004u | 0x0010u | 0x0020u;
     private const int WmNcHitTest = 0x0084;
     private const int WmDpiChanged = 0x02E0;
     private readonly Action _render;
@@ -340,7 +358,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         get
         {
             var result = base.CreateParams;
-            result.ExStyle |= WsExLayered;
+            result.ExStyle = DesktopPointerStyle.ForLock(result.ExStyle, _locked);
             return result;
         }
     }
@@ -382,9 +400,44 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             Location = Resolve(location);
             _lastPosition = Location;
             _refresh.Interval = refreshMs;
+            ApplyLockStyle();
         }
         finally { _configuring = false; }
     }
+
+    // Lock updates an existing window immediately on Runtime configuration reload.
+    // WS_EX_TRANSPARENT with WS_EX_LAYERED bypasses hit-testing for all pixels.
+    // We do not use HTTRANSPARENT: it is not a reliable cross-process pass-through.
+    private void ApplyLockStyle()
+    {
+        if (!IsHandleCreated)
+            return;
+
+        var current = GetWindowLongPtr(Handle, GwlExStyle);
+        if (current == IntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot read Desktop extended window styles.");
+
+        var oldStyles = unchecked((int)(long)current);
+        var newStyles = DesktopPointerStyle.ForLock(oldStyles, _locked);
+        if (oldStyles == newStyles)
+            return;
+
+        if (SetWindowLongPtr(Handle, GwlExStyle, new IntPtr(newStyles)) == IntPtr.Zero)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot change Desktop pointer hit-testing.");
+        if (!SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, SwpFrameChangedNoMove))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot refresh Desktop pointer hit-testing.");
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int index);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int index, IntPtr value);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
     public void ShowWindow()
     {
@@ -433,7 +486,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 
     protected override void WndProc(ref Message m)
     {
-        // Minimal native dragging while unlocked; full Lock/click-through is Stage12.
+        // Unlocked window: native dragging without resize; locked: the OS ignores
+        // this layered window entirely for mouse targeting (WS_EX_TRANSPARENT).
         if (m.Msg == WmNcHitTest && !_locked)
         {
             base.WndProc(ref m);
