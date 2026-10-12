@@ -34,6 +34,7 @@ internal static class Program
             ("Stage16 physical inventory ambiguity and no rebind", DeviceDiscoveryStage16Tests.InventoryNeverRebindsAmbiguousHardware),
             ("Stage16 native inventory capture isolation", DeviceDiscoveryStage16Tests.InventoryCaptureIsolation),
             ("Stage17 physical device enable consent policy", DeviceDiscoveryStage16Tests.DeviceEnabledConsentPolicy),
+            ("Stage18 physical Output Remove and disconnect policy", DeviceDiscoveryStage16Tests.DeviceRemovalPolicy),
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),

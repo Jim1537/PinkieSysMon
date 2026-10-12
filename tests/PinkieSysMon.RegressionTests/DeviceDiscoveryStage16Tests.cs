@@ -213,6 +213,66 @@ internal static class DeviceDiscoveryStage16Tests
             "Unconfigured newly detected hardware cannot be enabled before explicit adoption.");
     }
 
+    public static void DeviceRemovalPolicy()
+    {
+        var physical = Target();
+        physical.DeviceId = DeviceDiscovery.CreateStableDeviceId("stage18-physical");
+        physical.DeviceEnabled = true;
+        physical.ProviderEnabled = true;
+        physical.Dashboard = "PhysicalBoard";
+        var desktop = new OutputTargetConfig
+        {
+            Id = "stage18-desktop", Name = "Unaffected desktop",
+            Kind = OutputTargetContract.DesktopKind, Transport = OutputTargetContract.DesktopTransport,
+            Desktop = new DesktopOutputConfig(), Dashboard = "Default"
+        };
+        var config = new AppConfig { Outputs = new OutputConfig { Targets = [physical, desktop] } };
+        var device = new OutputDeviceDescriptor(
+            physical.DeviceId, OutputTargetContract.TrofeoTransport, "Known device", "synthetic-path");
+        var before = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
+        var disconnected = PhysicalDeviceInventory.Build(config.Outputs.Targets, []);
+        Check(before.Single(entry => entry.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected &&
+              disconnected.Single().Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              disconnected.Single().CanRemove &&
+              !disconnected.Single().CanEditSettings &&
+              PhysicalDeviceRemovalPolicy.CanRemove(config, physical.Id),
+            "A configured physical Output must remain removable even when disconnected.");
+        var reconnected = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
+        Check(reconnected.Single(entry => entry.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected &&
+              physical.DeviceEnabled && physical.ProviderEnabled &&
+              physical.Dashboard == "PhysicalBoard",
+            "Passive reconnect must retain the original identity and both independent switches.");
+
+        PhysicalDeviceRemovalPolicy.Remove(config, physical.Id);
+        Check(config.Outputs.Targets.Count == 1 &&
+              ReferenceEquals(config.Outputs.Targets[0], desktop) &&
+              !config.Outputs.Targets.Any(t => t.Id == physical.Id),
+            "Removal must delete only the selected physical Output and leave its Desktop sibling unchanged.");
+        var after = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
+        Check(after.Count == 1 && after[0].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
+              after[0].ConfiguredTarget is null && after[0].DiscoveredDevice == device,
+            "An attached removed device may be observed passively but must never be re-adopted.");
+        Check(!PhysicalDeviceRemovalPolicy.CanRemove(config, desktop.Id),
+            "Desktop Outputs must never be removable through the physical-device command.");
+        var rejected = false;
+        try { PhysicalDeviceRemovalPolicy.Remove(config, desktop.Id); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected && config.Outputs.Targets.Single() == desktop,
+            "Invalid physical removal must not change surviving output configuration.");
+
+        var solePhysical = new AppConfig
+        {
+            Outputs = new OutputConfig { Targets = [Target()] }
+        };
+        Check(!PhysicalDeviceRemovalPolicy.CanRemove(solePhysical, solePhysical.Outputs.Targets[0].Id),
+            "The final physical Output must never offer Remove.");
+        rejected = false;
+        try { PhysicalDeviceRemovalPolicy.Remove(solePhysical, solePhysical.Outputs.Targets[0].Id); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected && solePhysical.Outputs.Targets.Count == 1,
+            "The last remaining Output must not be removed even through a direct call.");
+    }
+
     public static void InventoryCaptureIsolation()
     {
         var known = Target();

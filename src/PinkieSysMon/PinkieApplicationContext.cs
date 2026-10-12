@@ -164,6 +164,16 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             var id = target.Id;
             item.Click += (_, _) => ChangePhysicalDeviceEnabled(id, !enabled);
             _physicalDevicesMenu.DropDownItems.Add(item);
+
+            var remove = new ToolStripMenuItem($"Remove {target.Name}...")
+            {
+                Enabled = PhysicalDeviceRemovalPolicy.CanRemove(_config, id),
+                ToolTipText = _config.Outputs.Targets.Count > 1
+                    ? "Remove this saved physical Output after confirmation"
+                    : "The last Output cannot be removed"
+            };
+            remove.Click += (_, _) => RemovePhysicalDevice(id);
+            _physicalDevicesMenu.DropDownItems.Add(remove);
         }
     }
 
@@ -220,26 +230,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             }
 
             target.DeviceEnabled = enable;
-            // Resolve all dashboards before altering the private configuration on disk.
-            _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
-            var previousJson = File.ReadAllText(AppConfigPath);
-            config.Save(AppConfigPath);
-            var response = ReloadConfiguration(showNotification: false);
-            if (!response.Success)
-            {
-                // Restore the exact prior private file; live configuration rollback
-                // is owned by ApplyConfiguration's transactional session manager.
-                var restorePath = AppConfigPath + ".rollback.tmp";
-                File.WriteAllText(restorePath, previousJson);
-                File.Move(restorePath, AppConfigPath, true);
-                var recovered = ReloadConfiguration(showNotification: false);
-                if (!recovered.Success)
-                    throw new InvalidOperationException(
-                        $"The device change failed and the previous configuration was restored on disk, " +
-                        $"but restoring the live runtime also failed: {recovered.Message}");
-                throw new InvalidOperationException(
-                    $"The device setting could not be applied; the original configuration and runtime were restored: {response.Message}");
-            }
+            SaveAndReloadPhysicalOutputChange(config);
 
             _notifications.Show(enable
                 ? "Physical device enabled. PinkieSysMon may now use its USB display."
@@ -250,6 +241,76 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _log.Error("Could not change physical device enabled state.", ex);
             _notifications.Show($"Device setting failed: {ex.Message}", RuntimeNotificationKind.Error);
         }
+    }
+
+    private void RemovePhysicalDevice(string targetId)
+    {
+        try
+        {
+            // A confirmed removal changes configuration, not a dashboard file or USB binding.
+            var original = AppConfig.Load(AppConfigPath, _log);
+            var target = original.Outputs.Targets.SingleOrDefault(t =>
+                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
+                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
+            if (target is null)
+                throw new InvalidOperationException("The physical Output is no longer configured.");
+            if (!PhysicalDeviceRemovalPolicy.CanRemove(original, targetId))
+                throw new InvalidOperationException("The last Output cannot be removed.");
+
+            var consent = MessageBox.Show(
+                $"Remove the saved physical Output '{target.Name}'?\n\n" +
+                "PinkieSysMon will stop using this device and remove ONLY this Output's " +
+                "configuration. Its dashboard files and all other Outputs will be kept.\n\n" +
+                "If the device stays attached, it will appear as not configured.\n\n" +
+                "Continue?",
+                "Remove physical Output",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (consent != DialogResult.Yes)
+                return;
+
+            // Reload after confirmation so another writer's edits are not overwritten.
+            var config = AppConfig.Load(AppConfigPath, _log);
+            var selected = config.Outputs.Targets.SingleOrDefault(t =>
+                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
+                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
+            if (selected is null ||
+                !selected.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The physical Output binding changed; nothing was removed.");
+            PhysicalDeviceRemovalPolicy.Remove(config, targetId);
+            SaveAndReloadPhysicalOutputChange(config);
+            _notifications.Show($"Removed physical Output '{target.Name}'. Dashboard files were retained.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Could not remove physical Output.", ex);
+            _notifications.Show($"Device removal failed: {ex.Message}", RuntimeNotificationKind.Error);
+        }
+    }
+
+    private void SaveAndReloadPhysicalOutputChange(AppConfig config)
+    {
+        // Resolve all remaining dashboards before replacing the private configuration.
+        _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
+        var previousJson = File.ReadAllText(AppConfigPath);
+        config.Save(AppConfigPath);
+        var response = ReloadConfiguration(showNotification: false);
+        if (response.Success)
+            return;
+
+        // The session manager restores the previous live sessions on failure;
+        // restore the exact original local configuration and retry that live state.
+        var restorePath = AppConfigPath + ".rollback.tmp";
+        File.WriteAllText(restorePath, previousJson);
+        File.Move(restorePath, AppConfigPath, true);
+        var recovered = ReloadConfiguration(showNotification: false);
+        if (!recovered.Success)
+            throw new InvalidOperationException(
+                $"The physical Output change failed and the previous configuration was restored on disk, " +
+                $"but restoring the live runtime also failed: {recovered.Message}");
+        throw new InvalidOperationException(
+            $"The physical Output change could not be applied; the previous configuration and runtime were restored: {response.Message}");
     }
 
     private void BuildTray()
