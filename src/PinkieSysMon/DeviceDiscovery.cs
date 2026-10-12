@@ -70,14 +70,26 @@ internal static class OutputDeviceSelection
 
         if (!string.IsNullOrWhiteSpace(target.DeviceId))
         {
-            var selected = candidates.FirstOrDefault(device =>
-                device.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase));
-            return selected is null
-                ? new OutputDeviceResolution(
+            // Exact ID matching is necessary but not sufficient: if future identity
+            // sources (such as manufacturer serials) produce a duplicate, never
+            // silently choose the first physical interface.
+            var matches = candidates
+                .Where(device => device.DeviceId.Equals(
+                    target.DeviceId, StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToArray();
+            return matches.Length switch
+            {
+                0 => new OutputDeviceResolution(
                     OutputDeviceResolutionStatus.Missing,
                     null,
-                    $"Configured output device for target '{target.Name}' is not present.")
-                : new OutputDeviceResolution(OutputDeviceResolutionStatus.Found, selected, string.Empty);
+                    $"Configured output device for target '{target.Name}' is not present."),
+                1 => new OutputDeviceResolution(OutputDeviceResolutionStatus.Found, matches[0], string.Empty),
+                _ => new OutputDeviceResolution(
+                    OutputDeviceResolutionStatus.Ambiguous,
+                    null,
+                    $"Configured output identity for target '{target.Name}' matches multiple physical interfaces. Explicit resolution is required.")
+            };
         }
 
         return candidates.Length switch

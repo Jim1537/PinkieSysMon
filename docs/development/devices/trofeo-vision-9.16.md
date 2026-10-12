@@ -34,7 +34,7 @@ The exact behavior described on this page remains the behavior of PinkieSysMon's
 - **Configured transport key:** `trofeo` (in `Outputs.Targets[].Transport`).
 - **Device identity:** `DeviceDiscovery.CreateStableDeviceId` trims and uppercases the enumerated interface path, computes its SHA-256 digest, and prefixes the hexadecimal digest with `trofeo:`. This is **derived from the Windows interface path**, not a verified manufacturer serial number; do not assume it remains unchanged if the interface path changes.
 
-`OutputDeviceSelection.Resolve` binds an explicitly configured `DeviceId` only to its exact discovered match. With no explicit ID, it accepts **exactly one** matching device; zero means missing and more than one means ambiguous. An unsupported transport is rejected. Multiple output targets require explicit device IDs, and two targets cannot bind to the same identity. **Never silently substitute the first compatible device for a configured or ambiguous target.**
+`OutputDeviceSelection.Resolve` binds an explicitly configured `DeviceId` only when **exactly one discovered interface** has that identity; multiple matching interfaces are ambiguous even for an explicit `DeviceId`, and no first-match fallback is permitted. With no explicit ID, it accepts **exactly one** compatible device; zero means missing and more than one means ambiguous. An unsupported transport is rejected. Multiple output targets require explicit device IDs, and two targets cannot bind to the same identity. **Never silently substitute the first compatible device for a configured or ambiguous target.**
 
 ## Opening the transport and handshake
 

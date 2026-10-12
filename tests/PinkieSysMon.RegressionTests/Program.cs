@@ -26,6 +26,8 @@ internal static class Program
             ("Telemetry reconfiguration prepare/commit isolation", TelemetryReconfigurationPrepareCommitIsolation),
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Output target selection", OutputTargetSelection),
+            ("Stage16 passive discovery and reconnect identity", DeviceDiscoveryStage16Tests.PassiveReconnect),
+            ("Stage16 duplicate configured identity fails closed", DeviceDiscoveryStage16Tests.DuplicateIdentity),
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),
