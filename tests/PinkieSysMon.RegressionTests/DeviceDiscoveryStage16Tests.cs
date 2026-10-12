@@ -126,6 +126,103 @@ internal static class DeviceDiscoveryStage16Tests
             "Two physically distinct fingerprints must preserve explicit single-interface selection.");
     }
 
+    public static void InventoryPreservesKnownAndNew()
+    {
+        var known = Target();
+        var other = Target();
+        other.Kind = OutputTargetContract.DesktopKind;
+        other.Transport = OutputTargetContract.DesktopTransport;
+        var device = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("known-stage16"),
+            OutputTargetContract.TrofeoTransport, "Known", "known-stage16");
+        var newDevice = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("new-stage16"),
+            OutputTargetContract.TrofeoTransport, "New", "new-stage16");
+        known.DeviceId = device.DeviceId;
+
+        var before = PhysicalDeviceInventory.Build([other, known], []);
+        Check(before.Count == 1 &&
+              before[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              before[0].ConfiguredTarget == known &&
+              before[0].CanRemove && !before[0].CanEditSettings,
+            "Disconnected known physical devices must retain a removable record without changing settings.");
+
+        var observed = PhysicalDeviceInventory.Build([other, known], [device, newDevice]);
+        Check(observed.Count == 2 &&
+              observed[0].Status == PhysicalDeviceInventoryStatus.Connected &&
+              observed[0].ConfiguredTarget == known &&
+              observed[0].DiscoveredDevice == device &&
+              observed[0].CanEditSettings && observed[0].CanRemove &&
+              observed[1].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
+              observed[1].ConfiguredTarget is null &&
+              observed[1].DiscoveredDevice == newDevice &&
+              !observed[1].CanEditSettings && !observed[1].CanRemove,
+            "Inventory must bind only the exact known ID and expose new hardware as an unconfigured candidate.");
+        Check(!known.DeviceEnabled && known.DeviceId == device.DeviceId,
+            "Passive inventory must not enable hardware or mutate a configured physical binding.");
+
+        var legacy = Target();
+        var legacyObserved = PhysicalDeviceInventory.Build([legacy], [device]);
+        Check(legacyObserved.Count == 1 &&
+              legacyObserved[0].Status == PhysicalDeviceInventoryStatus.Connected &&
+              legacy.DeviceId.Length == 0,
+            "An unbound legacy target may use the sole physical device without persisting an implicit binding.");
+        var legacyAmbiguous = PhysicalDeviceInventory.Build([legacy], [device, newDevice]);
+        Check(legacyAmbiguous[0].Status == PhysicalDeviceInventoryStatus.Ambiguous &&
+              legacyAmbiguous[0].DiscoveredDevice is null,
+            "An unbound legacy target must be ambiguous with multiple devices.");
+
+        var reconnect = PhysicalDeviceInventory.Build([known], [device]);
+        Check(reconnect.Count == 1 &&
+              reconnect[0].Status == PhysicalDeviceInventoryStatus.Connected &&
+              reconnect[0].ConfiguredTarget == known,
+            "Reconnecting the same identity must restore its previously configured record.");
+    }
+
+    public static void InventoryNeverRebindsAmbiguousHardware()
+    {
+        var known = Target();
+        var previous = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("old-stage16"),
+            OutputTargetContract.TrofeoTransport, "Known", "old-stage16")
+        {
+            PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("same-serial")
+        };
+        var newPath = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("other-port-stage16"),
+            OutputTargetContract.TrofeoTransport, "Other port", "other-port-stage16")
+        {
+            PhysicalFingerprint = previous.PhysicalFingerprint
+        };
+        known.DeviceId = previous.DeviceId;
+
+        var changed = PhysicalDeviceInventory.Build([known], [newPath]);
+        Check(changed.Count == 2 &&
+              changed[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              changed[0].ConfiguredTarget == known &&
+              changed[1].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
+              changed[1].ConfiguredTarget is null,
+            "Even a matching serial fingerprint must not silently rewrite an existing legacy path binding.");
+
+        var twins = PhysicalDeviceInventory.Build([known], [previous, newPath]);
+        Check(twins.Count == 3 &&
+              twins[0].Status == PhysicalDeviceInventoryStatus.Ambiguous &&
+              twins[0].DiscoveredDevice is null &&
+              twins.Skip(1).All(entry =>
+                  entry.Status == PhysicalDeviceInventoryStatus.Ambiguous &&
+                  entry.ConfiguredTarget is null),
+            "Duplicate physical fingerprints must fail closed for known and unconfigured devices.");
+
+        var duplicateConfig = Target();
+        duplicateConfig.DeviceId = known.DeviceId;
+        var bad = PhysicalDeviceInventory.Build([known, duplicateConfig], [previous]);
+        Check(bad.Count == 3 &&
+              bad.Take(2).All(entry => entry.Status == PhysicalDeviceInventoryStatus.Ambiguous),
+            "Even unvalidated duplicate configured bindings must not claim the same device.");
+        Check(!known.DeviceEnabled && !duplicateConfig.DeviceEnabled,
+            "Inventory enumeration may not alter Device Enabled.");
+    }
+
     private static OutputTargetConfig Target() => new()
     {
         Id = "stage16-physical",
