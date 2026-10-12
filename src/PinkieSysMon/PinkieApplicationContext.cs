@@ -16,6 +16,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Icon? _applicationIcon;
     private readonly ToolStripMenuItem _statusItem = new("Starting...") { Enabled = false };
     private readonly ToolStripMenuItem _dashboardsMenu = new("Dashboards");
+    private readonly ToolStripMenuItem _physicalDevicesMenu = new("Physical Devices");
     private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
@@ -99,7 +100,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     // Captured on startup and after successful configuration reload, not on the
     // one-second tray timer. Never opens WinUSB or authorizes Device Enabled.
     // An optional discovery failure must not interrupt a working output.
-    private void RefreshPhysicalInventory()
+    private bool RefreshPhysicalInventory()
     {
         try
         {
@@ -112,11 +113,142 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 $"newCandidates={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Unconfigured)}; " +
                 $"ambiguous={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Ambiguous)}; " +
                 $"serialFingerprints={snapshot.Count(e => e.DiscoveredDevice?.PhysicalFingerprint is not null)}.");
+            return true;
         }
         catch (Exception ex)
         {
             // Discovery must not block Runtime or take down active device sessions.
             _log.Warn("Passive physical discovery failed; previous snapshot retained.", ex);
+            return false;
+        }
+    }
+
+    // A convenient Runtime control until Stage 23 exposes the full Device Settings.
+    // No USB handle is opened by inspecting or displaying this menu.
+    private void RefreshPhysicalDeviceMenu()
+    {
+        _physicalDevicesMenu.DropDownItems.Clear();
+        if (!RefreshPhysicalInventory())
+        {
+            _physicalDevicesMenu.DropDownItems.Add(
+                new ToolStripMenuItem("(device discovery unavailable)") { Enabled = false });
+            return;
+        }
+
+        if (_physicalInventory.Count == 0)
+        {
+            _physicalDevicesMenu.DropDownItems.Add(
+                new ToolStripMenuItem("(no physical devices)") { Enabled = false });
+            return;
+        }
+
+        foreach (var entry in _physicalInventory)
+        {
+            if (entry.ConfiguredTarget is not { } target)
+            {
+                _physicalDevicesMenu.DropDownItems.Add(
+                    new ToolStripMenuItem("Detected Trofeo — not configured") { Enabled = false });
+                continue;
+            }
+
+            var enabled = target.DeviceEnabled;
+            var status = entry.Status.ToString();
+            var item = new ToolStripMenuItem($"{target.Name} — {status}")
+            {
+                Checked = enabled,
+                Enabled = enabled || PhysicalDeviceInventory.CanOfferEnable(entry),
+                ToolTipText = enabled
+                    ? "Disable USB output for this device"
+                    : "Enable USB output after explicit consent"
+            };
+            var id = target.Id;
+            item.Click += (_, _) => ChangePhysicalDeviceEnabled(id, !enabled);
+            _physicalDevicesMenu.DropDownItems.Add(item);
+        }
+    }
+
+    private void ChangePhysicalDeviceEnabled(string targetId, bool enable)
+    {
+        try
+        {
+            if (enable)
+            {
+                // Re-evaluate physical identity immediately before requesting consent.
+                if (!RefreshPhysicalInventory())
+                    throw new InvalidOperationException("Device discovery is unavailable.");
+
+                var entry = _physicalInventory.SingleOrDefault(e =>
+                    e.ConfiguredTarget?.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) == true);
+                if (!PhysicalDeviceInventory.CanOfferEnable(entry))
+                    throw new InvalidOperationException(
+                        "The configured device is absent or its physical identity is ambiguous.");
+
+                var consent = MessageBox.Show(
+                    $"Enable PinkieSysMon USB output for '{entry!.ConfiguredTarget!.Name}'?\n\n" +
+                    "PinkieSysMon will open the physical USB device and send display frames. " +
+                    "Running vendor software or another USB-display application at the same time " +
+                    "may cause device-access conflicts.\n\n" +
+                    "Continue?",
+                    "Enable physical device",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (consent != DialogResult.Yes)
+                    return;
+            }
+
+            // Start from the disk definition so unrelated local settings are retained.
+            var config = AppConfig.Load(AppConfigPath, _log);
+            var target = config.Outputs.Targets.SingleOrDefault(t =>
+                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
+                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
+            if (target is null)
+                throw new InvalidOperationException("The physical output is no longer configured.");
+            if (target.DeviceEnabled == enable)
+                return;
+
+            if (enable)
+            {
+                // Consent does not reserve a USB interface; verify again afterward.
+                if (!RefreshPhysicalInventory())
+                    throw new InvalidOperationException("Device discovery is unavailable.");
+                var entry = _physicalInventory.SingleOrDefault(e =>
+                    e.ConfiguredTarget?.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) == true);
+                if (!PhysicalDeviceInventory.CanOfferEnable(entry) ||
+                    !target.DeviceId.Equals(entry!.DiscoveredDevice!.DeviceId, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Device identity changed. No USB ownership was taken.");
+            }
+
+            target.DeviceEnabled = enable;
+            // Resolve all dashboards before altering the private configuration on disk.
+            _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
+            var previousJson = File.ReadAllText(AppConfigPath);
+            config.Save(AppConfigPath);
+            var response = ReloadConfiguration(showNotification: false);
+            if (!response.Success)
+            {
+                // Restore the exact prior private file; live configuration rollback
+                // is owned by ApplyConfiguration's transactional session manager.
+                var restorePath = AppConfigPath + ".rollback.tmp";
+                File.WriteAllText(restorePath, previousJson);
+                File.Move(restorePath, AppConfigPath, true);
+                var recovered = ReloadConfiguration(showNotification: false);
+                if (!recovered.Success)
+                    throw new InvalidOperationException(
+                        $"The device change failed and the previous configuration was restored on disk, " +
+                        $"but restoring the live runtime also failed: {recovered.Message}");
+                throw new InvalidOperationException(
+                    $"The device setting could not be applied; the original configuration and runtime were restored: {response.Message}");
+            }
+
+            _notifications.Show(enable
+                ? "Physical device enabled. PinkieSysMon may now use its USB display."
+                : "Physical device disabled. USB output stopped.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Could not change physical device enabled state.", ex);
+            _notifications.Show($"Device setting failed: {ex.Message}", RuntimeNotificationKind.Error);
         }
     }
 
@@ -139,6 +271,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _dashboardsMenu.DropDownOpening += (_, _) => RefreshDashboardMenuSafe();
         menu.Items.Add(_dashboardsMenu);
         RefreshDashboardMenuSafe();
+
+        // An initial placeholder makes this a real drop-down before its first open.
+        _physicalDevicesMenu.DropDownItems.Add(
+            new ToolStripMenuItem("(select to scan devices)") { Enabled = false });
+        _physicalDevicesMenu.DropDownOpening += (_, _) => RefreshPhysicalDeviceMenu();
+        menu.Items.Add(_physicalDevicesMenu);
 
         menu.Items.Add(new ToolStripSeparator());
         var exit = new ToolStripMenuItem("Exit");

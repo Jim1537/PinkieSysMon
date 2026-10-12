@@ -179,6 +179,40 @@ internal static class DeviceDiscoveryStage16Tests
             "Reconnecting the same identity must restore its previously configured record.");
     }
 
+    public static void DeviceEnabledConsentPolicy()
+    {
+        var known = Target();
+        var device = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("stage17-physical-device"),
+            OutputTargetContract.TrofeoTransport, "Known", "stage17-physical-device");
+        known.DeviceId = device.DeviceId;
+
+        var found = PhysicalDeviceInventory.Build([known], [device]);
+        Check(PhysicalDeviceInventory.CanOfferEnable(found.Single()) && !known.DeviceEnabled,
+            "Only a present and exactly bound disabled physical target may request USB ownership consent.");
+
+        known.DeviceEnabled = true;
+        Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], [device]).Single()),
+            "An already enabled target must not prompt again for enablement.");
+        known.DeviceEnabled = false;
+
+        Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], []).Single()),
+            "Disconnected configured hardware must never be enabled by the menu.");
+
+        known.DeviceId = string.Empty;
+        Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], [device]).Single()),
+            "Implicit single-device legacy matching is insufficient to enable USB ownership without explicit binding.");
+        known.DeviceId = device.DeviceId;
+
+        var twin = device with { DevicePath = "second-path" };
+        Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], [device, twin])[0]),
+            "Duplicate physical device identity must fail closed when offering enable consent.");
+
+        var unconfigured = PhysicalDeviceInventory.Build([], [device]);
+        Check(!PhysicalDeviceInventory.CanOfferEnable(unconfigured.Single()),
+            "Unconfigured newly detected hardware cannot be enabled before explicit adoption.");
+    }
+
     public static void InventoryCaptureIsolation()
     {
         var known = Target();

@@ -23,6 +23,15 @@ internal sealed record PhysicalDeviceInventoryEntry(
 
 internal static class PhysicalDeviceInventory
 {
+    // Enabling requires a known persisted binding to one presently resolved device.
+    // A fresh passive snapshot must be taken just before requesting consent.
+    internal static bool CanOfferEnable(PhysicalDeviceInventoryEntry? entry) =>
+        entry?.Status == PhysicalDeviceInventoryStatus.Connected &&
+        entry.ConfiguredTarget is { DeviceEnabled: false } target &&
+        entry.DiscoveredDevice is { } device &&
+        !string.IsNullOrWhiteSpace(target.DeviceId) &&
+        target.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase);
+
     // Read-only native discovery uses Windows Configuration Manager only.
     // The overload with a fake discoverer keeps native I/O out of regressions.
     public static IReadOnlyList<PhysicalDeviceInventoryEntry> CaptureCurrent(
