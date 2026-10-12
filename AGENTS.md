@@ -71,6 +71,9 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 
 ## Contracts and changes
 
+- Preserve the established Runtime/Editor boundaries and canonical dashboard semantics, following [Application Architecture](docs/development/architecture.md); do not opportunistically redesign them during unrelated fixes.
+- Handle error propagation, resource lifetime, ownership, recovery and ongoing overhead explicitly. Prefer supported Windows/.NET primitives over private hacks; an unexplained host, driver or device fault is not proof of an application defect.
+
 - Do not replace the production rendering path with WebView2/Chromium, use private WinForms `PropertyGrid`/`GridItem` reflection to style internals, rely on `BeginInvoke`/timing tricks as UI styling architecture, handcraft non-client chrome when native mechanisms suffice, or substitute arbitrary filename-character filters for Windows path-component validation.
 - Provider-specific behavior is owned by [provider documentation](docs/telemetry/system.md); do not silently invent hardware/sensor identities, provider ownership, metric aliases, unit conversions, or cached valid readings after loss of availability. Preserve isolation and explicit unavailable values.
 - Device selection and transport behavior are owned by [device integration documentation](docs/development/devices/trofeo-vision-9.16.md). Do not choose the first compatible device when identity is missing/ambiguous, or change protocol-sensitive I/O based on speculative performance theories. Require actual physical-device evidence for protocol/lifecycle changes.
