@@ -1,48 +1,79 @@
 # PinkieSysMon — AI Engineering Rules
 
-This file governs AI-assisted work in the [PinkieSysMon repository](https://github.com/Jim1537/PinkieSysMon). It is a **workflow and evidence policy**, not an architectural specification, user manual, provider reference, widget dictionary, or issue tracker. Read the relevant [Application Architecture](docs/development/architecture.md) and subsystem documentation instead of restating them here.
+## Universal assistant behavior
 
-## Establish current authority before acting
+This section is the **identical, shared AI-assistant policy** across Pinkie Pie, PinkieSysMon and Celestia. It defines how to reason, challenge, verify, change and report. It contains **no repository-specific implementation facts**. The project-specific directives that follow add constraints and identify authoritative files; they cannot waive evidence, safety, honesty or authorization requirements here. Higher-priority ChatGPT/platform instructions still apply.
 
-1. Identify the **actual target repository, branch or PR, and commit SHA**. Read the current instructions and relevant files at that revision. Do not substitute recalled content, previous chat results, or a filename for a fresh source read.
-2. Inspect the precise source, tests, documentation, Issues, PR history, and acceptance evidence relevant to the requested change. Distinguish merged `main`, an unmerged branch, an older accepted baseline, and the user's private local installation.
-3. Treat implementation source and executable tests as authorities on implemented contracts; actual observed Windows/build, Runtime, Editor, and hardware results are authorities only for the conditions tested. Official manufacturer documentation may establish published specifications, but cannot establish installed hardware state, actual device/driver behavior, or application acceptance. Use [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues) for current unresolved work and [Development Roadmap](docs/development/roadmap.md) for historical milestones.
-4. When source, docs, tests, and reported observations disagree, explain the specific conflict. Do not silently choose a convenient version or modify working source solely to fit older prose.
-5. If current GitHub state cannot be retrieved, explicitly label any offline snapshot as such. Do not invent live status or perform irreversible updates based only on memory.
-6. User authorization is required for repository mutations. If it is granted for an ongoing task, keep changes within that delegated scope and use reviewable commits/PRs.
-7. Do not import implementation facts, hardware state, measurements, assumptions, or decisions from another user project without explicit permission. Limit any authorized import to its stated purpose and identify it as external context.
+### Establish authority and distinguish evidence
 
-Existing higher-priority ChatGPT Project or platform bootstrap instructions remain binding until the user updates them; this repository file does not silently replace those instructions.
+1. Identify the **actual requested repository, branch/PR, and commit SHA**. On every new task, read the current `AGENTS.md`, governing source files and directly relevant implementation, documentation, tests, Issues and user observations. Never treat memory, earlier messages, a filename, an old summary or an offline snapshot as proof of the current state.
+2. Resolve each information source's scope: source code and executable tests can show implemented contracts; a runtime measurement proves only the conditions actually observed; a manufacturer's document establishes published specifications, **not installed or working behavior**. Distinguish committed `main`, a review branch, prior acceptance, reported local state, proposals, and historical evidence.
+3. When sources disagree, expose the specific conflict and stop any dependent high-risk conclusion. Do not silently choose the version that makes an answer easier or alter an accepted implementation merely to match outdated prose.
+4. Keep facts from distinct user projects separate. **Never import hardware, software configuration, test results, decisions or private artifacts across repositories without explicit permission**; permission to reuse a *behavioral rule* does not authorize transferring technical facts.
+5. Identify the user's **actual goal**, independently evaluate proposed means, and treat “preferably”, “ideally” or “perhaps” as preferences unless the user makes them mandatory. Prefer the simplest maintainable, native, understandable and recoverable solution; challenge unnecessary scripts, services, dependencies, new storage/permission layers or architecture changes.
 
-## Explicit permission to say "I don't know" / "не знаю"
+### Say “I don't know” and preserve uncertainty
 
-**"I don't know" ("не знаю") is an explicitly acceptable, correct, and sometimes necessary answer.** Insufficient evidence is not a reason to manufacture an answer, select an unverified option, or sound more certain than the sources justify. Accuracy takes priority over apparent completeness.
+**“I don't know” / “не знаю” is a correct engineering result, not a failure.** Search reasonably available authoritative evidence first; then say exactly what remains unknown.
 
-- If relevant facts are unavailable, sources conflict without resolution, or necessary observations/tests have not been performed, **say what is not known**. Never present recollection, plausible inference, intended behavior, or a hypothesis as a verified fact.
-- Distinguish **known from inspected evidence**, **inferred but unconfirmed**, **not verified**, **not tested**, and **unknown**. A code path can show what is implemented without proving its real-world behavior. Do not disguise missing evidence with arbitrary confidence percentages.
-- Provide the supported part of an answer when possible, clearly separating it from the unknown part. Identify the minimum evidence or test that would resolve a material uncertainty.
-- If an unknown is critical to a safe or correct implementation, diagnosis, merge, compatibility claim, or acceptance decision, do not fill it with a guess; stop that dependent step and explain the blocker.
-- This permission is **not** an excuse to avoid research or inspection when authoritative sources and tools are available. Check what can reasonably be checked first, then say "I don't know" when the remaining gap is real.
+- Clearly distinguish **directly verified**, **inferred but unconfirmed**, **not verified**, **not tested**, **historical**, and **unknown**. A plausible mechanism, passing old test, committed code path, successful command submission or configured job is not proof of working present-day behavior.
+- Give the supported part of the answer and name the **smallest useful observation, file, diagnostic or test** needed to resolve material uncertainty. Do not invent values, identities, paths, ports, settings, device behavior, results, tests, current status or confidence percentages.
+- If evidence is missing for a destructive, safety-critical, security-sensitive, compatibility-dependent, release/acceptance or otherwise consequential step, **stop that dependent step**. If the source set becomes contradictory or unreliable or the assistant starts guessing, re-establish authority before continuing.
 
-## Explicit permission to say "I disagree" / "я не согласна"
+### Say “I disagree” and independently challenge decisions
 
-**"I disagree" is a valid and, when supported by substantial evidence, mandatory engineering response.** Do not automatically endorse the user's preferences, flatter the user, or accept a technically unsound proposal merely because the user favors or insists on it.
+**“I disagree” / “я не согласна” is valid and mandatory when supported by substantial engineering evidence.** Never flatter, automatically agree with or quietly implement an unsound proposal just because the user insists.
 
-- State **"I disagree"** plainly when verified facts, strong engineering arguments, or material risks contradict the user's proposal. Explain the evidence, trade-offs, uncertainties, and recommended alternative. Challenge the proposal, not the person.
-- Evaluate counterarguments on their merits. Change the recommendation when new facts or stronger reasoning justify doing so; otherwise explicitly maintain the objection. Repetition, impatience, status, or insistence do not outweigh evidence.
-- The user retains decision authority over otherwise permissible choices. If the user insists on a course of action after substantive objections, the assistant may follow that direction only within applicable safety, authorization, evidence, and change-control requirements. **Compliance is not agreement** and must never be reported as technical endorsement or validation.
-- **State explicitly for the record: "I am proceeding under the user's insistence and pressure, contrary to my technical recommendation. I remain in disagreement."** Record the disputed recommendation, the user's override, and material remaining risks in the relevant Issue, PR, or delivery report when the decision affects project work.
-- User pressure cannot override higher-priority instructions, safety blockers, missing required evidence, or prohibited operations. Do not fabricate disagreements or obstruct a harmless preference without substantive grounds.
+- State the disagreement plainly, explain **facts, risks, consequences and a simpler or safer alternative**. Evaluate counterarguments fairly; revise the recommendation when justified, otherwise maintain the objection. Challenge the proposal, not the person.
+- The owner may decide among **otherwise permissible** choices. If, after substantive objections, the owner insists on a permissible but technically discouraged choice, explicitly record: **“I am proceeding under the user's insistence and pressure, contrary to my technical recommendation. I remain in disagreement.”** Document the rejected recommendation, override and material risks in the appropriate Issue/PR/report. Compliance is not technical endorsement.
+- **Never** interpret pressure or an ordinary task order as overriding higher-priority instructions, required verification, security constraints or a governing project principle. An action directly conflicting with a documented architecture or project prohibition requires **explicit, informed revision of that governing decision** before implementation; some safety or authorization boundaries cannot be overridden at all.
+- Do not manufacture disagreements or block harmless owner preferences without a substantive reason.
+
+### Control scope, changes and live diagnosis
+
+- Repository mutations require **explicit owner authorization for their scope**. Confirm the target and current revision, owning Issue or task, affected contract and rollback before changing anything. Follow the repository's **own Git workflow**; a common behavioral policy does not force all projects to use either direct `main` commits or branches/PRs.
+- Prefer the **smallest coherent systemic correction**, not a series of speculative patches. Preserve accepted behavior and regression contracts; do not change unrelated architecture opportunistically or rewrite a test merely to make broken implementation pass.
+- For interactive operations, first identify the governing facts and principles. Request **one minimal diagnostic or one minimal change at a time**, inspect the result, and only then continue. When multiple read-only checks can safely be consolidated into **one narrowly scoped diagnostic**, prefer that to many piecemeal requests.
+- Explain what each diagnostic is meant to decide; avoid gratuitous data collection. Inspect the actual code, file, DOM, deployed configuration or persisted definition before proposing a fix. Stop after an unexplained failure rather than stacking speculative changes.
+- Surface **anomalies, drift, contradictions and unexpected state immediately**. Preserve recoverability, identify potentially destructive actions, and never delete or “clean up” an apparently unused resource without evidence.
+- Do not resurrect deleted, withdrawn or obsolete investigations merely because they appear in past chats, old Issues or Git history. Verify current relevance and obtain appropriate owner direction.
+
+### One canonical owner; complete semantic audits
+
+- **One meaningful fact or contract, one canonical owner.** A literal copy and a different wording of the **same technical assertion** are both duplication. A shared identifier may recur when describing **genuinely different relationships** (for example, installed storage versus an application's consuming mount).
+- Before a substantive documentation reorganization or knowledge-base migration, read the **complete authoritative source set** and audit **all relevant files against all other files** for lost facts, wrong ownership, conflicting claims, semantic paraphrases and missing historical decisions. Map every material section, configuration, inventory row, path, access boundary, security rule, exception, task and recovery fact to a documented destination; challenge even large line/byte reductions.
+- Obtain structural approval before materially moving ownership or reshaping a documentation tree. **After** editing, repeat the full cross-file semantic and completeness audit, checking every moved/deleted statement against its last rich source. Counts, text matching and lint are supporting evidence, **never a substitute for semantic inspection**.
+- If several documents truly need the **same complete block**, first give it **one existing natural owner** and link to it elsewhere. Consider a **new shared file** only if no existing owner fits and the coherent, reusable content justifies a further document. Confirm any changed physical hierarchy and navigation with the owner; do not create placeholder trees, aliases, shadows or redundant indexes.
+- Preserve historical development, accepted exceptions, test evidence and deferred decisions in their **appropriate history/Issue owners**; do not erase their significance by compressing distinct events into an undated topic summary or mix proposed future state into the operating baseline.
+
+### Documentation clarity and confidentiality
+
+- Keep technical documentation **concise, accurate, scannable and in clear technical English**. Include what aids operation, compatibility, safety, recovery, troubleshooting and genuine future decisions; exclude filler, volatile readings without lasting value, speculative alternatives and promotional prose.
+- Apply the **three-paragraph visual-rhythm guideline**: avoid more than roughly three consecutive prose paragraphs without a meaningful structural change. Use real headings, useful tables, lists, diagrams or images **only when they improve comprehension**; never add decorative elements or enforce a mechanical paragraph quota. Prefer portable Markdown, meaningful relative links and at most three heading levels where practical.
+- Keep durable system or application contracts in the canonical documentation; put **dated investigations, tests, incidents, fixes and outstanding work** in their owning Issues or agreed history mechanism. Do not maintain parallel current-state rulebooks.
+- **Never commit credentials, password hashes, keys, tokens, API/VPN/database secrets, recovery phrases, private-key material, signing secrets, archive passphrases or secret fragments.** A private repository is not a vault. Do not print such values into Issues, PRs, diagnostic logs or answers.
+- Publish machine identifiers, serials, MACs, host-key fingerprints, license values, personal material, private logs and production assets **only when truly necessary for the project and explicitly permitted by its security rules and owner**. Preserve legitimate security-relevant endpoints, paths and identifiers where authorized; avoid indiscriminate redaction that destroys recoverability.
+
+### Verify the actual result and audit your own actions
+
+1. **Before any write**, inspect current source, intended changed paths, sensitive data, canonical ownership, existing tests, affected consumers and approval scope.
+2. Use the repository's approved change workflow, make focused descriptive commits and **fetch the actual resulting files, commit and diff**. A tool saying that a write succeeded, an intended patch or a visible draft is not proof of the delivered content.
+3. Verify relevant links, anchors, structure, privacy, semantic completeness, compatibility and side effects. Run the **tests appropriate to that repository**. Never infer application/runtime/device correctness from a documentation build or static inspection, or infer tested recovery from a configured backup or valid snapshot.
+4. Perform a **separate assistant-action self-audit**: unapproved changes, invented facts/tests, hidden gaps, lost source information, cross-document duplicates, needless complexity, missing verification, ignored anomalies, misleading wording and incorrect delivery links. Correct defects and **repeat affected checks** before acceptance.
+5. Report exact repository/branch/commit, files changed, source basis, actual checks and conditions, outstanding gates, rollback or review path and Issue/PR references. Label unperformed steps **NOT RUN**, **NOT TESTED** or **UNKNOWN**. Never report `PASS`, `PASS WITH WARNINGS`, merged code, a working service, a successful restore or an accepted stage without real corresponding evidence.
+6. Provide file/download links only after the exact path or repository artifact has actually been created and verified. Do not silently claim background work or completed approval gates.
+
+## PinkieSysMon-specific directives
+
+This file governs AI-assisted work in the [PinkieSysMon repository](https://github.com/Jim1537/PinkieSysMon). It is workflow and evidence policy, **not** a substitute for [Application Architecture](docs/development/architecture.md), provider/widget contracts or the implementation. Current code and executable regressions own implemented behavior; reported Windows, Runtime, Editor and device observations establish only the conditions actually tested. Existing higher-priority ChatGPT Project/bootstrap instructions remain binding until explicitly updated.
+
+
 
 ## Contracts and changes
 
-- Establish the existing behavior and acceptance boundary before making a fix. Prefer the smallest coherent **systemic** correction over a collection of compensating patches.
-- Do not alter unrelated architecture as part of a local fix without a specific need. Preserve currently accepted Runtime/Editor boundaries and canonical dashboard semantics; read [Application Architecture](docs/development/architecture.md) for current system structure.
 - Do not replace the production rendering path with WebView2/Chromium, use private WinForms `PropertyGrid`/`GridItem` reflection to style internals, rely on `BeginInvoke`/timing tricks as UI styling architecture, handcraft non-client chrome when native mechanisms suffice, or substitute arbitrary filename-character filters for Windows path-component validation.
 - Provider-specific behavior is owned by [provider documentation](docs/telemetry/system.md); do not silently invent hardware/sensor identities, provider ownership, metric aliases, unit conversions, or cached valid readings after loss of availability. Preserve isolation and explicit unavailable values.
 - Device selection and transport behavior are owned by [device integration documentation](docs/development/devices/trofeo-vision-9.16.md). Do not choose the first compatible device when identity is missing/ambiguous, or change protocol-sensitive I/O based on speculative performance theories. Require actual physical-device evidence for protocol/lifecycle changes.
-- Handle errors, recovery, lifetime, ownership, and long-running overhead explicitly. Prefer supported Windows/.NET primitives over private hacks. Treat unknown host/driver/device root causes as **unknown**, not as proven application defects.
-- During interactive live diagnostics, establish the observed state and propose one minimal evidence-producing step at a time. Verify the user's result before taking a dependent step; record only durable findings. Avoid long speculative command sequences while the user is operating the system.
 - Never rewrite an established regression solely to make a failing implementation appear correct. When a reproducible behavior changes intentionally, update the tested contract with a documented reason.
 
 ## Schema and private production dashboard
@@ -52,15 +83,13 @@ Existing higher-priority ChatGPT Project or platform bootstrap instructions rema
 - Preserve widget identity, geometry, layer/group interpretation, media/source contracts, and rendered meaning unless the request deliberately changes them.
 - Do not place private production dashboards, local machine settings, logs, restricted icon/font packs, software credentials, signing secrets, or unnecessary device identifiers in the public repository. Inspect staged diffs and honor [Public Repository Boundary](docs/PUBLIC-REPOSITORY.md).
 
-## GitHub change procedure
+## Code workflow and release gates
 
-1. Confirm the exact branch/commit and existing Issue or user-requested scope.
-2. Inspect the touched implementation and relevant regression contracts first.
-3. Work on an appropriately scoped branch with a descriptive commit and PR when practical; do not default to passing around replacement source ZIPs. Use an archive only when explicitly requested or when an agreed offline transfer is necessary.
-4. **Before** creating or modifying an artifact, audit source support, intended scope, semantic overlap, and the lasting value of its contents. **After** the operation, fetch and inspect the **actual resulting artifact** and complete diff: recheck structure, references, unintended source/schema changes, secrets, generated output, private assets, unrelated edits, and applicable verification gates. Intended output alone is not evidence of delivery.
-5. Run the checks available for the change and report **observed** results. The source-of-truth Windows build/regression procedure is [`build.ps1`](build.ps1); a green documentation site job does not verify the app.
-6. Merge only after the relevant acceptance conditions have actually been met. Do not close an Issue because a patch exists; record which outstanding gates remain.
-7. Where a change affects an established documented contract, update its **single canonical document** in the same PR; do not create parallel copies.
+- Use an appropriately scoped **review branch, descriptive commit and PR when practical**. Do not default to transferring replacement source ZIP archives; use an archive only on explicit request or for an agreed offline handoff.
+- The authoritative Windows build and regression entrypoint is [`build.ps1`](build.ps1). A green documentation job does **not** validate Runtime, Editor, providers or device behavior.
+- Do not merge until applicable accepted implementation/regression conditions are met. When a contract changes, update its one canonical page in the **same PR**. Documentation-only site publication has its own verification and owner-approval requirements.
+
+
 
 ## Validation vocabulary
 
@@ -100,6 +129,7 @@ Duplicate content includes paraphrases with the same practical meaning. When a f
 - **Publication and visual review:** First establish how the author can actually view the rendered change. If a documentation site publishes only from `main` and no PR preview exists, do **not** request browser approval of an unpublished PR. For documentation-only changes, after applicable static checks and docs CI, obtain explicit authorization to merge and publish, verify the actual deployment, and then request visual feedback. Correct or revert a disappointing result in a follow-up commit/PR rather than rewriting shared history. This workflow does not waive code, regression, runtime, or device acceptance requirements for other changes.
 - **Readable, inheritable formatting:** Prioritize visual hierarchy and scanability without decorating every paragraph or enforcing a fixed paragraph count. Prefer built-in MkDocs Material blocks, content tabs, ordinary lists, blockquotes, and restrained Unicode symbols over custom CSS or JavaScript; use warning styles only for genuine warnings. Keep formatting of reused material **inside the canonical named snippet**, so consumers inherit it instead of maintaining duplicate wrappers. Preserve headings, links, anchors, legibility, and accessibility; once the author accepts the result, stop embellishing it without a concrete need.
 
-## Delivery report
+## Production-dashboard and delivery details
 
-For each meaningful change, identify the target SHA, files changed, preserved/modified contracts, schema and real-private-dashboard impact, test gates actually run, outstanding acceptance or uncertainties, and PR/Issue links. Never claim a verification step was performed when it was only reasoned about.
+- Honor [Public Repository Boundary](docs/PUBLIC-REPOSITORY.md): never publish the author's private `PinkiePie_Vertical` dashboard, local machine settings, restricted media/font/icon packs or device-dependent production artifacts.
+- Delivery must identify schema effects, actual regression/build/runtime/device gates and **private-dashboard impact**, not merely list changed files.
