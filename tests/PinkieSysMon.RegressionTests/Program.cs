@@ -28,6 +28,8 @@ internal static class Program
             ("Output target selection", OutputTargetSelection),
             ("Stage16 passive discovery and reconnect identity", DeviceDiscoveryStage16Tests.PassiveReconnect),
             ("Stage16 duplicate configured identity fails closed", DeviceDiscoveryStage16Tests.DuplicateIdentity),
+            ("Stage16 verified USB instance fingerprint parsing", DeviceDiscoveryStage16Tests.PassiveSerialFingerprint),
+            ("Stage16 duplicate physical serial fingerprint fails closed", DeviceDiscoveryStage16Tests.DuplicateSerialFingerprint),
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),

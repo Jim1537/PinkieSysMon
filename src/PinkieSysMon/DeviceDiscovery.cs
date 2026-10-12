@@ -10,6 +10,10 @@ internal sealed record OutputDeviceDescriptor(
     string DisplayName,
     string DevicePath)
 {
+    // Optional read-only PnP fingerprint, never a replacement for the existing
+    // persisted interface-path DeviceId without an explicit migration.
+    public string? PhysicalFingerprint { get; init; }
+
     public string ShortId
     {
         get
@@ -68,6 +72,15 @@ internal static class OutputDeviceSelection
             .Where(device => device.Transport.Equals(target.Transport, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
+        // One claimed physical serial on two interfaces is ambiguous regardless
+        // of whether the legacy per-path ID uniquely matches one of them.
+        var duplicatePhysicalIds = candidates
+            .Where(device => !string.IsNullOrWhiteSpace(device.PhysicalFingerprint))
+            .GroupBy(device => device.PhysicalFingerprint!, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         if (!string.IsNullOrWhiteSpace(target.DeviceId))
         {
             // Exact ID matching is necessary but not sufficient: if future identity
@@ -84,6 +97,12 @@ internal static class OutputDeviceSelection
                     OutputDeviceResolutionStatus.Missing,
                     null,
                     $"Configured output device for target '{target.Name}' is not present."),
+                1 when matches[0].PhysicalFingerprint is { } fingerprint &&
+                       duplicatePhysicalIds.Contains(fingerprint) =>
+                    new OutputDeviceResolution(
+                        OutputDeviceResolutionStatus.Ambiguous,
+                        null,
+                        $"Physical identity for output target '{target.Name}' is duplicated across attached interfaces."),
                 1 => new OutputDeviceResolution(OutputDeviceResolutionStatus.Found, matches[0], string.Empty),
                 _ => new OutputDeviceResolution(
                     OutputDeviceResolutionStatus.Ambiguous,
@@ -143,7 +162,14 @@ internal static class DeviceDiscovery
 
                 var buffer = new char[checked((int)length)];
                 Marshal.Copy(nativeBuffer, buffer, 0, checked((int)length));
-                return CreateTrofeoDescriptors(ParseMultiSz(buffer));
+                // Pure CM/PnP metadata lookup: never open the WinUSB transport
+                // simply to discover or inspect a physical output identity.
+                return CreateTrofeoDescriptors(ParseMultiSz(buffer))
+                    .Select(device => device with
+                    {
+                        PhysicalFingerprint = PassiveTrofeoIdentity.TryReadFingerprint(device.DevicePath)
+                    })
+                    .ToArray();
             }
             finally
             {
@@ -209,4 +235,92 @@ internal static class DeviceDiscovery
         IntPtr buffer,
         uint bufferLen,
         uint ulFlags);
+}
+
+// An optional serial-backed identity observation, not an automatic rebind.
+// Validates that the interface path maps to a present USB PnP devnode which
+// advertises a system-unique instance ID. Windows USB supplies the instance
+// token from iSerialNumber for properly enumerated serial-bearing devices.
+// Only a SHA-256 fingerprint is exposed to Runtime; the raw serial is never
+// logged, persisted or returned in an OutputDeviceDescriptor.
+internal static class PassiveTrofeoIdentity
+{
+    private const uint CrSuccess = 0;
+    private const uint CmDrpCapabilities = 0x10;
+    private const uint CmDevcapUniqueId = 0x10;
+    private const uint RegDword = 4;
+    private const string InstancePrefix = @"USB\VID_0416&PID_5408\";
+    private static readonly Guid InterfaceClassGuid = new("DEE824EF-729B-4A0E-9C14-B7117D33A817");
+
+    internal static string? TryReadFingerprint(string interfacePath)
+    {
+        if (!TryParseInstanceId(interfacePath, out var instanceId, out var instanceToken))
+            return null;
+
+        // No CreateFile, USB descriptor requests, WinUsb_Initialize or retries:
+        // merely inspect metadata already held by Windows' device tree.
+        try
+        {
+            if (CM_Locate_DevNodeW(out var devInst, instanceId, 0) != CrSuccess)
+                return null;
+
+            var bytes = new byte[sizeof(uint)];
+            uint length = sizeof(uint);
+            if (CM_Get_DevNode_Registry_PropertyW(
+                    devInst, CmDrpCapabilities, out var dataType, bytes, ref length, 0) != CrSuccess ||
+                dataType != RegDword || length != sizeof(uint))
+                return null;
+
+            return FingerprintIfUnique(instanceToken, BitConverter.ToUInt32(bytes));
+        }
+        catch (DllNotFoundException) { return null; }
+        catch (EntryPointNotFoundException) { return null; }
+    }
+
+    // Interface paths have the form \\?\usb#vid_0416&pid_5408#<instance>#{GUID}.
+    // This parser alone cannot prove the instance token is a hardware serial.
+    // Only native PnP CM_DEVCAP_UNIQUEID promotes it to a candidate fingerprint.
+    internal static bool TryParseInstanceId(
+        string path, out string instanceId, out string instanceToken)
+    {
+        instanceId = string.Empty;
+        instanceToken = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        var parts = path.Split('#');
+        if (parts.Length != 4 ||
+            !parts[0].Equals(@"\\?\usb", StringComparison.OrdinalIgnoreCase) ||
+            !parts[1].Equals("vid_0416&pid_5408", StringComparison.OrdinalIgnoreCase) ||
+            !Guid.TryParse(parts[3], out var classGuid) ||
+            classGuid != InterfaceClassGuid ||
+            string.IsNullOrWhiteSpace(parts[2]) ||
+            parts[2].Any(ch => char.IsControl(ch) || ch == '\\' || ch == '/' || ch == '#'))
+            return false;
+
+        instanceToken = parts[2];
+        instanceId = InstancePrefix + instanceToken;
+        return true;
+    }
+
+    // Do not treat a port-derived or bus-local PnP instance token as a serial.
+    internal static string? FingerprintIfUnique(string token, uint capabilities) =>
+        (capabilities & CmDevcapUniqueId) != 0 ? Fingerprint(token) : null;
+
+    internal static string Fingerprint(string instanceToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceToken);
+        var canonical = "trofeo-usb-serial-v1\nVID_0416&PID_5408\n" +
+            instanceToken.Trim().ToUpperInvariant();
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+    }
+
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint CM_Locate_DevNodeW(
+        out uint devInst, string deviceId, uint flags);
+
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint CM_Get_DevNode_Registry_PropertyW(
+        uint devInst, uint property, out uint dataType, [Out] byte[] buffer,
+        ref uint length, uint flags);
 }

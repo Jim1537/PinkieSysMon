@@ -64,6 +64,68 @@ internal static class DeviceDiscoveryStage16Tests
             "Ambiguous or absent discovery must not authorize a physical transport start.");
     }
 
+    public static void PassiveSerialFingerprint()
+    {
+        const string path = @"\\?\usb#vid_0416&pid_5408#SYNTHETIC_SERIAL#{dee824ef-729b-4a0e-9c14-b7117d33a817}";
+        Check(PassiveTrofeoIdentity.TryParseInstanceId(path, out var instanceId, out var token) &&
+              instanceId == @"USB\VID_0416&PID_5408\SYNTHETIC_SERIAL" &&
+              token == "SYNTHETIC_SERIAL",
+            "The candidate must be extracted from the exact Trofeo PnP interface instance path.");
+        Check(PassiveTrofeoIdentity.Fingerprint(token) ==
+              PassiveTrofeoIdentity.Fingerprint("synthetic_serial") &&
+              PassiveTrofeoIdentity.Fingerprint(token) !=
+              PassiveTrofeoIdentity.Fingerprint("DIFFERENT_SERIAL"),
+            "Fingerprints must ignore Windows path casing but distinguish individual serial tokens.");
+        Check(!PassiveTrofeoIdentity.TryParseInstanceId(
+                  @"\\?\usb#vid_0416&pid_5408#SYNTHETIC_SERIAL#{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}",
+                  out _, out _) &&
+              !PassiveTrofeoIdentity.TryParseInstanceId(
+                  @"\\?\usb#vid_1234&pid_5408#SYNTHETIC_SERIAL#{dee824ef-729b-4a0e-9c14-b7117d33a817}",
+                  out _, out _) &&
+              !PassiveTrofeoIdentity.TryParseInstanceId(
+                  @"\\?\usb#vid_0416&pid_5408##{dee824ef-729b-4a0e-9c14-b7117d33a817}",
+                  out _, out _),
+            "Wrong interface GUID, VID/PID or empty identity token must never produce a fingerprint.");
+        Check(PassiveTrofeoIdentity.FingerprintIfUnique(token, 0) is null &&
+              PassiveTrofeoIdentity.FingerprintIfUnique(token, 0x04) is null &&
+              PassiveTrofeoIdentity.FingerprintIfUnique(token, 0x10) ==
+              PassiveTrofeoIdentity.Fingerprint(token),
+            "Only a PnP system-unique devnode may produce a candidate serial fingerprint.");
+        Check(DeviceDiscovery.CreateTrofeoDescriptors([path])[0].PhysicalFingerprint is null,
+            "The pure path parser must never assert hardware identity before native PnP verification.");
+    }
+
+    public static void DuplicateSerialFingerprint()
+    {
+        var first = new OutputDeviceDescriptor(
+            "trofeo:" + new string('a', 64),
+            OutputTargetContract.TrofeoTransport, "Synthetic A", "mock-a")
+        {
+            PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("TWIN")
+        };
+        var second = new OutputDeviceDescriptor(
+            "trofeo:" + new string('b', 64),
+            OutputTargetContract.TrofeoTransport, "Synthetic B", "mock-b")
+        {
+            PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("twin")
+        };
+        var target = Target();
+        target.DeviceId = first.DeviceId;
+        var collision = OutputDeviceSelection.Resolve(target, [first, second]);
+        Check(collision.Status == OutputDeviceResolutionStatus.Ambiguous && collision.Device is null,
+            "Two interfaces claiming the same PnP-verified physical identity must not bind through a unique legacy path ID.");
+        var one = OutputDeviceSelection.Resolve(target, [first]);
+        Check(one.Status == OutputDeviceResolutionStatus.Found && one.Device == first,
+            "An explicit unambiguous legacy binding must remain valid.");
+        var unrelated = second with
+        {
+            PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("OTHER")
+        };
+        var distinct = OutputDeviceSelection.Resolve(target, [first, unrelated]);
+        Check(distinct.Status == OutputDeviceResolutionStatus.Found && distinct.Device == first,
+            "Two physically distinct fingerprints must preserve explicit single-interface selection.");
+    }
+
     private static OutputTargetConfig Target() => new()
     {
         Id = "stage16-physical",
