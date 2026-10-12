@@ -28,6 +28,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
     private TelemetryEngine _telemetry;
     private OutputSessionManager _outputSessions;
+    private IReadOnlyList<PhysicalDeviceInventoryEntry> _physicalInventory = Array.Empty<PhysicalDeviceInventoryEntry>();
     private HashSet<string> _lastRequiredMetrics = new(StringComparer.OrdinalIgnoreCase);
     private bool _exiting;
 
@@ -84,6 +85,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _outputSessions.Start();
         ReconcileTelemetryDemand();
         _ipcServer.Start();
+        RefreshPhysicalInventory();
 
         _log.Info(
             $"PinkieSysMon started. Direct Skia renderer; no WebView2. " +
@@ -92,6 +94,30 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             $"configEnabledMetrics={_telemetryConfig.Metrics.Count(x => x.Value.Enabled)}; " +
             $"dashboardMetrics={_lastRequiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}; " +
             $"outputAutostart={(startOutputSessions ? "enabled" : "suppressed")}.");
+    }
+
+    // Captured on startup and after successful configuration reload, not on the
+    // one-second tray timer. Never opens WinUSB or authorizes Device Enabled.
+    // An optional discovery failure must not interrupt a working output.
+    private void RefreshPhysicalInventory()
+    {
+        try
+        {
+            var snapshot = PhysicalDeviceInventory.CaptureCurrent(_config.Outputs.Targets);
+            _physicalInventory = snapshot;
+            _log.Info(
+                $"Passive physical discovery: " +
+                $"knownConnected={snapshot.Count(e => e.IsPersisted && e.Status == PhysicalDeviceInventoryStatus.Connected)}; " +
+                $"knownDisconnected={snapshot.Count(e => e.IsPersisted && e.Status == PhysicalDeviceInventoryStatus.Disconnected)}; " +
+                $"newCandidates={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Unconfigured)}; " +
+                $"ambiguous={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Ambiguous)}; " +
+                $"serialFingerprints={snapshot.Count(e => e.DiscoveredDevice?.PhysicalFingerprint is not null)}.");
+        }
+        catch (Exception ex)
+        {
+            // Discovery must not block Runtime or take down active device sessions.
+            _log.Warn("Passive physical discovery failed; previous snapshot retained.", ex);
+        }
     }
 
     private void BuildTray()
@@ -161,6 +187,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
             var boards = RuntimeConfigurationValidator.LoadAssignments(app, _baseDir);
             ApplyConfiguration(app, telemetry, boards);
+            RefreshPhysicalInventory();
             _log.Info($"Configuration and independent dashboards for {app.Outputs.Targets.Count} outputs reloaded.");
             if (showNotification)
                 _notifications.Show("Configuration reloaded.");

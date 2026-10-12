@@ -23,6 +23,21 @@ internal sealed record PhysicalDeviceInventoryEntry(
 
 internal static class PhysicalDeviceInventory
 {
+    // Read-only native discovery uses Windows Configuration Manager only.
+    // The overload with a fake discoverer keeps native I/O out of regressions.
+    public static IReadOnlyList<PhysicalDeviceInventoryEntry> CaptureCurrent(
+        IReadOnlyList<OutputTargetConfig> configuredTargets) =>
+        Capture(configuredTargets, DeviceDiscovery.EnumerateTrofeoDevices);
+
+    internal static IReadOnlyList<PhysicalDeviceInventoryEntry> Capture(
+        IReadOnlyList<OutputTargetConfig> configuredTargets,
+        Func<IReadOnlyList<OutputDeviceDescriptor>> discover)
+    {
+        ArgumentNullException.ThrowIfNull(configuredTargets);
+        ArgumentNullException.ThrowIfNull(discover);
+        return Build(configuredTargets, discover());
+    }
+
     public static IReadOnlyList<PhysicalDeviceInventoryEntry> Build(
         IReadOnlyList<OutputTargetConfig> configuredTargets,
         IReadOnlyList<OutputDeviceDescriptor> discoveredDevices)

@@ -179,6 +179,36 @@ internal static class DeviceDiscoveryStage16Tests
             "Reconnecting the same identity must restore its previously configured record.");
     }
 
+    public static void InventoryCaptureIsolation()
+    {
+        var known = Target();
+        var device = new OutputDeviceDescriptor(
+            DeviceDiscovery.CreateStableDeviceId("stage16-captured-interface"),
+            OutputTargetContract.TrofeoTransport, "Captured", "stage16-captured-interface")
+        {
+            PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("synthetic-captured-serial")
+        };
+        known.DeviceId = device.DeviceId;
+        var enumerations = 0;
+        var snapshot = PhysicalDeviceInventory.Capture([known], () =>
+        {
+            enumerations++;
+            return [device];
+        });
+
+        Check(enumerations == 1 &&
+              snapshot.Count == 1 &&
+              snapshot[0].Status == PhysicalDeviceInventoryStatus.Connected &&
+              snapshot[0].DiscoveredDevice?.PhysicalFingerprint == device.PhysicalFingerprint &&
+              known.DeviceId == device.DeviceId && !known.DeviceEnabled,
+            "Capturing a discovery snapshot must query only once, retain the selected fingerprint and never enable hardware.");
+        var unavailable = PhysicalDeviceInventory.Capture([known], () => []);
+        Check(unavailable.Count == 1 &&
+              unavailable[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              unavailable[0].CanRemove && !unavailable[0].CanEditSettings,
+            "A subsequent passive capture with no device must retain the configured output for the future Settings view.");
+    }
+
     public static void InventoryNeverRebindsAmbiguousHardware()
     {
         var known = Target();

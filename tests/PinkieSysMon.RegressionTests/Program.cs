@@ -32,6 +32,7 @@ internal static class Program
             ("Stage16 duplicate physical serial fingerprint fails closed", DeviceDiscoveryStage16Tests.DuplicateSerialFingerprint),
             ("Stage16 physical inventory known and new snapshots", DeviceDiscoveryStage16Tests.InventoryPreservesKnownAndNew),
             ("Stage16 physical inventory ambiguity and no rebind", DeviceDiscoveryStage16Tests.InventoryNeverRebindsAmbiguousHardware),
+            ("Stage16 native inventory capture isolation", DeviceDiscoveryStage16Tests.InventoryCaptureIsolation),
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),
