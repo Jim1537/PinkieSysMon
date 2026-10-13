@@ -97,6 +97,7 @@ internal static class Program
             ("Editor title-bar menu theme contract", EditorTitleBarMenuThemeContract),
             ("Editor theme settings contract", EditorThemeSettingsContract),
             ("Stage21 General Settings app-wide isolation", EditorGeneralSettingsContract),
+            ("Stage22 Desktop Settings master-detail and lifecycle policy", EditorDesktopSettingsContract),
             ("Editor property-tab icon presentation", EditorPropertyTabIconPresentationContract),
             ("Editor Windows App SDK title-bar ownership contract", EditorDwmNonClientForwardingContract),
             ("Windows application identity metadata", WindowsApplicationIdentityMetadata),
@@ -1940,10 +1941,13 @@ internal static class Program
             libreHardwareMonitorProviderEnabled: false,
             icueProviderEnabled: true,
             toolbarIconSize: 48,
-            themeMode: EditorThemeMode.Dark);
+            themeMode: EditorThemeMode.Dark,
+            config: new AppConfig(),
+            dashboards: ["Default"]);
         var tabs = dialog.Controls.OfType<TabControl>().Single();
-        Assert(tabs.TabPages.Count == 1 && tabs.TabPages[0].Text == "General",
-            "Stage21 General tab must contain only application-wide preferences; Desktop/Device tabs own later UI.");
+        Assert(tabs.TabPages.Count == 2 && tabs.TabPages[0].Text == "General" &&
+               tabs.TabPages[1].Text == "Desktop",
+            "Stage22 adds Desktop beside the accepted Stage21 General tab; Device tabs remain Stage23.");
         Assert(dialog.StartRuntimeWithWindows && dialog.SystemProviderEnabled &&
                !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
                dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
@@ -1953,6 +1957,81 @@ internal static class Program
             "General tab must not expose legacy global device binding, physical JPEG, or per-output refresh settings.");
         Assert(tabs.TabPages[0].Controls.OfType<NumericUpDown>().Count() == 0,
             "Global Settings must not expose physical USB/display quality or refresh numeric controls.");
+    }
+
+    private static void EditorDesktopSettingsContract()
+    {
+        var config = new AppConfig();
+        var original = config.Outputs.Targets.Single();
+        original.Name = "Left panel";
+        original.Desktop!.BoardEnabled = false;
+        original.ProviderEnabled = true;
+        original.Desktop.Lock = true;
+        original.RefreshIntervalMs = 500;
+        var physical = new OutputTargetConfig
+        {
+            Id = "stage22-physical",
+            Name = "Disabled hardware",
+            Kind = OutputTargetContract.TrofeoKind,
+            Transport = OutputTargetContract.TrofeoTransport,
+            DeviceEnabled = false,
+            Dashboard = "Default"
+        };
+        config.Outputs.Targets.Add(physical);
+        var model = new DesktopSettingsModel(config);
+        Assert(model.Desktops.Count == 1 && !model.IsDirty &&
+               !model.Desktops[0].Desktop!.BoardEnabled && model.Desktops[0].ProviderEnabled &&
+               model.Desktops[0].Desktop!.Lock && model.Desktops[0].RefreshIntervalMs == 500,
+            "Desktop Settings must select a detached working copy preserving independent flags and refresh.");
+        model.Desktops[0].Name = "Changed panel";
+        model.MarkChanged();
+        Assert(original.Name == "Left panel",
+            "Editing a Desktop in Settings must not change the committed config before OK.");
+        var added = model.Create("Default");
+        added.ProviderEnabled = false;
+        added.Desktop!.Lock = false;
+        added.Desktop.BoardEnabled = true;
+        added.RefreshIntervalMs = 333;
+        model.MarkChanged();
+        model.Move(1, 0);
+        Assert(model.Desktops[0] == added && added.Desktop.ZOrder == 0 &&
+               model.Desktops[1].Desktop!.ZOrder == 1,
+            "Dragging Desktop entries must reorder the separate output Z-order deterministically.");
+        model.ApplyTo(config);
+        Assert(config.Outputs.Targets.Count == 3 &&
+               ReferenceEquals(config.Outputs.Targets.Single(t => t.Kind == OutputTargetContract.TrofeoKind), physical) &&
+               config.Outputs.Targets.Where(t => t.Kind == OutputTargetContract.DesktopKind).Select(t => t.Id)
+                   .SequenceEqual(new[] { added.Id, original.Id }) &&
+               config.Outputs.Targets[0].RefreshIntervalMs == 333 &&
+               !config.Outputs.Targets[0].ProviderEnabled,
+            "Applying a Desktop dialog must preserve the physical Output object and each sibling's independent settings.");
+        var secondModel = new DesktopSettingsModel(config);
+        var extra = secondModel.Desktops.Single(t => t.Id == added.Id);
+        secondModel.Remove(extra);
+        secondModel.ApplyTo(config);
+        Assert(config.Outputs.Targets.Count == 2 &&
+               ReferenceEquals(config.Outputs.Targets[1], physical) &&
+               config.Outputs.Targets[0].Name == "Changed panel" &&
+               config.Outputs.Targets[0].ProviderEnabled,
+            "Desktop Remove must delete only the selected virtual Output; preserve remaining providers and physical targets.");
+
+        var single = new DesktopSettingsModel(new AppConfig());
+        Assert(!single.CanRemove(single.Desktops.Single()),
+            "Removing the final Output must remain prohibited.");
+        var rejected = false;
+        try { single.Remove(single.Desktops.Single()); }
+        catch (InvalidOperationException) { rejected = true; }
+        Assert(rejected, "Direct Remove calls must reject deletion of the last Output.");
+
+        using var dialog = new EditorSettingsDialog(
+            false, true, false, false, 32, EditorThemeMode.System,
+            new AppConfig(), ["Default"]);
+        var tabs = dialog.Controls.OfType<TabControl>().Single();
+        var desktopPage = tabs.TabPages.Cast<TabPage>().Single(t => t.Text == "Desktop");
+        Assert(desktopPage.Controls.OfType<TableLayoutPanel>().Single().ColumnCount == 2,
+            "Desktop Settings must use a single two-column master/detail layout.");
+        Assert(!dialog.DesktopChanged,
+            "Opening Desktop Settings must not modify persisted configuration.");
     }
 
     private static void EditorThemeSettingsContract()

@@ -208,23 +208,60 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         Width = 130
     };
 
-    // Stage 21 owns app-wide preferences. Desktop and each discovered Device
-    // gain their own pages and controls in Stages 22 and 23 respectively.
+    private readonly DesktopSettingsModel _desktops;
+    private readonly IReadOnlyList<string> _dashboardChoices;
+    private readonly ListBox _desktopList = new()
+    {
+        Dock = DockStyle.Fill, IntegralHeight = false, AllowDrop = true
+    };
+    private readonly Button _createDesktop = new() { Text = "Create New", AutoSize = true };
+    private readonly Button _removeDesktop = new() { Text = "Remove", AutoSize = true };
+    private readonly TextBox _desktopName = new() { Dock = DockStyle.Fill };
+    private readonly ComboBox _desktopDashboard = new()
+    {
+        Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList
+    };
+    private readonly CheckBox _boardEnabled = new() { Text = "Board Enabled", AutoSize = true };
+    private readonly CheckBox _providerEnabled = new() { Text = "Provider Enabled", AutoSize = true };
+    private readonly CheckBox _desktopLock = new() { Text = "Lock (click-through)", AutoSize = true };
+    private readonly NumericUpDown _desktopInterval = new()
+    {
+        Minimum = 10, Maximum = int.MaxValue, Width = 160, ThousandsSeparator = true
+    };
+    private readonly NumericUpDown _desktopX = new()
+    {
+        Minimum = int.MinValue, Maximum = int.MaxValue, Width = 160
+    };
+    private readonly NumericUpDown _desktopY = new()
+    {
+        Minimum = int.MinValue, Maximum = int.MaxValue, Width = 160
+    };
+    private readonly Panel _desktopDetails = new() { Dock = DockStyle.Fill, AutoScroll = true };
+    private OutputTargetConfig? _selectedDesktop;
+    private bool _bindingDesktop;
+    private int _desktopDragIndex = -1;
+
+    // Stage21 owns app-wide preferences; Stage22 owns virtual Output controls.
+    // The physical Device pages are added separately in Stage23.
     public EditorSettingsDialog(
         bool startRuntimeWithWindows,
         bool systemProviderEnabled,
         bool libreHardwareMonitorProviderEnabled,
         bool icueProviderEnabled,
         int toolbarIconSize,
-        EditorThemeMode themeMode)
+        EditorThemeMode themeMode,
+        AppConfig config,
+        IReadOnlyList<string> dashboards)
     {
+        _desktops = new DesktopSettingsModel(config);
+        _dashboardChoices = dashboards;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 450);
+        ClientSize = new Size(900, 600);
 
         _startRuntime.Checked = startRuntimeWithWindows;
         _systemProvider.Checked = systemProviderEnabled;
@@ -298,6 +335,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         general.Controls.Add(generalGroup);
         var tabs = new TabControl { Dock = DockStyle.Fill };
         tabs.TabPages.Add(general);
+        tabs.TabPages.Add(BuildDesktopPage());
 
         var buttons = new FlowLayoutPanel
         {
@@ -323,7 +361,237 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
     public bool IcueProviderEnabled => _icueProvider.Checked;
     public int ToolbarIconSize => _toolbarIconSize.SelectedIndex switch { 0 => 16, 2 => 48, _ => 32 };
     public EditorThemeMode ThemeMode => EditorThemeContract.Parse(_theme.SelectedItem as string);
+
+    public bool DesktopChanged => _desktops.IsDirty;
+    public void ApplyDesktopChanges(AppConfig config) => _desktops.ApplyTo(config);
+
+    private TabPage BuildDesktopPage()
+    {
+        var page = new TabPage("Desktop");
+        var columns = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(8)
+        };
+        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 235));
+        columns.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var left = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        left.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        var leftButtons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false
+        };
+        leftButtons.Controls.Add(_createDesktop);
+        leftButtons.Controls.Add(_removeDesktop);
+        left.Controls.Add(_desktopList, 0, 0);
+        left.Controls.Add(leftButtons, 0, 1);
+        columns.Controls.Add(left, 0, 0);
+
+        var details = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2,
+            Padding = new Padding(12)
+        };
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        void AddRow(string caption, Control control)
+        {
+            var row = details.RowCount++;
+            details.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            details.Controls.Add(new Label
+            {
+                Text = caption, AutoSize = true, Anchor = AnchorStyles.Left,
+                Margin = new Padding(3, 9, 3, 9)
+            }, 0, row);
+            control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            control.Margin = new Padding(3, 5, 3, 5);
+            details.Controls.Add(control, 1, row);
+        }
+
+        AddRow("Display name", _desktopName);
+        AddRow("Dashboard", _desktopDashboard);
+        AddRow("Display", _boardEnabled);
+        AddRow("Diagnostics", _providerEnabled);
+        AddRow("Mouse input", _desktopLock);
+        AddRow("Refresh interval (ms)", _desktopInterval);
+        AddRow("Position X", _desktopX);
+        AddRow("Position Y", _desktopY);
+        var orderHint = new Label
+        {
+            Text = "Drag the Desktop entries on the left to change their stacking order.",
+            AutoSize = true, MaximumSize = new Size(470, 0), Margin = new Padding(4, 12, 4, 4)
+        };
+        details.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        details.Controls.Add(orderHint, 0, details.RowCount);
+        details.SetColumnSpan(orderHint, 2);
+        details.RowCount++;
+
+        _desktopDashboard.Items.AddRange(_dashboardChoices.Cast<object>().ToArray());
+        _desktopDetails.Controls.Add(details);
+        columns.Controls.Add(_desktopDetails, 1, 0);
+        page.Controls.Add(columns);
+
+        _desktopList.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_bindingDesktop)
+                BindSelectedDesktop();
+        };
+        _desktopList.MouseDown += (_, e) =>
+            _desktopDragIndex = e.Button == MouseButtons.Left
+                ? _desktopList.IndexFromPoint(e.Location) : -1;
+        _desktopList.MouseMove += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left && _desktopDragIndex >= 0)
+            {
+                var source = _desktopDragIndex;
+                _desktopDragIndex = -1;
+                _desktopList.DoDragDrop(source, DragDropEffects.Move);
+            }
+        };
+        _desktopList.DragEnter += (_, e) =>
+        {
+            if (e.Data?.GetDataPresent(typeof(int)) == true)
+                e.Effect = DragDropEffects.Move;
+        };
+        _desktopList.DragDrop += (_, e) =>
+        {
+            if (e.Data?.GetData(typeof(int)) is not int source)
+                return;
+            var point = _desktopList.PointToClient(new Point(e.X, e.Y));
+            var dest = _desktopList.IndexFromPoint(point);
+            if (dest < 0)
+                dest = _desktops.Desktops.Count - 1;
+            if (source < 0 || dest < 0 || source == dest)
+                return;
+            var selection = _desktops.Desktops[source];
+            _desktops.Move(source, dest);
+            ReloadDesktopList(selection);
+        };
+
+        _createDesktop.Click += (_, _) =>
+        {
+            var dashboard = _selectedDesktop?.Dashboard ?? _dashboardChoices.FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(dashboard))
+            {
+                MessageBox.Show("Create a dashboard first.", "Desktop Output",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var created = _desktops.Create(dashboard);
+            ReloadDesktopList(created);
+        };
+        _removeDesktop.Click += (_, _) =>
+        {
+            var selected = _selectedDesktop;
+            if (selected is null || !_desktops.CanRemove(selected))
+                return;
+            var decision = MessageBox.Show(
+                $"Remove Desktop Output '{selected.Name}'? Its dashboard files and other Outputs will remain.",
+                "Remove Desktop Output", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (decision != DialogResult.Yes)
+                return;
+            _desktops.Remove(selected);
+            ReloadDesktopList(_desktops.Desktops.FirstOrDefault());
+        };
+
+        _desktopName.TextChanged += (_, _) => ChangeSelectedDesktop(t => {
+            t.Name = _desktopName.Text;
+            RefreshDesktopListLabel();
+        });
+        _desktopDashboard.SelectedIndexChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.Dashboard = _desktopDashboard.SelectedItem as string);
+        _boardEnabled.CheckedChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.Desktop!.BoardEnabled = _boardEnabled.Checked);
+        _providerEnabled.CheckedChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.ProviderEnabled = _providerEnabled.Checked);
+        _desktopLock.CheckedChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.Desktop!.Lock = _desktopLock.Checked);
+        _desktopInterval.ValueChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.RefreshIntervalMs = Decimal.ToInt32(_desktopInterval.Value));
+        _desktopX.ValueChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.Desktop!.X = Decimal.ToInt32(_desktopX.Value));
+        _desktopY.ValueChanged += (_, _) =>
+            ChangeSelectedDesktop(t => t.Desktop!.Y = Decimal.ToInt32(_desktopY.Value));
+
+        ReloadDesktopList(_desktops.Desktops.FirstOrDefault());
+        return page;
+    }
+
+    private void ChangeSelectedDesktop(Action<OutputTargetConfig> change)
+    {
+        if (_bindingDesktop || _selectedDesktop is null)
+            return;
+        change(_selectedDesktop);
+        _desktops.MarkChanged();
+    }
+
+    private void RefreshDesktopListLabel()
+    {
+        var index = _desktopList.SelectedIndex;
+        if (index < 0 || _selectedDesktop is null)
+            return;
+        _bindingDesktop = true;
+        try
+        {
+            _desktopList.Items[index] = new DesktopListItem(_selectedDesktop);
+            _desktopList.SelectedIndex = index;
+        }
+        finally { _bindingDesktop = false; }
+    }
+
+    private void ReloadDesktopList(OutputTargetConfig? select)
+    {
+        _bindingDesktop = true;
+        try
+        {
+            _desktopList.Items.Clear();
+            foreach (var desktop in _desktops.Desktops)
+                _desktopList.Items.Add(new DesktopListItem(desktop));
+            _desktopList.SelectedIndex = select is null ? -1 :
+                _desktops.Desktops.ToList().IndexOf(select);
+        }
+        finally { _bindingDesktop = false; }
+        BindSelectedDesktop();
+    }
+
+    private void BindSelectedDesktop()
+    {
+        _bindingDesktop = true;
+        try
+        {
+            _selectedDesktop = (_desktopList.SelectedItem as DesktopListItem)?.Target;
+            var target = _selectedDesktop;
+            _desktopDetails.Enabled = target is not null;
+            _removeDesktop.Enabled = target is not null && _desktops.CanRemove(target);
+            _desktopName.Text = target?.Name ?? string.Empty;
+            var dashboard = target?.Dashboard;
+            if (!string.IsNullOrWhiteSpace(dashboard) &&
+                !_desktopDashboard.Items.Cast<string>().Contains(dashboard, StringComparer.OrdinalIgnoreCase))
+                _desktopDashboard.Items.Add(dashboard);
+            _desktopDashboard.SelectedItem = dashboard;
+            _boardEnabled.Checked = target?.Desktop?.BoardEnabled ?? false;
+            _providerEnabled.Checked = target?.ProviderEnabled ?? false;
+            _desktopLock.Checked = target?.Desktop?.Lock ?? false;
+            _desktopInterval.Value = target?.RefreshIntervalMs ?? 1000;
+            _desktopX.Value = target?.Desktop?.X ?? 0;
+            _desktopY.Value = target?.Desktop?.Y ?? 0;
+        }
+        finally { _bindingDesktop = false; }
+    }
+
+    private sealed record DesktopListItem(OutputTargetConfig Target)
+    {
+        public override string ToString() => Target.Name;
+    }
 }
+
 
 internal static class EditorDialogs
 {

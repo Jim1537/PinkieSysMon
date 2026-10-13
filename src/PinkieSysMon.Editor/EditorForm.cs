@@ -298,7 +298,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(_bringToFrontMenuItem);
         editMenu.DropDownItems.Add(_sendToBackMenuItem);
         editMenu.DropDownItems.Add(new ToolStripSeparator());
-        editMenu.DropDownItems.Add(new ToolStripMenuItem("Settings...", null, (_, _) => ShowSettings()));
+        editMenu.DropDownItems.Add(new ToolStripMenuItem("Settings...", null, async (_, _) => await ShowSettingsAsync()));
         editMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
@@ -642,16 +642,18 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    private void ShowSettings()
+    private async Task ShowSettingsAsync()
     {
         bool startupCurrent;
         AppConfig runtimeConfig;
         var appConfigPath = Path.Combine(_root, "config", "app.json");
+        string originalConfigJson;
 
         try
         {
             startupCurrent = StartupTaskManager.IsEnabled();
             runtimeConfig = AppConfig.Load(appConfigPath, _log);
+            originalConfigJson = File.Exists(appConfigPath) ? File.ReadAllText(appConfigPath) : string.Empty;
         }
         catch (Exception ex)
         {
@@ -665,7 +667,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor),
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue),
             _toolbarIconSize,
-            _themeMode);
+            _themeMode,
+            runtimeConfig,
+            DashboardCatalog.Discover(_root));
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
@@ -675,7 +679,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.SystemProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System) ||
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
-        var runtimeChanged = providersChanged;
+        var desktopChanged = dialog.DesktopChanged;
+        var runtimeChanged = providersChanged || desktopChanged;
+        var runtimeReloaded = false;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -686,6 +692,18 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             if (runtimeChanged)
             {
+                // Runtime may persist a Desktop position while Settings is open.
+                // Never overwrite that change from an out-of-date dialog snapshot.
+                var currentConfigJson = File.Exists(appConfigPath)
+                    ? File.ReadAllText(appConfigPath) : string.Empty;
+                if (!string.Equals(originalConfigJson, currentConfigJson, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "Application configuration changed while Settings was open. Reopen Settings and retry.");
+                if (desktopChanged)
+                {
+                    dialog.ApplyDesktopChanges(runtimeConfig);
+                    _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
+                }
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
@@ -693,6 +711,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
                 // Keep the editor-side snapshot consistent with the file it just wrote.
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
+                if (desktopChanged)
+                    _appConfig.Outputs = runtimeConfig.Outputs;
             }
 
             if (startupChanged)
@@ -719,6 +739,20 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 RenderPreview(force: true);
             }
 
+            if (runtimeChanged)
+            {
+                // Apply saved Output changes without starting a stopped Runtime or opening hardware.
+                var status = await RuntimeIpc.GetStatusAsync();
+                if (status.Success)
+                {
+                    var reloaded = await RuntimeIpc.ReloadAsync();
+                    if (!reloaded.Success)
+                        throw new InvalidOperationException(
+                            $"Settings were saved, but Runtime reload failed: {reloaded.Message}");
+                    runtimeReloaded = true;
+                }
+            }
+
             if (themeChanged)
             {
                 var restart = MessageBox.Show(
@@ -737,7 +771,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
             }
             else if (runtimeChanged)
             {
-                SetStatus("Settings saved. Use the target device under Output → Start / Reload to apply runtime settings.");
+                SetStatus(runtimeReloaded
+                    ? "Settings saved and applied to the running Runtime."
+                    : "Settings saved. Runtime will read them on its next start.");
             }
             else if (startupChanged)
             {
