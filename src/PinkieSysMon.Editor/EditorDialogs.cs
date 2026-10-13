@@ -190,69 +190,31 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         Text = "Start PinkieSysMon runtime with Windows",
         AutoSize = true
     };
-
-    private readonly CheckBox _systemProvider = new()
-    {
-        Text = "System",
-        AutoSize = true
-    };
-
+    private readonly CheckBox _systemProvider = new() { Text = "System", AutoSize = true };
     private readonly CheckBox _libreHardwareMonitorProvider = new()
     {
         Text = "LibreHardwareMonitor",
         AutoSize = true
     };
-
-    private readonly CheckBox _icueProvider = new()
-    {
-        Text = "iCUE",
-        AutoSize = true
-    };
-
-    private readonly NumericUpDown _refreshIntervalMs = new()
-    {
-        Minimum = 10,
-        Maximum = int.MaxValue,
-        DecimalPlaces = 0,
-        ThousandsSeparator = true,
-        Width = 130
-    };
-
-    private readonly ComboBox _outputDevice = new()
-    {
-        DropDownStyle = ComboBoxStyle.DropDownList,
-        Width = 300
-    };
-
-    private readonly NumericUpDown _jpegQuality = new()
-    {
-        Minimum = 10,
-        Maximum = 100,
-        DecimalPlaces = 0,
-        Width = 130
-    };
-
+    private readonly CheckBox _icueProvider = new() { Text = "iCUE", AutoSize = true };
     private readonly ComboBox _toolbarIconSize = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
         Width = 130
     };
-
     private readonly ComboBox _theme = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
         Width = 130
     };
 
+    // Stage 21 owns app-wide preferences. Desktop and each discovered Device
+    // gain their own pages and controls in Stages 22 and 23 respectively.
     public EditorSettingsDialog(
         bool startRuntimeWithWindows,
         bool systemProviderEnabled,
         bool libreHardwareMonitorProviderEnabled,
         bool icueProviderEnabled,
-        int refreshIntervalMs,
-        string outputDeviceId,
-        IReadOnlyList<OutputDeviceDescriptor> outputDevices,
-        int jpegQuality,
         int toolbarIconSize,
         EditorThemeMode themeMode)
     {
@@ -262,15 +224,12 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 632);
+        ClientSize = new Size(620, 450);
 
         _startRuntime.Checked = startRuntimeWithWindows;
         _systemProvider.Checked = systemProviderEnabled;
         _libreHardwareMonitorProvider.Checked = libreHardwareMonitorProviderEnabled;
         _icueProvider.Checked = icueProviderEnabled;
-        _refreshIntervalMs.Value = refreshIntervalMs;
-        PopulateOutputDevices(outputDeviceId, outputDevices);
-        _jpegQuality.Value = jpegQuality;
         _toolbarIconSize.Items.AddRange(["16 × 16", "32 × 32", "48 × 48"]);
         _toolbarIconSize.SelectedIndex = toolbarIconSize switch { 16 => 0, 48 => 2, _ => 1 };
         _theme.Items.AddRange([
@@ -282,7 +241,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
 
         var generalGroup = new GroupBox
         {
-            Text = "General",
+            Text = "Startup",
             Dock = DockStyle.Top,
             Height = 78,
             Padding = new Padding(12)
@@ -311,63 +270,34 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
             Height = 128,
             Padding = new Padding(12)
         };
-        var interfaceLayout = CreateSettingsLayout(2);
+        var interfaceLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 2,
+            Padding = new Padding(4, 6, 4, 4)
+        };
+        interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         interfaceLayout.Controls.Add(new Label
         {
-            Text = "Theme",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left
+            Text = "Theme", AutoSize = true, Anchor = AnchorStyles.Left
         }, 0, 0);
         interfaceLayout.Controls.Add(_theme, 1, 0);
         interfaceLayout.Controls.Add(new Label
         {
-            Text = "Toolbar icon size",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left
+            Text = "Toolbar icon size", AutoSize = true, Anchor = AnchorStyles.Left
         }, 0, 1);
         interfaceLayout.Controls.Add(_toolbarIconSize, 1, 1);
         interfaceGroup.Controls.Add(interfaceLayout);
 
-        var displayGroup = new GroupBox
-        {
-            Text = "Display",
-            Dock = DockStyle.Top,
-            Height = 132,
-            Padding = new Padding(12)
-        };
-        var displayLayout = CreateSettingsLayout(2);
-        displayLayout.Controls.Add(new Label
-        {
-            Text = "RefreshIntervalMs",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left
-        }, 0, 0);
-        displayLayout.Controls.Add(_refreshIntervalMs, 1, 0);
-        displayLayout.Controls.Add(new Label
-        {
-            Text = "Output device",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left
-        }, 0, 1);
-        displayLayout.Controls.Add(_outputDevice, 1, 1);
-        displayGroup.Controls.Add(displayLayout);
-
-        var jpegGroup = new GroupBox
-        {
-            Text = "JPEG",
-            Dock = DockStyle.Top,
-            Height = 88,
-            Padding = new Padding(12)
-        };
-        var jpegLayout = CreateSettingsLayout();
-        jpegLayout.Controls.Add(new Label
-        {
-            Text = "JpegQuality",
-            AutoSize = true,
-            Anchor = AnchorStyles.Left
-        }, 0, 0);
-        jpegLayout.Controls.Add(_jpegQuality, 1, 0);
-        jpegGroup.Controls.Add(jpegLayout);
+        var general = new TabPage("General") { AutoScroll = true };
+        // WinForms Top docking lays out in reverse z-order.
+        general.Controls.Add(interfaceGroup);
+        general.Controls.Add(providersGroup);
+        general.Controls.Add(generalGroup);
+        var tabs = new TabControl { Dock = DockStyle.Fill };
+        tabs.TabPages.Add(general);
 
         var buttons = new FlowLayoutPanel
         {
@@ -381,12 +311,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(ok);
-
-        Controls.Add(jpegGroup);
-        Controls.Add(displayGroup);
-        Controls.Add(interfaceGroup);
-        Controls.Add(providersGroup);
-        Controls.Add(generalGroup);
+        Controls.Add(tabs);
         Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
@@ -396,72 +321,8 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
     public bool SystemProviderEnabled => _systemProvider.Checked;
     public bool LibreHardwareMonitorProviderEnabled => _libreHardwareMonitorProvider.Checked;
     public bool IcueProviderEnabled => _icueProvider.Checked;
-    public int RefreshIntervalMs => Decimal.ToInt32(_refreshIntervalMs.Value);
-    public string OutputDeviceId => (_outputDevice.SelectedItem as OutputDeviceOption)?.DeviceId ?? string.Empty;
-    public int JpegQuality => Decimal.ToInt32(_jpegQuality.Value);
     public int ToolbarIconSize => _toolbarIconSize.SelectedIndex switch { 0 => 16, 2 => 48, _ => 32 };
     public EditorThemeMode ThemeMode => EditorThemeContract.Parse(_theme.SelectedItem as string);
-
-    private void PopulateOutputDevices(string configuredDeviceId, IReadOnlyList<OutputDeviceDescriptor> devices)
-    {
-        var automatic = new OutputDeviceOption(
-            string.Empty,
-            "Automatic (requires exactly one compatible device)");
-        _outputDevice.Items.Add(automatic);
-
-        foreach (var device in devices)
-            _outputDevice.Items.Add(new OutputDeviceOption(device.DeviceId, device.SelectionLabel));
-
-        if (!string.IsNullOrWhiteSpace(configuredDeviceId))
-        {
-            var configured = _outputDevice.Items
-                .Cast<OutputDeviceOption>()
-                .FirstOrDefault(option => option.DeviceId.Equals(configuredDeviceId, StringComparison.OrdinalIgnoreCase));
-            if (configured is null)
-            {
-                configured = new OutputDeviceOption(
-                    configuredDeviceId,
-                    $"Configured device unavailable [{ShortDeviceId(configuredDeviceId)}]");
-                _outputDevice.Items.Add(configured);
-            }
-            _outputDevice.SelectedItem = configured;
-            return;
-        }
-
-        if (devices.Count == 1)
-        {
-            _outputDevice.SelectedIndex = 1;
-            return;
-        }
-
-        _outputDevice.SelectedItem = automatic;
-    }
-
-    private static string ShortDeviceId(string deviceId)
-    {
-        var separator = deviceId.IndexOf(':');
-        var token = separator >= 0 ? deviceId[(separator + 1)..] : deviceId;
-        return token.Length <= 8 ? token : token[..8];
-    }
-
-    private sealed record OutputDeviceOption(string DeviceId, string Label)
-    {
-        public override string ToString() => Label;
-    }
-
-    private static TableLayoutPanel CreateSettingsLayout(int rowCount = 1)
-    {
-        var layout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = rowCount,
-            Padding = new Padding(4, 6, 4, 4)
-        };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        return layout;
-    }
 }
 
 internal static class EditorDialogs

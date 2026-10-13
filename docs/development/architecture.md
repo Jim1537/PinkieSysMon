@@ -88,8 +88,9 @@ These files have different owners and must not be conflated:
 | --- | --- |
 | `dashboards/<name>/dashboard.json` | Portable canonical canvas and widget model consumed by both processes. |
 | `dashboards/<name>/.editor.json` | Editor-specific group/layer hierarchy sidecar; it is **not** the canonical widget schema. |
-| `config/editor.json` | Local Editor preferences and per-dashboard view state. |
+| `config/editor.json` | Local Editor theme, toolbar icon size and per-dashboard view preferences; no physical Output settings. |
 | `config/app.json` / `config/telemetry.json` | Application/output/provider configuration and telemetry scheduling policy, respectively. New application defaults configure a Desktop output with no physical device enabled. |
+| Windows HKCU Run entry | App-wide Runtime autostart setting, managed by the Editor. |
 
 `DashboardModel.DashboardDefinition.Load` upgrades supported older persisted documents through `DashboardSchemaMigration`, then validates the canonical model through `DashboardJson`. Current-schema persistence requires validation; Editor undo/redo snapshots use a separate serialization path that can represent intermediate, not-yet-persistable editing state. **A schema change is therefore a shared Runtime/Editor compatibility change**, not a local change to a widget property panel.
 

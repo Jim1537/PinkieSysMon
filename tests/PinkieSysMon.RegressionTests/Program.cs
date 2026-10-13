@@ -96,6 +96,7 @@ internal static class Program
             ("Editor title-bar vertical alignment", EditorTitleBarVerticalAlignment),
             ("Editor title-bar menu theme contract", EditorTitleBarMenuThemeContract),
             ("Editor theme settings contract", EditorThemeSettingsContract),
+            ("Stage21 General Settings app-wide isolation", EditorGeneralSettingsContract),
             ("Editor property-tab icon presentation", EditorPropertyTabIconPresentationContract),
             ("Editor Windows App SDK title-bar ownership contract", EditorDwmNonClientForwardingContract),
             ("Windows application identity metadata", WindowsApplicationIdentityMetadata),
@@ -1930,6 +1931,29 @@ internal static class Program
             "Dark shell custom content must use a foreground brighter than its background.");
     }
 
+
+    private static void EditorGeneralSettingsContract()
+    {
+        using var dialog = new EditorSettingsDialog(
+            startRuntimeWithWindows: true,
+            systemProviderEnabled: true,
+            libreHardwareMonitorProviderEnabled: false,
+            icueProviderEnabled: true,
+            toolbarIconSize: 48,
+            themeMode: EditorThemeMode.Dark);
+        var tabs = dialog.Controls.OfType<TabControl>().Single();
+        Assert(tabs.TabPages.Count == 1 && tabs.TabPages[0].Text == "General",
+            "Stage21 General tab must contain only application-wide preferences; Desktop/Device tabs own later UI.");
+        Assert(dialog.StartRuntimeWithWindows && dialog.SystemProviderEnabled &&
+               !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
+               dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
+            "General Settings must preserve startup/provider/theme/icon values passed by their existing owners.");
+        var groups = tabs.TabPages[0].Controls.OfType<GroupBox>().Select(group => group.Text).ToHashSet();
+        Assert(groups.SetEquals(["Startup", "Metric providers", "Interface"]),
+            "General tab must not expose legacy global device binding, physical JPEG, or per-output refresh settings.");
+        Assert(tabs.TabPages[0].Controls.OfType<NumericUpDown>().Count() == 0,
+            "Global Settings must not expose physical USB/display quality or refresh numeric controls.");
+    }
 
     private static void EditorThemeSettingsContract()
     {

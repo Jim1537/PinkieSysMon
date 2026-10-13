@@ -646,7 +646,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
     {
         bool startupCurrent;
         AppConfig runtimeConfig;
-        IReadOnlyList<OutputDeviceDescriptor> outputDevices;
         var appConfigPath = Path.Combine(_root, "config", "app.json");
 
         try
@@ -660,26 +659,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
             return;
         }
 
-        try
-        {
-            outputDevices = DeviceDiscovery.EnumerateTrofeoDevices();
-        }
-        catch (Exception ex)
-        {
-            _log.Warn("Output-device discovery failed while opening Settings", ex);
-            outputDevices = Array.Empty<OutputDeviceDescriptor>();
-        }
-
-        var outputTarget = OutputTargetContract.GetPrimary(runtimeConfig);
         using var dialog = new EditorSettingsDialog(
             startupCurrent,
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System),
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor),
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue),
-            runtimeConfig.Display.RefreshIntervalMs,
-            outputTarget.DeviceId,
-            outputDevices,
-            runtimeConfig.Renderer.JpegQuality,
             _toolbarIconSize,
             _themeMode);
 
@@ -691,13 +675,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.SystemProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System) ||
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
-        var outputDeviceChanged =
-            !dialog.OutputDeviceId.Equals(outputTarget.DeviceId, StringComparison.OrdinalIgnoreCase);
-        var runtimeChanged =
-            dialog.RefreshIntervalMs != runtimeConfig.Display.RefreshIntervalMs ||
-            dialog.JpegQuality != runtimeConfig.Renderer.JpegQuality ||
-            outputDeviceChanged ||
-            providersChanged;
+        var runtimeChanged = providersChanged;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -708,18 +686,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             if (runtimeChanged)
             {
-                runtimeConfig.Display.RefreshIntervalMs = dialog.RefreshIntervalMs;
-                outputTarget.DeviceId = dialog.OutputDeviceId;
-                runtimeConfig.Renderer.JpegQuality = dialog.JpegQuality;
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
                 runtimeConfig.Save(appConfigPath);
 
                 // Keep the editor-side snapshot consistent with the file it just wrote.
-                _appConfig.Display.RefreshIntervalMs = runtimeConfig.Display.RefreshIntervalMs;
-                OutputTargetContract.GetPrimary(_appConfig).DeviceId = outputTarget.DeviceId;
-                _appConfig.Renderer.JpegQuality = runtimeConfig.Renderer.JpegQuality;
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
             }
 
