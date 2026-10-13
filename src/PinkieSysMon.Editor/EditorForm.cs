@@ -774,7 +774,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
     private void ShowAbout()
     {
-        var version = typeof(EditorForm).Assembly.GetName().Version?.ToString() ?? "unknown";
+        var version = typeof(EditorForm).Assembly.GetName().Version?.ToString(3) ?? "unknown";
         MessageBox.Show(
             $"PinkieSysMon Dashboard Editor\nVersion {version}\n\nDirect Skia dashboard editor for the PinkieSysMon Trofeo display runtime.",
             "About PinkieSysMon Editor",
