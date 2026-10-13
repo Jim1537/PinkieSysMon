@@ -55,13 +55,18 @@ internal enum RuntimeIpcCommandKind
     StartOrReloadTarget,
     StopTarget,
     StartOrReloadAll,
-    StopAll
+    StopAll,
+    AssignDashboard,
+    SetDesktopBoardEnabled,
+    SetDesktopLock
 }
 
 internal sealed record RuntimeIpcCommand(
     RuntimeIpcCommandKind Kind,
     string? TargetId = null,
-    string? Error = null);
+    string? Error = null,
+    string? Dashboard = null,
+    bool? Value = null);
 
 internal static class RuntimeIpcProtocol
 {
@@ -73,6 +78,9 @@ internal static class RuntimeIpcProtocol
     public const string StopTargetCommand = "OUTPUT_STOP";
     public const string StartOrReloadAllCommand = "OUTPUT_START_RELOAD_ALL";
     public const string StopAllCommand = "OUTPUT_STOP_ALL";
+    public const string AssignDashboardCommand = "OUTPUT_ASSIGN_DASHBOARD";
+    public const string SetDesktopBoardEnabledCommand = "DESKTOP_SET_BOARD_ENABLED";
+    public const string SetDesktopLockCommand = "DESKTOP_SET_LOCK";
     public const string RuntimeStoppingMessage = "Runtime is stopping.";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -86,6 +94,21 @@ internal static class RuntimeIpcProtocol
             throw new ArgumentException("Output target ID must not be empty.", nameof(targetId));
 
         return $"{verb}\t{JsonSerializer.Serialize(targetId, JsonOptions)}";
+    }
+
+    private sealed record ConfigurationRequest(string? TargetId, string? Dashboard = null, bool? Value = null);
+
+    public static string BuildAssignDashboardCommand(string targetId, string dashboard) =>
+        BuildConfigurationCommand(AssignDashboardCommand, new(targetId, dashboard));
+
+    public static string BuildDesktopSettingCommand(string verb, string targetId, bool value) =>
+        BuildConfigurationCommand(verb, new(targetId, Value: value));
+
+    private static string BuildConfigurationCommand(string verb, ConfigurationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.TargetId))
+            throw new ArgumentException("Output target ID must not be empty.", nameof(request));
+        return $"{verb}\t{JsonSerializer.Serialize(request, JsonOptions)}";
     }
 
     public static RuntimeIpcCommand ParseCommand(string command)
@@ -106,6 +129,10 @@ internal static class RuntimeIpcProtocol
         if (TryParseTargetCommand(command, StartOrReloadTargetCommand, RuntimeIpcCommandKind.StartOrReloadTarget, out var parsed))
             return parsed;
         if (TryParseTargetCommand(command, StopTargetCommand, RuntimeIpcCommandKind.StopTarget, out parsed))
+            return parsed;
+        if (TryParseConfigurationCommand(command, AssignDashboardCommand, RuntimeIpcCommandKind.AssignDashboard, out parsed) ||
+            TryParseConfigurationCommand(command, SetDesktopBoardEnabledCommand, RuntimeIpcCommandKind.SetDesktopBoardEnabled, out parsed) ||
+            TryParseConfigurationCommand(command, SetDesktopLockCommand, RuntimeIpcCommandKind.SetDesktopLock, out parsed))
             return parsed;
 
         return new RuntimeIpcCommand(RuntimeIpcCommandKind.Invalid, Error: $"Unknown IPC command: '{command}'.");
@@ -130,6 +157,32 @@ internal static class RuntimeIpcProtocol
 
         return JsonSerializer.Deserialize<RuntimeStatusSnapshot>(payload, JsonOptions)
             ?? throw new InvalidDataException("Runtime IPC status payload could not be decoded.");
+    }
+
+    private static bool TryParseConfigurationCommand(string command, string verb,
+        RuntimeIpcCommandKind kind, out RuntimeIpcCommand parsed)
+    {
+        var prefix = verb + "\t";
+        if (!command.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            parsed = null!;
+            return false;
+        }
+        try
+        {
+            var request = JsonSerializer.Deserialize<ConfigurationRequest>(command[prefix.Length..], JsonOptions);
+            if (request is null || string.IsNullOrWhiteSpace(request.TargetId) ||
+                (kind == RuntimeIpcCommandKind.AssignDashboard
+                    ? string.IsNullOrWhiteSpace(request.Dashboard) || request.Value is not null
+                    : request.Value is null || request.Dashboard is not null))
+                throw new JsonException("Expected a target ID and exactly one dashboard name or boolean setting.");
+            parsed = new(kind, request.TargetId, Dashboard: request.Dashboard, Value: request.Value);
+        }
+        catch (JsonException ex)
+        {
+            parsed = new(RuntimeIpcCommandKind.Invalid, Error: $"IPC command '{verb}' has invalid settings: {ex.Message}");
+        }
+        return true;
     }
 
     private static bool TryParseTargetCommand(
@@ -251,6 +304,15 @@ internal static class RuntimeIpc
 
     public static Task<RuntimeIpcResponse> StopTargetAsync(string targetId, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
         SendAsync(RuntimeIpcProtocol.BuildTargetCommand(RuntimeIpcProtocol.StopTargetCommand, targetId), timeoutMs, cancellationToken);
+
+    public static Task<RuntimeIpcResponse> AssignDashboardAsync(string targetId, string dashboard, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
+        SendAsync(RuntimeIpcProtocol.BuildAssignDashboardCommand(targetId, dashboard), timeoutMs, cancellationToken);
+
+    public static Task<RuntimeIpcResponse> SetDesktopBoardEnabledAsync(string targetId, bool enabled, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
+        SendAsync(RuntimeIpcProtocol.BuildDesktopSettingCommand(RuntimeIpcProtocol.SetDesktopBoardEnabledCommand, targetId, enabled), timeoutMs, cancellationToken);
+
+    public static Task<RuntimeIpcResponse> SetDesktopLockAsync(string targetId, bool locked, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
+        SendAsync(RuntimeIpcProtocol.BuildDesktopSettingCommand(RuntimeIpcProtocol.SetDesktopLockCommand, targetId, locked), timeoutMs, cancellationToken);
 
     public static Task<RuntimeIpcResponse> StartOrReloadAllAsync(int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
         SendAsync(RuntimeIpcProtocol.StartOrReloadAllCommand, timeoutMs, cancellationToken);

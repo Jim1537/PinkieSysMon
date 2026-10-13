@@ -112,7 +112,17 @@ The v1 named pipe, existing commands and top-level `Dashboard` compatibility sum
 
 The Runtime tray's **Outputs** submenu shows each assignment and state and invokes the same target Start/Reload/Stop control path as IPC. Start/Reload cannot enable a disabled Device or Desktop; Provider Enabled does not grant output ownership. Summary counts distinguish visible Desktop windows from connected devices. Tray and IPC actions share telemetry-demand reconciliation and retain the existing final-active-Output shutdown behavior. This status/presentation change does not add device discovery polling or alter USB transport.
 
-**Source anchors:** [Runtime IPC](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeIpc.cs), [Runtime output control](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputControl.cs), [Application coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs).
+Target configuration requests use the same v1 pipe and Runtime UI-thread control path:
+
+| Command | JSON payload after the tab separator | Effect |
+| --- | --- | --- |
+| `OUTPUT_ASSIGN_DASHBOARD` | `{"TargetId":"desktop-1","Dashboard":"Default"}` | Validate and assign only that Output's saved dashboard; reload it if active, preserve inactivity if stopped or disabled. |
+| `DESKTOP_SET_BOARD_ENABLED` | `{"TargetId":"desktop-1","Value":true}` | Explicitly start/show or disable/unload that Desktop; preserve Provider Enabled, Lock and siblings. |
+| `DESKTOP_SET_LOCK` | `{"TargetId":"desktop-1","Value":true}` | Change only that Desktop's Lock; retain its loaded board and active/stopped state. |
+
+These requests prepare only the selected session and preserve sibling document instances and pending local configuration values. Persistence patches only the requested field in existing `app.json`, retaining unknown fields; a changed target binding/requested field or intervening write is rejected. Session, persistence and telemetry failures attempt to restore the prior state. Disk rollback restores the original bytes only while the file still matches this operation's write; a newer writer is retained and incomplete recovery is reported. Native/driver recovery can still fail as described above. The tray exposes dashboard assignment and Desktop Board Enabled/Lock through these same requests. Hiding the final Desktop through Board Enabled leaves an idle Runtime available for a later enable; explicit Stop commands retain their shutdown policy. No configuration request grants physical Device Enabled or changes Provider Enabled.
+
+**Source anchors:** [Runtime IPC](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeIpc.cs), [Runtime output control](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputControl.cs), [Target configuration transaction](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputConfigurationControl.cs), [Application coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs).
 
 ## Concurrency and transport lifetime
 

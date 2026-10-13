@@ -71,7 +71,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _log);
         _outputSessions = new OutputSessionManager(_config, _boards, _metrics, _log,
             reloadBoard: target => RuntimeConfigurationValidator.LoadTarget(target, _baseDir));
-        _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus);
+        var configurationControl = new RuntimeOutputConfigurationControl(
+            _outputSessions, () => _config, _baseDir, _log, CommitTargetRuntimeConfiguration);
+        _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus, configurationControl.Execute);
         _notifications = new WindowsAppNotificationService(log);
 
         BuildTray();
@@ -439,6 +441,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case RuntimeIpcCommandKind.StopTarget:
                 case RuntimeIpcCommandKind.StartOrReloadAll:
                 case RuntimeIpcCommandKind.StopAll:
+                case RuntimeIpcCommandKind.AssignDashboard:
+                case RuntimeIpcCommandKind.SetDesktopBoardEnabled:
+                case RuntimeIpcCommandKind.SetDesktopLock:
                 {
                     var response = ExecuteOutputCommandOnUi(parsed);
                     if (RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
@@ -646,6 +651,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             // Tray menu discovery is derived UI state. Filesystem/menu failures are recoverable
             // and must not misreport or roll back an otherwise consistent runtime configuration.
             _log.Warn("Dashboard tray menu refresh failed.", ex);
+            foreach (var item in _dashboardsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
+                item.Dispose();
             _dashboardsMenu.DropDownItems.Clear();
             _dashboardsMenu.DropDownItems.Add(
                 new ToolStripMenuItem("(dashboard list unavailable)") { Enabled = false });
@@ -654,6 +661,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private void RefreshDashboardMenu()
     {
+        foreach (var item in _dashboardsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
+            item.Dispose();
         _dashboardsMenu.DropDownItems.Clear();
         foreach (var target in _config.Outputs.Targets)
         {
@@ -662,6 +671,19 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             item.Click += (_, _) => OpenDashboardEditor(board);
             _dashboardsMenu.DropDownItems.Add(item);
         }
+    }
+
+    private void CommitTargetRuntimeConfiguration(AppConfig config)
+    {
+        // Also used for rollback: reapply the schedule even if the cached demand
+        // still matches the old set after a partial telemetry commit failure.
+        var required = _outputSessions.GetRequiredMetrics();
+        _telemetry.Reconfigure(_telemetryConfig,
+            MetricProviderContract.GetEnabledProviderIds(config.MetricProviders), required);
+        _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _config = config;
+        _boards = _outputSessions.GetDashboardAssignments();
+        RefreshDashboardMenuSafe();
     }
 
     private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
@@ -699,16 +721,41 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         foreach (var item in _outputsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
             item.Dispose();
         _outputsMenu.DropDownItems.Clear();
+        IReadOnlyList<string> dashboards;
+        try { dashboards = DashboardCatalog.Discover(_baseDir); }
+        catch (Exception ex)
+        {
+            _log.Warn("Output tray dashboard discovery failed.", ex);
+            dashboards = [];
+        }
         var statistics = _outputSessions.GetStatuses().ToDictionary(s => s.TargetId, StringComparer.OrdinalIgnoreCase);
         foreach (var output in _outputControl.GetStatus().Outputs)
         {
             var item = new ToolStripMenuItem($"{output.TargetName} — {output.Kind}");
-            item.DropDownItems.Add(new ToolStripMenuItem($"Dashboard: {output.Dashboard}") { Enabled = false });
+            var assignment = new ToolStripMenuItem($"Dashboard: {output.Dashboard}") { Enabled = dashboards.Count > 0 };
+            foreach (var dashboard in dashboards)
+            {
+                var choice = new ToolStripMenuItem(dashboard)
+                {
+                    Checked = dashboard.Equals(output.Dashboard, StringComparison.OrdinalIgnoreCase)
+                };
+                choice.Click += (_, _) => ExecuteTrayOutputCommand(
+                    new(RuntimeIpcCommandKind.AssignDashboard, output.TargetId, Dashboard: dashboard));
+                assignment.DropDownItems.Add(choice);
+            }
+            item.DropDownItems.Add(assignment);
             item.DropDownItems.Add(new ToolStripMenuItem($"State: {output.UsbState}") { Enabled = false });
             item.DropDownItems.Add(new ToolStripMenuItem($"Provider Enabled: {output.ProviderEnabled}") { Enabled = false });
             if (output.Kind == OutputTargetContract.DesktopKind)
             {
-                item.DropDownItems.Add(new ToolStripMenuItem($"Board Enabled: {output.BoardEnabled} · Lock: {output.Lock}") { Enabled = false });
+                var boardEnabled = new ToolStripMenuItem("Board Enabled") { Checked = output.BoardEnabled == true };
+                boardEnabled.Click += (_, _) => ExecuteTrayOutputCommand(
+                    new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, output.TargetId, Value: output.BoardEnabled != true));
+                var locked = new ToolStripMenuItem("Lock") { Checked = output.Lock == true };
+                locked.Click += (_, _) => ExecuteTrayOutputCommand(
+                    new(RuntimeIpcCommandKind.SetDesktopLock, output.TargetId, Value: output.Lock != true));
+                item.DropDownItems.Add(boardEnabled);
+                item.DropDownItems.Add(locked);
                 item.DropDownItems.Add(new ToolStripMenuItem($"Visible: {output.IsVisible}") { Enabled = false });
             }
             else

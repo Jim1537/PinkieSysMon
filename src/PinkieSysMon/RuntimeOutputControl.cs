@@ -4,11 +4,14 @@ internal sealed class RuntimeOutputControl
 {
     private readonly OutputSessionManager _sessions;
     private readonly Func<string> _dashboardName;
+    private readonly Func<RuntimeIpcCommand, RuntimeIpcResponse>? _configureOutput;
 
-    public RuntimeOutputControl(OutputSessionManager sessions, Func<string> dashboardName)
+    public RuntimeOutputControl(OutputSessionManager sessions, Func<string> dashboardName,
+        Func<RuntimeIpcCommand, RuntimeIpcResponse>? configureOutput = null)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _dashboardName = dashboardName ?? throw new ArgumentNullException(nameof(dashboardName));
+        _configureOutput = configureOutput;
     }
 
     public RuntimeStatusSnapshot GetStatus()
@@ -42,6 +45,12 @@ internal sealed class RuntimeOutputControl
 
         switch (command.Kind)
         {
+            case RuntimeIpcCommandKind.AssignDashboard:
+            case RuntimeIpcCommandKind.SetDesktopBoardEnabled:
+            case RuntimeIpcCommandKind.SetDesktopLock:
+                return _configureOutput?.Invoke(command)
+                    ?? new RuntimeIpcResponse(false, "Runtime output configuration is unavailable.");
+
             case RuntimeIpcCommandKind.StartOrReloadTarget:
                 _sessions.StartOrReloadTarget(command.TargetId!);
                 return new RuntimeIpcResponse(true, $"Output target '{command.TargetId}' started/reloaded.");

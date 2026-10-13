@@ -434,6 +434,133 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
+    // Runtime setting changes prepare/commit only the selected session. The callback
+    // commits persistence and shared telemetry; failure restores this exact session set.
+    public void ReconfigureTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
+        bool activate, Action<AppConfig> commit)
+    {
+        ArgumentNullException.ThrowIfNull(replacement);
+        ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(commit);
+        IOutputSession? created = null;
+        IOutputSession? removed = null;
+        IOutputSessionReconfiguration? prepared = null;
+        IOutputSessionReconfiguration? rollback = null;
+        try
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                var previousTarget = FindConfiguredTargetLocked(replacement.Id);
+                if (!OutputTargetContract.ConnectionEquals(previousTarget, replacement) ||
+                    previousTarget.DeviceEnabled != replacement.DeviceEnabled ||
+                    previousTarget.ProviderEnabled != replacement.ProviderEnabled)
+                    throw new InvalidOperationException("Target settings cannot change device ownership or Provider Enabled.");
+                if (activate && replacement.Kind != OutputTargetContract.DesktopKind)
+                    throw new InvalidOperationException("A configuration command cannot start physical hardware.");
+
+                var previousConfig = _config;
+                var previousBoards = _boards;
+                var previousStarted = _started;
+                var previouslyStopped = _stoppedTargets.Contains(previousTarget.Id);
+                _sessions.TryGetValue(previousTarget.Id, out var existing);
+                var nextConfig = new AppConfig
+                {
+                    Dashboard = _config.Dashboard, Display = _config.Display,
+                    Renderer = _config.Renderer, Usb = _config.Usb, Media = _config.Media,
+                    MetricProviders = _config.MetricProviders,
+                    Outputs = new OutputConfig { Targets = _config.Outputs.Targets
+                        .Select(t => ReferenceEquals(t, previousTarget) ? replacement : t).ToList() }
+                };
+                var nextBoards = _boards.ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
+                nextBoards[previousTarget.Id] = board;
+                var commitAttempted = false;
+                try
+                {
+                    if (existing is not null && CanStartTarget(replacement))
+                    {
+                        prepared = existing.PrepareReconfiguration(nextConfig, replacement, board);
+                        rollback = existing.PrepareReconfiguration(previousConfig, previousTarget,
+                            BoardFor(previousBoards, previousTarget));
+                    }
+                    else if (existing is null && activate && CanStartTarget(replacement))
+                    {
+                        created = CreateSession(nextConfig, replacement, board);
+                        if (_suspended) created.Suspend();
+                        created.Start();
+                    }
+
+                    if (prepared is not null)
+                    {
+                        commitAttempted = true;
+                        existing!.CommitReconfiguration(prepared);
+                    }
+                    if (existing is not null && !CanStartTarget(replacement))
+                    {
+                        _sessions.Remove(previousTarget.Id);
+                        removed = existing;
+                    }
+                    if (created is not null) _sessions.Add(previousTarget.Id, created);
+                    _config = nextConfig;
+                    _boards = nextBoards;
+                    if (activate)
+                    {
+                        _started = true;
+                        _stoppedTargets.Remove(previousTarget.Id);
+                    }
+                    commit(nextConfig);
+                    UpdateRuntimeMetricPublisherLocked();
+                }
+                catch (Exception error)
+                {
+                    _config = previousConfig;
+                    _boards = previousBoards;
+                    _started = previousStarted;
+                    if (previouslyStopped) _stoppedTargets.Add(previousTarget.Id);
+                    else _stoppedTargets.Remove(previousTarget.Id);
+                    _sessions.Remove(previousTarget.Id);
+                    if (existing is not null) _sessions.Add(previousTarget.Id, existing);
+                    removed = null;
+                    if (commitAttempted && rollback is not null)
+                    {
+                        try { existing!.CommitReconfiguration(rollback); }
+                        catch (Exception rollbackError)
+                        {
+                            _log.Error($"Output '{previousTarget.Id}' setting rollback failed.", rollbackError);
+                            throw new AggregateException("Output setting failed and session rollback was incomplete.",
+                                error, rollbackError);
+                        }
+                    }
+                    UpdateRuntimeMetricPublisherLocked();
+                    throw;
+                }
+                RestoreDesktopStackLocked();
+            }
+        }
+        catch
+        {
+            if (created is not null) DisposeSessionsBestEffort([created]);
+            throw;
+        }
+        finally
+        {
+            prepared?.Dispose();
+            rollback?.Dispose();
+        }
+        if (removed is not null)
+        {
+            try { removed.SetRuntimeMetricsPublisher(false); }
+            catch (Exception ex) { _log.Warn("Disabled Desktop publisher cleanup failed.", ex); }
+            DisposeSessionsBestEffort([removed]);
+            lock (_sync)
+            {
+                ClearOutputMetricsLocked(replacement);
+                UpdateRuntimeMetricPublisherLocked();
+                RestoreDesktopStackLocked();
+            }
+        }
+    }
+
     public bool StopTarget(string targetId)
     {
         if (string.IsNullOrWhiteSpace(targetId))
