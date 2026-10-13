@@ -80,7 +80,7 @@ internal sealed class RuntimeOutputConfigurationControl(
                 catch (Exception rollbackError) { failures.Add(rollbackError); }
             }
             if (failures.Count > 0)
-                throw new AggregateException("Output setting failed; rollback was incomplete. A newer configuration was not overwritten.",
+                throw new AggregateException("Output setting failed; rollback was incomplete.",
                     [error, .. failures]);
             throw;
         }
