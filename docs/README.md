@@ -46,6 +46,8 @@ The [Properties by Tab](widgets/properties-by-tab.md) and [Property Dictionary](
 
 The visual Editor supports widget placement, resizing, grouping, contextual property editing, metric selection, and live previews. Dashboards are saved separately from the application binaries.
 
+In **Edit → Settings**, hover over **(?)** beside a parameter for a short explanation of its effect and dependencies. General, Desktop and Device settings include these hints; the same help is available over their controls.
+
 <p align="center">
   <a href="images/PinkeySysMon_editor.png">
     <img src="images/PinkeySysMon_editor.png" alt="PinkieSysMon Dashboard Editor" width="50%">

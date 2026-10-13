@@ -185,6 +185,7 @@ internal sealed class OpenDashboardDialog : PinkieEditorForm
 
 internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 {
+    private readonly EditorSettingsHelp _help = new();
     private readonly CheckBox _startRuntime = new()
     {
         Text = "Start PinkieSysMon runtime with Windows",
@@ -286,8 +287,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             Height = 78,
             Padding = new Padding(12)
         };
-        _startRuntime.Location = new Point(16, 32);
-        generalGroup.Controls.Add(_startRuntime);
+        generalGroup.Controls.Add(_help.ToggleRows((_startRuntime, EditorSettingsHelp.Startup)));
 
         var providersGroup = new GroupBox
         {
@@ -296,12 +296,10 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             Height = 130,
             Padding = new Padding(12)
         };
-        _systemProvider.Location = new Point(16, 30);
-        _libreHardwareMonitorProvider.Location = new Point(16, 58);
-        _icueProvider.Location = new Point(16, 86);
-        providersGroup.Controls.Add(_systemProvider);
-        providersGroup.Controls.Add(_libreHardwareMonitorProvider);
-        providersGroup.Controls.Add(_icueProvider);
+        providersGroup.Controls.Add(_help.ToggleRows(
+            (_systemProvider, EditorSettingsHelp.SystemProvider),
+            (_libreHardwareMonitorProvider, EditorSettingsHelp.LhmProvider),
+            (_icueProvider, EditorSettingsHelp.IcueProvider)));
 
         var interfaceGroup = new GroupBox
         {
@@ -313,22 +311,25 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         var interfaceLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 2,
             Padding = new Padding(4, 6, 4, 4)
         };
         interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         interfaceLayout.Controls.Add(new Label
         {
             Text = "Theme", AutoSize = true, Anchor = AnchorStyles.Left
         }, 0, 0);
         interfaceLayout.Controls.Add(_theme, 1, 0);
+        interfaceLayout.Controls.Add(_help.Marker("Theme", _theme, EditorSettingsHelp.Theme), 2, 0);
         interfaceLayout.Controls.Add(new Label
         {
             Text = "Toolbar icon size", AutoSize = true, Anchor = AnchorStyles.Left
         }, 0, 1);
         interfaceLayout.Controls.Add(_toolbarIconSize, 1, 1);
+        interfaceLayout.Controls.Add(_help.Marker("Toolbar icon size", _toolbarIconSize, EditorSettingsHelp.ToolbarSize), 2, 1);
         interfaceGroup.Controls.Add(interfaceLayout);
 
         var general = new TabPage("General") { AutoScroll = true };
@@ -369,6 +370,13 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 
     public bool DesktopChanged => _desktops.IsDirty;
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _help.Dispose();
+        base.Dispose(disposing);
+    }
+
     private TabPage BuildDesktopPage()
     {
         var page = new TabPage("Desktop");
@@ -392,19 +400,23 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         };
         leftButtons.Controls.Add(_createDesktop);
         leftButtons.Controls.Add(_removeDesktop);
+        _help.Bind(_createDesktop, EditorSettingsHelp.CreateDesktop);
+        _help.Bind(_removeDesktop, EditorSettingsHelp.RemoveDesktop);
+        _help.Bind(_desktopList, EditorSettingsHelp.Stacking);
         left.Controls.Add(_desktopList, 0, 0);
         left.Controls.Add(leftButtons, 0, 1);
         columns.Controls.Add(left, 0, 0);
 
         var details = new TableLayoutPanel
         {
-            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2,
+            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3,
             Padding = new Padding(12)
         };
         details.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
         details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        void AddRow(string caption, Control control)
+        void AddRow(string caption, Control control, string description)
         {
             var row = details.RowCount++;
             details.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -416,16 +428,17 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             control.Margin = new Padding(3, 5, 3, 5);
             details.Controls.Add(control, 1, row);
+            details.Controls.Add(_help.Marker(caption, control, description), 2, row);
         }
 
-        AddRow("Display name", _desktopName);
-        AddRow("Dashboard", _desktopDashboard);
-        AddRow("Display", _boardEnabled);
-        AddRow("Diagnostics", _providerEnabled);
-        AddRow("Mouse input", _desktopLock);
-        AddRow("Refresh interval (ms)", _desktopInterval);
-        AddRow("Position X", _desktopX);
-        AddRow("Position Y", _desktopY);
+        AddRow("Display name", _desktopName, EditorSettingsHelp.DisplayName);
+        AddRow("Dashboard", _desktopDashboard, EditorSettingsHelp.Dashboard);
+        AddRow("Display", _boardEnabled, EditorSettingsHelp.BoardEnabled);
+        AddRow("Diagnostics", _providerEnabled, EditorSettingsHelp.OutputProvider);
+        AddRow("Mouse input", _desktopLock, EditorSettingsHelp.Lock);
+        AddRow("Refresh interval (ms)", _desktopInterval, EditorSettingsHelp.DesktopRefresh);
+        AddRow("Position X", _desktopX, EditorSettingsHelp.PositionX);
+        AddRow("Position Y", _desktopY, EditorSettingsHelp.PositionY);
         var orderHint = new Label
         {
             Text = "Drag the Desktop entries on the left to change their stacking order.",
@@ -433,7 +446,8 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         };
         details.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         details.Controls.Add(orderHint, 0, details.RowCount);
-        details.SetColumnSpan(orderHint, 2);
+        details.SetColumnSpan(orderHint, 3);
+        _help.Bind(orderHint, EditorSettingsHelp.Stacking);
         details.RowCount++;
 
         _desktopDashboard.Items.AddRange(_dashboardChoices.Cast<object>().ToArray());

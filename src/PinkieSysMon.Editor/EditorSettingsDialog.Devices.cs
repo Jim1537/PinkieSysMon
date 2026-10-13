@@ -155,11 +155,12 @@ internal sealed partial class EditorSettingsDialog
 
 internal sealed class DeviceSettingsPage : TabPage
 {
+    private readonly EditorSettingsHelp _help = new();
     private readonly Label _status = new() { Dock = DockStyle.Top, Height = 72, Padding = new Padding(12) };
     private readonly TableLayoutPanel _fields = new()
     {
         Name = "DeviceFields", Dock = DockStyle.Top, AutoSize = true,
-        ColumnCount = 2, Padding = new Padding(12)
+        ColumnCount = 3, Padding = new Padding(12)
     };
     private readonly Button _add = new() { Text = "Add Device", Name = "AddDevice", AutoSize = true };
     private readonly Button _remove = new() { Text = "Remove", Name = "RemoveDevice", AutoSize = true };
@@ -172,7 +173,8 @@ internal sealed class DeviceSettingsPage : TabPage
         AutoScroll = true;
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        void Row(string caption, Control control)
+        _fields.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        void Row(string caption, Control control, string description)
         {
             var row = _fields.RowCount++;
             _fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -181,6 +183,7 @@ internal sealed class DeviceSettingsPage : TabPage
             control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             control.Margin = new Padding(3, 4, 3, 4);
             _fields.Controls.Add(control, 1, row);
+            _fields.Controls.Add(_help.Marker(caption, control, description), 2, row);
         }
         void Change(Action action)
         {
@@ -199,8 +202,8 @@ internal sealed class DeviceSettingsPage : TabPage
 
         var name = new TextBox { Text = target.Name, Name = "DeviceName", Dock = DockStyle.Fill };
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
-        Row("Display name", name);
-        Row("Type", new Label { Text = "Thermalright Trofeo Vision 9.16", AutoSize = true });
+        Row("Display name", name, EditorSettingsHelp.DisplayName);
+        Row("Type", new Label { Text = "Thermalright Trofeo Vision 9.16", AutoSize = true }, EditorSettingsHelp.DeviceType);
         var dashboard = new ComboBox { Name = "DeviceDashboard", Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList };
         dashboard.Items.AddRange(dashboards.Cast<object>().ToArray());
@@ -208,7 +211,7 @@ internal sealed class DeviceSettingsPage : TabPage
             dashboard.Items.Add(assigned);
         dashboard.SelectedItem = target.Dashboard;
         dashboard.SelectedIndexChanged += (_, _) => Change(() => target.Dashboard = dashboard.SelectedItem as string);
-        Row("Dashboard", dashboard);
+        Row("Dashboard", dashboard, EditorSettingsHelp.Dashboard);
         _enabled.Checked = target.DeviceEnabled;
         _enabled.CheckedChanged += (_, _) =>
         {
@@ -219,33 +222,42 @@ internal sealed class DeviceSettingsPage : TabPage
             try { _enabled.Checked = enable(requested); }
             finally { _binding = false; }
         };
-        Row("Display", _enabled);
+        Row("Display", _enabled, EditorSettingsHelp.DeviceEnabled);
         var provider = new CheckBox { Text = "Provider Enabled", Name = "DeviceProvider",
             Checked = target.ProviderEnabled, AutoSize = true };
         provider.CheckedChanged += (_, _) => Change(() => target.ProviderEnabled = provider.Checked);
-        Row("Diagnostics provider", provider);
+        Row("Diagnostics provider", provider, EditorSettingsHelp.OutputProvider);
         Row("Refresh interval (ms)", Number("DeviceRefresh", target.RefreshIntervalMs!.Value, 10, int.MaxValue,
-            value => target.RefreshIntervalMs = value));
+            value => target.RefreshIntervalMs = value), EditorSettingsHelp.DeviceRefresh);
         Row("JPEG quality", Number("DeviceJpeg", target.JpegQuality!.Value, 10, 100,
-            value => target.JpegQuality = value));
+            value => target.JpegQuality = value), EditorSettingsHelp.JpegQuality);
         var usb = target.Usb ?? throw new InvalidOperationException("Physical Output USB settings are missing.");
         Row("USB retry (ms)", Number("DeviceRetry", usb.RetryIntervalMs, 500, int.MaxValue,
-            value => usb.RetryIntervalMs = value));
+            value => usb.RetryIntervalMs = value), EditorSettingsHelp.UsbRetry);
         Row("USB timeout (ms)", Number("DeviceTimeout", usb.TransferTimeoutMs, 500, int.MaxValue,
-            value => usb.TransferTimeoutMs = value));
+            value => usb.TransferTimeoutMs = value), EditorSettingsHelp.UsbTimeout);
         var journal = new CheckBox { Text = "USB diagnostic journal", Name = "DeviceJournal",
             Checked = usb.DiagnosticJournalEnabled, AutoSize = true };
         journal.CheckedChanged += (_, _) => Change(() => usb.DiagnosticJournalEnabled = journal.Checked);
-        Row("USB diagnostics", journal);
+        Row("USB diagnostics", journal, EditorSettingsHelp.UsbJournal);
 
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(12, 4, 12, 4) };
         buttons.Controls.Add(_add);
         buttons.Controls.Add(_remove);
+        _help.Bind(_add, EditorSettingsHelp.AddDevice);
+        _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
         _add.Click += (_, _) => add();
         _remove.Click += (_, _) => remove();
         Controls.Add(buttons);
         Controls.Add(_fields);
         Controls.Add(_status);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _help.Dispose();
+        base.Dispose(disposing);
     }
 
     public void UpdateState(DeviceSettingsEntry entry, bool canRemove)
