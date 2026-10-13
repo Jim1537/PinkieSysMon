@@ -86,7 +86,7 @@ internal sealed partial class EditorSettingsDialog
                 page = new DeviceSettingsPage(entry.Target, _dashboardChoices,
                     () => _devices.MarkChanged(entry.Target),
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
-                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target));
+                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot);
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
             }
@@ -155,7 +155,7 @@ internal sealed partial class EditorSettingsDialog
 
 internal sealed class DeviceSettingsPage : TabPage
 {
-    private readonly EditorSettingsHelp _help = new();
+    private readonly EditorSettingsHelp _help;
     private readonly Label _status = new() { Dock = DockStyle.Top, Height = 72, Padding = new Padding(12) };
     private readonly TableLayoutPanel _fields = new()
     {
@@ -168,8 +168,10 @@ internal sealed class DeviceSettingsPage : TabPage
     private bool _binding;
 
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
-        Action changed, Func<bool, bool> enable, Action add, Action remove)
+        Action changed, Func<bool, bool> enable, Action add, Action remove,
+        string? applicationRoot = null)
     {
+        _help = new EditorSettingsHelp(applicationRoot);
         AutoScroll = true;
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));

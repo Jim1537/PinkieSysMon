@@ -185,7 +185,7 @@ internal sealed class OpenDashboardDialog : PinkieEditorForm
 
 internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 {
-    private readonly EditorSettingsHelp _help = new();
+    private readonly EditorSettingsHelp _help;
     private readonly CheckBox _startRuntime = new()
     {
         Text = "Start PinkieSysMon runtime with Windows",
@@ -253,8 +253,10 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         EditorThemeMode themeMode,
         AppConfig config,
         IReadOnlyList<string> dashboards,
-        Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null)
+        Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
+        string? applicationRoot = null)
     {
+        _help = new EditorSettingsHelp(applicationRoot);
         _dashboardChoices = dashboards;
         _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
         _desktops = new DesktopSettingsModel(config, () => _devices.ConfiguredCount);
@@ -284,7 +286,8 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         {
             Text = "Startup",
             Dock = DockStyle.Top,
-            Height = 78,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12)
         };
         generalGroup.Controls.Add(_help.ToggleRows((_startRuntime, EditorSettingsHelp.Startup)));
@@ -293,7 +296,8 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         {
             Text = "Metric providers",
             Dock = DockStyle.Top,
-            Height = 130,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12)
         };
         providersGroup.Controls.Add(_help.ToggleRows(
@@ -305,12 +309,15 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         {
             Text = "Interface",
             Dock = DockStyle.Top,
-            Height = 128,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12)
         };
         var interfaceLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 3,
             RowCount = 2,
             Padding = new Padding(4, 6, 4, 4)
@@ -318,6 +325,8 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         interfaceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        interfaceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        interfaceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         interfaceLayout.Controls.Add(new Label
         {
             Text = "Theme", AutoSize = true, Anchor = AnchorStyles.Left

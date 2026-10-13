@@ -1,8 +1,12 @@
+using PinkieSysMon;
+using SkiaSharp;
+
 namespace PinkieSysMon.Editor;
 
 // Presentation only: descriptions never read configuration or touch a live Output.
 internal sealed class EditorSettingsHelp : IDisposable
 {
+    private IIconAsset? _icon;
     private readonly ToolTip _toolTip = new()
     {
         InitialDelay = 450,
@@ -11,11 +15,15 @@ internal sealed class EditorSettingsHelp : IDisposable
         ShowAlways = true
     };
 
+    public EditorSettingsHelp(string? applicationRoot = null) => ApplicationRoot = applicationRoot;
+
+    internal string? ApplicationRoot { get; }
+
     public Label Marker(string caption, Control setting, string description)
     {
-        var marker = new Label
+        var marker = new HelpMarker(CreateMarkerImage)
         {
-            Text = "(?)", AutoSize = true, UseMnemonic = false,
+            AutoSize = true, UseMnemonic = false,
             Anchor = AnchorStyles.None, Margin = new Padding(6, 4, 3, 4),
             Cursor = Cursors.Help, TabStop = false,
             AccessibleName = $"Help for {caption}",
@@ -36,7 +44,8 @@ internal sealed class EditorSettingsHelp : IDisposable
     {
         var layout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = rows.Length,
+            Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2, RowCount = rows.Length,
             Padding = new Padding(4, 2, 4, 2)
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -53,7 +62,88 @@ internal sealed class EditorSettingsHelp : IDisposable
         return layout;
     }
 
-    public void Dispose() => _toolTip.Dispose();
+    private Image CreateMarkerImage(int pixelSize, Color foreground)
+    {
+        // Reuse the same Lucide resolver/renderer as the Editor toolbar. Load only
+        // on paint so configuration-only fixtures do not acquire asset dependencies.
+        _icon ??= IconAssetLoader.Load(GlobalAssetResolver.ResolveIconFromRoot(
+            ApplicationRoot ?? ApplicationRootLocator.Find(AppContext.BaseDirectory), "lucide:circle-help"));
+        using var bitmap = new SKBitmap(pixelSize, pixelSize, SKColorType.Bgra8888, SKAlphaType.Premul);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Transparent);
+        _icon.Draw(canvas, new SKRect(0, 0, pixelSize, pixelSize),
+            new SKColor(foreground.R, foreground.G, foreground.B), 1f, "contain",
+            loop: false, antialias: true);
+        canvas.Flush();
+        using var image = SKImage.FromBitmap(bitmap)
+            ?? throw new InvalidOperationException("Could not create Settings help icon image.");
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidOperationException("Could not encode Settings help icon image.");
+        using var stream = new MemoryStream(data.ToArray());
+        using var decoded = new Bitmap(stream);
+        return new Bitmap(decoded);
+    }
+
+    public void Dispose()
+    {
+        _toolTip.Dispose();
+        _icon?.Dispose();
+        _icon = null;
+    }
+
+    private sealed class HelpMarker(Func<int, Color, Image> createImage) : Label
+    {
+        private Image? _image;
+        private int _pixelSize;
+        private Color _foreground;
+
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            var side = LogicalToDeviceUnits(20);
+            return new Size(side, side);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var theme = EditorShellTheme.CaptureCurrent();
+            var foreground = Enabled ? theme.Foreground : theme.InactiveForeground;
+            var pixelSize = LogicalToDeviceUnits(16);
+            if (_image is null || _pixelSize != pixelSize || _foreground != foreground)
+            {
+                var next = createImage(pixelSize, foreground);
+                _image?.Dispose();
+                _image = next;
+                _pixelSize = pixelSize;
+                _foreground = foreground;
+            }
+            e.Graphics.DrawImageUnscaled(_image,
+                (ClientSize.Width - pixelSize) / 2, (ClientSize.Height - pixelSize) / 2);
+        }
+
+        protected override void OnDpiChangedAfterParent(EventArgs e)
+        {
+            base.OnDpiChangedAfterParent(e);
+            Size = GetPreferredSize(Size.Empty);
+            Invalidate();
+        }
+
+        protected override void OnSystemColorsChanged(EventArgs e)
+        {
+            base.OnSystemColorsChanged(e);
+            Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _image?.Dispose();
+                _image = null;
+            }
+            base.Dispose(disposing);
+        }
+    }
 
     public const string Startup = "Start Runtime when you sign in to Windows.\nThe Dashboard Editor is not started automatically.";
     public const string SystemProvider = "Make built-in Windows, network, power and media metrics available.\nRuntime captures only readings requested by active dashboards.";

@@ -662,7 +662,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _toolbarIconSize,
             _themeMode,
             runtimeConfig,
-            DashboardCatalog.Discover(_root));
+            DashboardCatalog.Discover(_root),
+            applicationRoot: _root);
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
