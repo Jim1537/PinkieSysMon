@@ -129,6 +129,50 @@ internal static class DesktopSessionStage09Tests
         });
     }
 
+    // Stage27: a delayed timer callback must not create work after the
+    // window is hidden, during suspension, or after its session is disposed.
+    public static void HiddenAndStoppedRenderSuppression()
+    {
+        InSandbox((directory, log) =>
+        {
+            var config = Config(boardEnabled: true, providerEnabled: true);
+            var store = new MetricStore();
+            FakeWindow? window = null;
+            using var manager = new OutputSessionManager(
+                config, Dashboard(directory, 0, "#FF226688"), store, log,
+                (app, target, board, metrics, logger) =>
+                    new DesktopOutputSession(app, target, board, metrics, logger,
+                        draw => window = new FakeWindow(draw)));
+
+            manager.Start();
+            var panel = window ?? throw new InvalidOperationException("Missing Desktop window.");
+            panel.Tick();
+            Check(panel.PresentCount == 1 &&
+                  manager.GetStatuses().Single().SentFrames == 1,
+                "A visible Desktop must produce one frame for one timer callback.");
+
+            manager.Suspend();
+            panel.Tick();
+            panel.Tick();
+            Check(!panel.IsVisible && panel.PresentCount == 1 &&
+                  manager.GetStatuses().Single().SentFrames == 1,
+                "Late callbacks during suspension must not render or present a frame.");
+
+            manager.Resume();
+            panel.Tick();
+            Check(panel.IsVisible && panel.PresentCount == 2 &&
+                  manager.GetStatuses().Single().SentFrames == 2 &&
+                  panel.DisposeCount == 0,
+                "Resume must restore rendering through the same live window.");
+
+            manager.StopTarget("desk-1");
+            panel.Tick();
+            Check(panel.DisposeCount == 1 && !panel.IsVisible &&
+                  panel.PresentCount == 2,
+                "A stale callback after StopTarget must never present another frame.");
+        });
+    }
+
     private static AppConfig Config(bool boardEnabled, bool providerEnabled) => new()
     {
         Outputs = new OutputConfig
@@ -193,6 +237,10 @@ internal static class DesktopSessionStage09Tests
         public Point Location { get; private set; }
         public int IntervalMs { get; private set; }
         public int DisposeCount { get; private set; }
+        public int PresentCount { get; private set; }
+
+        // Deliberately deliver even when hidden to simulate an in-flight timer callback.
+        public void Tick() => _render();
 
         public void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked)
         {
@@ -209,6 +257,7 @@ internal static class DesktopSessionStage09Tests
 
         public void Present(SKBitmap bitmap)
         {
+            PresentCount++;
             var pixel = bitmap.GetPixel(ClientPixels.Width / 2, ClientPixels.Height / 2);
             _lastCenter = Color.FromArgb(pixel.Alpha, pixel.Red, pixel.Green, pixel.Blue);
         }

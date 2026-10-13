@@ -248,6 +248,7 @@ internal static class Program
             ("Desktop session lifecycle and no USB", DesktopSessionStage09Tests.DesktopLifecycle),
             ("Desktop session reconfigure and orientation", DesktopSessionStage09Tests.ReconfigureGeometry),
             ("Desktop Board Enabled versus Provider Enabled", DesktopSessionStage09Tests.IndependentSwitches),
+            ("Stage27 Desktop hidden/suspended/stopped suppresses frames", DesktopSessionStage09Tests.HiddenAndStoppedRenderSuppression),
             ("Desktop layered BGRA stride, alpha and blending", DesktopTransparencyStage10Tests.PremultipliedTransfer),
             ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
             ("Desktop placement multi-monitor and recovery", DesktopPositionStage11Tests.MonitorRecovery),
