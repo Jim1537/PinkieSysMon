@@ -86,7 +86,7 @@ internal sealed class FramePump : IOutputSession
 
         _log.Info(
             $"Output session '{TargetName}' started. USB diagnostic journal=" +
-            (_config.Usb.DiagnosticJournalEnabled ? "enabled." : "disabled."));
+            ((_target.Usb ?? _config.Usb).DiagnosticJournalEnabled ? "enabled." : "disabled."));
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
 
@@ -128,9 +128,11 @@ internal sealed class FramePump : IOutputSession
             oldRenderer = _renderer;
             _renderer = prepared.TakeRenderer();
 
+            var oldUsb = _target.Usb ?? _config.Usb;
+            var newUsb = prepared.Target.Usb ?? prepared.Config.Usb;
             var outputConnectionChanged =
-                _config.Usb.TransferTimeoutMs != prepared.Config.Usb.TransferTimeoutMs ||
-                _config.Usb.DiagnosticJournalEnabled != prepared.Config.Usb.DiagnosticJournalEnabled ||
+                oldUsb.TransferTimeoutMs != newUsb.TransferTimeoutMs ||
+                oldUsb.DiagnosticJournalEnabled != newUsb.DiagnosticJournalEnabled ||
                 !OutputTargetContract.ConnectionEquals(_target, prepared.Target);
             var runtimeMetricsWereEnabled = RuntimeMetricsEnabled;
 
@@ -413,9 +415,10 @@ internal sealed class FramePump : IOutputSession
                 return null;
 
             target = _target;
-            timeoutMs = _config.Usb.TransferTimeoutMs;
-            retryMs = _config.Usb.RetryIntervalMs;
-            journalEnabled = _config.Usb.DiagnosticJournalEnabled;
+            var usb = target.Usb ?? _config.Usb;
+            timeoutMs = usb.TransferTimeoutMs;
+            retryMs = usb.RetryIntervalMs;
+            journalEnabled = usb.DiagnosticJournalEnabled;
             ioToken = _transportIoCancellation.Token;
             generation = _connectionGeneration;
         }
@@ -597,7 +600,7 @@ internal sealed class FramePump : IOutputSession
                         if (!_transportRetirePending && !_suspended)
                         {
                             SetUsbStateLocked("WAITING");
-                            _nextUsbAttemptAtMs = Environment.TickCount64 + _config.Usb.RetryIntervalMs;
+                            _nextUsbAttemptAtMs = Environment.TickCount64 + (_target.Usb ?? _config.Usb).RetryIntervalMs;
                         }
                     }
                 }

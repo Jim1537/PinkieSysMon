@@ -74,6 +74,7 @@ internal static class Program
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
+            ("Stage20 per-device USB handshake settings and reconfigure isolation", FramePumpPerDeviceUsbSettings),
             ("Output session manager lifecycle", OutputSessionManagerLifecycle),
             ("Output session manager reconfiguration", OutputSessionManagerReconfiguration),
             ("Output session manager transactional preparation", OutputSessionManagerTransactionalPreparation),
@@ -1029,6 +1030,79 @@ internal static class Program
 
             Assert(SpinWait.SpinUntil(() => Volatile.Read(ref opens) >= 2, TimeSpan.FromSeconds(5)),
                 "Worker must open a fresh transport after the in-flight old transfer has retired.");
+        }
+        finally
+        {
+            allowSend.Set();
+            pump.Dispose();
+            try { Directory.Delete(root, recursive: true); } catch { }
+        }
+    }
+
+    private static void FramePumpPerDeviceUsbSettings()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-pump-target-usb");
+        using var sendStarted = new ManualResetEventSlim();
+        using var allowSend = new ManualResetEventSlim();
+        var firstTransport = new BlockingTrofeoTestTransport(sendStarted, allowSend);
+        var secondTransport = new BlockingTrofeoTestTransport();
+        var attempts = new System.Collections.Concurrent.ConcurrentQueue<(int TimeoutMs, bool Journal)>();
+        var opens = 0;
+
+        var config = new AppConfig();
+        var target = new OutputTargetConfig
+        {
+            Usb = new UsbConfig
+            {
+                RetryIntervalMs = 700,
+                TransferTimeoutMs = 1100,
+                DiagnosticJournalEnabled = true
+            }
+        };
+        var board = new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") };
+        var pump = new FramePump(config, target, board, new MetricStore(),
+            new FileLogger(Path.Combine(root, "target-usb.log")),
+            (selected, timeout, journal, log, token) =>
+            {
+                attempts.Enqueue((timeout, journal));
+                return Interlocked.Increment(ref opens) == 1 ? firstTransport : secondTransport;
+            });
+
+        try
+        {
+            pump.Start();
+            Assert(sendStarted.Wait(TimeSpan.FromSeconds(5)),
+                "Initial physical session must reach its injected transport without USB hardware.");
+            Assert(attempts.TryPeek(out var initial) &&
+                   initial.TimeoutMs == 1100 && initial.Journal,
+                "Transport handshake must use the physical target's USB settings, not global defaults.");
+
+            var newConfig = new AppConfig();
+            var changedTarget = new OutputTargetConfig
+            {
+                Usb = new UsbConfig
+                {
+                    RetryIntervalMs = 1500,
+                    TransferTimeoutMs = 1800,
+                    DiagnosticJournalEnabled = false
+                }
+            };
+            using var plan = pump.PrepareReconfiguration(newConfig, changedTarget, board);
+            pump.CommitReconfiguration(plan);
+            Assert(firstTransport.DisposeCount == 0,
+                "Reconfigure may not release a physical transport during its in-flight send.");
+
+            allowSend.Set();
+            Assert(SpinWait.SpinUntil(() => firstTransport.DisposeCount == 1 &&
+                   Volatile.Read(ref opens) >= 2, TimeSpan.FromSeconds(5)),
+                "Changing per-target USB timeout/diagnostics must retire and reopen only this output.");
+            var values = attempts.ToArray();
+            Assert(values.Length >= 2 &&
+                   values[1].TimeoutMs == 1800 && !values[1].Journal,
+                "Reconnected physical output must use updated per-target USB parameters.");
+            Assert(config.Usb.TransferTimeoutMs == 3000 &&
+                   newConfig.Usb.TransferTimeoutMs == 3000,
+                "Per-device reconfiguration must not mutate global USB defaults.");
         }
         finally
         {
