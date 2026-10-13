@@ -228,43 +228,89 @@ function New-PortableShellLink {
     }
 }
 
-function Get-PortableReleaseIdentity {
-    if (-not (Test-Path -LiteralPath $buildPropsPath -PathType Leaf)) {
-        throw "Build metadata is missing: $buildPropsPath"
+function Get-PinkieBuildIdentity {
+    Assert-GitRepositoryReady
+    $branch = Get-CurrentGitBranch
+    if ($branch -ne 'main') {
+        throw "Automatic versioning requires main, not $branch."
+    }
+
+    $shallow = @(& git -C $root rev-parse --is-shallow-repository)
+    if ($LASTEXITCODE -ne 0 -or $shallow.Count -ne 1 -or ([string]$shallow[0]).Trim() -ne 'false') {
+        throw 'Automatic versioning requires complete, non-shallow main history.'
+    }
+
+    $commitOutput = @(& git -C $root rev-list --count HEAD)
+    if ($LASTEXITCODE -ne 0 -or $commitOutput.Count -ne 1) {
+        throw 'Could not count main commits.'
+    }
+    $commits = 0
+    if (-not [int]::TryParse(([string]$commitOutput[0]).Trim(), [ref]$commits) -or $commits -lt 1) {
+        throw 'Invalid main commit count.'
     }
 
     try {
         [xml]$props = Get-Content -LiteralPath $buildPropsPath -Raw
     } catch {
-        throw "Unable to read build metadata from Directory.Build.props: $($_.Exception.Message)"
+        throw "Cannot read Directory.Build.props: $($_.Exception.Message)"
+    }
+    $major = 0
+    if (-not [int]::TryParse(([string]$props.Project.PropertyGroup.PinkieMajorVersion), [ref]$major) -or $major -lt 1) {
+        throw 'PinkieMajorVersion is not a positive integer.'
     }
 
-    $versionText = [string]$props.Project.PropertyGroup.Version
-    $fileVersionText = [string]$props.Project.PropertyGroup.FileVersion
-    if ([string]::IsNullOrWhiteSpace($versionText) -or [string]::IsNullOrWhiteSpace($fileVersionText)) {
-        throw 'Directory.Build.props must define both Version and FileVersion for release naming.'
-    }
-
+    # GitHub search excludes pull requests and supplies the full total_count.
+    $uri = 'https://api.github.com/search/issues?q=repo%3AJim1537%2FPinkieSysMon%20is%3Aissue%20is%3Aclosed&per_page=1'
     try {
-        $parsedFileVersion = [Version]::Parse($fileVersionText)
+        $response = Invoke-RestMethod -Uri $uri -Method Get -TimeoutSec 20 -Headers @{
+            Accept = 'application/vnd.github+json'
+            'User-Agent' = 'PinkieSysMon-build'
+        } -ErrorAction Stop
     } catch {
-        throw "FileVersion is not a valid numeric version: $fileVersionText"
+        throw "Closed GitHub Issue count could not be verified; build aborted: $($_.Exception.Message)"
+    }
+    $closed = 0
+    if ($null -eq $response -or $response.incomplete_results -ne $false -or
+        -not [int]::TryParse(([string]$response.total_count), [ref]$closed) -or $closed -lt 0) {
+        throw 'GitHub returned an incomplete or invalid closed-Issue count.'
+    }
+    if ($major -gt 65535 -or $closed -gt 65535 -or $commits -gt 65535) {
+        throw 'A version component exceeds the supported Windows file/assembly version range.'
     }
 
-    if ($parsedFileVersion.Revision -lt 0) {
-        throw "FileVersion must contain a fourth numeric component used as the release build number: $fileVersionText"
-    }
-
-    $expectedPrefix = "$versionText."
-    if (-not $fileVersionText.StartsWith($expectedPrefix, [StringComparison]::Ordinal)) {
-        throw "Release version metadata is inconsistent. Version=$versionText, FileVersion=$fileVersionText"
-    }
-
-    $buildNumber = $parsedFileVersion.Revision
     [PSCustomObject]@{
-        Version = $versionText
-        Build = $buildNumber
-        FileName = "PinkieSysMon_${versionText}-${buildNumber}.zip"
+        Version = "$major.$closed.$commits"
+        Major = $major
+        ClosedIssues = $closed
+        Commits = $commits
+    }
+}
+
+function Assert-PinkiePublishedVersion {
+    param([Parameter(Mandatory = $true)][string]$ExpectedVersion)
+    $expected = "$ExpectedVersion.0"
+    foreach ($file in @('PinkieSysMon.exe', 'PinkieSysMon.dll',
+                       'PinkieSysMon.Editor.exe', 'PinkieSysMon.Editor.dll')) {
+        $path = Join-Path $publishOut $file
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "Missing versioned binary: $path"
+        }
+        $info = (Get-Item -LiteralPath $path).VersionInfo
+        $actual = "$($info.FileMajorPart).$($info.FileMinorPart).$($info.FileBuildPart).$($info.FilePrivatePart)"
+        if ($actual -ne $expected) {
+            throw "FileVersion mismatch in ${file}: expected $expected, observed $actual"
+        }
+    }
+}
+
+function Get-PortableReleaseIdentity {
+    if ($null -eq $buildIdentity) {
+        throw 'No resolved build identity is available for release packaging.'
+    }
+    [PSCustomObject]@{
+        Version = $buildIdentity.Version
+        Build = $buildIdentity.Commits
+        FileName = "PinkieSysMon_$($buildIdentity.Version).zip"
     }
 }
 
@@ -1032,9 +1078,12 @@ foreach ($project in @($runtimeProject, $editorProject, $testsProject)) {
     }
 }
 
+$buildIdentity = Get-PinkieBuildIdentity
+$resolvedVersionArgument = "-p:PinkieResolvedVersion=$($buildIdentity.Version)"
 $version = & dotnet --version
 Write-Host ".NET SDK: $version"
 Write-Host "Developer root: $root"
+Write-Host "Build version: v$($buildIdentity.Version) (major=$($buildIdentity.Major); closed issues=$($buildIdentity.ClosedIssues); main commits=$($buildIdentity.Commits))"
 
 # Every successful build starts from a deterministic clean generated state.
 Remove-DevelopmentArtifacts
@@ -1044,14 +1093,15 @@ New-Item -ItemType Directory -Path $testsOut -Force | Out-Null
 try {
     Write-Host ''
     Write-Host 'Publishing PinkieSysMon runtime...'
-    Invoke-External dotnet 'publish' $runtimeProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $publishOut
+    Invoke-External dotnet 'publish' $runtimeProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $publishOut $resolvedVersionArgument
 
     Write-Host ''
     Write-Host 'Publishing PinkieSysMon Dashboard Editor...'
-    Invoke-External dotnet 'publish' $editorProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $publishOut
+    Invoke-External dotnet 'publish' $editorProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $publishOut $resolvedVersionArgument
 
     Remove-UnsupportedPublishCultures
     Assert-PublishPackage
+    Assert-PinkiePublishedVersion -ExpectedVersion $buildIdentity.Version
 
     Write-Host ''
     Write-Host 'Applying Windows application identity / Authenticode signing...'
@@ -1111,7 +1161,7 @@ try {
 
     Write-Host ''
     Write-Host 'Building regression checks...'
-    Invoke-External dotnet 'build' $testsProject '-c' 'Release' '-o' $testsOut
+    Invoke-External dotnet 'build' $testsProject '-c' 'Release' '-o' $testsOut $resolvedVersionArgument
 
     $testsDll = Join-Path $testsOut 'PinkieSysMon.RegressionTests.dll'
     if (-not (Test-Path -LiteralPath $testsDll -PathType Leaf)) {

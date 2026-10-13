@@ -39,6 +39,14 @@ Build output is generated under `artifacts/` and is not tracked. Portable releas
 
 The authoritative public/private source boundary and exclusion inventory are maintained in [Public Repository Boundary](../PUBLIC-REPOSITORY.md). The repository layout above describes the public source baseline, not the author's local production installation.
 
+## Automatic version numbering
+
+Every build uses `vA.B.C`. `A` is the major explicitly chosen by the owner (currently `2`, in `Directory.Build.props`); `B` is the live total of closed GitHub Issues in this repository (excluding pull requests); `C` is the number of Git commits reachable from `main` HEAD, including documentation commits and merges. Before compilation, `build.ps1` queries the GitHub Issues search total and executes `git rev-list --count HEAD`. Builds from non-`main` or shallow history, or without a reliable live issue count, stop instead of manufacturing a version.
+
+The resulting `Version` and `InformationalVersion` are `A.B.C`; Windows `AssemblyVersion` and `FileVersion` must have four components, so they are `A.B.C.0`. The final zero is a Windows metadata field, **not** the build number. The same version is injected into Runtime, Editor and regression build, and published EXE/DLL file metadata are validated before signing. The portable archive is named `PinkieSysMon_A.B.C.zip` without a trailing `-0`. Direct project compilation without version resolution fails; the supported entry point is `build.ps1`.
+
+B can change on Issue closure/reopening even without a new commit, and reopening can decrease it. Each binary keeps the count observed at the beginning of its build; historic Issue milestone titles do not define the live version. A major change requires separate owner approval. Network access to GitHub is required to verify B; no stale fallback is allowed.
+
 ## Build and regression
 
 From PowerShell in the repository root:
@@ -109,7 +117,7 @@ C:\PinkieSysMon
     - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
     - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 
-The same **Publish local** action also prepares a clean redistributable portable ZIP under `release/`. The archive contains a top-level `PinkieSysMon/` folder with the self-contained binaries, the two portable root shortcuts, the project/third-party license notices, only the public Roboto and Lucide assets, only the public `Default` dashboard, and a machine-neutral `config/app.json` configured for `Default` with only the `system` metric provider enabled. The ZIP filename is `PinkieSysMon_<Version>-<build>.zip`, where `<build>` is the fourth component of `FileVersion`; rerunning the same version/build replaces that ZIP.
+The same **Publish local** action also prepares a clean redistributable portable ZIP under `release/`. The archive contains a top-level `PinkieSysMon/` folder with the self-contained binaries, the two portable root shortcuts, the project/third-party license notices, only the public Roboto and Lucide assets, only the public `Default` dashboard, and a machine-neutral `config/app.json` configured for `Default` with only the `system` metric provider enabled. The ZIP filename is `PinkieSysMon_A.B.C.zip`; rerunning the same resolved version replaces that ZIP.
 
 Libre Hardware Monitor is an independent external application and is not bundled into the portable PinkieSysMon installation.
 

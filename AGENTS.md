@@ -86,6 +86,12 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 - Preserve widget identity, geometry, layer/group interpretation, media/source contracts, and rendered meaning unless the request deliberately changes them.
 - Do not place private production dashboards, local machine settings, logs, restricted icon/font packs, software credentials, signing secrets, or unnecessary device identifiers in the public repository. Inspect staged diffs and honor [Public Repository Boundary](docs/PUBLIC-REPOSITORY.md).
 
+## Mandatory automatic version numbering
+
+- Every PinkieSysMon build and version statement must follow `vA.B.C`: **A** is the owner-approved major version (currently **2**); **B** is the live count of *closed GitHub Issues*, excluding PRs, in `Jim1537/PinkieSysMon`; **C** is the number of all commits reachable from the current `main` HEAD, including documentation commits and merges. Never substitute a manually maintained counter, a zero or a planned Issue/release title.
+- `build.ps1` must resolve B and C from authoritative GitHub/Git evidence on **every build** and inject the same computed version into Runtime, Editor, regression binaries and portable ZIP. It must fail visibly rather than silently use a stale version. The only manually controlled value is `PinkieMajorVersion` in `Directory.Build.props`. Report the computed version and counts. See [Building and Deployment](docs/development/building.md#automatic-version-numbering) for the single implementation contract.
+- Changes to A require a separate, explicit owner decision. Closing or reopening an Issue can alter B without a commit (and reopening can decrease B). Artifacts retain their build-time numbers; historical Issue titles are not authoritative version values.
+
 ## Code workflow and release gates
 
 - Prefer focused, descriptive and verified **direct commits to `main`**. Use a branch/PR only if direct `main` work is objectively impossible, and record the reason. Do not default to replacement ZIP archives; use one only on explicit request or for an agreed offline handoff.
