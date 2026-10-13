@@ -24,6 +24,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly RuntimeOutputControl _outputControl;
     private readonly WindowsMediaTelemetrySource _mediaTelemetry;
     private readonly WindowsAppNotificationService _notifications;
+    private readonly RuntimeCommandFeedback _commandFeedback;
 
     private AppConfig _config;
     private TelemetryConfig _telemetryConfig;
@@ -75,6 +76,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _outputSessions, () => _config, _baseDir, _log, CommitTargetRuntimeConfiguration);
         _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus, configurationControl.Execute);
         _notifications = new WindowsAppNotificationService(log);
+        _commandFeedback = new RuntimeCommandFeedback(
+            (message, kind) => _notifications.Show(message, kind),
+            ex => _log.Warn("Runtime command notification failed; command result retained.", ex),
+            ex => _log.Error("Runtime user command or result verification failed.", ex));
 
         BuildTray();
         _uiInvoker.CreateControl();
@@ -232,17 +237,18 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     throw new InvalidOperationException("Device identity changed. No USB ownership was taken.");
             }
 
-            target.DeviceEnabled = enable;
-            SaveAndReloadPhysicalOutputChange(config);
-
-            _notifications.Show(enable
-                ? "Physical device enabled. PinkieSysMon may now use its USB display."
-                : "Physical device disabled. USB output stopped.");
+            // Consent remains above this path. This internal feedback kind has no IPC verb.
+            _commandFeedback.Execute(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, targetId, Value: enable), () =>
+            {
+                target.DeviceEnabled = enable;
+                SaveAndReloadPhysicalOutputChange(config);
+                return new(true, $"Device Enabled = {enable}.");
+            }, _outputControl.GetStatus);
         }
         catch (Exception ex)
         {
             _log.Error("Could not change physical device enabled state.", ex);
-            _notifications.Show($"Device setting failed: {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show($"Device setting failed for Output '{targetId}': {ex.Message}", RuntimeNotificationKind.Error);
         }
     }
 
@@ -283,17 +289,20 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 throw new InvalidOperationException("The physical Output binding changed; nothing was removed.");
             PhysicalDeviceRemovalPolicy.Remove(config, targetId);
             SaveAndReloadPhysicalOutputChange(config);
-            _notifications.Show($"Removed physical Output '{target.Name}'. Dashboard files were retained.");
+            _notifications.Show($"Removed physical Output '{target.Name}' ({target.Id}). Dashboard files were retained.");
         }
         catch (Exception ex)
         {
             _log.Error("Could not remove physical Output.", ex);
-            _notifications.Show($"Device removal failed: {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show($"Device removal failed for Output '{targetId}': {ex.Message}", RuntimeNotificationKind.Error);
         }
     }
 
     private void SaveAndReloadPhysicalOutputChange(AppConfig config)
     {
+        // This established path reloads all persisted settings, so older completions
+        // cannot retain ownership of potentially replaced sibling sessions/bindings.
+        _commandFeedback.Clear();
         // Resolve all remaining dashboards before replacing the private configuration.
         _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
         var previousJson = File.ReadAllText(AppConfigPath);
@@ -348,7 +357,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         menu.Items.Add(new ToolStripSeparator());
         var exit = new ToolStripMenuItem("Exit");
-        exit.Click += (_, _) => ExitThread();
+        exit.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.Exit));
         menu.Items.Add(exit);
 
         _trayIcon.Icon = _applicationIcon ?? SystemIcons.Application;
@@ -386,6 +395,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             : "(per-output dashboards)";
 
     private RuntimeIpcResponse ReloadConfiguration(bool showNotification = true)
+        => showNotification
+            ? ExecuteOutputCommandOnUi(new(RuntimeIpcCommandKind.ReloadConfiguration))
+            : ReloadConfigurationCore();
+
+    private RuntimeIpcResponse ReloadConfigurationCore()
     {
         try
         {
@@ -395,15 +409,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             ApplyConfiguration(app, telemetry, boards);
             RefreshPhysicalInventory();
             _log.Info($"Configuration and independent dashboards for {app.Outputs.Targets.Count} outputs reloaded.");
-            if (showNotification)
-                _notifications.Show("Configuration reloaded.");
             return new RuntimeIpcResponse(true, $"Reloaded {app.Outputs.Targets.Count} output dashboards.");
         }
         catch (Exception ex)
         {
-            _log.Error("Configuration reload failed; previous configuration remains active", ex);
-            if (showNotification)
-                _notifications.Show($"Reload failed: {ex.Message}", RuntimeNotificationKind.Error);
+            _log.Error("Configuration reload failed; inspect the reported apply/rollback outcome", ex);
             return new RuntimeIpcResponse(false, ex.Message);
         }
     }
@@ -424,19 +434,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus())));
 
-        if (parsed.Kind == RuntimeIpcCommandKind.Exit)
-        {
-            ScheduleExitAfterIpcResponse();
-            return Task.FromResult(new RuntimeIpcResponse(true, "Runtime is stopping and unloading."));
-        }
-
         return InvokeOnUiAsync(() =>
         {
             switch (parsed.Kind)
             {
                 case RuntimeIpcCommandKind.ReloadConfiguration:
-                    return ReloadConfiguration(showNotification: false);
-
+                case RuntimeIpcCommandKind.Exit:
                 case RuntimeIpcCommandKind.StartOrReloadTarget:
                 case RuntimeIpcCommandKind.StopTarget:
                 case RuntimeIpcCommandKind.StartOrReloadAll:
@@ -688,14 +691,25 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
     {
-        var response = _outputControl.Execute(command);
-        if (response.Success)
+        var response = _commandFeedback.Execute(command, () =>
         {
-            _boards = _outputSessions.GetDashboardAssignments();
-            ReconcileTelemetryDemand();
-        }
-        RefreshTrayStatus();
-        return response.Success && _outputControl.ShouldExitRuntimeAfter(command)
+            var applied = command.Kind switch
+            {
+                RuntimeIpcCommandKind.ReloadConfiguration => ReloadConfigurationCore(),
+                RuntimeIpcCommandKind.Exit => new RuntimeIpcResponse(true, "Shutdown requested."),
+                _ => _outputControl.Execute(command)
+            };
+            if (command.Kind == RuntimeIpcCommandKind.Exit)
+                return applied;
+            if (applied.Success)
+            {
+                _boards = _outputSessions.GetDashboardAssignments();
+                ReconcileTelemetryDemand();
+            }
+            RefreshTrayStatus();
+            return applied;
+        }, _outputControl.GetStatus);
+        return response.Success && (command.Kind == RuntimeIpcCommandKind.Exit || _outputControl.ShouldExitRuntimeAfter(command))
             ? response with { Message = $"{response.Message} {RuntimeIpcProtocol.RuntimeStoppingMessage}" }
             : response;
     }
@@ -705,7 +719,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         try
         {
             var response = ExecuteOutputCommandOnUi(command);
-            _notifications.Show(response.Message, response.Success ? RuntimeNotificationKind.Information : RuntimeNotificationKind.Error);
             if (RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
                 ExitThread();
         }
@@ -787,6 +800,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private void RefreshTrayStatus()
     {
         var status = _outputControl.GetStatus();
+        _commandFeedback.Observe(status);
         var tooltip = RuntimeTrayOutputContract.Tooltip(status);
         if (status.Outputs.Length == 1)
         {
@@ -898,6 +912,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _log.Info("PinkieSysMon shutting down.");
 
         _statusTimer.Stop();
+        _commandFeedback.Clear();
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         _ipcServer.Dispose();

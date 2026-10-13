@@ -58,7 +58,9 @@ internal enum RuntimeIpcCommandKind
     StopAll,
     AssignDashboard,
     SetDesktopBoardEnabled,
-    SetDesktopLock
+    SetDesktopLock,
+    // Internal tray feedback only; deliberately no IPC verb or parser route grants USB ownership.
+    SetPhysicalDeviceEnabled
 }
 
 internal sealed record RuntimeIpcCommand(
@@ -231,6 +233,9 @@ internal static class RuntimeIpc
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Math.Max(100, timeoutMs));
+        var requestAttempted = false;
+        var readOnly = command.Equals(RuntimeIpcProtocol.PingCommand, StringComparison.OrdinalIgnoreCase) ||
+            command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase);
 
         try
         {
@@ -249,10 +254,12 @@ internal static class RuntimeIpc
             };
             using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
 
+            // Even a partially failed write cannot prove the server did not receive the request.
+            requestAttempted = true;
             await writer.WriteLineAsync(command.AsMemory(), timeout.Token).ConfigureAwait(false);
             var line = await reader.ReadLineAsync(timeout.Token).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(line))
-                return new RuntimeIpcResponse(false, "PinkieSysMon runtime returned an empty IPC response.");
+                return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime returned an empty IPC response.", readOnly));
 
             var separator = line.IndexOf('\t');
             var status = separator >= 0 ? line[..separator] : line;
@@ -263,21 +270,28 @@ internal static class RuntimeIpc
         }
         catch (OperationCanceledException)
         {
-            return new RuntimeIpcResponse(false, "PinkieSysMon runtime is not running.");
+            return new(false, DescribeUnavailableResponse(requestAttempted,
+                cancellationToken.IsCancellationRequested ? "Runtime IPC request was canceled." : "Runtime IPC request timed out.", readOnly));
         }
         catch (TimeoutException)
         {
-            return new RuntimeIpcResponse(false, "PinkieSysMon runtime is not running.");
+            return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime IPC request timed out.", readOnly));
         }
         catch (IOException)
         {
-            return new RuntimeIpcResponse(false, "PinkieSysMon runtime is not running.");
+            return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime IPC connection closed or could not be opened.", readOnly));
         }
         catch (UnauthorizedAccessException ex)
         {
-            return new RuntimeIpcResponse(false, $"Runtime IPC access denied: {ex.Message}");
+            return new(false, DescribeUnavailableResponse(requestAttempted, $"Runtime IPC access denied: {ex.Message}", readOnly));
         }
     }
+
+    internal static string DescribeUnavailableResponse(bool requestAttempted, string reason, bool readOnly = false) => requestAttempted
+        ? readOnly
+            ? $"{reason} Runtime status/response is unavailable; this read-only request changes no settings."
+            : $"{reason} The command may have been applied. Query Runtime status before retrying."
+        : $"{reason} Runtime could not be contacted; no command write was attempted.";
 
     public static async Task<RuntimeIpcStatusResponse> GetStatusAsync(int timeoutMs = 750, CancellationToken cancellationToken = default)
     {

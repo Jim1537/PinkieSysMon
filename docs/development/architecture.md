@@ -143,6 +143,23 @@ These requests prepare only the selected session and preserve sibling document i
 
 **Source anchors:** [Runtime IPC](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeIpc.cs), [Runtime output control](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputControl.cs), [Target configuration transaction](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputConfigurationControl.cs), [Application coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs).
 
+### Runtime command feedback
+
+Tray and Editor IPC mutations use one Runtime-owned command-feedback path. The response and Windows app notification carry the same target name/ID, assigned dashboard and observed session state; request acceptance alone does not establish a visible panel or physical frame delivery. Requested assignment, enablement, Lock and active/stopped state are checked after apply. A failed or unverifiable apply reports its cause, current state where available and observed partial changes without assuming complete rollback. IPC timeout/disconnect after a command write attempt reports an unknown outcome and asks the client to query status before retrying.
+
+| Outcome | Feedback |
+| --- | --- |
+| Applied control with observed ready Output | Information notification; a connected transport does not assert delivered frames. |
+| Applied control with pending readiness | Warning and explicit current state. The existing tray status snapshot may later produce one terminal connection/presentation or failure notification. |
+| Rejected, unverified or reported failed Output | Error with target and actionable cause; applied settings/sessions may remain. |
+| Shutdown request | Acceptance only; unloading completes after the IPC response and existing stopping handshake. |
+
+Pending completion ownership is bounded by configured Outputs. A superseding command, changed target assignment/enablement/session ownership or shutdown removes it; the established full reload used by tray physical settings also clears prior completions. Each Runtime All command produces aggregate feedback, while target commands do not adopt sibling failures. PING/STATUS, passive discovery, telemetry/frame timers and automatic transport retries never create notification requests. Observation adds no timer or device polling and may miss transient states between existing snapshots. Physical enable feedback follows the existing tray consent path; its internal feedback kind has no IPC verb and grants no new device ownership route.
+
+The established `WindowsAppNotificationService` owns native Windows slide-in delivery, registration fallback and disposal. Delivery availability does not change a command result. Its activation callback only logs; command feedback does not activate an Editor/Runtime window or modify Desktop Lock. Actual shell delivery, focus behavior and native integration require Windows observation.
+
+**Source anchors:** [Command feedback](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeCommandFeedback.cs), [Windows notification service](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/WindowsAppNotificationService.cs), [Runtime coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs).
+
 ## Concurrency and transport lifetime
 
 Runtime telemetry uses a polling worker; each active output session uses a separate frame worker. The Editor has its own UI and preview cadence. These workers share data through published snapshots, while lifecycle and reconfiguration require stronger synchronization.
