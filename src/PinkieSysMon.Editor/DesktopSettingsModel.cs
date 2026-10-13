@@ -31,6 +31,9 @@ internal sealed class DesktopSettingsModel
         while (_desktops.Any(x => x.Name.Equals($"Desktop {suffix}", StringComparison.OrdinalIgnoreCase)))
             suffix++;
         var name = $"Desktop {suffix}";
+        // Keep list order and persisted ZOrder consistent even with old gaps/ties.
+        for (var i = 0; i < _desktops.Count; i++)
+            _desktops[i].Desktop!.ZOrder = i;
         var result = new OutputTargetConfig
         {
             Id = "desktop-" + Guid.NewGuid().ToString("N"),

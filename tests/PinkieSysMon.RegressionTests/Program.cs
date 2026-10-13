@@ -1965,6 +1965,7 @@ internal static class Program
         var original = config.Outputs.Targets.Single();
         original.Name = "Left panel";
         original.Desktop!.BoardEnabled = false;
+        original.Desktop.ZOrder = 17; // Earlier user order may contain gaps.
         original.ProviderEnabled = true;
         original.Desktop.Lock = true;
         original.RefreshIntervalMs = 500;
@@ -1988,6 +1989,8 @@ internal static class Program
         Assert(original.Name == "Left panel",
             "Editing a Desktop in Settings must not change the committed config before OK.");
         var added = model.Create("Default");
+        Assert(model.Desktops[0].Desktop!.ZOrder == 0 && added.Desktop!.ZOrder == 1,
+            "A newly created Desktop must appear at the front of Z-order after old gaps are normalized.");
         added.ProviderEnabled = false;
         added.Desktop!.Lock = false;
         added.Desktop.BoardEnabled = true;
