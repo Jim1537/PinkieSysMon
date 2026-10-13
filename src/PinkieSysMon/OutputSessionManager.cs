@@ -45,7 +45,18 @@ internal sealed record OutputSessionStatus(
     string UsbState,
     long SentFrames,
     double LastFrameMs,
-    int LastJpegBytes);
+    int LastJpegBytes)
+{
+    public string Kind { get; init; } = string.Empty;
+    public string Dashboard { get; init; } = string.Empty;
+    public bool OutputEnabled { get; init; }
+    public bool ProviderEnabled { get; init; }
+    public bool? DeviceEnabled { get; init; }
+    public bool? BoardEnabled { get; init; }
+    public bool? Lock { get; init; }
+    public bool? IsVisible { get; init; }
+    public int RefreshIntervalMs { get; init; }
+}
 
 internal sealed class OutputSessionManager : IDisposable
 {
@@ -615,9 +626,9 @@ internal sealed class OutputSessionManager : IDisposable
             ThrowIfDisposed();
             return _config.Outputs.Targets.Select(target =>
             {
-                if (!_sessions.TryGetValue(target.Id, out var session))
-                {
-                    return new OutputSessionStatus(
+                _sessions.TryGetValue(target.Id, out var session);
+                var status = session is null
+                    ? new OutputSessionStatus(
                         target.Id,
                         target.Name,
                         false,
@@ -627,18 +638,31 @@ internal sealed class OutputSessionManager : IDisposable
                         !target.DeviceEnabled ? "DISABLED" : "STOPPED",
                         0,
                         0,
-                        0);
-                }
-
-                return new OutputSessionStatus(
-                    session.TargetId,
-                    session.TargetName,
-                    true,
-                    session.IsConnected,
-                    session.UsbState,
-                    session.SentFrames,
-                    session.LastFrameMs,
-                    session.LastJpegBytes);
+                        0)
+                    : new OutputSessionStatus(
+                        session.TargetId,
+                        session.TargetName,
+                        true,
+                        session.IsConnected,
+                        session.UsbState,
+                        session.SentFrames,
+                        session.LastFrameMs,
+                        session.LastJpegBytes);
+                var desktop = target.Kind == OutputTargetContract.DesktopKind;
+                return status with
+                {
+                    Kind = target.Kind,
+                    Dashboard = target.Dashboard ?? _config.Dashboard.Active,
+                    OutputEnabled = CanStartTarget(target),
+                    ProviderEnabled = target.ProviderEnabled,
+                    DeviceEnabled = desktop ? null : target.DeviceEnabled,
+                    BoardEnabled = desktop ? target.Desktop?.BoardEnabled : null,
+                    Lock = desktop ? target.Desktop?.Lock : null,
+                    // Desktop IsConnected observes its visible native window.
+                    // Physical connection means the existing transport, not passive PnP presence.
+                    IsVisible = desktop ? status.IsConnected : null,
+                    RefreshIntervalMs = target.RefreshIntervalMs ?? _config.Display.RefreshIntervalMs
+                };
             }).ToArray();
         }
     }

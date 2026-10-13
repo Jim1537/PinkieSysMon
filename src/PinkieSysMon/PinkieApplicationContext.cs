@@ -16,6 +16,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Icon? _applicationIcon;
     private readonly ToolStripMenuItem _statusItem = new("Starting...") { Enabled = false };
     private readonly ToolStripMenuItem _dashboardsMenu = new("Dashboards");
+    private readonly ToolStripMenuItem _outputsMenu = new("Outputs");
     private readonly ToolStripMenuItem _physicalDevicesMenu = new("Physical Devices");
     private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
     private readonly Control _uiInvoker = new();
@@ -333,6 +334,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         menu.Items.Add(_dashboardsMenu);
         RefreshDashboardMenuSafe();
 
+        _outputsMenu.DropDownItems.Add(new ToolStripMenuItem("(select to view Outputs)") { Enabled = false });
+        _outputsMenu.DropDownOpening += (_, _) => RefreshOutputMenu();
+        menu.Items.Add(_outputsMenu);
+
         // An initial placeholder makes this a real drop-down before its first open.
         _physicalDevicesMenu.DropDownItems.Add(
             new ToolStripMenuItem("(select to scan devices)") { Enabled = false });
@@ -372,7 +377,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
-    // Kept only for the old IPC field until Stage 24 adds target-scoped status.
+    // Compatibility summary only; RuntimeOutputStatus.Dashboard owns each assignment.
     private string LegacyDashboardStatus() =>
         _config.Outputs.Targets.Count == 1
             ? _config.Outputs.Targets[0].Dashboard ?? string.Empty
@@ -435,22 +440,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case RuntimeIpcCommandKind.StartOrReloadAll:
                 case RuntimeIpcCommandKind.StopAll:
                 {
-                    var response = _outputControl.Execute(parsed);
-                    if (response.Success)
-                    {
-                        // Keep Runtime's rollback snapshot aligned with target-scoped
-                        // dashboard reloads, not just full configuration reloads.
-                        _boards = _outputSessions.GetDashboardAssignments();
-                        ReconcileTelemetryDemand();
-                    }
-                    RefreshTrayStatus();
-
-                    if (response.Success && _outputControl.ShouldExitRuntimeAfter(parsed))
-                    {
+                    var response = ExecuteOutputCommandOnUi(parsed);
+                    if (RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
                         ScheduleExitAfterIpcResponse();
-                        return response with { Message = $"{response.Message} {RuntimeIpcProtocol.RuntimeStoppingMessage}" };
-                    }
-
                     return response;
                 }
 
@@ -672,31 +664,100 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
+    private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
+    {
+        var response = _outputControl.Execute(command);
+        if (response.Success)
+        {
+            _boards = _outputSessions.GetDashboardAssignments();
+            ReconcileTelemetryDemand();
+        }
+        RefreshTrayStatus();
+        return response.Success && _outputControl.ShouldExitRuntimeAfter(command)
+            ? response with { Message = $"{response.Message} {RuntimeIpcProtocol.RuntimeStoppingMessage}" }
+            : response;
+    }
+
+    private void ExecuteTrayOutputCommand(RuntimeIpcCommand command)
+    {
+        try
+        {
+            var response = ExecuteOutputCommandOnUi(command);
+            _notifications.Show(response.Message, response.Success ? RuntimeNotificationKind.Information : RuntimeNotificationKind.Error);
+            if (RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
+                ExitThread();
+        }
+        catch (Exception ex)
+        {
+            _log.Error("Runtime tray Output command failed.", ex);
+            _notifications.Show($"Output command failed: {ex.Message}", RuntimeNotificationKind.Error);
+        }
+    }
+
+    private void RefreshOutputMenu()
+    {
+        foreach (var item in _outputsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
+            item.Dispose();
+        _outputsMenu.DropDownItems.Clear();
+        var statistics = _outputSessions.GetStatuses().ToDictionary(s => s.TargetId, StringComparer.OrdinalIgnoreCase);
+        foreach (var output in _outputControl.GetStatus().Outputs)
+        {
+            var item = new ToolStripMenuItem($"{output.TargetName} — {output.Kind}");
+            item.DropDownItems.Add(new ToolStripMenuItem($"Dashboard: {output.Dashboard}") { Enabled = false });
+            item.DropDownItems.Add(new ToolStripMenuItem($"State: {output.UsbState}") { Enabled = false });
+            item.DropDownItems.Add(new ToolStripMenuItem($"Provider Enabled: {output.ProviderEnabled}") { Enabled = false });
+            if (output.Kind == OutputTargetContract.DesktopKind)
+            {
+                item.DropDownItems.Add(new ToolStripMenuItem($"Board Enabled: {output.BoardEnabled} · Lock: {output.Lock}") { Enabled = false });
+                item.DropDownItems.Add(new ToolStripMenuItem($"Visible: {output.IsVisible}") { Enabled = false });
+            }
+            else
+                item.DropDownItems.Add(new ToolStripMenuItem($"Device Enabled: {output.DeviceEnabled}") { Enabled = false });
+            item.DropDownItems.Add(new ToolStripMenuItem($"Refresh interval: {output.RefreshIntervalMs} ms") { Enabled = false });
+            if (output.IsConnected && statistics.TryGetValue(output.TargetId, out var frame))
+            {
+                item.DropDownItems.Add(new ToolStripMenuItem($"Frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms") { Enabled = false });
+                if (output.Kind == OutputTargetContract.TrofeoKind)
+                    item.DropDownItems.Add(new ToolStripMenuItem($"JPEG: {frame.LastJpegBytes / 1024.0:F0} KiB") { Enabled = false });
+            }
+            item.DropDownItems.Add(new ToolStripSeparator());
+            var start = new ToolStripMenuItem("Start / Reload")
+            {
+                Enabled = RuntimeTrayOutputContract.CanStartOrReload(output)
+            };
+            start.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StartOrReloadTarget, output.TargetId));
+            var stop = new ToolStripMenuItem("Stop / Unload Output")
+            {
+                Enabled = RuntimeTrayOutputContract.CanStop(output)
+            };
+            stop.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StopTarget, output.TargetId));
+            item.DropDownItems.Add(start);
+            item.DropDownItems.Add(stop);
+            _outputsMenu.DropDownItems.Add(item);
+        }
+    }
+
     private void RefreshTrayStatus()
     {
-        var statuses = _outputSessions.GetStatuses();
-        if (statuses.Count == 1)
+        var status = _outputControl.GetStatus();
+        var tooltip = RuntimeTrayOutputContract.Tooltip(status);
+        if (status.Outputs.Length == 1)
         {
-            var status = statuses[0];
-            var board = _config.Outputs.Targets[0].Dashboard ?? "(unassigned)";
-            var isDesktop = _config.Outputs.Targets[0].Kind == OutputTargetContract.DesktopKind;
-            _statusItem.Text = status.IsConnected
-                ? isDesktop
-                    ? $"{status.TargetName} displaying · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms"
-                    : $"{status.TargetName} connected · {board} · frame {status.SentFrames} · {status.LastFrameMs:F1} ms · {status.LastJpegBytes / 1024.0:F0} KiB"
-                : $"{status.TargetName} {status.UsbState.ToLowerInvariant()} · {board}";
-            var tooltip = status.IsConnected
-                ? $"PinkieSysMon - {board}"
-                : "PinkieSysMon - output waiting";
-            _trayIcon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..63];
-            return;
+            // Preserve the established single-Output diagnostics while resolving
+            // its board/type from the same per-Output control contract.
+            var output = status.Outputs[0];
+            var frame = _outputSessions.GetStatuses().Single();
+            var desktop = output.Kind == OutputTargetContract.DesktopKind;
+            _statusItem.Text = output.IsConnected
+                ? desktop
+                    ? $"{output.TargetName} displaying · {output.Dashboard} · frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms"
+                    : $"{output.TargetName} connected · {output.Dashboard} · frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms · {frame.LastJpegBytes / 1024.0:F0} KiB"
+                : $"{output.TargetName} {output.UsbState.ToLowerInvariant()} · {output.Dashboard}";
+            tooltip = $"PinkieSysMon - {output.Dashboard}";
         }
-
-        var active = statuses.Count(status => status.IsActive);
-        var connected = statuses.Count(status => status.IsConnected);
-        _statusItem.Text = $"Outputs {connected}/{active} connected · {statuses.Count} configured";
-        var multiTooltip = $"PinkieSysMon - outputs {connected}/{active}";
-        _trayIcon.Text = multiTooltip.Length <= 63 ? multiTooltip : multiTooltip[..63];
+        else
+            _statusItem.Text = RuntimeTrayOutputContract.Summary(status);
+        _trayIcon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..63];
     }
 
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)

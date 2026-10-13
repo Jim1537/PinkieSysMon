@@ -22,7 +22,19 @@ internal sealed record RuntimeOutputStatus(
     string TargetName,
     bool IsActive,
     bool IsConnected,
-    string UsbState);
+    string UsbState)
+{
+    // Additive v1 fields. Null means unavailable in a legacy Runtime response.
+    public string? Kind { get; init; }
+    public string? Dashboard { get; init; }
+    public bool? OutputEnabled { get; init; }
+    public bool? ProviderEnabled { get; init; }
+    public bool? DeviceEnabled { get; init; }
+    public bool? BoardEnabled { get; init; }
+    public bool? Lock { get; init; }
+    public bool? IsVisible { get; init; }
+    public int? RefreshIntervalMs { get; init; }
+}
 
 internal sealed record RuntimeStatusSnapshot(
     string Dashboard,

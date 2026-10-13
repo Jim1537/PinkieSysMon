@@ -19,7 +19,18 @@ internal sealed class RuntimeOutputControl
                 status.TargetName,
                 status.IsActive,
                 status.IsConnected,
-                status.UsbState))
+                status.UsbState)
+            {
+                Kind = status.Kind,
+                Dashboard = status.Dashboard,
+                OutputEnabled = status.OutputEnabled,
+                ProviderEnabled = status.ProviderEnabled,
+                DeviceEnabled = status.DeviceEnabled,
+                BoardEnabled = status.BoardEnabled,
+                Lock = status.Lock,
+                IsVisible = status.IsVisible,
+                RefreshIntervalMs = status.RefreshIntervalMs
+            })
             .ToArray();
 
         return new RuntimeStatusSnapshot(_dashboardName(), outputs);
@@ -47,7 +58,7 @@ internal sealed class RuntimeOutputControl
 
             case RuntimeIpcCommandKind.StartOrReloadAll:
                 _sessions.StartOrReloadAll();
-                return new RuntimeIpcResponse(true, "Eligible physical outputs started/reloaded; disabled devices and Desktop outputs remain inactive.");
+                return new RuntimeIpcResponse(true, "Eligible Output sessions started/reloaded; disabled Outputs remain inactive.");
 
             case RuntimeIpcCommandKind.StopAll:
                 _sessions.StopAll();
