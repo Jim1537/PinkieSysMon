@@ -80,6 +80,25 @@ The two processes can load the same persisted dashboard from disk without sharin
 
 **Source anchors:** [Editor preview](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Preview.cs), [Preview renderer](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardPreviewRenderer.cs), [Editor document persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Document.cs).
 
+### Editor Output Start / Reload
+
+Before an Output Start/Reload action, the Editor uses its existing **Save / Don't Save / Cancel** prompt for a dirty document. Save failure or Cancel prevents the action. Don't Save retains the unsaved editing state; Runtime loads the last saved dashboard version. The initiating dashboard name is captured for the action, and comparison uses fresh `STATUS` metadata for the selected Output rather than the top-level compatibility summary.
+
+| Assignment choice | Editor request |
+| --- | --- |
+| Same assigned dashboard | Start/Reload that Output directly. |
+| Use editor dashboard | Request target assignment through Runtime IPC, confirm it, and start the Output if assignment did not already reload an active session. |
+| Keep assigned dashboard | Start/Reload the target's existing assignment. |
+| Cancel | Send no assignment/start request and do not launch an absent Runtime. |
+
+**Start/Reload All** collects every enabled Output's individual choice before dispatch. It then addresses those explicit IDs in order, preserving disabled Device/Board ownership. This Editor sequence is not an atomic multi-output transaction: a later failure reports the earlier confirmed assignments/loads instead of claiming that every change was rolled back. A single-target action never uses global configuration `RELOAD`. The Output menu shows each reported assignment and distinguishes Desktop display state from physical connection state.
+
+When Runtime is absent, local configuration provides a provisional choice only. After the choices, Editor launches Runtime with `--outputs-stopped`, confirms actual IPC status and rechecks the planned target assignments/enablement before dispatch. An existing process with unavailable IPC blocks a duplicate launch. The Editor does not persist Output assignments directly; Runtime owns those writes. Missing legacy per-Output metadata or detected assignment/target-set drift produces an actionable failure rather than a guessed assignment.
+
+Completed requests are checked against observed assignment and active-session status. `WAITING`/`SUSPENDED` are reported as such and do not imply a connected or visible display; reported Output error/ambiguity is a failed result. These client-side snapshots are checks, not a cross-process atomic reservation; concurrent state can change between IPC operations.
+
+**Source anchors:** [Editor Output commands](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Commands.cs), [Start workflow](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorOutputStartWorkflow.cs), [Choice dialogs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs).
+
 ## Persistence and schema boundary
 
 These files have different owners and must not be conflated:

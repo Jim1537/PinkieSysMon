@@ -601,6 +601,48 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 
 internal static class EditorDialogs
 {
+    public static OutputDashboardChoice ChooseOutputDashboard(
+        IWin32Window owner, RuntimeOutputStatus output, string editorDashboard)
+    {
+        using var dialog = new Form
+        {
+            Text = "Start / Reload Output",
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false,
+            ClientSize = new Size(620, 230)
+        };
+        var label = new Label
+        {
+            Text = $"Output: {output.TargetName} ({output.TargetId})\n" +
+                $"Assigned dashboard: {output.Dashboard}\nEditor dashboard: {editorDashboard}\n\n" +
+                "Use the editor dashboard on this Output, or reload its assigned dashboard. Runtime uses the last saved version.",
+            Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(16)
+        };
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom, Height = 58, FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(10), WrapContents = false
+        };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var keep = new Button { Text = "Keep assigned dashboard", DialogResult = DialogResult.No, AutoSize = true };
+        var use = new Button { Text = "Use editor dashboard", DialogResult = DialogResult.Yes, AutoSize = true };
+        buttons.Controls.Add(cancel);
+        buttons.Controls.Add(keep);
+        buttons.Controls.Add(use);
+        dialog.Controls.Add(label);
+        dialog.Controls.Add(buttons);
+        dialog.AcceptButton = cancel;
+        dialog.CancelButton = cancel;
+        return dialog.ShowDialog(owner) switch
+        {
+            DialogResult.Yes => OutputDashboardChoice.UseEditorDashboard,
+            DialogResult.No => OutputDashboardChoice.KeepAssignedDashboard,
+            _ => OutputDashboardChoice.Cancel
+        };
+    }
+
     public static SaveChangesChoice ConfirmSaveChanges(IWin32Window owner, string dashboardName)
     {
         using var dialog = new Form

@@ -474,6 +474,8 @@ internal sealed partial class EditorForm
 
     private void RebuildScreenMenu()
     {
+        foreach (var item in _screenMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
+            item.Dispose();
         _screenMenu.DropDownItems.Clear();
         _screenTargetMenuItems.Clear();
 
@@ -573,29 +575,30 @@ internal sealed partial class EditorForm
         _screenStopAllMenuItem.Enabled = state.CanStopAll;
     }
 
-    private async Task ExecuteStartOrReloadTargetAsync(string targetId)
+    private Task ExecuteStartOrReloadTargetAsync(string targetId) => ExecuteEditorOutputStartAsync(targetId);
+
+    private async Task ExecuteEditorOutputStartAsync(string? targetId)
     {
-        var name = _appConfig.Outputs.Targets
-            .FirstOrDefault(target => target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase))?.Name
-            ?? targetId;
-
-        await ExecuteOutputCommandAsync(
-            async () =>
+        if (_screenCommandInProgress || !ConfirmSaveBeforeDestructiveAction())
+            return;
+        var dashboard = _dashboardName;
+        var actions = new EditorOutputStartActions(
+            () => RuntimeIpc.GetStatusAsync(),
+            IsRuntimeProcessPresent,
+            () => EditorOutputStartWorkflow.FromStoppedConfiguration(AppConfig.Load(_appConfigPath, _log)),
+            LaunchStoppedRuntimeForOutputCommandAsync,
+            output =>
             {
-                var wasActive = ScreenMenuContract.IsTargetActive(_runtimeStatusSnapshot, targetId);
-
-                // Dashboard/configuration are process-global today, so refresh the shared runtime
-                // state first. Output activation remains target-scoped: a stopped sibling stays
-                // stopped because OutputSessionManager preserves explicit stop state on reload.
-                var reload = await RuntimeIpc.ReloadAsync();
-                if (!reload.Success || wasActive)
-                    return reload;
-
-                return await RuntimeIpc.StartOrReloadTargetAsync(targetId);
+                if (!dashboard.Equals(_dashboardName, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("The Editor dashboard changed while preparing Start / Reload. Retry the action.");
+                return EditorDialogs.ChooseOutputDashboard(this, output, dashboard);
             },
-            startRuntimeIfNeeded: true,
-            dialogTitle: "Start / Reload Output",
-            fallbackSuccessMessage: $"Output '{name}' started/reloaded.");
+            (id, board) => RuntimeIpc.AssignDashboardAsync(id, board),
+            id => RuntimeIpc.StartOrReloadTargetAsync(id));
+        await ExecuteOutputCommandAsync(
+            () => EditorOutputStartWorkflow.RunAsync(dashboard, targetId, actions),
+            dialogTitle: targetId is null ? "Start / Reload All Outputs" : "Start / Reload Output",
+            fallbackSuccessMessage: "Selected Outputs started/reloaded.");
     }
 
     private async Task ExecuteStopTargetAsync(string targetId)
@@ -605,46 +608,25 @@ internal sealed partial class EditorForm
             ?? targetId;
 
         await ExecuteOutputCommandAsync(
-            () => RuntimeIpc.StopTargetAsync(targetId),
-            startRuntimeIfNeeded: false,
+            async () => await RuntimeIpc.StopTargetAsync(targetId),
             dialogTitle: "Stop Output",
             fallbackSuccessMessage: $"Output '{name}' stopped and unloaded.",
             synchronizeRuntimeShutdown: true);
     }
 
-    private async Task ExecuteStartOrReloadAllAsync()
-    {
-        await ExecuteOutputCommandAsync(
-            async () =>
-            {
-                var allWereActive = ScreenMenuContract.AreAllTargetsActive(
-                    _appConfig.Outputs.Targets,
-                    _runtimeStatusSnapshot);
-
-                var reload = await RuntimeIpc.ReloadAsync();
-                if (!reload.Success || allWereActive)
-                    return reload;
-
-                return await RuntimeIpc.StartOrReloadAllAsync();
-            },
-            startRuntimeIfNeeded: true,
-            dialogTitle: "Start / Reload All Outputs",
-            fallbackSuccessMessage: "All configured output targets started/reloaded.");
-    }
+    private Task ExecuteStartOrReloadAllAsync() => ExecuteEditorOutputStartAsync(null);
 
     private async Task ExecuteStopAllOutputsAsync()
     {
         await ExecuteOutputCommandAsync(
-            () => RuntimeIpc.StopAllOutputsAsync(),
-            startRuntimeIfNeeded: false,
+            async () => await RuntimeIpc.StopAllOutputsAsync(),
             dialogTitle: "Stop All Outputs",
             fallbackSuccessMessage: "All output targets stopped and unloaded.",
             synchronizeRuntimeShutdown: true);
     }
 
     private async Task ExecuteOutputCommandAsync(
-        Func<Task<RuntimeIpcResponse>> command,
-        bool startRuntimeIfNeeded,
+        Func<Task<RuntimeIpcResponse?>> command,
         string dialogTitle,
         string fallbackSuccessMessage,
         bool synchronizeRuntimeShutdown = false)
@@ -657,27 +639,27 @@ internal sealed partial class EditorForm
         UpdateCommandStates();
         try
         {
-            var canExecute = !startRuntimeIfNeeded || await EnsureRuntimeReadyForOutputCommandAsync();
-            if (canExecute)
+            var response = await command();
+            if (response is null)
             {
-                var response = await command();
-                if (response.Success)
-                {
-                    var successMessage = string.IsNullOrWhiteSpace(response.Message)
-                        ? fallbackSuccessMessage
-                        : response.Message;
-                    SetStatus(successMessage);
+                SetStatus("Start / Reload canceled.");
+            }
+            else if (response.Success)
+            {
+                var successMessage = string.IsNullOrWhiteSpace(response.Message)
+                    ? fallbackSuccessMessage
+                    : response.Message;
+                SetStatus(successMessage);
 
-                    if (synchronizeRuntimeShutdown && RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
-                        await WaitForRuntimeProcessExitAsync();
-                    else
-                        _runtimeRunning = true;
-                }
+                if (synchronizeRuntimeShutdown && RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(response))
+                    await WaitForRuntimeProcessExitAsync();
                 else
-                {
-                    SetStatus(response.Message);
-                    MessageBox.Show(response.Message, dialogTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                    _runtimeRunning = true;
+            }
+            else
+            {
+                SetStatus(response.Message);
+                MessageBox.Show(response.Message, dialogTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
         catch (Exception ex)
@@ -720,14 +702,14 @@ internal sealed partial class EditorForm
         SetStatus("Outputs are stopped, but the PinkieSysMon runtime process has not exited yet.");
     }
 
-    private async Task<bool> EnsureRuntimeReadyForOutputCommandAsync()
+    private async Task<RuntimeIpcStatusResponse> LaunchStoppedRuntimeForOutputCommandAsync()
     {
         var existing = await RuntimeIpc.GetStatusAsync();
         if (existing.Success)
         {
             _runtimeRunning = true;
             _runtimeStatusSnapshot = existing.Status;
-            return true;
+            return existing;
         }
 
         if (IsRuntimeProcessPresent())
@@ -737,8 +719,7 @@ internal sealed partial class EditorForm
             _statusRuntime.Text = "Runtime: checking...";
             const string message = "A PinkieSysMon runtime process already exists, but its IPC endpoint is not responding. A duplicate runtime will not be started.";
             SetStatus(message);
-            MessageBox.Show(message, "Start Output", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return false;
+            return new RuntimeIpcStatusResponse(false, message, null);
         }
 
         var runtimePath = Path.Combine(_root, "bin", "PinkieSysMon.exe");
@@ -752,7 +733,8 @@ internal sealed partial class EditorForm
             UseShellExecute = false
         };
         startInfo.ArgumentList.Add(RuntimeStartupOptions.OutputsStoppedArgument);
-        Process.Start(startInfo);
+        using var launched = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Runtime could not be launched.");
 
         for (var attempt = 0; attempt < 15; attempt++)
         {
@@ -766,14 +748,14 @@ internal sealed partial class EditorForm
             _statusRuntime.Text = response.Status is { } status
                 ? $"Runtime: Running · Outputs {status.Outputs.Count(output => output.IsActive)}/{status.Outputs.Length}"
                 : "Runtime: Running";
-            return true;
+            return response;
         }
 
         _runtimeRunning = null;
         _runtimeStatusSnapshot = null;
         _statusRuntime.Text = "Runtime: checking...";
         SetStatus("Runtime was launched, but IPC did not become ready in time.");
-        return false;
+        return new RuntimeIpcStatusResponse(false, "Runtime was launched, but IPC did not become ready in time. Check Runtime logs.", null);
     }
 
     private static bool IsRuntimeProcessPresent()
@@ -851,17 +833,22 @@ internal static class ScreenMenuContract
         var targetStates = targets.Select(target =>
         {
             statusByTarget.TryGetValue(target.Id, out var outputStatus);
+            var enabled = outputStatus?.OutputEnabled ??
+                (target.Kind == OutputTargetContract.DesktopKind ? target.Desktop?.BoardEnabled == true : target.DeviceEnabled);
+            var description = DescribeStatus(runtimeRunning, outputStatus);
+            if (!string.IsNullOrWhiteSpace(outputStatus?.Dashboard))
+                description += $" · Dashboard: {outputStatus.Dashboard}";
             return new ScreenTargetCommandState(
                 target.Id,
                 target.Name,
-                DescribeStatus(runtimeRunning, outputStatus),
-                !commandInProgress,
+                description,
+                !commandInProgress && enabled,
                 !commandInProgress && outputStatus?.IsActive == true);
         }).ToArray();
 
         return new ScreenMenuCommandState(
             targetStates,
-            !commandInProgress && targetStates.Length > 0,
+            !commandInProgress && targetStates.Any(target => target.CanStartOrReload),
             !commandInProgress && targetStates.Any(target => target.CanStop));
     }
 
@@ -876,7 +863,7 @@ internal static class ScreenMenuContract
         if (!status.IsActive)
             return "Status: Stopped";
         if (status.IsConnected)
-            return "Status: Connected";
+            return status.Kind == OutputTargetContract.DesktopKind ? "Status: Displaying" : "Status: Connected";
 
         return status.UsbState.ToUpperInvariant() switch
         {

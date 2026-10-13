@@ -540,15 +540,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
     private bool ConfirmSaveBeforeDestructiveAction()
     {
-        if (!_dirty)
-            return true;
-
-        return EditorDialogs.ConfirmSaveChanges(this, _dashboardName) switch
-        {
-            SaveChangesChoice.Save => SaveDashboard(),
-            SaveChangesChoice.DontSave => true,
-            _ => false
-        };
+        return EditorOutputStartWorkflow.ConfirmSave(_dirty,
+            () => EditorDialogs.ConfirmSaveChanges(this, _dashboardName), SaveDashboard);
     }
 
     private string? ValidateDashboardName(string name)
