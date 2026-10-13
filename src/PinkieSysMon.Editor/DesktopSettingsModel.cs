@@ -5,12 +5,13 @@ namespace PinkieSysMon.Editor;
 internal sealed class DesktopSettingsModel
 {
     private readonly List<OutputTargetConfig> _desktops;
-    private readonly int _physicalCount;
+    private readonly Func<int> _physicalCount;
 
-    public DesktopSettingsModel(AppConfig config)
+    public DesktopSettingsModel(AppConfig config, Func<int>? physicalCount = null)
     {
         ArgumentNullException.ThrowIfNull(config);
-        _physicalCount = config.Outputs.Targets.Count(t => t.Kind != OutputTargetContract.DesktopKind);
+        var initialPhysicalCount = config.Outputs.Targets.Count(t => t.Kind != OutputTargetContract.DesktopKind);
+        _physicalCount = physicalCount ?? (() => initialPhysicalCount);
         _desktops = config.Outputs.Targets
             .Select((target, index) => (target, index))
             .Where(x => x.target.Kind == OutputTargetContract.DesktopKind)
@@ -58,7 +59,7 @@ internal sealed class DesktopSettingsModel
     }
 
     public bool CanRemove(OutputTargetConfig target) =>
-        _desktops.Contains(target) && _desktops.Count + _physicalCount > 1;
+        _desktops.Contains(target) && _desktops.Count + _physicalCount() > 1;
 
     public void Remove(OutputTargetConfig target)
     {
@@ -82,7 +83,7 @@ internal sealed class DesktopSettingsModel
 
     public void MarkChanged() => IsDirty = true;
 
-    public void ApplyTo(AppConfig config)
+    public void ApplyTo(AppConfig config, bool allowEmptyDraft = false)
     {
         ArgumentNullException.ThrowIfNull(config);
         if (!IsDirty)
@@ -103,7 +104,7 @@ internal sealed class DesktopSettingsModel
         }
         while (queued.Count > 0)
             updated.Add(Copy(queued.Dequeue()));
-        if (updated.Count == 0)
+        if (updated.Count == 0 && !allowEmptyDraft)
             throw new InvalidOperationException("At least one Output must remain configured.");
         config.Outputs.Targets = updated;
     }

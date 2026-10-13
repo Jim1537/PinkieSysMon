@@ -647,13 +647,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         bool startupCurrent;
         AppConfig runtimeConfig;
         var appConfigPath = Path.Combine(_root, "config", "app.json");
-        string originalConfigJson;
+        byte[]? originalConfigBytes;
 
         try
         {
             startupCurrent = StartupTaskManager.IsEnabled();
+            originalConfigBytes = File.Exists(appConfigPath) ? File.ReadAllBytes(appConfigPath) : null;
             runtimeConfig = AppConfig.Load(appConfigPath, _log);
-            originalConfigJson = File.Exists(appConfigPath) ? File.ReadAllText(appConfigPath) : string.Empty;
         }
         catch (Exception ex)
         {
@@ -680,7 +680,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
         var desktopChanged = dialog.DesktopChanged;
-        var runtimeChanged = providersChanged || desktopChanged;
+        var devicesChanged = dialog.DevicesChanged;
+        var outputsChanged = desktopChanged || devicesChanged;
+        var runtimeChanged = providersChanged || outputsChanged;
         var runtimeReloaded = false;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
@@ -692,26 +694,24 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             if (runtimeChanged)
             {
-                // Runtime may persist a Desktop position while Settings is open.
-                // Never overwrite that change from an out-of-date dialog snapshot.
-                var currentConfigJson = File.Exists(appConfigPath)
-                    ? File.ReadAllText(appConfigPath) : string.Empty;
-                if (!string.Equals(originalConfigJson, currentConfigJson, StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        "Application configuration changed while Settings was open. Reopen Settings and retry.");
-                if (desktopChanged)
+                if (outputsChanged)
                 {
-                    dialog.ApplyDesktopChanges(runtimeConfig);
+                    dialog.ApplyOutputChanges(runtimeConfig);
                     _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
                 }
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
-                runtimeConfig.Save(appConfigPath);
+                runtimeReloaded = await EditorSettingsPersistence.ApplyAsync(
+                    appConfigPath, runtimeConfig, originalConfigBytes, async () =>
+                    {
+                        var status = await RuntimeIpc.GetStatusAsync();
+                        return status.Success ? await RuntimeIpc.ReloadAsync() : null;
+                    });
 
                 // Keep the editor-side snapshot consistent with the file it just wrote.
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
-                if (desktopChanged)
+                if (outputsChanged)
                     _appConfig.Outputs = runtimeConfig.Outputs;
             }
 
@@ -733,24 +733,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (runtimeChanged || startupChanged || themeChanged)
                 SaveEditorSettings();
 
-            if (providersChanged)
+            if (providersChanged || outputsChanged)
             {
                 RefreshPreviewTelemetry();
                 RenderPreview(force: true);
-            }
-
-            if (runtimeChanged)
-            {
-                // Apply saved Output changes without starting a stopped Runtime or opening hardware.
-                var status = await RuntimeIpc.GetStatusAsync();
-                if (status.Success)
-                {
-                    var reloaded = await RuntimeIpc.ReloadAsync();
-                    if (!reloaded.Success)
-                        throw new InvalidOperationException(
-                            $"Settings were saved, but Runtime reload failed: {reloaded.Message}");
-                    runtimeReloaded = true;
-                }
             }
 
             if (themeChanged)

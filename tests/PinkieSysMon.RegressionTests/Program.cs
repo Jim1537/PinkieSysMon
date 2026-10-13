@@ -98,6 +98,10 @@ internal static class Program
             ("Editor theme settings contract", EditorThemeSettingsContract),
             ("Stage21 General Settings app-wide isolation", EditorGeneralSettingsContract),
             ("Stage22 Desktop Settings master-detail and lifecycle policy", EditorDesktopSettingsContract),
+            ("Stage23 Device Settings discovery and explicit adoption", DeviceSettingsStage23Tests.DiscoveryAndAdoption),
+            ("Stage23 Device Settings consent and isolated persistence", DeviceSettingsStage23Tests.ConsentAndPersistence),
+            ("Stage23 Device Settings disconnected and ambiguous UI", DeviceSettingsStage23Tests.LiveStatusControls),
+            ("Stage23 Settings apply rollback and stale-file safety", DeviceSettingsStage23Tests.SettingsApplyRecovery),
             ("Editor property-tab icon presentation", EditorPropertyTabIconPresentationContract),
             ("Editor Windows App SDK title-bar ownership contract", EditorDwmNonClientForwardingContract),
             ("Windows application identity metadata", WindowsApplicationIdentityMetadata),
@@ -1943,11 +1947,12 @@ internal static class Program
             toolbarIconSize: 48,
             themeMode: EditorThemeMode.Dark,
             config: new AppConfig(),
-            dashboards: ["Default"]);
+            dashboards: ["Default"],
+            discoverDevices: () => Array.Empty<OutputDeviceDescriptor>());
         var tabs = dialog.Controls.OfType<TabControl>().Single();
         Assert(tabs.TabPages.Count == 2 && tabs.TabPages[0].Text == "General" &&
                tabs.TabPages[1].Text == "Desktop",
-            "Stage22 adds Desktop beside the accepted Stage21 General tab; Device tabs remain Stage23.");
+            "General and Desktop must remain the only tabs when no physical devices are configured or discovered.");
         Assert(dialog.StartRuntimeWithWindows && dialog.SystemProviderEnabled &&
                !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
                dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
@@ -2028,7 +2033,7 @@ internal static class Program
 
         using var dialog = new EditorSettingsDialog(
             false, true, false, false, 32, EditorThemeMode.System,
-            new AppConfig(), ["Default"]);
+            new AppConfig(), ["Default"], () => Array.Empty<OutputDeviceDescriptor>());
         var tabs = dialog.Controls.OfType<TabControl>().Single();
         var desktopPage = tabs.TabPages.Cast<TabPage>().Single(t => t.Text == "Desktop");
         Assert(desktopPage.Controls.OfType<TableLayoutPanel>().Single().ColumnCount == 2,

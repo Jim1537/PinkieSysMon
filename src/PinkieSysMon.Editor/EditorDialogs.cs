@@ -183,7 +183,7 @@ internal sealed class OpenDashboardDialog : PinkieEditorForm
     public string? SelectedDashboard => _list.SelectedItem as string;
 }
 
-internal sealed class EditorSettingsDialog : PinkieEditorForm
+internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 {
     private readonly CheckBox _startRuntime = new()
     {
@@ -251,10 +251,13 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         int toolbarIconSize,
         EditorThemeMode themeMode,
         AppConfig config,
-        IReadOnlyList<string> dashboards)
+        IReadOnlyList<string> dashboards,
+        Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null)
     {
-        _desktops = new DesktopSettingsModel(config);
         _dashboardChoices = dashboards;
+        _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
+        _desktops = new DesktopSettingsModel(config, () => _devices.ConfiguredCount);
+        _discoverDevices = discoverDevices ?? DeviceDiscovery.EnumerateTrofeoDevices;
         Text = "Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -333,7 +336,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         general.Controls.Add(interfaceGroup);
         general.Controls.Add(providersGroup);
         general.Controls.Add(generalGroup);
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var tabs = _settingsTabs;
         tabs.TabPages.Add(general);
         tabs.TabPages.Add(BuildDesktopPage());
 
@@ -350,9 +353,11 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(ok);
         Controls.Add(tabs);
+        Controls.Add(_discoveryNotice);
         Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
+        RefreshDeviceDiscovery();
     }
 
     public bool StartRuntimeWithWindows => _startRuntime.Checked;
@@ -363,7 +368,6 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
     public EditorThemeMode ThemeMode => EditorThemeContract.Parse(_theme.SelectedItem as string);
 
     public bool DesktopChanged => _desktops.IsDirty;
-    public void ApplyDesktopChanges(AppConfig config) => _desktops.ApplyTo(config);
 
     private TabPage BuildDesktopPage()
     {
@@ -485,11 +489,12 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
             }
             var created = _desktops.Create(dashboard);
             ReloadDesktopList(created);
+            UpdateDevicePages();
         };
         _removeDesktop.Click += (_, _) =>
         {
             var selected = _selectedDesktop;
-            if (selected is null || !_desktops.CanRemove(selected))
+            if (selected is null || !CanRemoveDesktop(selected))
                 return;
             var decision = MessageBox.Show(
                 $"Remove Desktop Output '{selected.Name}'? Its dashboard files and other Outputs will remain.",
@@ -499,6 +504,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
                 return;
             _desktops.Remove(selected);
             ReloadDesktopList(_desktops.Desktops.FirstOrDefault());
+            UpdateDevicePages();
         };
 
         _desktopName.TextChanged += (_, _) => ChangeSelectedDesktop(t => {
@@ -569,7 +575,7 @@ internal sealed class EditorSettingsDialog : PinkieEditorForm
             _selectedDesktop = (_desktopList.SelectedItem as DesktopListItem)?.Target;
             var target = _selectedDesktop;
             _desktopDetails.Enabled = target is not null;
-            _removeDesktop.Enabled = target is not null && _desktops.CanRemove(target);
+            _removeDesktop.Enabled = target is not null && CanRemoveDesktop(target);
             _desktopName.Text = target?.Name ?? string.Empty;
             var dashboard = target?.Dashboard;
             if (!string.IsNullOrWhiteSpace(dashboard) &&
