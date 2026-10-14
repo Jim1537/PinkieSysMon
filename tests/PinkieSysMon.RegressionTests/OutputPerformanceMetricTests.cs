@@ -73,11 +73,12 @@ internal static class OutputPerformanceMetricTests
                 "A per-Output publisher must never write the retired global FPS metric.");
 
             var oldRight = metrics.Snapshot()[b];
-            manager.StopTarget("left");
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "left", false),
+                manager.GetDashboardAssignments());
             snapshot = metrics.Snapshot();
             Check(snapshot.TryGetValue(a, out var cleared) && cleared is null &&
                   Equals(snapshot[b], oldRight) && sessions["right"].Enabled,
-                "Stopping one session must clear only its own counters and leave sibling metrics intact.");
+                "Disabling one Output must clear only its own counters and leave sibling metrics intact.");
         });
     }
 

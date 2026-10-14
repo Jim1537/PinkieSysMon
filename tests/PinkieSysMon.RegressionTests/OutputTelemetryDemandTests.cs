@@ -84,31 +84,34 @@ internal static class OutputTelemetryDemandTests
                 TimeSpan.FromSeconds(3)),
                 "Resume must reactivate live board telemetry without needing to restart outputs.");
 
-            manager.StopTarget("a");
+            var disabledA = OutputLifecycleTestConfiguration.WithEnabled(cfg, "a", false);
+            manager.Reconfigure(disabledA, manager.GetDashboardAssignments());
             Reconcile();
             Check(store.Snapshot().TryGetValue(Left, out var gone) && gone is null &&
                 manager.GetRequiredMetrics().SetEquals(new[] { Shared, Right }),
-                "Stopping A must clear its exclusive metric, retaining B's shared metric.");
+                "Disabling A must clear its exclusive metric, retaining B's shared metric.");
             Check(store.Snapshot().TryGetValue(Shared, out var still) && still is not null,
-                "Stopping A must not clear a metric still required by B.");
+                "Disabling A must not clear a metric still required by B.");
 
-            manager.StopTarget("b");
+            var disabledBoth = OutputLifecycleTestConfiguration.WithEnabled(disabledA, "b", false);
+            manager.Reconfigure(disabledBoth, manager.GetDashboardAssignments());
             Reconcile();
             Check(store.Snapshot().TryGetValue(Shared, out var cleared) && cleared is null &&
                   store.Snapshot().TryGetValue(Right, out var clearedB) && clearedB is null &&
                   manager.GetRequiredMetrics().Count == 0,
-                "Stopping the last requesting output must publish unavailable values immediately.");
+                "Disabling the last requesting Output must publish unavailable values immediately.");
             Thread.Sleep(240);
             var count = source.Captures;
             Thread.Sleep(240);
             Check(source.Captures == count, "After demand has drained, source capture must cease.");
 
-            manager.StartOrReloadTarget("a");
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(disabledBoth, "a", true),
+                manager.GetDashboardAssignments());
             Reconcile();
             Check(SpinWait.SpinUntil(() =>
                     store.Snapshot().TryGetValue(Left, out var live) && live is not null,
                     TimeSpan.FromSeconds(3)),
-                "Reactivating a stopped target must resume its metrics.");
+                "Enabling a target must resume its metrics without a second Start command.");
 
             requested["a"] = newA;
             manager.StartOrReloadTarget("a");

@@ -174,35 +174,55 @@ internal static class RuntimeConfigurationStage24Tests
             "A rebound target must fail closed without modifying the saved binding or opening hardware.");
     }
 
-    public static void StoppedAndSuspendedState()
+    public static void GlobalLifetimeAndSuspendedState()
     {
         using var f = new Fixture(start: false);
         f.Manager.Suspend();
         f.Execute(new(RuntimeIpcCommandKind.AssignDashboard, "desktop-a", Dashboard: "New"));
         f.Execute(new(RuntimeIpcCommandKind.SetDesktopLock, "desktop-a", Value: false));
+        f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
         Check(f.Created.Count == 0 && !f.Status("desktop-a").IsActive,
-            "Assignment and Lock must not instantiate a configured-enabled but inactive Output.");
+            "Assignment, Lock and Enabled must respect the global lifetime gate before Runtime starts.");
+        Failure<InvalidOperationException>(() => f.Manager.StartOrReloadTarget("desktop-a"));
+        f.Manager.Start();
+        var sibling = f.Latest("desktop-b");
+        Check(f.Status("desktop-a").IsActive && f.Status("desktop-a").IsVisible == false &&
+              f.Status("desktop-b").IsActive && f.Status("desktop-b").IsVisible == false,
+            "Global startup during suspend must create all enabled Outputs without making Desktop windows visible.");
+        f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: false));
         f.FailNextStart = true;
         var bytes = File.ReadAllBytes(f.ConfigPath);
         Failure<InvalidOperationException>(() => f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true)));
-        Check(f.Created.Single().Disposals == 1 && !f.Status("desktop-a").IsActive &&
+        Check(f.Latest("desktop-a").Disposals == 1 && !f.Status("desktop-a").IsActive &&
               File.ReadAllBytes(f.ConfigPath).SequenceEqual(bytes),
             "Failed explicit enable must dispose its candidate without committing persistence or active state.");
         f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
         Check(f.Status("desktop-a").IsActive && f.Status("desktop-a").IsVisible == false &&
-              f.Created.All(s => s.TargetId == "desktop-a"),
+              sibling.Prepares == 0 && sibling.Commits == 0 && sibling.Disposals == 0,
             "Enable during suspend must start only the requested lifecycle and retain invisible suspension.");
         f.Manager.Resume();
-        Check(f.Status("desktop-a").IsVisible == true, "Resume must show only the successfully enabled Desktop.");
-        f.Manager.StopTarget("desktop-a");
+        Check(f.Status("desktop-a").IsVisible == true && f.Status("desktop-b").IsVisible == true,
+            "Resume must restore each enabled Desktop without changing its saved enablement.");
+        f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: false));
         var count = f.Created.Count(s => s.TargetId == "desktop-a");
         f.Execute(new(RuntimeIpcCommandKind.AssignDashboard, "desktop-a", Dashboard: "A"));
         f.Manager.Reconfigure(f.Current, f.Manager.GetDashboardAssignments());
         Check(f.Created.Count(s => s.TargetId == "desktop-a") == count && !f.Status("desktop-a").IsActive,
-            "Assignment must retain explicit stopped-target intent across a later configuration reload.");
+            "Assignment must retain saved disabled state across a later configuration reload.");
         f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
         Check(f.Status("desktop-a").IsActive && f.Latest("desktop-a").Width == 300,
-            "Explicit Board Enabled must clear that target's stopped marker and restore its own assignment.");
+            "Re-enabling must restore the target's own assignment without a separate manual activation flag.");
+        f.Manager.StopAll();
+        count = f.Created.Count;
+        f.Execute(new(RuntimeIpcCommandKind.AssignDashboard, "desktop-a", Dashboard: "New"));
+        f.Execute(new(RuntimeIpcCommandKind.SetDesktopLock, "desktop-a", Value: true));
+        f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
+        Check(f.Created.Count == count && f.Status("desktop-a") is { IsActive: false, OutputEnabled: true, UsbState: "STOPPED" },
+            "Settings operations during global shutdown must not wake Output sessions or lose saved enablement.");
+        Failure<InvalidOperationException>(() => f.Manager.StartOrReloadTarget("desktop-a"));
+        f.Manager.StartOrReloadAll();
+        Check(f.Status("desktop-a").IsActive && f.Latest("desktop-a").Width == 600 && f.Status("desktop-b").IsActive,
+            "The global lifecycle primitive must restore all enabled Outputs using current assignments.");
     }
 
     private static void Check(bool condition, string message)

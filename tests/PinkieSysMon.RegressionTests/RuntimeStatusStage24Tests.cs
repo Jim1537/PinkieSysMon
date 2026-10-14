@@ -34,14 +34,15 @@ internal static class RuntimeStatusStage24Tests
                   physical.BoardEnabled is null && physical.Lock is null && physical.IsVisible is null &&
                   !physical.IsActive && !physical.IsConnected && created.All(s => s.TargetId != "device-b"),
                 "Passive physical status must expose no fake Desktop fields and must not instantiate disabled hardware.");
-            var stopped = control.Execute(new(RuntimeIpcCommandKind.StopTarget, "desktop-a"));
-            var stoppedDesktop = control.GetStatus().Outputs.Single(o => o.TargetId == "desktop-a");
-            Check(stopped.Success && !stoppedDesktop.IsActive && stoppedDesktop.IsVisible == false &&
-                  stoppedDesktop.OutputEnabled == true && stoppedDesktop.Dashboard == "First",
-                "Stopping a session must preserve configured enablement and dashboard while reporting no visible window.");
-            control.Execute(new(RuntimeIpcCommandKind.StartOrReloadTarget, "desktop-a"));
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desktop-a", false),
+                manager.GetDashboardAssignments());
+            var disabledDesktop = control.GetStatus().Outputs.Single(o => o.TargetId == "desktop-a");
+            Check(!disabledDesktop.IsActive && disabledDesktop.IsVisible == false &&
+                  disabledDesktop.OutputEnabled == false && disabledDesktop.Dashboard == "First" && disabledDesktop.UsbState == "DISABLED",
+                "Disabling must unload the session, preserve its assignment and report the canonical Enabled value.");
+            manager.Reconfigure(config, manager.GetDashboardAssignments());
             Check(control.GetStatus().Outputs.Single(o => o.TargetId == "desktop-a").IsVisible == true,
-                "Restarting the selected Desktop must restore its independent observed visibility.");
+                "Enabling the Desktop must restore its visibility without a second Start command.");
         });
     }
 
@@ -84,18 +85,18 @@ internal static class RuntimeStatusStage24Tests
             Check(response.Success && desktop.IsActive && !physical.IsActive &&
                   !response.Message.Contains("Desktop outputs remain inactive", StringComparison.Ordinal),
                 "Start All must include eligible Desktop sessions and must not report the retired physical-only contract.");
-            Check(RuntimeTrayOutputContract.CanStartOrReload(desktop) && RuntimeTrayOutputContract.CanStop(desktop) &&
-                  !RuntimeTrayOutputContract.CanStartOrReload(physical) && !RuntimeTrayOutputContract.CanStop(physical),
-                "Tray actions must follow configured output enablement and active session state, independently of Provider Enabled.");
+            Check(RuntimeTrayOutputContract.CanStartOrReload(desktop) && !RuntimeTrayOutputContract.CanStartOrReload(physical),
+                "Tray reload eligibility must follow canonical enablement independently of Provider Enabled.");
             Check(RuntimeTrayOutputContract.Summary(status) ==
                   "2 configured · 1 active · 1 Desktop visible · 0 devices connected",
                 "Mixed-output summary must not count a visible Desktop as a connected USB device.");
             Check(RuntimeTrayOutputContract.Tooltip(status).Length <= 63,
                 "The native tray tooltip must fit its Windows limit without a fictional global dashboard.");
-            control.Execute(new(RuntimeIpcCommandKind.StopTarget, "desktop-a"));
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desktop-a", false),
+                manager.GetDashboardAssignments());
             desktop = control.GetStatus().Outputs.Single(o => o.TargetId == "desktop-a");
-            Check(RuntimeTrayOutputContract.CanStartOrReload(desktop) && !RuntimeTrayOutputContract.CanStop(desktop),
-                "A stopped but configured-enabled Desktop must remain restartable without reporting an active window.");
+            Check(!RuntimeTrayOutputContract.CanStartOrReload(desktop) && !desktop.IsActive,
+                "A disabled Desktop must deny reload instead of retaining an independent manual stopped state.");
         });
     }
 

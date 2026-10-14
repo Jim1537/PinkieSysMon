@@ -65,7 +65,6 @@ internal sealed class OutputSessionManager : IDisposable
     private readonly FileLogger _log;
     private readonly OutputSessionFactory _factory;
     private readonly Dictionary<string, IOutputSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _stoppedTargets = new(StringComparer.OrdinalIgnoreCase);
 
     private AppConfig _config;
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
@@ -174,7 +173,6 @@ internal sealed class OutputSessionManager : IDisposable
                 StartSessions(created);
 
                 _started = true;
-                _stoppedTargets.Clear();
                 foreach (var session in created)
                     _sessions.Add(session.TargetId, session);
 
@@ -244,17 +242,11 @@ internal sealed class OutputSessionManager : IDisposable
                     }
                 }
 
-                var stoppedForNewConfig = _stoppedTargets
-                    .Where(newTargets.ContainsKey)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
                 if (_started)
                 {
                     foreach (var target in config.Outputs.Targets)
                     {
-                        if (!OutputTargetContract.IsEnabled(target) ||
-                            _sessions.ContainsKey(target.Id) ||
-                            stoppedForNewConfig.Contains(target.Id))
+                        if (!OutputTargetContract.IsEnabled(target) || _sessions.ContainsKey(target.Id))
                             continue;
 
                         created.Add(CreateSession(config, target, BoardFor(nextBoards, target)));
@@ -319,10 +311,6 @@ internal sealed class OutputSessionManager : IDisposable
                 foreach (var session in created)
                     _sessions.Add(session.TargetId, session);
 
-                _stoppedTargets.Clear();
-                foreach (var targetId in stoppedForNewConfig)
-                    _stoppedTargets.Add(targetId);
-
                 _config = config;
                 _boards = nextBoards;
 
@@ -365,6 +353,8 @@ internal sealed class OutputSessionManager : IDisposable
             {
                 ThrowIfDisposed();
                 var target = FindConfiguredTargetLocked(targetId);
+                if (!_started)
+                    throw new InvalidOperationException("Runtime output lifetime is stopped. Start Runtime normally before reloading an individual Output.");
                 if (!OutputTargetContract.IsEnabled(target))
                     throw new InvalidOperationException(
                         target.Kind == OutputTargetContract.DesktopKind
@@ -408,8 +398,6 @@ internal sealed class OutputSessionManager : IDisposable
                     pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
                 updatedBoards[target.Id] = board;
                 _boards = updatedBoards;
-                _started = true;
-                _stoppedTargets.Remove(target.Id);
                 UpdateRuntimeMetricPublisherLocked();
                 RestoreDesktopStackLocked();
             }
@@ -437,7 +425,7 @@ internal sealed class OutputSessionManager : IDisposable
     // Runtime setting changes prepare/commit only the selected session. The callback
     // commits persistence and shared telemetry; failure restores this exact session set.
     public void ReconfigureTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
-        bool activate, Action<AppConfig> commit)
+        Action<AppConfig> commit)
     {
         ArgumentNullException.ThrowIfNull(replacement);
         ArgumentNullException.ThrowIfNull(board);
@@ -456,13 +444,8 @@ internal sealed class OutputSessionManager : IDisposable
                     previousTarget.DeviceEnabled != replacement.DeviceEnabled ||
                     previousTarget.ProviderEnabled != replacement.ProviderEnabled)
                     throw new InvalidOperationException("Target settings cannot change device ownership or Provider Enabled.");
-                if (activate && replacement.Kind != OutputTargetContract.DesktopKind)
-                    throw new InvalidOperationException("A configuration command cannot start physical hardware.");
-
                 var previousConfig = _config;
                 var previousBoards = _boards;
-                var previousStarted = _started;
-                var previouslyStopped = _stoppedTargets.Contains(previousTarget.Id);
                 _sessions.TryGetValue(previousTarget.Id, out var existing);
                 var nextConfig = new AppConfig
                 {
@@ -483,7 +466,7 @@ internal sealed class OutputSessionManager : IDisposable
                         rollback = existing.PrepareReconfiguration(previousConfig, previousTarget,
                             BoardFor(previousBoards, previousTarget));
                     }
-                    else if (existing is null && activate && OutputTargetContract.IsEnabled(replacement))
+                    else if (existing is null && _started && OutputTargetContract.IsEnabled(replacement))
                     {
                         created = CreateSession(nextConfig, replacement, board);
                         if (_suspended) created.Suspend();
@@ -503,11 +486,6 @@ internal sealed class OutputSessionManager : IDisposable
                     if (created is not null) _sessions.Add(previousTarget.Id, created);
                     _config = nextConfig;
                     _boards = nextBoards;
-                    if (activate)
-                    {
-                        _started = true;
-                        _stoppedTargets.Remove(previousTarget.Id);
-                    }
                     commit(nextConfig);
                     UpdateRuntimeMetricPublisherLocked();
                 }
@@ -515,9 +493,6 @@ internal sealed class OutputSessionManager : IDisposable
                 {
                     _config = previousConfig;
                     _boards = previousBoards;
-                    _started = previousStarted;
-                    if (previouslyStopped) _stoppedTargets.Add(previousTarget.Id);
-                    else _stoppedTargets.Remove(previousTarget.Id);
                     _sessions.Remove(previousTarget.Id);
                     if (existing is not null) _sessions.Add(previousTarget.Id, existing);
                     removed = null;
@@ -534,7 +509,8 @@ internal sealed class OutputSessionManager : IDisposable
                     UpdateRuntimeMetricPublisherLocked();
                     throw;
                 }
-                RestoreDesktopStackLocked();
+                if (removed is null)
+                    RestoreDesktopStackLocked();
             }
         }
         catch
@@ -559,38 +535,6 @@ internal sealed class OutputSessionManager : IDisposable
                 RestoreDesktopStackLocked();
             }
         }
-    }
-
-    public bool StopTarget(string targetId)
-    {
-        if (string.IsNullOrWhiteSpace(targetId))
-            throw new ArgumentException("Output target ID must not be empty.", nameof(targetId));
-
-        IOutputSession? removed = null;
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var target = FindConfiguredTargetLocked(targetId);
-            _stoppedTargets.Add(target.Id);
-
-            if (_sessions.Remove(target.Id, out removed))
-            {
-                removed.SetRuntimeMetricsPublisher(false);
-                ClearOutputMetricsLocked(target);
-            }
-            UpdateRuntimeMetricPublisherLocked();
-        }
-
-        if (removed is not null)
-        {
-            DisposeSessionsBestEffort([removed]);
-            lock (_sync)
-            {
-                UpdateRuntimeMetricPublisherLocked();
-                RestoreDesktopStackLocked();
-            }
-        }
-        return removed is not null;
     }
 
     public void StartOrReloadAll()
@@ -650,7 +594,6 @@ internal sealed class OutputSessionManager : IDisposable
                 }
 
                 _started = true;
-                _stoppedTargets.Clear();
                 foreach (var session in created) _sessions.Add(session.TargetId, session);
                 _boards = candidateBoards;
                 UpdateRuntimeMetricPublisherLocked();
@@ -675,9 +618,6 @@ internal sealed class OutputSessionManager : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            foreach (var target in _config.Outputs.Targets)
-                _stoppedTargets.Add(target.Id);
-
             _started = false;
             sessions = _sessions.Values.ToArray();
             foreach (var session in sessions)
@@ -760,9 +700,7 @@ internal sealed class OutputSessionManager : IDisposable
                         target.Name,
                         false,
                         false,
-                        _stoppedTargets.Contains(target.Id) ? "STOPPED" :
-                        target.Kind == OutputTargetContract.DesktopKind ? "DESKTOP_PENDING" :
-                        !target.DeviceEnabled ? "DISABLED" : "STOPPED",
+                        InactiveStateLocked(target),
                         0,
                         0,
                         0)
@@ -844,6 +782,11 @@ internal sealed class OutputSessionManager : IDisposable
             target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase))
         ?? throw new KeyNotFoundException($"Output target '{targetId}' is not configured.");
 
+    private string InactiveStateLocked(OutputTargetConfig target) =>
+        !OutputTargetContract.IsEnabled(target) ? "DISABLED" :
+        !_started ? "STOPPED" :
+        target.Kind == OutputTargetContract.DesktopKind ? "DESKTOP_PENDING" : "WAITING";
+
     private void UpdateRuntimeMetricPublisherLocked()
     {
         foreach (var target in _config.Outputs.Targets)
@@ -855,11 +798,7 @@ internal sealed class OutputSessionManager : IDisposable
             // Disabled Desktop / Trofeo outputs do not open a device or render
             // simply because ProviderEnabled is true.
             var state = _suspended && session is not null ? "SUSPENDED" :
-                _stoppedTargets.Contains(target.Id) ? "STOPPED" :
-                target.Kind == OutputTargetContract.DesktopKind
-                    ? session?.UsbState ?? "DESKTOP_PENDING" :
-                !target.DeviceEnabled ? "DISABLED" :
-                session?.UsbState ?? "STOPPED";
+                session?.UsbState ?? InactiveStateLocked(target);
             if (!target.ProviderEnabled)
                 ClearOutputMetricsLocked(target);
             else

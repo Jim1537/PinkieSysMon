@@ -89,8 +89,7 @@ internal sealed partial class EditorForm
     private sealed record ScreenTargetMenuItems(
         ToolStripMenuItem Root,
         ToolStripMenuItem Status,
-        ToolStripMenuItem StartReload,
-        ToolStripMenuItem Stop);
+        ToolStripMenuItem StartReload);
 
     private bool CanOpenDashboardCommand() =>
         _definition is not null || DashboardCatalog.Discover(_root).Count > 0;
@@ -488,22 +487,15 @@ internal sealed partial class EditorForm
                 ScreenMenuContract.StartReloadText,
                 null,
                 async (_, _) => await ExecuteStartOrReloadTargetAsync(targetId));
-            var stopItem = new ToolStripMenuItem(
-                ScreenMenuContract.StopText,
-                null,
-                async (_, _) => await ExecuteStopTargetAsync(targetId));
-
             targetItem.DropDownItems.Add(statusItem);
             targetItem.DropDownItems.Add(new ToolStripSeparator());
             targetItem.DropDownItems.Add(startReloadItem);
-            targetItem.DropDownItems.Add(stopItem);
             _screenMenu.DropDownItems.Add(targetItem);
 
             _screenTargetMenuItems[targetId] = new ScreenTargetMenuItems(
                 targetItem,
                 statusItem,
-                startReloadItem,
-                stopItem);
+                startReloadItem);
         }
 
         _screenMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -568,7 +560,6 @@ internal sealed partial class EditorForm
             items.Root.ToolTipText = targetState.StatusText;
             items.Status.Text = targetState.StatusText;
             items.StartReload.Enabled = targetState.CanStartOrReload;
-            items.Stop.Enabled = targetState.CanStop;
         }
 
         _screenStartReloadAllMenuItem.Enabled = state.CanStartOrReloadAll;
@@ -585,8 +576,8 @@ internal sealed partial class EditorForm
         var actions = new EditorOutputStartActions(
             () => RuntimeIpc.GetStatusAsync(),
             IsRuntimeProcessPresent,
-            () => EditorOutputStartWorkflow.FromStoppedConfiguration(AppConfig.Load(_appConfigPath, _log)),
-            LaunchStoppedRuntimeForOutputCommandAsync,
+            () => EditorOutputStartWorkflow.FromConfiguration(AppConfig.Load(_appConfigPath, _log)),
+            LaunchRuntimeForOutputCommandAsync,
             output =>
             {
                 if (!dashboard.Equals(_dashboardName, StringComparison.OrdinalIgnoreCase))
@@ -599,19 +590,6 @@ internal sealed partial class EditorForm
             () => EditorOutputStartWorkflow.RunAsync(dashboard, targetId, actions),
             dialogTitle: targetId is null ? "Start / Reload All Outputs" : "Start / Reload Output",
             fallbackSuccessMessage: "Selected Outputs started/reloaded.");
-    }
-
-    private async Task ExecuteStopTargetAsync(string targetId)
-    {
-        var name = _appConfig.Outputs.Targets
-            .FirstOrDefault(target => target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase))?.Name
-            ?? targetId;
-
-        await ExecuteOutputCommandAsync(
-            async () => await RuntimeIpc.StopTargetAsync(targetId),
-            dialogTitle: "Stop Output",
-            fallbackSuccessMessage: $"Output '{name}' stopped and unloaded.",
-            synchronizeRuntimeShutdown: true);
     }
 
     private Task ExecuteStartOrReloadAllAsync() => ExecuteEditorOutputStartAsync(null);
@@ -702,7 +680,7 @@ internal sealed partial class EditorForm
         SetStatus("Outputs are stopped, but the PinkieSysMon runtime process has not exited yet.");
     }
 
-    private async Task<RuntimeIpcStatusResponse> LaunchStoppedRuntimeForOutputCommandAsync()
+    private async Task<RuntimeIpcStatusResponse> LaunchRuntimeForOutputCommandAsync()
     {
         var existing = await RuntimeIpc.GetStatusAsync();
         if (existing.Success)
@@ -732,7 +710,6 @@ internal sealed partial class EditorForm
             WorkingDirectory = Path.GetDirectoryName(runtimePath)!,
             UseShellExecute = false
         };
-        startInfo.ArgumentList.Add(RuntimeStartupOptions.OutputsStoppedArgument);
         using var launched = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Runtime could not be launched.");
 
@@ -777,8 +754,7 @@ internal sealed record ScreenTargetCommandState(
     string TargetId,
     string TargetName,
     string StatusText,
-    bool CanStartOrReload,
-    bool CanStop);
+    bool CanStartOrReload);
 
 internal sealed record ScreenMenuCommandState(
     ScreenTargetCommandState[] Targets,
@@ -788,34 +764,8 @@ internal sealed record ScreenMenuCommandState(
 internal static class ScreenMenuContract
 {
     public const string StartReloadText = "Start / Reload";
-    public const string StopText = "Stop / Unload Output";
     public const string StartReloadAllText = "Start / Reload All";
     public const string StopAllText = "Stop / Unload All Outputs";
-
-    public static bool IsTargetActive(RuntimeStatusSnapshot? runtimeStatus, string targetId)
-    {
-        if (string.IsNullOrWhiteSpace(targetId))
-            return false;
-
-        return runtimeStatus?.Outputs.Any(output =>
-            output.TargetId.Equals(targetId, StringComparison.OrdinalIgnoreCase) && output.IsActive) == true;
-    }
-
-    public static bool AreAllTargetsActive(
-        IReadOnlyList<OutputTargetConfig> targets,
-        RuntimeStatusSnapshot? runtimeStatus)
-    {
-        ArgumentNullException.ThrowIfNull(targets);
-        if (targets.Count == 0)
-            return false;
-
-        var activeIds = runtimeStatus?.Outputs
-            .Where(output => output.IsActive)
-            .Select(output => output.TargetId)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase)
-            ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        return targets.All(target => activeIds.Contains(target.Id));
-    }
 
     public static ScreenMenuCommandState Build(
         IReadOnlyList<OutputTargetConfig> targets,
@@ -841,14 +791,13 @@ internal static class ScreenMenuContract
                 target.Id,
                 target.Name,
                 description,
-                !commandInProgress && enabled,
-                !commandInProgress && outputStatus?.IsActive == true);
+                !commandInProgress && enabled);
         }).ToArray();
 
         return new ScreenMenuCommandState(
             targetStates,
             !commandInProgress && targetStates.Any(target => target.CanStartOrReload),
-            !commandInProgress && targetStates.Any(target => target.CanStop));
+            !commandInProgress && runtimeStatus?.Outputs.Any(output => output.IsActive) == true);
     }
 
     private static string DescribeStatus(bool? runtimeRunning, RuntimeOutputStatus? status)
@@ -860,7 +809,7 @@ internal static class ScreenMenuContract
         if (status is null)
             return "Status: Not loaded";
         if (!status.IsActive)
-            return "Status: Stopped";
+            return status.OutputEnabled == false ? "Status: Disabled" : "Status: Not loaded";
         if (status.IsConnected)
             return status.Kind == OutputTargetContract.DesktopKind ? "Status: Displaying" : "Status: Connected";
 

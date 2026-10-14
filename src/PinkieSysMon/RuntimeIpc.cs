@@ -8,12 +8,12 @@ internal sealed record RuntimeIpcResponse(bool Success, string Message);
 
 internal static class RuntimeStartupOptions
 {
-    public const string OutputsStoppedArgument = "--outputs-stopped";
-
-    public static bool ShouldStartOutputs(IEnumerable<string> args)
+    public static void Validate(IEnumerable<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        return !args.Any(arg => arg.Equals(OutputsStoppedArgument, StringComparison.OrdinalIgnoreCase));
+        // Unsupported arguments must fail before any Output can acquire hardware.
+        if (args.Any())
+            throw new ArgumentException("Runtime startup arguments are unsupported. Start Runtime normally and control Outputs through their saved Enabled settings.", nameof(args));
     }
 }
 
@@ -53,7 +53,6 @@ internal enum RuntimeIpcCommandKind
     ReloadConfiguration,
     Exit,
     StartOrReloadTarget,
-    StopTarget,
     StartOrReloadAll,
     StopAll,
     AssignDashboard,
@@ -77,7 +76,6 @@ internal static class RuntimeIpcProtocol
     public const string ReloadCommand = "RELOAD";
     public const string ExitCommand = "EXIT";
     public const string StartOrReloadTargetCommand = "OUTPUT_START_RELOAD";
-    public const string StopTargetCommand = "OUTPUT_STOP";
     public const string StartOrReloadAllCommand = "OUTPUT_START_RELOAD_ALL";
     public const string StopAllCommand = "OUTPUT_STOP_ALL";
     public const string AssignDashboardCommand = "OUTPUT_ASSIGN_DASHBOARD";
@@ -129,8 +127,6 @@ internal static class RuntimeIpcProtocol
             return new RuntimeIpcCommand(RuntimeIpcCommandKind.StopAll);
 
         if (TryParseTargetCommand(command, StartOrReloadTargetCommand, RuntimeIpcCommandKind.StartOrReloadTarget, out var parsed))
-            return parsed;
-        if (TryParseTargetCommand(command, StopTargetCommand, RuntimeIpcCommandKind.StopTarget, out parsed))
             return parsed;
         if (TryParseConfigurationCommand(command, AssignDashboardCommand, RuntimeIpcCommandKind.AssignDashboard, out parsed) ||
             TryParseConfigurationCommand(command, SetDesktopBoardEnabledCommand, RuntimeIpcCommandKind.SetDesktopBoardEnabled, out parsed) ||
@@ -315,9 +311,6 @@ internal static class RuntimeIpc
 
     public static Task<RuntimeIpcResponse> StartOrReloadTargetAsync(string targetId, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
         SendAsync(RuntimeIpcProtocol.BuildTargetCommand(RuntimeIpcProtocol.StartOrReloadTargetCommand, targetId), timeoutMs, cancellationToken);
-
-    public static Task<RuntimeIpcResponse> StopTargetAsync(string targetId, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
-        SendAsync(RuntimeIpcProtocol.BuildTargetCommand(RuntimeIpcProtocol.StopTargetCommand, targetId), timeoutMs, cancellationToken);
 
     public static Task<RuntimeIpcResponse> AssignDashboardAsync(string targetId, string dashboard, int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
         SendAsync(RuntimeIpcProtocol.BuildAssignDashboardCommand(targetId, dashboard), timeoutMs, cancellationToken);

@@ -39,7 +39,7 @@ Click **OK** to validate and save the panel configuration. **Cancel** discards t
 
 - If Runtime is running and responds to IPC, changed Output settings are applied through a configuration reload.
 - If Runtime cannot be reached, settings are saved for its next start; Settings does not launch it. Check the Editor's status message rather than assuming the panel is already visible.
-- To start a stopped, enabled panel, use **Output → &lt;panel name&gt; → Start / Reload** in the Editor. This can launch an absent Runtime. A disabled board must first be enabled in Settings or the Runtime tray.
+- Use **Output → &lt;panel name&gt; → Start / Reload** in the Editor to load saved edits into an enabled panel. This can launch an absent Runtime normally, starting all saved enabled Outputs. A disabled board must first be enabled in Settings or the Runtime tray.
 
 The shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply) describes concurrent-change rejection and failed-apply recovery. The Editor preview is independent of the live panel.
 
@@ -53,28 +53,27 @@ For overlapping panels, drag their **list entries in Settings → Desktop**, the
 
 If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
 
-### Show, hide, stop and reload
+### Show, hide and reload
 
 Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The submenu shows the assigned dashboard, state, visibility and refresh interval.
 
 | Action | Result |
 | --- | --- |
 | Toggle **Board Enabled** off/on | Unload/hide or start/show this panel; preserve its assignment, Lock and provider setting. The switch is persisted. |
-| Toggle **Lock** | Change mouse pass-through for this panel. A stopped panel remains stopped. |
-| **Start / Reload** | Start an enabled stopped panel, or reload its saved dashboard into the active panel. It does not turn Board Enabled on. |
-| **Stop / Unload Output** | Stop and dispose this session; retain its configuration and dashboard. It does not change Board Enabled. |
+| Toggle **Lock** | Change mouse pass-through for this panel; preserve Board Enabled and global Runtime lifetime. |
+| **Start / Reload** | Reload the saved dashboard within Runtime's running output lifetime. It does not turn Board Enabled on or bypass global shutdown. |
 
-The Editor offers the same target **Start / Reload** and **Stop / Unload Output** operations under **Output**, plus **Start / Reload All** and **Stop / Unload All Outputs**. All-target start addresses eligible Outputs; disabled boards/devices remain disabled.
+The Editor offers target **Start / Reload** under **Output**, plus **Start / Reload All** and the existing global **Stop / Unload All Outputs** shutdown command. All-target reload addresses eligible Outputs; disabled boards/devices remain disabled.
 
-!!! info "Hiding the final panel and stopping the final Output"
-    Turning **Board Enabled** off for the final Desktop leaves Runtime available in an idle state so the tray can show it again. An explicit **Stop / Unload Output** of the final active Output, or **Stop / Unload All Outputs**, requests Runtime shutdown. Start it again from the Editor when needed.
+!!! info "Disabling the final panel and global shutdown"
+    Turning **Board Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.
 
-Session Stop is not a saved disable setting. An enabled Output can start again on the next ordinary Runtime launch.
+Board Enabled is the panel's only per-target activation policy. There is no separate manually stopped panel state or target Stop/Unload action.
 
 ### Change the dashboard or load saved edits
 
 - **Settings:** select the panel and choose **Dashboard**, then **OK**.
-- **Runtime tray:** choose **Outputs → &lt;panel&gt; → Dashboard: &lt;current name&gt; → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload an active panel; a stopped panel stays stopped.
+- **Runtime tray:** choose **Outputs → &lt;panel&gt; → Dashboard: &lt;current name&gt; → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload an active panel; a disabled panel remains disabled.
 - **Editor:** use the selected Output's **Start / Reload**. If its assignment differs from the open Editor document, choose **Use editor dashboard**, **Keep assigned dashboard**, or **Cancel**.
 
 **Save** writes a dashboard to disk. It does not silently replace any Runtime-loaded document. When prompted about unsaved edits, **Save** supplies the new saved content, **Don't Save** uses the last saved content while retaining the editing draft, and **Cancel** aborts the action. See the complete [Editor Start/Reload workflow](../development/architecture.md#editor-output-start-reload), including all-target partial results.
@@ -135,7 +134,7 @@ The session disposes each caller-owned rendered frame after presentation. The wi
 
 ### Sibling stacking and shared boundaries
 
-`DesktopZOrderPolicy` orders enabled active panels by ascending `Desktop.ZOrder`, with persisted target order breaking ties. The manager restores sibling order on start, reload, target start/stop and resume. `WM_EXITSIZEMOVE` restores it immediately after an unlocked native drag. Non-topmost `SetWindowPos` uses no-activation flags and references only owned Desktop windows; no third-party window is explicitly moved.
+`DesktopZOrderPolicy` orders enabled active panels by ascending `Desktop.ZOrder`, with persisted target order breaking ties. The manager restores sibling order on start, reload, target enable/disable and resume. `WM_EXITSIZEMOVE` restores it immediately after an unlocked native drag. Non-topmost `SetWindowPos` uses no-activation flags and references only owned Desktop windows; no third-party window is explicitly moved.
 
 Shared telemetry demand, per-Output document isolation, IPC transactions and notifications remain owned by [Application Architecture](../development/architecture.md#runtime-data-path). Provider fields, push cadence and passive versus frame measurements remain with the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics).
 

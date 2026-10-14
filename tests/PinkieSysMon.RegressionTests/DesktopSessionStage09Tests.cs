@@ -58,9 +58,11 @@ internal static class DesktopSessionStage09Tests
                 "System suspend must hide the Desktop and publish its lifecycle state.");
             manager.Resume();
             Check(activeWindow.IsVisible, "System resume must restore the active Desktop window.");
-            Check(manager.StopTarget("desk-1") && activeWindow.DisposeCount == 1 &&
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desk-1", false),
+                manager.GetDashboardAssignments());
+            Check(activeWindow.DisposeCount == 1 &&
                   !manager.GetStatuses().Single(s => s.TargetId == "desk-1").IsActive,
-                "StopTarget must close only the Desktop session and dispose its window.");
+                "Disabling the Desktop must close only its session and dispose its window.");
         });
     }
 
@@ -113,7 +115,7 @@ internal static class DesktopSessionStage09Tests
                 });
             manager.Start();
             var status = OutputMetricContract.Id("desk-1", OutputMetricContract.Status);
-            Check(created == 0 && Equals(store.Snapshot()[status], "DESKTOP_PENDING"),
+            Check(created == 0 && Equals(store.Snapshot()[status], "DISABLED"),
                 "Provider Enabled alone must publish passive status without starting a hidden panel.");
 
             manager.Reconfigure(Config(true, false), board);
@@ -124,14 +126,14 @@ internal static class DesktopSessionStage09Tests
                   frames is null, "Disabled provider must not publish live readings for a visible board.");
 
             manager.Reconfigure(Config(false, true), board);
-            Check(window.DisposeCount == 1 && Equals(store.Snapshot()[status], "DESKTOP_PENDING"),
+            Check(window.DisposeCount == 1 && Equals(store.Snapshot()[status], "DISABLED"),
                 "Disabling Board Enabled must dispose the window and retain only passive provider status.");
         });
     }
 
     // Stage27: a delayed timer callback must not create work after the
     // window is hidden, during suspension, or after its session is disposed.
-    public static void HiddenAndStoppedRenderSuppression()
+    public static void HiddenAndDisabledRenderSuppression()
     {
         InSandbox((directory, log) =>
         {
@@ -165,11 +167,12 @@ internal static class DesktopSessionStage09Tests
                   panel.DisposeCount == 0,
                 "Resume must restore rendering through the same live window.");
 
-            manager.StopTarget("desk-1");
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desk-1", false),
+                manager.GetDashboardAssignments());
             panel.Tick();
             Check(panel.DisposeCount == 1 && !panel.IsVisible &&
                   panel.PresentCount == 2,
-                "A stale callback after StopTarget must never present another frame.");
+                "A stale callback after disable/disposal must never present another frame.");
         });
     }
 

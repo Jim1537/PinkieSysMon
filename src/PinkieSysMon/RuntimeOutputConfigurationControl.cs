@@ -20,7 +20,7 @@ internal sealed class RuntimeOutputConfigurationControl(
         string property;
         JsonNode value;
         string message;
-        var activate = false;
+        var reloadBoard = false;
         switch (command.Kind)
         {
             case RuntimeIpcCommandKind.AssignDashboard:
@@ -41,7 +41,7 @@ internal sealed class RuntimeOutputConfigurationControl(
                 if (property == "BoardEnabled")
                 {
                     replacement.Desktop!.BoardEnabled = command.Value.Value;
-                    activate = command.Value.Value;
+                    reloadBoard = command.Value.Value;
                 }
                 else replacement.Desktop!.Lock = command.Value.Value;
                 value = JsonValue.Create(command.Value.Value)!;
@@ -56,13 +56,13 @@ internal sealed class RuntimeOutputConfigurationControl(
         var draft = PrepareDraft(path, selected, property, value, log);
         // Assignment and an explicit enable validate only this target's on-disk board.
         // Lock/hide retain its already committed document, even if its file changed.
-        var board = command.Kind == RuntimeIpcCommandKind.AssignDashboard || activate
+        var board = command.Kind == RuntimeIpcCommandKind.AssignDashboard || reloadBoard
             ? RuntimeConfigurationValidator.LoadTarget(replacement, applicationRoot)
             : sessions.GetDashboardAssignments()[selected.Id];
         var runtimeCommitAttempted = false;
         try
         {
-            sessions.ReconfigureTarget(replacement, board, activate, next =>
+            sessions.ReconfigureTarget(replacement, board, next =>
             {
                 draft.Save();
                 runtimeCommitAttempted = true;

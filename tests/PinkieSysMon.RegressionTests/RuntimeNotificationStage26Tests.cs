@@ -14,9 +14,10 @@ internal static class RuntimeNotificationStage26Tests
             "A user command must run once and report its actual target, assignment and visible state.");
         Check(f.Events[0].Message == response.Message, "Tray/IPC feedback must publish the same actionable result returned to the caller.");
 
-        response = f.Run(new(RuntimeIpcCommandKind.StopTarget, "panel-a"), () => f.Put(Desktop()));
-        Check(response.Success && f.Events.Count == 2 && Has(response.Message, "Stop/unload", "session inactive"),
-            "Stop must describe an observed unloaded session.");
+        response = f.Run(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "panel-a", Value: false),
+            () => f.Put(Desktop() with { BoardEnabled = false, OutputEnabled = false, UsbState = "DISABLED" }));
+        Check(response.Success && f.Events.Count == 2 && Has(response.Message, "disable/hide", "session inactive"),
+            "Disable must confirm the saved policy and an observed unloaded session.");
         response = f.Run(new(RuntimeIpcCommandKind.StartOrReloadTarget, "panel-a"), () => { });
         Check(!response.Success && f.Events[^1].Kind == RuntimeNotificationKind.Error &&
             response.Message.Contains("requested state is not confirmed", StringComparison.Ordinal),
@@ -62,9 +63,10 @@ internal static class RuntimeNotificationStage26Tests
 
     public static void ConfigurationAndIsolation()
     {
-        var f = new Fixture(Desktop(), Physical(active: true, state: "ERROR"));
+        var disabled = Desktop() with { BoardEnabled = false, OutputEnabled = false, UsbState = "DISABLED" };
+        var f = new Fixture(disabled, Physical(active: true, state: "ERROR"));
         var response = f.Run(new(RuntimeIpcCommandKind.AssignDashboard, "panel-a", Dashboard: "Edited"),
-            () => f.Put(Desktop() with { Dashboard = "Edited" }));
+            () => f.Put(disabled with { Dashboard = "Edited" }));
         Check(response.Success && Has(response.Message, "Edited", "session inactive") &&
             !response.Message.Contains("device-a", StringComparison.Ordinal),
             "An inactive target assignment is complete without starting it or adopting a sibling failure.");
@@ -73,13 +75,13 @@ internal static class RuntimeNotificationStage26Tests
             () => f.Put(Desktop(active: true) with { Dashboard = "Edited" }));
         Check(response.Success && Has(response.Message, "enable/show", "panel visible"), "Board enable must report observed presentation.");
         response = f.Run(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "panel-a", Value: false),
-            () => f.Put(Desktop() with { Dashboard = "Edited", BoardEnabled = false, OutputEnabled = false }));
+            () => f.Put(disabled with { Dashboard = "Edited" }));
         Check(response.Success && Has(response.Message, "disable/hide", "session inactive"), "Board disable must verify no active hidden renderer.");
 
         response = f.Run(new(RuntimeIpcCommandKind.SetDesktopLock, "panel-a", Value: true),
             () => f.Put(f.Current.Outputs[0] with { Lock = true }));
         Check(response.Success && !f.Current.Outputs[0].IsActive,
-            "Lock configuration must complete without activating a stopped Desktop.");
+            "Lock configuration must complete without activating a disabled Desktop.");
         response = f.Run(new(RuntimeIpcCommandKind.SetDesktopLock, "panel-a", Value: false), () => { });
         Check(!response.Success, "An unchanged Lock value after acknowledgement must fail verification.");
 
@@ -168,12 +170,13 @@ internal static class RuntimeNotificationStage26Tests
         var f = new Fixture(Physical(), Physical("device-b"));
         f.Run(new(RuntimeIpcCommandKind.StartOrReloadTarget, "device-a"), () => f.Put(Physical(active: true)));
         f.Run(new(RuntimeIpcCommandKind.StartOrReloadTarget, "device-b"), () => f.Put(Physical("device-b", active: true)));
-        f.Run(new(RuntimeIpcCommandKind.StopTarget, "device-a"), () => f.Put(Physical()));
+        f.Run(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, "device-a", Value: false),
+            () => f.Put(Physical() with { DeviceEnabled = false, OutputEnabled = false, UsbState = "DISABLED" }));
         f.Put(Physical(active: true, state: "ERROR"));
         f.Put(Physical("device-b", active: true, connected: true)); f.Observe();
         Check(f.Events.Count == 4 && f.Events[^1].Kind == RuntimeNotificationKind.Information &&
             !f.Events[^1].Message.Contains("device-a", StringComparison.Ordinal),
-            "A superseding target Stop must remove its pending notification without canceling an unrelated pending command.");
+            "A superseding disable must remove its pending notification without canceling an unrelated pending command.");
 
         var changed = new Fixture(Physical());
         changed.Run(new(RuntimeIpcCommandKind.StartOrReloadTarget, "device-a"), () => changed.Put(Physical(active: true)));

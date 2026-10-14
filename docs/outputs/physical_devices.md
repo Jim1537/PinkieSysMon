@@ -56,19 +56,18 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 ### Start, reload and choose the dashboard
 
-- In the Editor, choose **Output → &lt;Output name&gt; → Start / Reload**. It can launch an absent Runtime, but cannot enable a disabled physical Output.
+- In the Editor, choose **Output → &lt;Output name&gt; → Start / Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, use **Outputs → &lt;Output name&gt; → Start / Reload**. The submenu reports its assignment, current state, Device Enabled and Provider Enabled.
-- Change assignment in **Settings → Device #N → Dashboard → OK**, or through **Outputs → &lt;Output&gt; → Dashboard: &lt;current name&gt;** in the tray. A tray assignment reloads an active session and preserves an inactive session's stopped state.
+- Change assignment in **Settings → Device #N → Dashboard → OK**, or through **Outputs → &lt;Output&gt; → Dashboard: &lt;current name&gt;** in the tray. A tray assignment reloads an active session, preserves saved disabled state and respects global Runtime lifetime.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Start/Reload workflow](../development/architecture.md#editor-output-start-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
 **Start / Reload All** addresses eligible Outputs without granting new Device Enabled consent. Its per-target assignment choices and possible partial results are documented in Architecture. A successful command with **WAITING** or **SUSPENDED** is not a claim that frames reached the display; consult [Runtime command feedback](../development/architecture.md#runtime-command-feedback).
 
-### Stop, disable, disconnect or remove
+### Disable, disconnect or remove
 
 | Operation | Effect |
 | --- | --- |
-| **Stop / Unload Output** under Editor **Output** or tray **Outputs** | Stop that live session; retain its assignment, saved record and Device Enabled value. An enabled Output can restart on a later normal Runtime launch. |
 | Turn **Device Enabled** off | Persistently prevent hardware output. Use an editable connected Device tab and OK, or the tray's **Physical Devices** entry. |
 | Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke Device Enabled or remove its record. |
 | **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
@@ -79,8 +78,8 @@ For removal, either use **Settings → Device #N → Remove → Yes → OK**, or
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening; the tray can show it as unconfigured. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
-!!! info "Final active Output"
-    Explicitly stopping the final active Output, or using **Stop / Unload All Outputs**, requests Runtime shutdown. Saved Device Enabled consent remains separate from session lifetime. See the [shared output-control contract](../development/architecture.md#output-status-and-tray-control).
+!!! info "Saved enablement and global shutdown"
+    Device Enabled is the physical Output's only per-target activation policy. Disabling the final Output leaves Runtime available for configuration. The global **Stop / Unload All Outputs** command requests Runtime shutdown without revoking saved Device Enabled consent; a later normal Runtime launch starts all saved enabled Outputs. See the [shared output-control contract](../development/architecture.md#output-status-and-tray-control).
 
 ### Troubleshooting and recovery
 
@@ -132,9 +131,9 @@ The two detached Settings models form one transaction: physical edits preserve D
 
 ### Session lifecycle and evidence limits
 
-`OutputSessionManager` owns the active-session set and isolates each Output's loaded dashboard and renderer. Device Enabled is required before a physical session can start. Current physical sessions use a dedicated `FramePump` worker; that worker owns the device transport. A target Stop/unavailable state does not authorize another device, replace a sibling's document or clear a sibling's metrics.
+`OutputSessionManager` owns the active-session set and isolates each Output's loaded dashboard and renderer. Device Enabled and a running global Runtime lifetime are required before a physical session can start. Disabling the Output disposes its session without a separate manual stop flag. Current physical sessions use a dedicated `FramePump` worker; that worker owns the device transport. A disabled/unavailable state does not authorize another device, replace a sibling's document or clear a sibling's metrics.
 
-Transport retry, stale-generation rejection, cancellation, buffer lifetime and diagnostics are specified by the [adapter lifecycle contract](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits). Shared start/reload/stop, status, IPC and notification behavior belongs to [Architecture](../development/architecture.md#output-status-and-tray-control). A configured, passively present, active or transport-connected device represents a different observation at each boundary; none alone proves a displayed frame.
+Transport retry, stale-generation rejection, cancellation, buffer lifetime and diagnostics are specified by the [adapter lifecycle contract](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits). Shared enablement, reload, global shutdown, status, IPC and notification behavior belongs to [Architecture](../development/architecture.md#output-status-and-tray-control). A configured, passively present, active or transport-connected device represents a different observation at each boundary; none alone proves a displayed frame.
 
 ### Implementation and regression references
 

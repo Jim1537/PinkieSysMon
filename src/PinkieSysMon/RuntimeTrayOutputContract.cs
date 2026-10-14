@@ -4,7 +4,6 @@ namespace PinkieSysMon;
 internal static class RuntimeTrayOutputContract
 {
     public static bool CanStartOrReload(RuntimeOutputStatus output) => output.OutputEnabled == true;
-    public static bool CanStop(RuntimeOutputStatus output) => output.IsActive;
 
     public static string Summary(RuntimeStatusSnapshot status)
     {

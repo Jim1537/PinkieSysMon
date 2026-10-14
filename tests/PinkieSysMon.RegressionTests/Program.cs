@@ -96,10 +96,10 @@ internal static class Program
             ("Stage24 independent Desktop Board Enabled and Lock commands", RuntimeConfigurationStage24Tests.DesktopSwitches),
             ("Stage24 target configuration transaction rollback", RuntimeConfigurationStage24Tests.ConfigurationRollback),
             ("Stage24 concurrent persistence and stale binding guards", RuntimeConfigurationStage24Tests.ConcurrentPersistence),
-            ("Stage24 inactive, stopped and suspended configuration commands", RuntimeConfigurationStage24Tests.StoppedAndSuspendedState),
+            ("Stage24 global lifetime and suspended configuration commands", RuntimeConfigurationStage24Tests.GlobalLifetimeAndSuspendedState),
             ("Stage25 dirty document Save, Don't Save, Cancel and failed Save", EditorOutputStartStage25Tests.DirtyDocumentDecisions),
             ("Stage25 selected Output dashboard choice and isolation", EditorOutputStartStage25Tests.SelectedDashboardChoices),
-            ("Stage25 absent Runtime and stopped launch policy", EditorOutputStartStage25Tests.AbsentRuntimePolicy),
+            ("Stage25 absent Runtime and normal launch policy", EditorOutputStartStage25Tests.AbsentRuntimePolicy),
             ("Stage25 failed apply and observed completion", EditorOutputStartStage25Tests.FailuresAndVerification),
             ("Stage25 All choice preflight and partial results", EditorOutputStartStage25Tests.AllPlanningAndPartialResults),
             ("Stage25 legacy status, assignment drift and menu ownership", EditorOutputStartStage25Tests.LegacyDriftAndMenu),
@@ -112,7 +112,7 @@ internal static class Program
             ("Stage26 notification failure and accepted shutdown", RuntimeNotificationStage26Tests.NotificationFailureAndShutdown),
             ("Runtime IPC output control isolation", RuntimeIpcOutputControlIsolation),
             ("Runtime IPC shutdown cancellation contract", RuntimeIpcShutdownCancellationContract),
-            ("Runtime output-stopped startup mode", RuntimeOutputStoppedStartupMode),
+            ("Runtime normal startup and unsupported arguments", RuntimeOutputStartupPolicy),
             ("Output menu device command model", ScreenMenuDeviceCommandModel),
             ("Editor main-menu Group cleanup", EditorMainMenuGroupCleanup),
             ("Editor native title-bar layout contract", EditorWindowChromeHitTestContract),
@@ -251,7 +251,7 @@ internal static class Program
             ("Desktop session lifecycle and no USB", DesktopSessionStage09Tests.DesktopLifecycle),
             ("Desktop session reconfigure and orientation", DesktopSessionStage09Tests.ReconfigureGeometry),
             ("Desktop Board Enabled versus Provider Enabled", DesktopSessionStage09Tests.IndependentSwitches),
-            ("Stage27 Desktop hidden/suspended/stopped suppresses frames", DesktopSessionStage09Tests.HiddenAndStoppedRenderSuppression),
+            ("Stage27 Desktop hidden/suspended/disabled suppresses frames", DesktopSessionStage09Tests.HiddenAndDisabledRenderSuppression),
             ("Desktop layered BGRA stride, alpha and blending", DesktopTransparencyStage10Tests.PremultipliedTransfer),
             ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
             ("Desktop placement multi-monitor and recovery", DesktopPositionStage11Tests.MonitorRecovery),
@@ -1176,15 +1176,16 @@ internal static class Program
             Assert(statuses.Count == 2 && statuses.All(status => status.IsActive),
                 "Every configured target must report an independent active session after startup.");
 
-            Assert(manager.StopTarget("screen-a"), "Stopping an active target must report that a session was removed.");
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "screen-a", false),
+                manager.GetDashboardAssignments());
             Assert(created[0].DisposeCount == 1 && created[1].DisposeCount == 0,
-                "Stopping one output target must dispose only that target session.");
+                "Disabling one output target must dispose only that target session.");
             Assert(created[1].PublishesRuntimeMetrics,
-                "Stopping one output must leave the sibling's metric publisher enabled.");
+                "Disabling one output must leave the sibling's metric publisher enabled.");
 
-            manager.StartOrReloadTarget("screen-a");
+            manager.Reconfigure(config, manager.GetDashboardAssignments());
             Assert(created.Count == 3 && created[2].StartCount == 1,
-                "Starting a stopped target must create a fresh session without restarting unrelated targets.");
+                "Re-enabling a target must create a fresh session without restarting unrelated targets.");
             Assert(created[2].PublishesRuntimeMetrics && created[1].PublishesRuntimeMetrics,
                 "Restarting an output must restore its own publisher without suppressing the sibling.");
 
@@ -1266,11 +1267,15 @@ internal static class Program
             Assert(statuses.Select(status => status.TargetId).SequenceEqual(new[] { "screen-b", "screen-c" }, StringComparer.OrdinalIgnoreCase),
                 "Session status order must follow configured target order after reconciliation.");
 
-            manager.StopTarget("screen-b");
-            manager.Reconfigure(replacement, new C.DashboardDefinition());
+            var disabledB = OutputLifecycleTestConfiguration.WithEnabled(replacement, "screen-b", false);
+            manager.Reconfigure(disabledB, manager.GetDashboardAssignments());
+            manager.Reconfigure(disabledB, manager.GetDashboardAssignments());
             statuses = manager.GetStatuses();
-            Assert(statuses.Single(status => status.TargetId == "screen-b").IsActive == false,
-                "A manually stopped existing target must remain stopped across ordinary configuration reloads.");
+            Assert(statuses.Single(status => status.TargetId == "screen-b") is { IsActive: false, OutputEnabled: false, UsbState: "DISABLED" },
+                "A disabled target must remain inactive across configuration reloads using its saved enablement.");
+            manager.Reconfigure(replacement, manager.GetDashboardAssignments());
+            Assert(manager.GetStatuses().All(status => status.IsActive),
+                "Re-enabling a configured target must restore its session without a separate activation command.");
         }
         finally
         {
@@ -1436,29 +1441,26 @@ internal static class Program
                 });
 
             manager.Start();
-            var liveB = created.Single(session => session.TargetId == "screen-b");
-            manager.StopTarget("screen-a");
+            var original = created.ToArray();
+            manager.StopAll();
             failRestartA = true;
 
             AssertThrows<InvalidOperationException>(
                 manager.StartOrReloadAll,
                 "Start / Reload All must fail cleanly when a newly required session cannot start.");
             var failedStatuses = manager.GetStatuses();
-            Assert(!failedStatuses.Single(status => status.TargetId == "screen-a").IsActive &&
-                   failedStatuses.Single(status => status.TargetId == "screen-b").IsActive,
-                "Failed Start / Reload All must preserve the previous active/stopped session split.");
-            Assert(liveB.CommitCount == 0,
-                "An already-active sibling must not be reconfigured when another target fails before startup commit.");
-            var failedA = created.Last(session => session.TargetId == "screen-a");
-            Assert(failedA.DisposeCount == 1,
-                "The failed replacement session from Start / Reload All must be disposed.");
+            Assert(failedStatuses.All(status => !status.IsActive && status.UsbState == "STOPPED"),
+                "Failed Start / Reload All must preserve the real global lifetime stop.");
+            Assert(original.All(session => session.DisposeCount == 1) &&
+                   created.Skip(2).Count() == 2 && created.Skip(2).All(session => session.DisposeCount == 1),
+                "Global stop and failed restart must dispose every original and candidate session exactly once.");
 
             failRestartA = false;
             manager.StartOrReloadAll();
             Assert(manager.GetStatuses().All(status => status.IsActive),
                 "Start / Reload All must remain retryable after a startup rollback.");
-            Assert(liveB.CommitCount == 1,
-                "The existing sibling should be reconfigured only after all newly required sessions start successfully.");
+            Assert(created.Skip(4).Count() == 2 && created.Skip(4).All(session => session.StartCount == 1),
+                "Retry after global restart rollback must create and start a fresh session set.");
         }
         finally
         {
@@ -1600,10 +1602,10 @@ internal static class Program
         Assert(start.Kind == RuntimeIpcCommandKind.StartOrReloadTarget && start.TargetId == targetId,
             "Target-scoped IPC commands must preserve opaque output target IDs without delimiter ambiguity.");
 
-        var stop = RuntimeIpcProtocol.ParseCommand(
-            RuntimeIpcProtocol.BuildTargetCommand(RuntimeIpcProtocol.StopTargetCommand, targetId));
-        Assert(stop.Kind == RuntimeIpcCommandKind.StopTarget && stop.TargetId == targetId,
-            "Stop-target IPC must address the exact configured target ID.");
+        var retiredStop = RuntimeIpcProtocol.ParseCommand(
+            RuntimeIpcProtocol.BuildTargetCommand("OUTPUT_STOP", targetId));
+        Assert(retiredStop.Kind == RuntimeIpcCommandKind.Invalid,
+            "Retired target-stop IPC must be rejected instead of recreating manual activation state.");
 
         Assert(RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.StartOrReloadAllCommand).Kind == RuntimeIpcCommandKind.StartOrReloadAll,
             "IPC must expose a distinct Start/Reload All output command.");
@@ -1616,7 +1618,7 @@ internal static class Program
         Assert(RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.ExitCommand).Kind == RuntimeIpcCommandKind.Exit,
             "Legacy EXIT protocol compatibility must remain even when unused client helpers are removed.");
 
-        var malformed = RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.StopTargetCommand + "\tnot-json");
+        var malformed = RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.StartOrReloadTargetCommand + "\tnot-json");
         Assert(malformed.Kind == RuntimeIpcCommandKind.Invalid && !string.IsNullOrWhiteSpace(malformed.Error),
             "Malformed target-scoped IPC commands must be rejected deterministically.");
     }
@@ -1647,8 +1649,9 @@ internal static class Program
         {
             var log = new FileLogger(Path.Combine(tempRoot, "regression.log"));
             var created = new List<FakeOutputSession>();
+            var config = CreateMultiOutputConfig();
             using var manager = new OutputSessionManager(
-                CreateMultiOutputConfig(),
+                config,
                 new C.DashboardDefinition(),
                 new MetricStore(),
                 log,
@@ -1662,25 +1665,34 @@ internal static class Program
             manager.Start();
             var control = new RuntimeOutputControl(manager, () => "PinkiePie_Vertical");
 
-            var stopACommand = new RuntimeIpcCommand(RuntimeIpcCommandKind.StopTarget, "screen-a");
-            var stopA = control.Execute(stopACommand);
-            Assert(stopA.Success &&
+            var retiredStop = RuntimeIpcProtocol.ParseCommand(
+                RuntimeIpcProtocol.BuildTargetCommand("OUTPUT_STOP", "screen-a"));
+            Assert(!control.Execute(retiredStop).Success && !control.ShouldExitRuntimeAfter(retiredStop) &&
+                   created.Count == 2 && created.All(session => session.DisposeCount == 0),
+                "A retired target-stop command must fail without changing sessions or requesting shutdown.");
+            var disabledA = OutputLifecycleTestConfiguration.WithEnabled(config, "screen-a", false);
+            manager.Reconfigure(disabledA, manager.GetDashboardAssignments());
+            var disableACommand = new RuntimeIpcCommand(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, "screen-a", Value: false);
+            Assert(
                    !control.GetStatus().Outputs.Single(output => output.TargetId == "screen-a").IsActive &&
-                   !control.ShouldExitRuntimeAfter(stopACommand),
-                "A target-scoped Stop command must unload only the addressed output session and keep the runtime alive while a sibling output remains active.");
+                   !control.ShouldExitRuntimeAfter(disableACommand),
+                "Disabling an Output must unload its session and keep Runtime available.");
             Assert(control.GetStatus().Outputs.Single(output => output.TargetId == "screen-b").IsActive,
-                "Stopping one target through IPC control must leave sibling output sessions active.");
+                "Disabling one target must leave sibling output sessions active.");
 
-            var stopBCommand = new RuntimeIpcCommand(RuntimeIpcCommandKind.StopTarget, "screen-b");
-            var stopB = control.Execute(stopBCommand);
-            Assert(stopB.Success &&
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(disabledA, "screen-b", false),
+                manager.GetDashboardAssignments());
+            var disableBCommand = new RuntimeIpcCommand(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, "screen-b", Value: false);
+            Assert(
                    control.GetStatus().Outputs.All(output => !output.IsActive) &&
-                   control.ShouldExitRuntimeAfter(stopBCommand),
-                "Stopping the last active output must request runtime-process shutdown after the IPC response is delivered.");
+                   !control.ShouldExitRuntimeAfter(disableBCommand),
+                "Disabling the final Output must leave Runtime available for configuration.");
+            AssertThrows<InvalidOperationException>(() => manager.StartOrReloadTarget("screen-a"),
+                "Target reload must not bypass disabled configuration.");
 
-            var startAll = control.Execute(new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll));
-            Assert(startAll.Success && control.GetStatus().Outputs.All(output => output.IsActive),
-                "Start/Reload All must reactivate every configured output after a full stop.");
+            manager.Reconfigure(config, manager.GetDashboardAssignments());
+            Assert(control.GetStatus().Outputs.All(output => output.IsActive),
+                "Re-enabling Outputs must restore every eligible session without manual activation state.");
 
             var stopAllCommand = new RuntimeIpcCommand(RuntimeIpcCommandKind.StopAll);
             var stopAll = control.Execute(stopAllCommand);
@@ -1688,11 +1700,16 @@ internal static class Program
                    control.GetStatus().Outputs.All(output => !output.IsActive) &&
                    control.ShouldExitRuntimeAfter(stopAllCommand),
                 "Stop All must unload every configured output session and request runtime-process shutdown.");
+            AssertThrows<InvalidOperationException>(() => manager.StartOrReloadTarget("screen-a"),
+                "A target command must not override the global lifetime stop during shutdown.");
+            Assert(control.Execute(new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll)).Success &&
+                   control.GetStatus().Outputs.All(output => output.IsActive),
+                "The retained global lifecycle primitive must remain retryable after Stop All.");
 
             Assert(RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(
                        new RuntimeIpcResponse(true, $"Outputs stopped. {RuntimeIpcProtocol.RuntimeStoppingMessage}")) &&
                    !RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(
-                       new RuntimeIpcResponse(true, "One output stopped; sibling output remains active.")),
+                       new RuntimeIpcResponse(true, "Output disabled; Runtime remains available.")),
                 "The Editor/runtime shutdown handshake must distinguish a response that requires waiting for process exit.");
         }
         finally
@@ -1724,59 +1741,50 @@ internal static class Program
         }
     }
 
-    private static void RuntimeOutputStoppedStartupMode()
+    private static void RuntimeOutputStartupPolicy()
     {
-        Assert(RuntimeStartupOptions.ShouldStartOutputs([]),
-            "Normal runtime startup must preserve automatic output-session startup.");
-        Assert(RuntimeStartupOptions.ShouldStartOutputs(["--unrelated"]),
-            "Unrelated runtime arguments must not suppress output-session startup.");
-        Assert(!RuntimeStartupOptions.ShouldStartOutputs([RuntimeStartupOptions.OutputsStoppedArgument]),
-            "Editor-launched runtime startup must support an explicit outputs-stopped mode.");
-        Assert(!RuntimeStartupOptions.ShouldStartOutputs(["--OUTPUTS-STOPPED"]),
-            "The outputs-stopped startup switch must be case-insensitive like the rest of the command surface.");
+        RuntimeStartupOptions.Validate([]);
+        foreach (var argument in new[] { "--outputs-stopped", "--OUTPUTS-STOPPED", "--unrelated" })
+            AssertThrows<ArgumentException>(() => RuntimeStartupOptions.Validate([argument]),
+                "Unsupported startup arguments must fail before Runtime can create sessions or open hardware.");
     }
 
     private static void ScreenMenuDeviceCommandModel()
     {
         var targets = CreateMultiOutputConfig().Outputs.Targets;
 
-        var runtimeStopped = ScreenMenuContract.Build(targets, false, null, commandInProgress: false);
-        Assert(runtimeStopped.Targets.Length == 2 && runtimeStopped.Targets[0].TargetName == "Left Trofeo" && runtimeStopped.Targets[1].TargetName == "Right Trofeo",
+        var runtimeAbsent = ScreenMenuContract.Build(targets, false, null, commandInProgress: false);
+        Assert(runtimeAbsent.Targets.Length == 2 && runtimeAbsent.Targets[0].TargetName == "Left Trofeo" && runtimeAbsent.Targets[1].TargetName == "Right Trofeo",
             "Output first-level items must be based on configured user-facing output names.");
-        Assert(runtimeStopped.Targets.All(target => target.CanStartOrReload && !target.CanStop) &&
-               runtimeStopped.CanStartOrReloadAll && !runtimeStopped.CanStopAll,
-            "When the runtime is stopped, Start / Reload must remain available while stop actions remain disabled.");
-        Assert(runtimeStopped.Targets.All(target => target.StatusText == "Status: Runtime not running"),
-            "Output target status must explicitly represent a stopped runtime.");
+        Assert(runtimeAbsent.Targets.All(target => target.CanStartOrReload) &&
+               runtimeAbsent.CanStartOrReloadAll && !runtimeAbsent.CanStopAll,
+            "When Runtime is absent, reload workflow must remain available while global shutdown remains disabled.");
+        Assert(runtimeAbsent.Targets.All(target => target.StatusText == "Status: Runtime not running"),
+            "Output target status must explicitly represent an absent Runtime.");
 
         var snapshot = new RuntimeStatusSnapshot(
             "PinkiePie_Vertical",
             [
                 new RuntimeOutputStatus("screen-a", "Left Trofeo", true, false, "WAITING"),
-                new RuntimeOutputStatus("screen-b", "Right Trofeo", false, false, "STOPPED")
+                new RuntimeOutputStatus("screen-b", "Right Trofeo", false, false, "DISABLED") { OutputEnabled = false }
             ]);
         var running = ScreenMenuContract.Build(targets, true, snapshot, commandInProgress: false);
-        Assert(running.Targets[0].CanStartOrReload && running.Targets[0].CanStop &&
+        Assert(running.Targets[0].CanStartOrReload &&
                running.Targets[0].StatusText == "Status: Waiting for device",
             "An active target with no physical connection must remain addressable and visibly report the missing-device state.");
-        Assert(running.Targets[1].CanStartOrReload && !running.Targets[1].CanStop &&
-               running.Targets[1].StatusText == "Status: Stopped",
-            "A stopped target must offer Start / Reload without pretending that a physical session is active.");
+        Assert(!running.Targets[1].CanStartOrReload &&
+               running.Targets[1].StatusText == "Status: Disabled",
+            "A disabled target must deny reload and report its configured state.");
         Assert(running.CanStartOrReloadAll && running.CanStopAll,
             "Global Output commands must reflect the aggregate configured-session state.");
-        Assert(ScreenMenuContract.IsTargetActive(snapshot, "screen-a") &&
-               !ScreenMenuContract.IsTargetActive(snapshot, "screen-b"),
-            "Start / Reload planning must distinguish active from stopped target sessions.");
-        Assert(!ScreenMenuContract.AreAllTargetsActive(targets, snapshot),
-            "Start / Reload All planning must detect when any configured target still needs to be started.");
         var allActiveSnapshot = new RuntimeStatusSnapshot(
             "PinkiePie_Vertical",
             [
                 new RuntimeOutputStatus("screen-a", "Left Trofeo", true, true, "CONNECTED"),
                 new RuntimeOutputStatus("screen-b", "Right Trofeo", true, true, "CONNECTED")
             ]);
-        Assert(ScreenMenuContract.AreAllTargetsActive(targets, allActiveSnapshot),
-            "Start / Reload All planning must recognize when configuration reload alone already refreshes every active target.");
+        Assert(ScreenMenuContract.Build(targets, true, allActiveSnapshot, false).CanStopAll,
+            "Global shutdown must remain available when actual Output sessions are active.");
 
         var failureSnapshot = new RuntimeStatusSnapshot(
             "PinkiePie_Vertical",
@@ -1790,15 +1798,14 @@ internal static class Program
             "Output target status must distinguish device-selection ambiguity from a generic output connection error.");
 
         var busy = ScreenMenuContract.Build(targets, true, snapshot, commandInProgress: true);
-        Assert(busy.Targets.All(target => !target.CanStartOrReload && !target.CanStop) &&
+        Assert(busy.Targets.All(target => !target.CanStartOrReload) &&
                !busy.CanStartOrReloadAll && !busy.CanStopAll,
             "A pending Output command must disable every competing per-target and global Output action.");
 
         Assert(ScreenMenuContract.StartReloadText == "Start / Reload" &&
-               ScreenMenuContract.StopText == "Stop / Unload Output" &&
                ScreenMenuContract.StartReloadAllText == "Start / Reload All" &&
                ScreenMenuContract.StopAllText == "Stop / Unload All Outputs",
-            "Output command labels must explicitly identify output/session scope while runtime shutdown remains a consequence of the final output stopping.");
+            "The retained global shutdown label must describe its Output scope without exposing a target-stop action.");
     }
 
 

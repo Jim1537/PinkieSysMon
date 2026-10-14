@@ -12,8 +12,8 @@ internal enum OutputDashboardChoice
 internal sealed record EditorOutputStartActions(
     Func<Task<RuntimeIpcStatusResponse>> GetStatus,
     Func<bool> ProcessPresent,
-    Func<RuntimeStatusSnapshot> ReadStoppedConfiguration,
-    Func<Task<RuntimeIpcStatusResponse>> LaunchStoppedRuntime,
+    Func<RuntimeStatusSnapshot> ReadConfiguration,
+    Func<Task<RuntimeIpcStatusResponse>> LaunchRuntime,
     Func<RuntimeOutputStatus, OutputDashboardChoice> ChooseDashboard,
     Func<string, string, Task<RuntimeIpcResponse>> AssignDashboard,
     Func<string, Task<RuntimeIpcResponse>> StartOrReload);
@@ -29,7 +29,7 @@ internal static class EditorOutputStartWorkflow
             _ => false
         });
 
-    public static RuntimeStatusSnapshot FromStoppedConfiguration(AppConfig config) => new(
+    public static RuntimeStatusSnapshot FromConfiguration(AppConfig config) => new(
         "(Runtime not running)", config.Outputs.Targets.Select(target =>
         {
             var desktop = target.Kind == OutputTargetContract.DesktopKind;
@@ -55,7 +55,7 @@ internal static class EditorOutputStartWorkflow
             var running = initial.Success && initial.Status is not null;
             if (!running && actions.ProcessPresent())
                 return Failed("A Runtime process exists but its status is unavailable. A duplicate Runtime was not launched.", completed);
-            var snapshot = running ? initial.Status! : actions.ReadStoppedConfiguration();
+            var snapshot = running ? initial.Status! : actions.ReadConfiguration();
             if (targetId is null && snapshot.Outputs.Any(o => o.OutputEnabled is null))
                 return Failed("Runtime does not report per-Output enablement. Update Runtime before Start / Reload.", completed);
             var selected = targetId is null
@@ -85,9 +85,10 @@ internal static class EditorOutputStartWorkflow
 
             if (!running)
             {
-                var launched = await actions.LaunchStoppedRuntime();
+                var launched = await actions.LaunchRuntime();
                 if (!launched.Success || launched.Status is null)
                     return Failed(launched.Message, completed);
+                completed.Add($"Runtime available: {launched.Status.Outputs.Count(output => output.IsActive)} active of {launched.Status.Outputs.Length} configured Outputs.");
             }
 
             // Recheck the actual Runtime after dialogs/launch; disk planning never

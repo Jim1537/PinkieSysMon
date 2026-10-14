@@ -171,7 +171,7 @@ internal sealed class RuntimeCommandFeedback(
         RuntimeIpcCommandKind.StartOrReloadTarget => output.OutputEnabled == true && output.IsActive,
         RuntimeIpcCommandKind.StartOrReloadAll => output.OutputEnabled == false && !output.IsActive ||
             output.OutputEnabled == true && output.IsActive,
-        RuntimeIpcCommandKind.StopTarget or RuntimeIpcCommandKind.StopAll => !output.IsActive,
+        RuntimeIpcCommandKind.StopAll => !output.IsActive,
         RuntimeIpcCommandKind.AssignDashboard => !string.IsNullOrWhiteSpace(command.Dashboard) &&
             string.Equals(output.Dashboard, command.Dashboard.Trim(), StringComparison.OrdinalIgnoreCase),
         RuntimeIpcCommandKind.SetPhysicalDeviceEnabled => output.Kind == OutputTargetContract.TrofeoKind &&
@@ -231,7 +231,7 @@ internal sealed class RuntimeCommandFeedback(
 
     private static bool IsUserCommand(RuntimeIpcCommandKind kind) => kind is
         RuntimeIpcCommandKind.ReloadConfiguration or RuntimeIpcCommandKind.Exit or
-        RuntimeIpcCommandKind.StartOrReloadTarget or RuntimeIpcCommandKind.StopTarget or
+        RuntimeIpcCommandKind.StartOrReloadTarget or
         RuntimeIpcCommandKind.StartOrReloadAll or RuntimeIpcCommandKind.StopAll or
         RuntimeIpcCommandKind.AssignDashboard or RuntimeIpcCommandKind.SetDesktopBoardEnabled or
         RuntimeIpcCommandKind.SetDesktopLock or RuntimeIpcCommandKind.SetPhysicalDeviceEnabled;
@@ -240,7 +240,7 @@ internal sealed class RuntimeCommandFeedback(
     {
         RuntimeIpcCommandKind.ReloadConfiguration => "Configuration reload",
         RuntimeIpcCommandKind.StartOrReloadTarget or RuntimeIpcCommandKind.StartOrReloadAll => "Start/reload",
-        RuntimeIpcCommandKind.StopTarget or RuntimeIpcCommandKind.StopAll => "Stop/unload",
+        RuntimeIpcCommandKind.StopAll => "Stop/unload",
         RuntimeIpcCommandKind.AssignDashboard => "Dashboard assignment",
         RuntimeIpcCommandKind.SetDesktopBoardEnabled => command.Value == true ? "Board enable/show" : "Board disable/hide",
         RuntimeIpcCommandKind.SetDesktopLock => "Desktop Lock change",

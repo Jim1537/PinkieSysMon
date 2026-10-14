@@ -71,21 +71,28 @@ internal static class DesktopMultiSessionStage15Tests
                 "A disposed Desktop window must not render any additional frames.");
 
             var control = new RuntimeOutputControl(manager, () => "Shared");
-            var stop = new RuntimeIpcCommand(RuntimeIpcCommandKind.StopTarget, "d1");
-            Check(control.Execute(stop).Success && !control.ShouldExitRuntimeAfter(stop) &&
+            var disable = new RuntimeIpcCommand(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "d1", Value: false);
+            var disabledD1 = OutputLifecycleTestConfiguration.WithEnabled(reduced, "d1", false);
+            manager.ReconfigureTarget(disabledD1.Outputs.Targets.Single(t => t.Id == "d1"),
+                manager.GetDashboardAssignments()["d1"], _ => { });
+            Check(!manager.GetStatuses().Single(s => s.TargetId == "d1").IsActive && !control.ShouldExitRuntimeAfter(disable) &&
                   first.DisposeCount == 1 && second.IsVisible && physical.DisposeCount == 0,
-                "Stopping one Desktop must not exit Runtime or unload another panel or hardware.");
+                "Disabling one Desktop must not exit Runtime or unload another panel or hardware.");
 
-            manager.StartOrReloadTarget("d1");
+            manager.ReconfigureTarget(reduced.Outputs.Targets.Single(t => t.Id == "d1"),
+                manager.GetDashboardAssignments()["d1"], _ => { });
             var restarted = Latest(windows, "d1");
             Check(!ReferenceEquals(first, restarted) && restarted.IsVisible &&
                   restarted.DisposeCount == 0 && second.IsVisible &&
                   physical.StartCount == 1 && physical.DisposeCount == 0,
-                "Restarting a stopped Desktop must create only its own new window.");
+                "Enabling a Desktop must create only its own new window without another Start command.");
 
-            var stopSecond = new RuntimeIpcCommand(RuntimeIpcCommandKind.StopTarget, "d2");
-            Check(control.Execute(stopSecond).Success &&
-                  !control.ShouldExitRuntimeAfter(stopSecond) &&
+            var disableSecond = new RuntimeIpcCommand(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "d2", Value: false);
+            var disabledD2 = OutputLifecycleTestConfiguration.WithEnabled(reduced, "d2", false);
+            manager.ReconfigureTarget(disabledD2.Outputs.Targets.Single(t => t.Id == "d2"),
+                manager.GetDashboardAssignments()["d2"], _ => { });
+            Check(!manager.GetStatuses().Single(s => s.TargetId == "d2").IsActive &&
+                  !control.ShouldExitRuntimeAfter(disableSecond) &&
                   second.DisposeCount == 1 && restarted.IsVisible && physical.DisposeCount == 0,
                 "Runtime must continue while another Desktop or physical Output is active.");
         });

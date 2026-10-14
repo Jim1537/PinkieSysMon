@@ -37,15 +37,10 @@ internal static class EditorOutputStartStage25Tests
             "Comparison must use A's assignment, ignore a misleading top-level dashboard and reload only A.");
         var use = new Runtime();
         use.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
-        Check(use.Run("Editor", "a")?.Success == true && use.Calls.Contains("ASSIGN:a:Editor") && use.Calls.Contains("START:a") &&
+        Check(use.Run("Editor", "a")?.Success == true && use.Calls.Contains("ASSIGN:a:Editor") && !use.Calls.Contains("START:a") &&
               use.Calls.All(c => c != "START:b") && use.Outputs.Single(o => o.TargetId == "a").Dashboard == "Editor" &&
               use.Outputs.Single(o => o.TargetId == "b").Dashboard == "B",
-            "Use editor dashboard must assign and start only the selected inactive target.");
-        var active = new Runtime();
-        active.Set("a", o => o with { IsActive = true, IsConnected = true, UsbState = "DISPLAYING" });
-        active.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
-        Check(active.Run("Editor", "a")?.Success == true && active.Calls.Contains("ASSIGN:a:Editor") && !active.Calls.Contains("START:a"),
-            "An assignment that already reloaded an active Output must not reload it a second time.");
+            "Use editor dashboard must assign and reload only the selected active target without a duplicate reload.");
         var keep = new Runtime();
         keep.Choices.Enqueue(OutputDashboardChoice.KeepAssignedDashboard);
         Check(keep.Run("Editor", "a")?.Success == true && keep.Calls.Contains("START:a") &&
@@ -71,21 +66,24 @@ internal static class EditorOutputStartStage25Tests
             "Offline mismatch cancellation must leave Runtime absent and configuration unchanged.");
         var launch = new Runtime { Running = false };
         launch.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
-        Check(launch.Run("Editor", "a")?.Success == true && launch.Mutations.SequenceEqual(new[] { "LAUNCH_STOPPED", "ASSIGN:a:Editor", "START:a" }) &&
-              launch.Calls.IndexOf("CHOICE:a") < launch.Calls.IndexOf("LAUNCH_STOPPED") &&
-              launch.Outputs.Single(o => o.TargetId == "b").IsActive == false,
-            "Absent Runtime must launch with outputs stopped only after choice, then address A without autostarting B.");
+        var launched = launch.Run("Editor", "a");
+        Check(launched?.Success == true && launch.Mutations.SequenceEqual(new[] { "LAUNCH", "ASSIGN:a:Editor" }) &&
+              launch.Calls.IndexOf("CHOICE:a") < launch.Calls.IndexOf("LAUNCH") &&
+              launch.Outputs.Single(o => o.TargetId == "b").IsActive &&
+              !launch.Outputs.Single(o => o.TargetId == "c").IsActive &&
+              launched.Message.Contains("2 active of 3 configured Outputs", StringComparison.Ordinal),
+            "Absent Runtime must launch normally after choice, report all saved-enabled startup and leave disabled hardware inactive.");
         var unresponsive = new Runtime { Running = false, ProcessRunning = true };
         Check(unresponsive.Run("Editor", "a")?.Success == false && !unresponsive.Calls.Contains("CONFIG") && unresponsive.Mutations.Length == 0,
             "An existing unresponsive Runtime must not trigger a duplicate launch or offline assignment guess.");
         var failedLaunch = new Runtime { Running = false, FailLaunch = true };
-        Check(failedLaunch.Run("A", "a")?.Success == false && failedLaunch.Mutations.SequenceEqual(new[] { "LAUNCH_STOPPED" }),
+        Check(failedLaunch.Run("A", "a")?.Success == false && failedLaunch.Mutations.SequenceEqual(new[] { "LAUNCH" }),
             "An unconfirmed startup must prevent all Output commands.");
         var changedLaunch = new Runtime { Running = false, OnLaunch = runtime => runtime.Set("a", o => o with { Dashboard = "Changed" }) };
-        Check(changedLaunch.Run("A", "a")?.Success == false && changedLaunch.Mutations.SequenceEqual(new[] { "LAUNCH_STOPPED" }),
-            "Actual post-launch assignment must be rechecked against offline choice before dispatch.");
-        Check(!RuntimeStartupOptions.ShouldStartOutputs([RuntimeStartupOptions.OutputsStoppedArgument]),
-            "The existing stopped-output startup flag must continue to suppress session autostart.");
+        var changed = changedLaunch.Run("A", "a");
+        Check(changed?.Success == false && changedLaunch.Mutations.SequenceEqual(new[] { "LAUNCH" }) &&
+              changed.Message.Contains("Runtime available: 2 active", StringComparison.Ordinal),
+            "Post-launch drift must prevent target dispatch and still report the confirmed normal startup.");
     }
 
     public static void FailuresAndVerification()
@@ -95,7 +93,7 @@ internal static class EditorOutputStartStage25Tests
         Check(assign.Run("Editor", "a")?.Success == false && !assign.Calls.Contains("START:a") &&
               assign.Outputs.Single(o => o.TargetId == "a").Dashboard == "A",
             "A rejected assignment must not be followed by Start or by any off-target command.");
-        var failedStart = new Runtime { FailStartId = "a" };
+        var failedStart = new Runtime { FailStartId = "a", StopAllOnAssignment = true };
         failedStart.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
         var partial = failedStart.Run("Editor", "a");
         Check(partial is { Success: false } && partial.Message.Contains("Completed actions:", StringComparison.Ordinal) &&
@@ -104,6 +102,7 @@ internal static class EditorOutputStartStage25Tests
               failedStart.Outputs.Single(o => o.TargetId == "b").Dashboard == "B",
             "Failure after a confirmed assignment must report that partial result without claiming a started Output.");
         var ackOnly = new Runtime { StartWithoutState = true };
+        ackOnly.StopAllOutputs();
         Check(ackOnly.Run("A", "a")?.Success == false,
             "A successful IPC acknowledgement must not replace observed active/assigned state.");
         var assignAckOnly = new Runtime { AssignmentWithoutState = true };
@@ -133,7 +132,7 @@ internal static class EditorOutputStartStage25Tests
         all.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
         all.Choices.Enqueue(OutputDashboardChoice.KeepAssignedDashboard);
         Check(all.Run("Editor", null)?.Success == true && all.Calls.Contains("ASSIGN:a:Editor") &&
-              all.Calls.Contains("START:a") && all.Calls.Contains("START:b") &&
+              !all.Calls.Contains("START:a") && all.Calls.Contains("START:b") &&
               all.Mutations.All(c => !c.Contains(":c", StringComparison.Ordinal)) &&
               all.Calls.IndexOf("CHOICE:b") < all.Calls.IndexOf("ASSIGN:a:Editor") &&
               all.Outputs.Single(o => o.TargetId == "b").Dashboard == "B" &&
@@ -147,8 +146,8 @@ internal static class EditorOutputStartStage25Tests
               !partial.Message.Contains("Output 'B' loaded", StringComparison.Ordinal),
             "Sequential All failure must report the confirmed earlier Output without inventing all-or-nothing completion.");
         var none = new Runtime();
-        none.Set("a", o => o with { OutputEnabled = false });
-        none.Set("b", o => o with { OutputEnabled = false });
+        foreach (var id in new[] { "a", "b" })
+            none.Set(id, o => o with { OutputEnabled = false, BoardEnabled = false, IsActive = false, IsConnected = false, UsbState = "DISABLED" });
         Check(none.Run("Editor", null)?.Success == false && none.Mutations.Length == 0,
             "No eligible Output must mean no implicit Board/Device enable or start.");
     }
@@ -176,9 +175,9 @@ internal static class EditorOutputStartStage25Tests
         ] } };
         var state = ScreenMenuContract.Build(config.Outputs.Targets, true, f.Snapshot(), false);
         Check(state.Targets[0].CanStartOrReload && state.Targets[0].StatusText.Contains("Dashboard: A", StringComparison.Ordinal) &&
-              !state.Targets[1].CanStartOrReload && !state.Targets[1].CanStop,
+              !state.Targets[1].CanStartOrReload,
             "Menu must show per-target assignment and deny disabled physical activation independently of Provider Enabled.");
-        var offline = EditorOutputStartWorkflow.FromStoppedConfiguration(config);
+        var offline = EditorOutputStartWorkflow.FromConfiguration(config);
         Check(offline.Outputs.All(o => !o.IsActive && !o.IsConnected) && offline.Outputs[0].Dashboard == "A" &&
               offline.Outputs[1].OutputEnabled == false && offline.Outputs[1].ProviderEnabled == true,
             "Offline planning may expose configured assignments but must never fabricate observed sessions/connections.");
@@ -191,7 +190,7 @@ internal static class EditorOutputStartStage25Tests
 
     private sealed class Runtime
     {
-        public bool Running = true, ProcessRunning, FailLaunch, FailAssignment, StartWithoutState, AssignmentWithoutState;
+        public bool Running = true, ProcessRunning, FailLaunch, FailAssignment, StartWithoutState, AssignmentWithoutState, StopAllOnAssignment;
         public string? FailStartId;
         public string StartedState = "DISPLAYING";
         public Action<Runtime>? OnChoice, OnLaunch;
@@ -199,19 +198,26 @@ internal static class EditorOutputStartStage25Tests
         public readonly List<string> Calls = [];
         public readonly List<RuntimeOutputStatus> Outputs =
         [
-            Output("a", "A", false), Output("b", "B", true),
+            Output("a", "A", true), Output("b", "B", true),
             new("c", "C", false, false, "DISABLED")
             {
                 Kind = OutputTargetContract.TrofeoKind, Dashboard = "C", OutputEnabled = false, ProviderEnabled = true, DeviceEnabled = false
             }
         ];
-        public string[] Mutations => Calls.Where(c => c == "LAUNCH_STOPPED" ||
+        public string[] Mutations => Calls.Where(c => c == "LAUNCH" ||
             c.StartsWith("ASSIGN:", StringComparison.Ordinal) || c.StartsWith("START:", StringComparison.Ordinal)).ToArray();
         public RuntimeStatusSnapshot Snapshot() => new("Misleading global board", Outputs.ToArray());
         public void Set(string id, Func<RuntimeOutputStatus, RuntimeOutputStatus> edit)
         {
             var index = Outputs.FindIndex(o => o.TargetId == id);
             Outputs[index] = edit(Outputs[index]);
+        }
+        // Simulate a concurrent global shutdown after a confirmed IPC response.
+        public void StopAllOutputs()
+        {
+            for (var i = 0; i < Outputs.Count; i++)
+                Outputs[i] = Outputs[i] with { IsActive = false, IsConnected = false,
+                    UsbState = Outputs[i].OutputEnabled == true ? "STOPPED" : "DISABLED" };
         }
         public RuntimeIpcResponse? Run(string board, string? target) =>
             EditorOutputStartWorkflow.RunAsync(board, target, Actions()).GetAwaiter().GetResult();
@@ -225,10 +231,13 @@ internal static class EditorOutputStartStage25Tests
             () => { Calls.Add("CONFIG"); return new RuntimeStatusSnapshot("Configured only", Outputs.Select(o => o with { IsActive = false, IsConnected = false, UsbState = "NOT_RUNNING" }).ToArray()); },
             () =>
             {
-                Calls.Add("LAUNCH_STOPPED");
+                Calls.Add("LAUNCH");
                 if (FailLaunch) return Task.FromResult(new RuntimeIpcStatusResponse(false, "Synthetic startup failure", null));
                 Running = true;
-                for (var i = 0; i < Outputs.Count; i++) Outputs[i] = Outputs[i] with { IsActive = false, IsConnected = false, UsbState = "STOPPED" };
+                for (var i = 0; i < Outputs.Count; i++)
+                    Outputs[i] = Outputs[i] with { IsActive = Outputs[i].OutputEnabled == true,
+                        IsConnected = Outputs[i].OutputEnabled == true,
+                        UsbState = Outputs[i].OutputEnabled == true ? "DISPLAYING" : "DISABLED" };
                 OnLaunch?.Invoke(this);
                 return Task.FromResult(new RuntimeIpcStatusResponse(true, "", Snapshot()));
             },
@@ -244,6 +253,7 @@ internal static class EditorOutputStartStage25Tests
             {
                 Calls.Add($"ASSIGN:{id}:{board}");
                 if (!FailAssignment && !AssignmentWithoutState) Set(id, o => o with { Dashboard = board });
+                if (!FailAssignment && StopAllOnAssignment) StopAllOutputs();
                 return Task.FromResult(new RuntimeIpcResponse(!FailAssignment, FailAssignment ? "Synthetic assignment failure" : "Assigned"));
             },
             id =>

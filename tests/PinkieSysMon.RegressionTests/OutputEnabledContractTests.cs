@@ -91,7 +91,7 @@ internal static class OutputEnabledContractTests
                     });
                 manager.Start();
                 var status = new RuntimeOutputControl(manager, () => "Legacy").GetStatus();
-                var offline = EditorOutputStartWorkflow.FromStoppedConfiguration(config);
+                var offline = EditorOutputStartWorkflow.FromConfiguration(config);
                 var offlineMenu = ScreenMenuContract.Build(config.Outputs.Targets, false, null, false);
                 foreach (var target in config.Outputs.Targets)
                 {

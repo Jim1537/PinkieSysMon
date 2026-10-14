@@ -105,11 +105,16 @@ internal static class DesktopZOrderStage14Tests
             AssertEvents(events, "d3<d2", "d1<d3");
 
             events.Clear();
-            Check(manager.StopTarget("d2"), "StopTarget must remove the active panel.");
+            var disabledD2 = OutputLifecycleTestConfiguration.WithEnabled(reordered, "d2", false);
+            manager.ReconfigureTarget(disabledD2.Outputs.Targets.Single(t => t.Id == "d2"),
+                manager.GetDashboardAssignments()["d2"], _ => { });
+            Check(!manager.GetStatuses().Single(s => s.TargetId == "d2").IsActive,
+                "Disabling a panel must remove its active session.");
             AssertEvents(events, "d1<d3");
 
             events.Clear();
-            manager.StartOrReloadTarget("d2");
+            manager.ReconfigureTarget(reordered.Outputs.Targets.Single(t => t.Id == "d2"),
+                manager.GetDashboardAssignments()["d2"], _ => { });
             AssertEvents(events, "d3<d2", "d1<d3");
 
             events.Clear();

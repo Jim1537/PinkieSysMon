@@ -30,7 +30,8 @@ internal static class Program
 
         try
         {
-            Application.Run(new PinkieApplicationContext(appRoot, logger, RuntimeStartupOptions.ShouldStartOutputs(args)));
+            RuntimeStartupOptions.Validate(args);
+            Application.Run(new PinkieApplicationContext(appRoot, logger));
         }
         catch (Exception ex)
         {

@@ -55,16 +55,6 @@ internal sealed class RuntimeOutputControl
                 _sessions.StartOrReloadTarget(command.TargetId!);
                 return new RuntimeIpcResponse(true, $"Output target '{command.TargetId}' started/reloaded.");
 
-            case RuntimeIpcCommandKind.StopTarget:
-            {
-                var stopped = _sessions.StopTarget(command.TargetId!);
-                return new RuntimeIpcResponse(
-                    true,
-                    stopped
-                        ? $"Output target '{command.TargetId}' stopped and unloaded."
-                        : $"Output target '{command.TargetId}' is already stopped.");
-            }
-
             case RuntimeIpcCommandKind.StartOrReloadAll:
                 _sessions.StartOrReloadAll();
                 return new RuntimeIpcResponse(true, "Eligible Output sessions started/reloaded; disabled Outputs remain inactive.");
@@ -82,11 +72,6 @@ internal sealed class RuntimeOutputControl
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        return command.Kind switch
-        {
-            RuntimeIpcCommandKind.StopAll => true,
-            RuntimeIpcCommandKind.StopTarget => !_sessions.GetStatuses().Any(status => status.IsActive),
-            _ => false
-        };
+        return command.Kind == RuntimeIpcCommandKind.StopAll;
     }
 }

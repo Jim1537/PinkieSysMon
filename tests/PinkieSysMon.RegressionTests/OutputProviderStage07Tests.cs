@@ -88,13 +88,13 @@ internal static class OutputProviderStage07Tests
             var statusDesktop = OutputMetricContract.Id(desktop.Id, OutputMetricContract.Status);
             Check(created == 0 &&
                   Equals(snapshot[statusDevice], "DISABLED") &&
-                  Equals(snapshot[statusDesktop], "DESKTOP_PENDING"),
+                  Equals(snapshot[statusDesktop], "DISABLED"),
                 "Provider Enabled must publish passive lifecycle state with no USB or Desktop renderer.");
             Check(!snapshot.TryGetValue(OutputMetricContract.Id("device", OutputMetricContract.Fps), out var fps) || fps is null,
                 "An inactive physical device must not publish fabricated live FPS.");
-            manager.StopTarget("desktop");
-            Check(Equals(store.Snapshot()[statusDesktop], "STOPPED"),
-                "Stop Target on an inactive Desktop must publish stopped status.");
+            manager.StopAll();
+            Check(Equals(store.Snapshot()[statusDesktop], "DISABLED"),
+                "Global lifetime shutdown must not change a disabled Output's persisted policy.");
 
             var changed = Config(Physical("device", "Device", false, false));
             changed.MetricProviders[MetricProviderContract.System] = false;
@@ -133,11 +133,12 @@ internal static class OutputProviderStage07Tests
             Check(Equals(store.Snapshot()[a], 51) && Equals(store.Snapshot()[b], 52) &&
                   publishers.Values.All(p => p.Enabled),
                 "Output metrics must remain active for each provider when global System is disabled.");
-            manager.StopTarget(first.Id);
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(cfg, first.Id, false),
+                manager.GetDashboardAssignments());
             Check(store.Snapshot().TryGetValue(a, out var stopped) && stopped is null &&
                   Equals(store.Snapshot()[b], 52) &&
-                  Equals(store.Snapshot()[OutputMetricContract.Id(first.Id, OutputMetricContract.Status)], "STOPPED"),
-                "Stopping one Output clears only its live readings and retains passive provider status.");
+                  Equals(store.Snapshot()[OutputMetricContract.Id(first.Id, OutputMetricContract.Status)], "DISABLED"),
+                "Disabling one Output clears only its live readings and retains passive provider status.");
             var changed = Config(Physical("screen-a", "A", true, false),
                 Physical("screen-b", "B", false, true));
             changed.MetricProviders[MetricProviderContract.System] = false;

@@ -38,7 +38,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private string AppConfigPath => Path.Combine(_baseDir, "config", "app.json");
     private string TelemetryConfigPath => Path.Combine(_baseDir, "config", "telemetry.json");
 
-    public PinkieApplicationContext(string baseDir, FileLogger log, bool startOutputSessions = true)
+    public PinkieApplicationContext(string baseDir, FileLogger log)
     {
         _baseDir = baseDir;
         _log = log;
@@ -90,8 +90,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _statusTimer.Start();
 
         _telemetry.Start();
-        if (startOutputSessions)
-            _outputSessions.Start();
+        _outputSessions.Start();
         ReconcileTelemetryDemand();
         _ipcServer.Start();
         RefreshPhysicalInventory();
@@ -101,8 +100,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             $"assignedBoards={string.Join(",", _config.Outputs.Targets.Select(t => $"{t.Id}:{t.Dashboard}"))}; " +
             $"providers={string.Join(",", MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders).OrderBy(x => x, StringComparer.OrdinalIgnoreCase))}; " +
             $"configEnabledMetrics={_telemetryConfig.Metrics.Count(x => x.Value.Enabled)}; " +
-            $"dashboardMetrics={_lastRequiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}; " +
-            $"outputAutostart={(startOutputSessions ? "enabled" : "suppressed")}.");
+            $"dashboardMetrics={_lastRequiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}.");
     }
 
     // Captured on startup and after successful configuration reload, not on the
@@ -441,7 +439,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case RuntimeIpcCommandKind.ReloadConfiguration:
                 case RuntimeIpcCommandKind.Exit:
                 case RuntimeIpcCommandKind.StartOrReloadTarget:
-                case RuntimeIpcCommandKind.StopTarget:
                 case RuntimeIpcCommandKind.StartOrReloadAll:
                 case RuntimeIpcCommandKind.StopAll:
                 case RuntimeIpcCommandKind.AssignDashboard:
@@ -786,13 +783,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 Enabled = RuntimeTrayOutputContract.CanStartOrReload(output)
             };
             start.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StartOrReloadTarget, output.TargetId));
-            var stop = new ToolStripMenuItem("Stop / Unload Output")
-            {
-                Enabled = RuntimeTrayOutputContract.CanStop(output)
-            };
-            stop.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StopTarget, output.TargetId));
             item.DropDownItems.Add(start);
-            item.DropDownItems.Add(stop);
             _outputsMenu.DropDownItems.Add(item);
         }
     }
