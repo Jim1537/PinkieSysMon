@@ -74,6 +74,7 @@ internal static class Program
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
+            ("Stage27 blocked USB leaves Desktop and shared telemetry responsive", BlockedTransportStage27Tests.DesktopAndTelemetryContinueDuringBlockedPhysicalSend),
             ("Stage20 per-device USB handshake settings and reconfigure isolation", FramePumpPerDeviceUsbSettings),
             ("Output session manager lifecycle", OutputSessionManagerLifecycle),
             ("Output session manager reconfiguration", OutputSessionManagerReconfiguration),
