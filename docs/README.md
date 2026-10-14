@@ -58,7 +58,7 @@ In **Edit → Settings**, hover over the question-mark icon beside a parameter f
 
 Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack and manage independent Windows panels.
 
-For a supported physical display, use its **Device** page to select the assigned dashboard and configure it. **Device Enabled** is separate from **Provider Enabled** and requires explicit hardware-use consent. See [Trofeo Device Integration](development/devices/trofeo-vision-9.16.md#settings-and-device-ownership) for device identity and ownership rules.
+Use the [Physical Devices guide](outputs/physical_devices.md) for supported hardware discovery, adoption, Device Settings and output management.
 
 Runtime loads each active Output's assigned saved dashboard and collects the metrics it needs. Physical Outputs receive JPEG frames over USB; Desktop Outputs render through native layered Windows panels with per-pixel alpha support. The tray provides independent Output status and Start/Reload/Stop controls; the Editor can apply dashboard choices to individual Outputs. Saving a dashboard in the Editor does not silently replace the Runtime's loaded document; apply or reload it explicitly.
 

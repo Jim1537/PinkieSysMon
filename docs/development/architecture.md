@@ -56,7 +56,7 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 ## Runtime output ownership
 
-`OutputSessionManager` owns the active-session set. [Desktop Outputs](../outputs/desktop.md#technical-information) owns native panel configuration, presentation, placement and mouse input; [Device Integration](devices/trofeo-vision-9.16.md) owns physical rendering/transport details. Both consume the shared `MetricStore` snapshot through the canonical widget renderer.
+`OutputSessionManager` owns the active-session set. [Desktop Outputs](../outputs/desktop.md#technical-information) owns native panel configuration, presentation, placement and mouse input; [Physical Devices](../outputs/physical_devices.md#technical-information) owns physical inventory, consent and session boundaries, with transport details in its adapter reference. Both consume the shared `MetricStore` snapshot through the canonical widget renderer.
 
 Configured Outputs register dynamic provider descriptors independently of telemetry acquisition. The [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics) owns provider enablement, namespaces, fields, publication and unavailable values.
 
@@ -130,7 +130,7 @@ The control plane additionally governs session start/stop, system suspend/resume
 
 `EditorForm.ShowSettingsAsync` captures the original application file before opening the dialog. `EditorSettingsPersistence` rejects a detected intervening file change before save. After a failed Runtime apply it restores the original file byte-for-byte and attempts to reapply the previous Runtime configuration, provided the file still matches this operation's write. A newer concurrent write is preserved; failed or unconfirmed recovery is reported explicitly. These checks do not provide a cross-process compare-and-swap guarantee. Desktop position/tray writes can therefore require reopening a stale Settings draft.
 
-The kind-specific workflows are [Desktop](../outputs/desktop.md#step-3-apply-the-settings-and-display-the-panel) and, for physical hardware, [Device Settings](devices/trofeo-vision-9.16.md#settings-and-device-ownership). Their target validation does not change dashboard schema or a USB wire contract. Startup preferences and Editor theme changes have their own application paths; a theme change may require restarting the Editor.
+The kind-specific workflows are [Desktop](../outputs/desktop.md#step-3-apply-the-settings-and-display-the-panel) and, for physical hardware, [Physical Devices](../outputs/physical_devices.md#step-4-grant-device-use-consent-and-apply). Their target validation does not change dashboard schema or a USB wire contract. Startup preferences and Editor theme changes have their own application paths; a theme change may require restarting the Editor.
 
 **Source anchors:** [Settings coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.cs), [Settings persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorSettingsPersistence.cs), [apply/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DeviceSettingsStage23Tests.cs).
 

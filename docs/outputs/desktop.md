@@ -2,7 +2,7 @@
 
 A **Desktop Output** displays a saved dashboard in an independent Windows panel. Several panels can run at once, each with its own dashboard, position and settings. No USB display is required.
 
-An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Creating or removing a panel does not create or delete its dashboard files. For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
+An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Creating or removing a panel does not create or delete its dashboard files. For hardware display setup, use [Physical Devices](physical_devices.md). For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
 
 ## User Guide
 
