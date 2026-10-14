@@ -17,6 +17,8 @@ internal static class BlockedTransportStage27Tests
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-stage27-" + Guid.NewGuid().ToString("N"));
         var boardDirectory = Path.Combine(root, "dashboards");
         Directory.CreateDirectory(boardDirectory);
+        Directory.CreateDirectory(Path.Combine(root, "config"));
+        File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
 
         using var sendEntered = new ManualResetEventSlim();
         using var releaseSend = new ManualResetEventSlim();
