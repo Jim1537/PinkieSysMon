@@ -52,10 +52,7 @@ internal static class OutputTelemetryDemandTests
             var cfg = Config(("a", true), ("b", true));
             var boards = Boards(("a", Board(Shared, Left)), ("b", Board(Shared, Right)));
             var newA = Board(Shared, Changed);
-            var requested = new Dictionary<string, C.DashboardDefinition>(boards,
-                StringComparer.OrdinalIgnoreCase);
-            using var manager = Manager(cfg, boards, log,
-                target => requested[target.Id]);
+            using var manager = Manager(cfg, boards, log);
             var source = new CountingSource(Shared, Left, Right, Changed);
             var store = new MetricStore();
             var telemetryCfg = TelemetryConfig.CreateDefaults([source]);
@@ -113,7 +110,6 @@ internal static class OutputTelemetryDemandTests
                     TimeSpan.FromSeconds(3)),
                 "Enabling a target must resume its metrics without a second Start command.");
 
-            requested["a"] = newA;
             manager.ReloadTarget(cfg.Outputs.Targets.Single(t => t.Id == "a"), newA, _ => { });
             Reconcile();
             Check(store.Snapshot().TryGetValue(Left, out var removed) && removed is null &&
@@ -130,21 +126,20 @@ internal static class OutputTelemetryDemandTests
                   store.Snapshot().TryGetValue(Changed, out var off) && off is null,
                   "Disabling physical devices on configuration reload must drop board demand.");
 
-            // Start All / Stop All use the same singleton scheduler as target commands.
-            // Crucially, Start All must NOT override DeviceEnabled=false.
+            // Global startup/shutdown retains the singleton scheduler and saved
+            // enablement. User Reload All is covered by SavedConfigurationReloadTests.
             manager.StopAll();
             Reconcile();
             Check(manager.GetRequiredMetrics().Count == 0,
                 "Stop All must clear demand from every output.");
-            manager.StartOrReloadAll();
+            manager.Start();
             Reconcile();
             Check(manager.GetRequiredMetrics().Count == 0 &&
                   manager.GetStatuses().All(status => !status.IsActive),
-                "Start All must not reactivate devices explicitly disabled in configuration.");
+                "Global startup must not reactivate devices explicitly disabled in configuration.");
 
-            // Restore the original simulated on-disk board and explicitly re-enable
+            // Restore the original fixture board and explicitly re-enable
             // both physical devices BEFORE testing restoration after Stop All.
-            requested["a"] = boards["a"];
             manager.Reconfigure(cfg, boards);
             Reconcile();
             Check(manager.GetRequiredMetrics().SetEquals(new[] { Shared, Left, Right }),
@@ -155,10 +150,10 @@ internal static class OutputTelemetryDemandTests
             Check(manager.GetRequiredMetrics().Count == 0 &&
                   store.Snapshot().TryGetValue(Shared, out var allStopped) && allStopped is null,
                 "Stop All must clear previously active shared metric values.");
-            manager.StartOrReloadAll();
+            manager.Start();
             Reconcile();
             Check(manager.GetRequiredMetrics().SetEquals(new[] { Shared, Left, Right }),
-                "Start All must restore the deduplicated union of enabled devices after a complete stop.");
+                "Global startup must restore the deduplicated union of enabled devices after a complete stop.");
 
             // Provider availability and per-metric policy remain authoritative
             // even when an active board requests a metric.
@@ -255,10 +250,9 @@ internal static class OutputTelemetryDemandTests
 
     private static OutputSessionManager Manager(
         AppConfig cfg, IReadOnlyDictionary<string, C.DashboardDefinition> boards,
-        FileLogger log, Func<OutputTargetConfig, C.DashboardDefinition>? loader = null) =>
+        FileLogger log) =>
         new(cfg, boards, new MetricStore(), log,
-            (app, target, board, store, logger) => new FakeSession(target.Id, target.Name),
-            loader);
+            (app, target, board, store, logger) => new FakeSession(target.Id, target.Name));
 
     private static void InSandbox(Action<FileLogger> work)
     {

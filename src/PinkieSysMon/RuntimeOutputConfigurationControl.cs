@@ -60,7 +60,7 @@ internal sealed class RuntimeOutputConfigurationControl(
         // Lock/hide retain its already committed document, even if its file changed.
         var board = command.Kind == RuntimeIpcCommandKind.AssignDashboard || reloadBoard
             ? RuntimeConfigurationValidator.LoadTarget(replacement, applicationRoot)
-            : sessions.GetDashboardAssignments()[selected.Id];
+            : sessions.GetDashboardAssignments().GetValueOrDefault(selected.Id);
         var runtimeCommitAttempted = false;
         try
         {

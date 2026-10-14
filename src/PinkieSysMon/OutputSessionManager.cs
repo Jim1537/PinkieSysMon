@@ -68,7 +68,6 @@ internal sealed class OutputSessionManager : IDisposable
 
     private AppConfig _config;
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
-    private readonly Func<OutputTargetConfig, CanonicalDashboardDefinition>? _reloadBoard;
     private bool _started;
     private bool _suspended;
     private bool _disposed;
@@ -81,14 +80,12 @@ internal sealed class OutputSessionManager : IDisposable
 
     public OutputSessionManager(AppConfig config,
         IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards,
-        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
-        Func<OutputTargetConfig, CanonicalDashboardDefinition>? reloadBoard = null)
+        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _boards = ValidateBoards(config, boards);
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
-        _reloadBoard = reloadBoard;
         _factory = factory ?? (static (app, target, board, store, logger) =>
             target.Kind == OutputTargetContract.DesktopKind
                 ? new DesktopOutputSession(app, target, board, store, logger)
@@ -99,11 +96,18 @@ internal sealed class OutputSessionManager : IDisposable
         AppConfig config, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
     {
         ArgumentNullException.ThrowIfNull(boards);
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new Dictionary<string, CanonicalDashboardDefinition>(StringComparer.OrdinalIgnoreCase);
         foreach (var target in config.Outputs.Targets)
         {
+            if (!ids.Add(target.Id))
+                throw new InvalidDataException($"Duplicate output ID '{target.Id}'.");
             if (!boards.TryGetValue(target.Id, out var board) || board is null)
-                throw new InvalidDataException($"Output '{target.Id}' has no loaded dashboard '{target.Dashboard}'.");
+            {
+                if (OutputTargetContract.IsEnabled(target))
+                    throw new InvalidDataException($"Output '{target.Id}' has no loaded dashboard '{target.Dashboard}'.");
+                continue;
+            }
             result.Add(target.Id, board);
         }
         return result;
@@ -193,7 +197,7 @@ internal sealed class OutputSessionManager : IDisposable
             t => t.Id, _ => dashboard, StringComparer.OrdinalIgnoreCase));
 
     public void Reconfigure(AppConfig config,
-        IReadOnlyDictionary<string, CanonicalDashboardDefinition> dashboards)
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> dashboards, Action? validateInput = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         var nextBoards = ValidateBoards(config, dashboards);
@@ -260,6 +264,7 @@ internal sealed class OutputSessionManager : IDisposable
                     foreach (var session in created)
                         session.Suspend();
                 }
+                validateInput?.Invoke();
                 StartSessions(created);
 
                 // Phase 2: production CommitReconfiguration is assignment/cleanup-only and should
@@ -363,15 +368,16 @@ internal sealed class OutputSessionManager : IDisposable
         Action<AppConfig> commit, Action? validateInput = null) =>
         ApplyTarget(replacement, board, commit, requireEnabledLifetime: true, validateInput: validateInput);
 
-    public void ReconfigureTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
+    public void ReconfigureTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition? board,
         Action<AppConfig> commit) =>
         ApplyTarget(replacement, board, commit, requireEnabledLifetime: false, validateInput: null);
 
-    private void ApplyTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
+    private void ApplyTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition? board,
         Action<AppConfig> commit, bool requireEnabledLifetime, Action? validateInput)
     {
         ArgumentNullException.ThrowIfNull(replacement);
-        ArgumentNullException.ThrowIfNull(board);
+        if (OutputTargetContract.IsEnabled(replacement) && board is null)
+            throw new InvalidDataException($"Enabled Output '{replacement.Id}' has no loaded dashboard.");
         ArgumentNullException.ThrowIfNull(commit);
         IOutputSession? created = null;
         IOutputSession? removed = null;
@@ -405,19 +411,20 @@ internal sealed class OutputSessionManager : IDisposable
                         .Select(t => ReferenceEquals(t, previousTarget) ? replacement : t).ToList() }
                 };
                 var nextBoards = _boards.ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
-                nextBoards[previousTarget.Id] = board;
+                if (board is null) nextBoards.Remove(previousTarget.Id);
+                else nextBoards[previousTarget.Id] = board;
                 var commitAttempted = false;
                 try
                 {
                     if (existing is not null && OutputTargetContract.IsEnabled(replacement))
                     {
-                        prepared = existing.PrepareReconfiguration(nextConfig, replacement, board);
+                        prepared = existing.PrepareReconfiguration(nextConfig, replacement, board!);
                         rollback = existing.PrepareReconfiguration(previousConfig, previousTarget,
                             BoardFor(previousBoards, previousTarget));
                     }
                     else if (existing is null && _started && OutputTargetContract.IsEnabled(replacement))
                     {
-                        created = CreateSession(nextConfig, replacement, board);
+                        created = CreateSession(nextConfig, replacement, board!);
                         if (_suspended) created.Suspend();
                     }
 
@@ -487,78 +494,13 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
-    public void StartOrReloadAll()
+    public void EnsureCanReloadAll()
     {
-        List<(IOutputSession Session, IOutputSessionReconfiguration Plan)> prepared = [];
-        List<(IOutputSession Session, IOutputSessionReconfiguration Plan)> rollback = [];
-        List<IOutputSession> created = [];
-        try
+        lock (_sync)
         {
-            lock (_sync)
-            {
-                ThrowIfDisposed();
-                // Load candidates before touching any live output.
-                var candidateBoards = _reloadBoard is null ? _boards :
-                    ValidateBoards(_config, _config.Outputs.Targets.ToDictionary(
-                        target => target.Id, target => _reloadBoard(target),
-                        StringComparer.OrdinalIgnoreCase));
-
-                foreach (var target in _config.Outputs.Targets)
-                {
-                    if (!OutputTargetContract.IsEnabled(target))
-                        continue;
-                    if (_sessions.TryGetValue(target.Id, out var existing))
-                    {
-                        prepared.Add((existing, existing.PrepareReconfiguration(
-                            _config, target, BoardFor(candidateBoards, target))));
-                        rollback.Add((existing, existing.PrepareReconfiguration(
-                            _config, target, BoardFor(_boards, target))));
-                    }
-                    else
-                        created.Add(CreateSession(_config, target, BoardFor(candidateBoards, target)));
-                }
-
-                if (_suspended)
-                    foreach (var session in created) session.Suspend();
-                StartSessions(created);
-                try
-                {
-                    foreach (var item in prepared)
-                        item.Session.CommitReconfiguration(item.Plan);
-                }
-                catch (Exception commitError)
-                {
-                    var errors = new List<Exception>();
-                    foreach (var item in rollback)
-                    {
-                        try { item.Session.CommitReconfiguration(item.Plan); }
-                        catch (Exception error)
-                        {
-                            errors.Add(error);
-                            _log.Error($"Output '{item.Session.TargetId}' Start All rollback failed.", error);
-                        }
-                    }
-                    if (errors.Count > 0)
-                        throw new AggregateException("Start All rollback was incomplete.", [commitError, .. errors]);
-                    throw;
-                }
-
-                _started = true;
-                foreach (var session in created) _sessions.Add(session.TargetId, session);
-                _boards = candidateBoards;
-                UpdateRuntimeMetricPublisherLocked();
-                RestoreDesktopStackLocked();
-            }
-        }
-        catch
-        {
-            DisposeSessionsBestEffort(created);
-            throw;
-        }
-        finally
-        {
-            foreach (var item in prepared) item.Plan.Dispose();
-            foreach (var item in rollback) item.Plan.Dispose();
+            ThrowIfDisposed();
+            if (!_started)
+                throw new InvalidOperationException("Runtime output lifetime is stopped. Reload All cannot wake it.");
         }
     }
 

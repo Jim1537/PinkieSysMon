@@ -64,7 +64,7 @@ Runtime uses saved dashboard content. Saving an Editor document alone does not r
 
 The selected command's saved-input, inheritance, ownership and recovery boundaries are defined by the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload).
 
-**Start / Reload All** addresses eligible Outputs without granting new Device Enabled consent. Its per-target assignment choices and possible partial results are documented in Architecture. A successful command with **WAITING** or **SUSPENDED** is not a claim that frames reached the display; consult [Runtime command feedback](../development/architecture.md#runtime-command-feedback).
+[**Reload All**](../development/architecture.md#reload-all-saved-configuration) uses the shared common-settings contract, including Editor choices and possible partial results. A successful command with **WAITING** or **SUSPENDED** is not a claim that frames reached the display; consult [Runtime command feedback](../development/architecture.md#runtime-command-feedback).
 
 ### Disable, disconnect or remove
 

@@ -132,24 +132,46 @@ internal static class EditorOutputStartStage25Tests
         all.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
         all.Choices.Enqueue(OutputDashboardChoice.KeepAssignedDashboard);
         Check(all.Run("Editor", null)?.Success == true && all.Calls.Contains("ASSIGN:a:Editor") &&
-              !all.Calls.Contains("START:a") && all.Calls.Contains("START:b") &&
+              !all.Calls.Contains("START:a") && !all.Calls.Contains("START:b") && all.Calls.Count(c => c == "ALL") == 1 &&
               all.Mutations.All(c => !c.Contains(":c", StringComparison.Ordinal)) &&
               all.Calls.IndexOf("CHOICE:b") < all.Calls.IndexOf("ASSIGN:a:Editor") &&
               all.Outputs.Single(o => o.TargetId == "b").Dashboard == "B" &&
               all.Outputs.Single(o => o.TargetId == "c").OutputEnabled == false,
-            "All must collect every eligible choice first, address only those IDs and retain disabled provider-only hardware.");
-        var failed = new Runtime { FailStartId = "b" };
-        failed.Choices.Enqueue(OutputDashboardChoice.KeepAssignedDashboard);
+            "All must collect eligible choices, confirm assignments, apply common settings once and retain disabled provider-only hardware.");
+        var failed = new Runtime { FailAll = true };
+        failed.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
         failed.Choices.Enqueue(OutputDashboardChoice.KeepAssignedDashboard);
         var partial = failed.Run("Editor", null);
-        Check(partial is { Success: false } && partial.Message.Contains("Output 'A' loaded 'A'", StringComparison.Ordinal) &&
+        Check(partial is { Success: false } && partial.Message.Contains("Assigned 'Editor'", StringComparison.Ordinal) &&
+              failed.Mutations.SequenceEqual(new[] { "ASSIGN:a:Editor", "ALL" }) &&
               !partial.Message.Contains("Output 'B' loaded", StringComparison.Ordinal),
-            "Sequential All failure must report the confirmed earlier Output without inventing all-or-nothing completion.");
+            "A failed aggregate reload must report confirmed earlier assignments without inventing complete reload or rollback.");
+        var secondAssignment = new Runtime { FailAssignmentId = "b" };
+        secondAssignment.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
+        secondAssignment.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
+        partial = secondAssignment.Run("Editor", null);
+        Check(partial is { Success: false } && partial.Message.Contains("Assigned 'Editor' to 'A'", StringComparison.Ordinal) &&
+              !secondAssignment.Calls.Contains("ALL") && secondAssignment.Outputs.Single(o => o.TargetId == "b").Dashboard == "B",
+            "Failure of a later assignment must retain the earlier confirmed result and prevent aggregate reload.");
         var none = new Runtime();
         foreach (var id in new[] { "a", "b" })
             none.Set(id, o => o with { OutputEnabled = false, BoardEnabled = false, IsActive = false, IsConnected = false, UsbState = "DISABLED" });
-        Check(none.Run("Editor", null)?.Success == false && none.Mutations.Length == 0,
-            "No eligible Output must mean no implicit Board/Device enable or start.");
+        var commonOnly = none.Run("Editor", null);
+        Check(commonOnly is { Success: true } && commonOnly.Message.Contains("Common settings reloaded; no enabled Output", StringComparison.Ordinal) &&
+              none.Mutations.SequenceEqual(new[] { "ALL" }) && none.Outputs.All(o => !o.IsActive && o.OutputEnabled == false),
+            "No eligible Output must still apply common settings without implicit Board/Device enable or start.");
+        var ackOnly = new Runtime { AllWithoutState = true };
+        ackOnly.StopAllOutputs();
+        Check(ackOnly.Run("Editor", null)?.Success == false && ackOnly.Mutations.SequenceEqual(new[] { "ALL" }),
+            "An All acknowledgement without observed active sessions must not become a green completion.");
+        var lateDrift = new Runtime { OnAll = r => r.Set("c", o => o with { OutputEnabled = true, IsActive = true }) };
+        partial = lateDrift.Run("Editor", null);
+        Check(partial is { Success: false } && partial.Message.Contains("3 active", StringComparison.Ordinal),
+            "Late All drift must expose observed partial results instead of claiming that only planned Outputs were applied.");
+        var unknown = new Runtime { OnAll = r => r.Running = false };
+        partial = unknown.Run("Editor", null);
+        Check(partial is { Success: false } && partial.Message.Contains("changes are unknown", StringComparison.Ordinal),
+            "Lost status after All must leave the applied outcome unknown rather than inventing success or rollback.");
     }
 
     public static void LegacyDriftAndMenu()
@@ -181,6 +203,10 @@ internal static class EditorOutputStartStage25Tests
         Check(offline.Outputs.All(o => !o.IsActive && !o.IsConnected) && offline.Outputs[0].Dashboard == "A" &&
               offline.Outputs[1].OutputEnabled == false && offline.Outputs[1].ProviderEnabled == true,
             "Offline planning may expose configured assignments but must never fabricate observed sessions/connections.");
+        config.Outputs.Targets[0].Desktop!.BoardEnabled = false;
+        state = ScreenMenuContract.Build(config.Outputs.Targets, false, null, false);
+        Check(state.CanStartOrReloadAll && state.Targets.All(o => !o.CanStartOrReload),
+            "Reload All remains available for common settings even when individual target reloads are disabled.");
     }
 
     private static void Check(bool condition, string message)
@@ -190,10 +216,11 @@ internal static class EditorOutputStartStage25Tests
 
     private sealed class Runtime
     {
-        public bool Running = true, ProcessRunning, FailLaunch, FailAssignment, StartWithoutState, AssignmentWithoutState, StopAllOnAssignment;
-        public string? FailStartId;
+        public bool Running = true, ProcessRunning, FailLaunch, FailAssignment, StartWithoutState, AssignmentWithoutState, StopAllOnAssignment,
+            FailAll, AllWithoutState;
+        public string? FailStartId, FailAssignmentId;
         public string StartedState = "DISPLAYING";
-        public Action<Runtime>? OnChoice, OnLaunch;
+        public Action<Runtime>? OnChoice, OnLaunch, OnAll;
         public readonly Queue<OutputDashboardChoice> Choices = new();
         public readonly List<string> Calls = [];
         public readonly List<RuntimeOutputStatus> Outputs =
@@ -204,7 +231,7 @@ internal static class EditorOutputStartStage25Tests
                 Kind = OutputTargetContract.TrofeoKind, Dashboard = "C", OutputEnabled = false, ProviderEnabled = true, DeviceEnabled = false
             }
         ];
-        public string[] Mutations => Calls.Where(c => c == "LAUNCH" ||
+        public string[] Mutations => Calls.Where(c => c is "LAUNCH" or "ALL" ||
             c.StartsWith("ASSIGN:", StringComparison.Ordinal) || c.StartsWith("START:", StringComparison.Ordinal)).ToArray();
         public RuntimeStatusSnapshot Snapshot() => new("Misleading global board", Outputs.ToArray());
         public void Set(string id, Func<RuntimeOutputStatus, RuntimeOutputStatus> edit)
@@ -252,9 +279,10 @@ internal static class EditorOutputStartStage25Tests
             (id, board) =>
             {
                 Calls.Add($"ASSIGN:{id}:{board}");
-                if (!FailAssignment && !AssignmentWithoutState) Set(id, o => o with { Dashboard = board });
-                if (!FailAssignment && StopAllOnAssignment) StopAllOutputs();
-                return Task.FromResult(new RuntimeIpcResponse(!FailAssignment, FailAssignment ? "Synthetic assignment failure" : "Assigned"));
+                var failed = FailAssignment || id == FailAssignmentId;
+                if (!failed && !AssignmentWithoutState) Set(id, o => o with { Dashboard = board });
+                if (!failed && StopAllOnAssignment) StopAllOutputs();
+                return Task.FromResult(new RuntimeIpcResponse(!failed, failed ? "Synthetic assignment failure" : "Assigned"));
             },
             id =>
             {
@@ -262,6 +290,17 @@ internal static class EditorOutputStartStage25Tests
                 var failed = id == FailStartId;
                 if (!failed && !StartWithoutState) Set(id, o => o with { IsActive = true, IsConnected = StartedState == "DISPLAYING", UsbState = StartedState });
                 return Task.FromResult(new RuntimeIpcResponse(!failed, failed ? "Synthetic start failure" : "Started"));
+            },
+            () =>
+            {
+                Calls.Add("ALL");
+                if (!FailAll && !AllWithoutState)
+                    for (var i = 0; i < Outputs.Count; i++)
+                        Outputs[i] = Outputs[i] with { IsActive = Outputs[i].OutputEnabled == true,
+                            IsConnected = Outputs[i].OutputEnabled == true && StartedState == "DISPLAYING",
+                            UsbState = Outputs[i].OutputEnabled == true ? StartedState : "DISABLED" };
+                OnAll?.Invoke(this);
+                return Task.FromResult(new RuntimeIpcResponse(!FailAll, FailAll ? "Synthetic aggregate reload failure" : "Common settings reloaded"));
             });
         private static RuntimeOutputStatus Output(string id, string board, bool active) => new(id, board, active, active, active ? "DISPLAYING" : "STOPPED")
         {

@@ -161,7 +161,9 @@ internal sealed class RuntimeCommandFeedback(
         return new(new(true,
             $"{ActionName(command)} control applied for {identity}. Observed: {observed}" +
             (pending ? " Display readiness is pending; connection/presentation is not confirmed for every active Output." : string.Empty) +
-            (noEligible ? " No enabled Output was started." : string.Empty)),
+            (command.Kind == RuntimeIpcCommandKind.StartOrReloadAll
+                ? noEligible ? " Common settings reloaded; no enabled Output was reloaded." : " Common settings reloaded."
+                : string.Empty)),
             pending || noEligible ? RuntimeNotificationKind.Warning : RuntimeNotificationKind.Information, pending);
     }
 
@@ -239,7 +241,8 @@ internal sealed class RuntimeCommandFeedback(
     private static string ActionName(RuntimeIpcCommand command) => command.Kind switch
     {
         RuntimeIpcCommandKind.ReloadConfiguration => "Configuration reload",
-        RuntimeIpcCommandKind.StartOrReloadTarget or RuntimeIpcCommandKind.StartOrReloadAll => "Start/reload",
+        RuntimeIpcCommandKind.StartOrReloadTarget => "Start/reload",
+        RuntimeIpcCommandKind.StartOrReloadAll => "Reload all",
         RuntimeIpcCommandKind.StopAll => "Stop/unload",
         RuntimeIpcCommandKind.AssignDashboard => "Dashboard assignment",
         RuntimeIpcCommandKind.SetDesktopBoardEnabled => command.Value == true ? "Board enable/show" : "Board disable/hide",

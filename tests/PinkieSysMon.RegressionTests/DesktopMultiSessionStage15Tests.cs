@@ -22,7 +22,7 @@ internal static class DesktopMultiSessionStage15Tests
 
             var windows = new Dictionary<string, List<FakeWindow>>(StringComparer.OrdinalIgnoreCase);
             var physical = new FakePhysicalSession("usb-1");
-            using var manager = Manager(config, boards, root, log, windows, physical);
+            using var manager = Manager(config, boards, log, windows, physical);
             manager.Start();
 
             var first = Latest(windows, "d1");
@@ -115,7 +115,7 @@ internal static class DesktopMultiSessionStage15Tests
 
             using var manager = Manager(config,
                 RuntimeConfigurationValidator.LoadAssignments(config, root),
-                root, log, windows, physical,
+                log, windows, physical,
                 (id, window) =>
                 {
                     if (id == "d2" && rejectNewPanelOnce)
@@ -154,7 +154,6 @@ internal static class DesktopMultiSessionStage15Tests
     private static OutputSessionManager Manager(
         AppConfig config,
         IReadOnlyDictionary<string, C.DashboardDefinition> boards,
-        string root,
         FileLogger log,
         Dictionary<string, List<FakeWindow>> windows,
         FakePhysicalSession physical,
@@ -175,8 +174,7 @@ internal static class DesktopMultiSessionStage15Tests
                         onCreate?.Invoke(target.Id, window);
                         return window;
                     });
-            },
-            target => RuntimeConfigurationValidator.LoadTarget(target, root));
+            });
 
     private static AppConfig Config(bool includeThird)
     {

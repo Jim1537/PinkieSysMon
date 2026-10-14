@@ -5,13 +5,16 @@ internal sealed class RuntimeOutputControl
     private readonly OutputSessionManager _sessions;
     private readonly Func<string> _dashboardName;
     private readonly Func<RuntimeIpcCommand, RuntimeIpcResponse>? _configureOutput;
+    private readonly Func<RuntimeIpcResponse>? _reloadAll;
 
     public RuntimeOutputControl(OutputSessionManager sessions, Func<string> dashboardName,
-        Func<RuntimeIpcCommand, RuntimeIpcResponse>? configureOutput = null)
+        Func<RuntimeIpcCommand, RuntimeIpcResponse>? configureOutput = null,
+        Func<RuntimeIpcResponse>? reloadAll = null)
     {
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _dashboardName = dashboardName ?? throw new ArgumentNullException(nameof(dashboardName));
         _configureOutput = configureOutput;
+        _reloadAll = reloadAll;
     }
 
     public RuntimeStatusSnapshot GetStatus()
@@ -53,8 +56,8 @@ internal sealed class RuntimeOutputControl
                     ?? new RuntimeIpcResponse(false, "Runtime output configuration is unavailable.");
 
             case RuntimeIpcCommandKind.StartOrReloadAll:
-                _sessions.StartOrReloadAll();
-                return new RuntimeIpcResponse(true, "Eligible Output sessions started/reloaded; disabled Outputs remain inactive.");
+                return _reloadAll?.Invoke()
+                    ?? new RuntimeIpcResponse(false, "Runtime common-configuration reload is unavailable.");
 
             case RuntimeIpcCommandKind.StopAll:
                 _sessions.StopAll();

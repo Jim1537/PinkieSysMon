@@ -44,10 +44,10 @@ internal static class RuntimeConfigurationStartupTests
                     RuntimeConfigurationValidator.LoadTarget(loaded.Outputs.Targets.Single(t => t.Id == "desktop-a"), root), _ => { });
                 Check(sessions.Count == 2 && manager.GetStatuses().All(status => status.IsActive),
                       "Reloading an enabled Desktop target must preserve the existing sessions.");
-                manager.StartOrReloadAll();
+                manager.Reconfigure(loaded, manager.GetDashboardAssignments());
                 Check(sessions.Count == 2 && sessions.All(s =>
                           s.TargetId.StartsWith("desktop-", StringComparison.Ordinal)),
-                      "Start All must not duplicate Desktop sessions or create a USB session.");
+                      "Set reconfiguration must not duplicate Desktop sessions or create a USB session.");
             }
 
             // Parsing a default file without Outputs must not invent a physical display.
@@ -111,12 +111,12 @@ internal static class RuntimeConfigurationStartupTests
                   sessions.Single(s => s.TargetId == "usb-on").Disposed &&
                   sessions.Count == 2,
                   "Reload must dispose newly disabled USB without stopping the independent Desktop.");
-            manager.StartOrReloadAll();
+            manager.Reconfigure(reloaded, manager.GetDashboardAssignments());
             Check(sessions.Count == 2 &&
                   manager.GetStatuses().Single(s => s.TargetId == "desktop").IsActive &&
                   manager.GetStatuses().Where(s => s.TargetId.StartsWith("usb-", StringComparison.Ordinal))
                       .All(s => !s.IsActive),
-                  "Start All must not revive either disabled physical output or duplicate the Desktop session.");
+                  "Set reconfiguration must not revive either disabled physical output or duplicate the Desktop session.");
         });
     }
 

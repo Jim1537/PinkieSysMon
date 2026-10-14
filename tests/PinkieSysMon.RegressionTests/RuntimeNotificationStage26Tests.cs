@@ -148,8 +148,8 @@ internal static class RuntimeNotificationStage26Tests
         var none = new Fixture(disabled);
         response = none.Run(new(RuntimeIpcCommandKind.StartOrReloadAll), () => { });
         Check(response.Success && none.Events.Single().Kind == RuntimeNotificationKind.Warning &&
-            response.Message.Contains("No enabled Output was started", StringComparison.Ordinal),
-            "An All request with no eligible Output must disclose its no-op outcome.");
+            response.Message.Contains("Common settings reloaded; no enabled Output was reloaded", StringComparison.Ordinal),
+            "An All request with no eligible Output must disclose common-settings application without claiming any session reload.");
 
         response = f.Run(new(RuntimeIpcCommandKind.StopAll), () =>
         {

@@ -16,7 +16,8 @@ internal sealed record EditorOutputStartActions(
     Func<Task<RuntimeIpcStatusResponse>> LaunchRuntime,
     Func<RuntimeOutputStatus, OutputDashboardChoice> ChooseDashboard,
     Func<string, string, Task<RuntimeIpcResponse>> AssignDashboard,
-    Func<string, Task<RuntimeIpcResponse>> StartOrReload);
+    Func<string, Task<RuntimeIpcResponse>> StartOrReload,
+    Func<Task<RuntimeIpcResponse>> ReloadAll);
 
 // UI callbacks stay on the caller's context. Tests supply only file/IPC/dialog fakes.
 internal static class EditorOutputStartWorkflow
@@ -44,7 +45,8 @@ internal static class EditorOutputStartWorkflow
         }).ToArray());
 
     // Null target means the explicitly requested All action. All decisions precede
-    // any launch/assignment/start; dispatch still names each planned eligible ID.
+    // any launch/assignment/reload. All applies saved common settings once after
+    // confirmed per-ID assignments; it is not a series of target-only reloads.
     public static async Task<RuntimeIpcResponse?> RunAsync(
         string editorDashboard, string? targetId, EditorOutputStartActions actions)
     {
@@ -61,8 +63,8 @@ internal static class EditorOutputStartWorkflow
             var selected = targetId is null
                 ? snapshot.Outputs.Where(o => o.OutputEnabled == true).ToArray()
                 : snapshot.Outputs.Where(o => o.TargetId.Equals(targetId, StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (selected.Length == 0 || (targetId is not null && selected.Length != 1))
-                return Failed("The selected Output is missing or no enabled Outputs are configured.", completed);
+            if (targetId is not null && selected.Length != 1)
+                return Failed("The selected Output is missing or ambiguous.", completed);
             if (selected.Select(o => o.TargetId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != selected.Length)
                 return Failed("Runtime returned ambiguous Output IDs.", completed);
 
@@ -96,9 +98,8 @@ internal static class EditorOutputStartWorkflow
             var ready = await actions.GetStatus();
             if (!ready.Success || ready.Status is null)
                 return Failed("Runtime status could not be confirmed before dispatch: " + ready.Message, completed);
-            if (targetId is null && !ready.Status.Outputs.Where(o => o.OutputEnabled == true).Select(o => o.TargetId)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(plans.Select(p => p.Original.TargetId)))
-                return Failed("Enabled Outputs changed while choosing dashboards. Retry Start / Reload All.", completed);
+            if (targetId is null && !HasEnabledSet(ready.Status, plans))
+                return Failed("Enabled Outputs changed while choosing dashboards. Retry Reload All.", completed);
             foreach (var plan in plans)
                 if (!Matches(Find(ready.Status, plan.Original.TargetId), plan.Original, plan.Original.Dashboard!))
                     return Failed($"Output '{plan.Original.TargetName}' changed while choosing its dashboard. Retry the action.", completed);
@@ -123,6 +124,7 @@ internal static class EditorOutputStartWorkflow
                     completed.Add($"Assigned '{plan.Dashboard}' to '{plan.Original.TargetName}'.");
                     assignedActive = output!.IsActive;
                 }
+                if (targetId is null) continue;
                 if (!assignedActive)
                 {
                     var start = await actions.StartOrReload(plan.Original.TargetId);
@@ -138,6 +140,34 @@ internal static class EditorOutputStartWorkflow
                     return Failed($"Output '{actual.TargetName}' reports {actual.UsbState} after the request.", completed);
                 completed.Add($"Output '{actual.TargetName}' loaded '{actual.Dashboard}'; state: {actual.UsbState}.");
             }
+            if (targetId is null)
+            {
+                var beforeAll = await actions.GetStatus();
+                if (!beforeAll.Success || beforeAll.Status is null ||
+                    !MatchesAll(beforeAll.Status, plans))
+                    return Failed("Output enablement/assignments changed before Reload All. Refresh status and retry.", completed);
+                var reload = await actions.ReloadAll();
+                if (!reload.Success)
+                    return Failed("Reload All was not confirmed: " + reload.Message, completed);
+                var afterAll = await actions.GetStatus();
+                if (!afterAll.Success || afterAll.Status is null)
+                    return Failed("Reload All returned success, but Runtime status is unavailable. Applied changes are unknown.", completed);
+                completed.Add($"Runtime reports {afterAll.Status.Outputs.Count(o => o.IsActive)} active of {afterAll.Status.Outputs.Length} configured Outputs after Reload All.");
+                if (!MatchesAll(afterAll.Status, plans) ||
+                    afterAll.Status.Outputs.Any(o => o.OutputEnabled == false && o.IsActive))
+                    return Failed("Output enablement/assignments changed during Reload All; changes may be partially applied. Refresh status before retrying.", completed);
+                foreach (var plan in plans)
+                {
+                    var actual = Find(afterAll.Status, plan.Original.TargetId)!;
+                    if (!actual.IsActive || actual.UsbState.Equals("ERROR", StringComparison.OrdinalIgnoreCase) ||
+                        actual.UsbState.Equals("AMBIGUOUS", StringComparison.OrdinalIgnoreCase))
+                        return Failed($"Output '{actual.TargetName}' reports {actual.UsbState} after Reload All; an active error-free session is not confirmed.", completed);
+                    completed.Add($"Output '{actual.TargetName}' loaded '{actual.Dashboard}'; state: {actual.UsbState}.");
+                }
+                completed.Add(plans.Count == 0
+                    ? "Common settings reloaded; no enabled Output was reloaded."
+                    : "Common settings and enabled Output dashboards reloaded.");
+            }
             return new RuntimeIpcResponse(true, string.Join(" ", completed));
         }
         catch (Exception ex)
@@ -147,6 +177,14 @@ internal static class EditorOutputStartWorkflow
     }
 
     private sealed record StartPlan(RuntimeOutputStatus Original, string Dashboard, bool Assign);
+    private static bool HasEnabledSet(RuntimeStatusSnapshot status, List<StartPlan> plans) =>
+        status.Outputs.All(o => o.OutputEnabled is not null) &&
+        status.Outputs.Select(o => o.TargetId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == status.Outputs.Length &&
+        status.Outputs.Where(o => o.OutputEnabled == true).Select(o => o.TargetId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(plans.Select(p => p.Original.TargetId));
+    private static bool MatchesAll(RuntimeStatusSnapshot status, List<StartPlan> plans) =>
+        HasEnabledSet(status, plans) &&
+        plans.All(p => Matches(Find(status, p.Original.TargetId), p.Original, p.Dashboard));
     private static RuntimeOutputStatus? Find(RuntimeStatusSnapshot status, string id)
     {
         var matches = status.Outputs.Where(o => o.TargetId.Equals(id, StringComparison.OrdinalIgnoreCase)).ToArray();

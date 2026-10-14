@@ -22,6 +22,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
     private readonly RuntimeOutputControl _outputControl;
+    private readonly RuntimeConfigurationReloadControl _configurationReload;
     private readonly WindowsMediaTelemetrySource _mediaTelemetry;
     private readonly WindowsAppNotificationService _notifications;
     private readonly RuntimeCommandFeedback _commandFeedback;
@@ -70,11 +71,15 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders),
             requiredMetrics,
             _log);
-        _outputSessions = new OutputSessionManager(_config, _boards, _metrics, _log,
-            reloadBoard: target => RuntimeConfigurationValidator.LoadTarget(target, _baseDir));
+        _outputSessions = new OutputSessionManager(_config, _boards, _metrics, _log);
+        _configurationReload = new RuntimeConfigurationReloadControl(
+            _outputSessions, _telemetry, _metrics, _sources, _baseDir, _log,
+            () => new RuntimeConfigurationSnapshot(_config, _telemetryConfig, _boards),
+            _mediaTelemetry.ApplyEndpointTypeOverrides, CommitRuntimeConfiguration);
         var configurationControl = new RuntimeOutputConfigurationControl(
             _outputSessions, () => _config, _baseDir, _log, CommitTargetRuntimeConfiguration);
-        _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus, configurationControl.Execute);
+        _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus,
+            configurationControl.Execute, () => _configurationReload.Reload());
         _notifications = new WindowsAppNotificationService(log);
         _commandFeedback = new RuntimeCommandFeedback(
             (message, kind) => _notifications.Show(message, kind),
@@ -305,7 +310,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
         var previousJson = File.ReadAllText(AppConfigPath);
         config.Save(AppConfigPath);
-        var response = ReloadConfiguration(showNotification: false);
+        var response = ReloadConfigurationCore();
         if (response.Success)
             return;
 
@@ -314,7 +319,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         var restorePath = AppConfigPath + ".rollback.tmp";
         File.WriteAllText(restorePath, previousJson);
         File.Move(restorePath, AppConfigPath, true);
-        var recovered = ReloadConfiguration(showNotification: false);
+        var recovered = ReloadConfigurationCore();
         if (!recovered.Success)
             throw new InvalidOperationException(
                 $"The physical Output change failed and the previous configuration was restored on disk, " +
@@ -329,8 +334,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
 
-        var reload = new ToolStripMenuItem("Reload Configuration");
-        reload.Click += (_, _) => ReloadConfiguration();
+        var reload = new ToolStripMenuItem("Reload All");
+        reload.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StartOrReloadAll));
         menu.Items.Add(reload);
 
         var openLogs = new ToolStripMenuItem("Open Logs Folder");
@@ -369,7 +374,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         var app = AppConfig.Load(AppConfigPath, _log);
         var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-        return (app, telemetry, RuntimeConfigurationValidator.LoadAssignments(app, _baseDir));
+        return (app, telemetry, RuntimeConfigurationValidator.LoadEnabledAssignments(app, _baseDir));
     }
 
     // OutputSessionManager supplies an atomic active-session/board snapshot.
@@ -392,22 +397,13 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             ? _config.Outputs.Targets[0].Dashboard ?? string.Empty
             : "(per-output dashboards)";
 
-    private RuntimeIpcResponse ReloadConfiguration(bool showNotification = true)
-        => showNotification
-            ? ExecuteOutputCommandOnUi(new(RuntimeIpcCommandKind.ReloadConfiguration))
-            : ReloadConfigurationCore();
-
     private RuntimeIpcResponse ReloadConfigurationCore()
     {
         try
         {
-            var app = AppConfig.Load(AppConfigPath, _log);
-            var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
-            var boards = RuntimeConfigurationValidator.LoadAssignments(app, _baseDir);
-            ApplyConfiguration(app, telemetry, boards);
+            var result = _configurationReload.Reload(requireRunning: false);
             RefreshPhysicalInventory();
-            _log.Info($"Configuration and independent dashboards for {app.Outputs.Targets.Count} outputs reloaded.");
-            return new RuntimeIpcResponse(true, $"Reloaded {app.Outputs.Targets.Count} output dashboards.");
+            return result;
         }
         catch (Exception ex)
         {
@@ -532,111 +528,12 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         });
     }
 
-    private void ApplyConfiguration(AppConfig app, TelemetryConfig telemetry,
-        IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
+    private void CommitRuntimeConfiguration(RuntimeConfigurationSnapshot snapshot)
     {
-        // Phase 1: prepare every operation that can fail before the live runtime is mutated.
-        // OutputSessionManager performs its own renderer/session preparation internally.
-        var mediaOverrides =
-            WindowsMediaTelemetrySource.PrepareEndpointTypeOverrides(app.Media.EndpointTypeOverrides);
-
-        var previousApp = _config;
-        var previousTelemetry = _telemetryConfig;
-        var previousBoards = _boards;
-        var previousMediaOverrides =
-            WindowsMediaTelemetrySource.PrepareEndpointTypeOverrides(previousApp.Media.EndpointTypeOverrides);
-        var previousRequiredMetrics = _outputSessions.GetRequiredMetrics();
-
-        var outputCommitted = false;
-        var telemetryCommitted = false;
-        var mediaCommitted = false;
-
-        try
-        {
-            // Phase 2: commit. Every stage has a prepared/validated rollback path. The output
-            // manager is itself transactional across sibling sessions.
-            _outputSessions.Reconfigure(app, boards);
-            outputCommitted = true;
-
-            // Live session creation/removal has committed; derive real demand,
-            // not merely configured/DeviceEnabled targets. Preparation still
-            // precedes the telemetry scheduler's own atomic commit.
-            var requiredMetrics = _outputSessions.GetRequiredMetrics();
-            var telemetryPlan = _telemetry.PrepareReconfiguration(
-                telemetry,
-                MetricProviderContract.GetEnabledProviderIds(app.MetricProviders),
-                requiredMetrics);
-            _telemetry.CommitReconfiguration(telemetryPlan);
-            telemetryCommitted = true;
-
-            _mediaTelemetry.ApplyEndpointTypeOverrides(mediaOverrides);
-            mediaCommitted = true;
-
-            MetricContract.ReplaceOutputDescriptors(app.Outputs.Targets);
-            _config = app;
-            _metrics.Publish(RuntimeMetricContract.Version,
-                MetricProviderContract.IsEnabled(app.MetricProviders, MetricProviderContract.System)
-                    ? RuntimeVersion.Current : null);
-            _telemetryConfig = telemetry;
-            _boards = boards;
-            _lastRequiredMetrics = requiredMetrics.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-        catch (Exception applyEx)
-        {
-            var rollbackFailures = new List<Exception>();
-
-            if (mediaCommitted)
-            {
-                try
-                {
-                    _mediaTelemetry.ApplyEndpointTypeOverrides(previousMediaOverrides);
-                }
-                catch (Exception rollbackEx)
-                {
-                    rollbackFailures.Add(rollbackEx);
-                    _log.Error("Media configuration rollback failed.", rollbackEx);
-                }
-            }
-
-            if (telemetryCommitted)
-            {
-                try
-                {
-                    _telemetry.Reconfigure(
-                        previousTelemetry,
-                        MetricProviderContract.GetEnabledProviderIds(previousApp.MetricProviders),
-                        previousRequiredMetrics);
-                }
-                catch (Exception rollbackEx)
-                {
-                    rollbackFailures.Add(rollbackEx);
-                    _log.Error("Telemetry configuration rollback failed.", rollbackEx);
-                }
-            }
-
-            if (outputCommitted)
-            {
-                try
-                {
-                    _outputSessions.Reconfigure(previousApp, previousBoards);
-                }
-                catch (Exception rollbackEx)
-                {
-                    rollbackFailures.Add(rollbackEx);
-                    _log.Error("Output configuration rollback failed.", rollbackEx);
-                }
-            }
-
-            if (rollbackFailures.Count > 0)
-            {
-                throw new AggregateException(
-                    "Configuration apply failed and one or more subsystem rollback operations also failed.",
-                    [applyEx, .. rollbackFailures]);
-            }
-
-            throw;
-        }
-
+        _config = snapshot.App;
+        _telemetryConfig = snapshot.Telemetry;
+        _boards = snapshot.Boards;
+        _lastRequiredMetrics = _outputSessions.GetRequiredMetrics().ToHashSet(StringComparer.OrdinalIgnoreCase);
         RefreshDashboardMenuSafe();
     }
 
@@ -700,6 +597,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 return applied;
             if (applied.Success)
             {
+                if (command.Kind == RuntimeIpcCommandKind.StartOrReloadAll)
+                    RefreshPhysicalInventory();
                 _boards = _outputSessions.GetDashboardAssignments();
                 ReconcileTelemetryDemand();
             }

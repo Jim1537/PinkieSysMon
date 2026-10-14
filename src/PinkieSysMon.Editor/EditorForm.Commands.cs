@@ -585,11 +585,12 @@ internal sealed partial class EditorForm
                 return EditorDialogs.ChooseOutputDashboard(this, output, dashboard);
             },
             (id, board) => RuntimeIpc.AssignDashboardAsync(id, board),
-            id => RuntimeIpc.StartOrReloadTargetAsync(id));
+            id => RuntimeIpc.StartOrReloadTargetAsync(id),
+            () => RuntimeIpc.StartOrReloadAllAsync());
         await ExecuteOutputCommandAsync(
             () => EditorOutputStartWorkflow.RunAsync(dashboard, targetId, actions),
-            dialogTitle: targetId is null ? "Start / Reload All Outputs" : "Start / Reload Output",
-            fallbackSuccessMessage: "Selected Outputs started/reloaded.");
+            dialogTitle: targetId is null ? "Reload All Outputs" : "Start / Reload Output",
+            fallbackSuccessMessage: targetId is null ? "Common settings and enabled Outputs reloaded." : "Selected Output started/reloaded.");
     }
 
     private Task ExecuteStartOrReloadAllAsync() => ExecuteEditorOutputStartAsync(null);
@@ -764,7 +765,7 @@ internal sealed record ScreenMenuCommandState(
 internal static class ScreenMenuContract
 {
     public const string StartReloadText = "Start / Reload";
-    public const string StartReloadAllText = "Start / Reload All";
+    public const string StartReloadAllText = "Reload All";
     public const string StopAllText = "Stop / Unload All Outputs";
 
     public static ScreenMenuCommandState Build(
@@ -796,7 +797,7 @@ internal static class ScreenMenuContract
 
         return new ScreenMenuCommandState(
             targetStates,
-            !commandInProgress && targetStates.Any(target => target.CanStartOrReload),
+            !commandInProgress && targetStates.Length > 0,
             !commandInProgress && runtimeStatus?.Outputs.Any(output => output.IsActive) == true);
     }
 

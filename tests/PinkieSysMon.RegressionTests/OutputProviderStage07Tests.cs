@@ -145,7 +145,7 @@ internal static class OutputProviderStage07Tests
             manager.Reconfigure(changed, new C.DashboardDefinition());
             Check(store.Snapshot().TryGetValue(b, out var noLongerPublished) && noLongerPublished is null,
                 "Per-output ProviderEnabled OFF must clear active output values independently of Device Enabled.");
-            manager.StartOrReloadAll();
+            manager.Reconfigure(changed, new C.DashboardDefinition());
             Check(store.Snapshot().TryGetValue(a, out var disabledHardware) && disabledHardware is null,
                 "Provider Enabled must never force an explicitly disabled device to start.");
         });

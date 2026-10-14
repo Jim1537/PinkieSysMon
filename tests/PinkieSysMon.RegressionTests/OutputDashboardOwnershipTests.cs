@@ -17,7 +17,7 @@ internal static class OutputDashboardOwnershipTests
                 "Independent output identities must resolve distinct canonical documents.");
 
             var sessions = new Dictionary<string, FakeOutput>(StringComparer.OrdinalIgnoreCase);
-            using var manager = Manager(config, boards, root, log, sessions);
+            using var manager = Manager(config, boards, log, sessions);
             manager.Start();
             Check(sessions["a"].Width == 320 && sessions["b"].Width == 640,
                 "Each running session must receive its assigned canonical document.");
@@ -52,7 +52,7 @@ internal static class OutputDashboardOwnershipTests
                 "Outputs sharing a filename must get distinct mutable document objects.");
 
             var sessions = new Dictionary<string, FakeOutput>(StringComparer.OrdinalIgnoreCase);
-            using var manager = Manager(config, boards, root, log, sessions);
+            using var manager = Manager(config, boards, log, sessions);
             manager.Start();
             Board(root, "Same", 520);
             ReloadTarget(manager, config, "a", root);
@@ -79,7 +79,7 @@ internal static class OutputDashboardOwnershipTests
             var config = Config(("a", "A"), ("b", "B"));
             var sessions = new Dictionary<string, FakeOutput>(StringComparer.OrdinalIgnoreCase);
             using var manager = Manager(config,
-                RuntimeConfigurationValidator.LoadAssignments(config, root), root, log, sessions);
+                RuntimeConfigurationValidator.LoadAssignments(config, root), log, sessions);
             manager.Start();
 
             Board(root, "A", 350);
@@ -99,11 +99,11 @@ internal static class OutputDashboardOwnershipTests
                 "Failed targeted commit must roll back without touching another board.");
 
             sessions["b"].FailNextCommit = true;
-            Check(Throws<InvalidOperationException>(manager.StartOrReloadAll),
-                "Start All must reject a failed multi-target commit.");
+            Check(Throws<InvalidOperationException>(() => manager.Reconfigure(config, RuntimeConfigurationValidator.LoadEnabledAssignments(config, root))),
+                "Set reconfiguration must reject a failed multi-target commit.");
             Check(sessions["a"].Width == 300 && sessions["b"].Width == 600,
-                "Start All must restore prior boards after a sibling commit error.");
-            manager.StartOrReloadAll();
+                "Set reconfiguration must restore prior boards after a sibling commit error.");
+            manager.Reconfigure(config, RuntimeConfigurationValidator.LoadEnabledAssignments(config, root));
             Check(sessions["a"].Width == 350 && sessions["b"].Width == 650,
                 "A successful retry must load the latest independent boards.");
         });
@@ -132,15 +132,14 @@ internal static class OutputDashboardOwnershipTests
 
     private static OutputSessionManager Manager(AppConfig config,
         IReadOnlyDictionary<string, C.DashboardDefinition> boards,
-        string root, FileLogger log, Dictionary<string, FakeOutput> created) =>
+        FileLogger log, Dictionary<string, FakeOutput> created) =>
         new(config, boards, new MetricStore(), log,
             (app, target, board, metrics, logger) =>
             {
                 var session = new FakeOutput(target.Id, target.Name, board.Canvas.Width);
                 created.Add(target.Id, session);
                 return session;
-            },
-            target => RuntimeConfigurationValidator.LoadTarget(target, root));
+            });
 
     private static void Board(string root, string name, int width)
     {

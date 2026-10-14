@@ -63,7 +63,7 @@ Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The
 | Toggle **Lock** | Change mouse pass-through for this panel; preserve Board Enabled and global Runtime lifetime. |
 | **Start / Reload** | Apply this panel's saved edits through the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload). |
 
-The Editor offers target **Start / Reload** under **Output**, plus **Start / Reload All** and the existing global **Stop / Unload All Outputs** shutdown command. All-target reload addresses eligible Outputs; disabled boards/devices remain disabled.
+The Editor offers target **Start / Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
 
 !!! info "Disabling the final panel and global shutdown"
     Turning **Board Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.

@@ -43,8 +43,30 @@ internal static class RuntimeConfigurationValidator
         }
     }
 
+    // Runtime needs documents only for enabled Outputs. Configuration validation
+    // still owns every record, including disabled identities and saved references.
+    public static Dictionary<string, CanonicalDashboardDefinition> LoadEnabledAssignments(
+        AppConfig config, string applicationRoot)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationRoot);
+        if (config.Outputs.Targets.Count == 0)
+            throw new InvalidDataException("No outputs configured.");
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, CanonicalDashboardDefinition>(StringComparer.OrdinalIgnoreCase);
+        foreach (var target in config.Outputs.Targets)
+        {
+            if (!ids.Add(target.Id))
+                throw new InvalidDataException($"Duplicate output ID '{target.Id}' during dashboard loading.");
+            if (OutputTargetContract.IsEnabled(target))
+                result.Add(target.Id, LoadTarget(target, applicationRoot));
+        }
+        return result;
+    }
+
     // Legacy helper used by the Stage 03 regression contract. Runtime and output
-    // sessions use LoadAssignments and do not use the single-board selection.
+    // sessions do not use the single-board selection. Settings can still validate
+    // all assignments; Runtime uses the enabled-only loader.
     public static (string DashboardName, CanonicalDashboardDefinition Dashboard) ValidateAndSelect(
         AppConfig config, string applicationRoot)
     {

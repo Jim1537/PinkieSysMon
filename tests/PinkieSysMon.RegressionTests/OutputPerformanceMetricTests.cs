@@ -101,7 +101,7 @@ internal static class OutputPerformanceMetricTests
             Check(metrics.Snapshot().Keys.All(id => !id.StartsWith("system.output.desktop.", StringComparison.Ordinal)),
                 "Physical session stop must not invent Desktop metrics.");
 
-            manager.StartOrReloadAll();
+            manager.Start();
             var restarted = metrics.Snapshot();
             Check(restarted.TryGetValue(frameA, out a) && a is not null &&
                   restarted.TryGetValue(frameB, out b) && b is not null,

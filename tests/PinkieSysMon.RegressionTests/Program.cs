@@ -53,6 +53,13 @@ internal static class Program
             ("Issue63 selected reload validation and read-only failures", SavedOutputReloadTests.ValidationAndReadOnlyFailures),
             ("Issue63 selected reload rollback and concurrent writes", SavedOutputReloadTests.RollbackAndConcurrentWrite),
             ("Issue63 selected reload global lifetime and feedback", SavedOutputReloadTests.LifecycleAndFeedback),
+            ("Issue63 All common settings and enabled dashboard isolation", SavedConfigurationReloadTests.CommonSettingsAndEnabledDocuments),
+            ("Issue63 All empty enabled set and optional telemetry defaults", SavedConfigurationReloadTests.EmptyEnabledSetAndMissingTelemetry),
+            ("Issue63 All full-record validation before mutation", SavedConfigurationReloadTests.ValidationBeforeMutation),
+            ("Issue63 disabled startup documents and explicit enable", SavedConfigurationReloadTests.DisabledStartupAndExplicitEnable),
+            ("Issue63 All common-subsystem rollback and recovery failures", SavedConfigurationReloadTests.RollbackAcrossSubsystems),
+            ("Issue63 All intervening app and telemetry writes", SavedConfigurationReloadTests.InterveningConfigurationWrites),
+            ("Issue63 All global lifetime, suspension and wire command", SavedConfigurationReloadTests.GlobalLifetimeSuspensionAndWire),
             ("Output telemetry demand active union", OutputTelemetryDemandTests.ActiveUnion),
             ("Output telemetry demand activation and clearing", OutputTelemetryDemandTests.Transitions),
             ("Output telemetry demand independent Desktop switches", OutputTelemetryDemandTests.DesktopPolicy),
@@ -88,14 +95,14 @@ internal static class Program
             ("Output session manager transactional preparation", OutputSessionManagerTransactionalPreparation),
             ("Output session commit rollback", OutputSessionCommitRollback),
             ("Output session startup rollback", OutputSessionStartupRollback),
-            ("Output session Start All startup rollback", OutputSessionStartAllStartupRollback),
+            ("Output session global restart rollback", OutputSessionGlobalRestartRollback),
             ("Output session live reconfigure startup rollback", OutputSessionLiveReconfigureStartupRollback),
             ("Output session lifecycle failure isolation", OutputSessionLifecycleFailureIsolation),
             ("Runtime IPC output command protocol", RuntimeIpcOutputCommandProtocol),
             ("Runtime IPC output status payload", RuntimeIpcOutputStatusPayload),
             ("Stage24 independent Output status and disabled hardware", RuntimeStatusStage24Tests.IndependentOutputStatus),
             ("Stage24 additive IPC status and legacy payload compatibility", RuntimeStatusStage24Tests.StatusWireCompatibility),
-            ("Stage24 tray Output actions and Desktop Start All", RuntimeStatusStage24Tests.TrayAndStartAllPolicy),
+            ("Stage24 tray Output actions and Desktop startup", RuntimeStatusStage24Tests.TrayAndStartupPolicy),
             ("Stage24 target configuration IPC payloads", RuntimeConfigurationStage24Tests.ConfigurationProtocol),
             ("Stage24 dashboard assignment and passive hardware isolation", RuntimeConfigurationStage24Tests.AssignmentIsolation),
             ("Stage24 independent Desktop Board Enabled and Lock commands", RuntimeConfigurationStage24Tests.DesktopSwitches),
@@ -1421,7 +1428,7 @@ internal static class Program
         }
     }
 
-    private static void OutputSessionStartAllStartupRollback()
+    private static void OutputSessionGlobalRestartRollback()
     {
         var tempRoot = Path.Combine(Path.GetTempPath(), $"PinkieSysMon-output-start-all-rollback-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempRoot);
@@ -1451,19 +1458,19 @@ internal static class Program
             failRestartA = true;
 
             AssertThrows<InvalidOperationException>(
-                manager.StartOrReloadAll,
-                "Start / Reload All must fail cleanly when a newly required session cannot start.");
+                manager.Start,
+                "Global restart must fail cleanly when a newly required session cannot start.");
             var failedStatuses = manager.GetStatuses();
             Assert(failedStatuses.All(status => !status.IsActive && status.UsbState == "STOPPED"),
-                "Failed Start / Reload All must preserve the real global lifetime stop.");
+                "Failed global restart must preserve the real global lifetime stop.");
             Assert(original.All(session => session.DisposeCount == 1) &&
                    created.Skip(2).Count() == 2 && created.Skip(2).All(session => session.DisposeCount == 1),
                 "Global stop and failed restart must dispose every original and candidate session exactly once.");
 
             failRestartA = false;
-            manager.StartOrReloadAll();
+            manager.Start();
             Assert(manager.GetStatuses().All(status => status.IsActive),
-                "Start / Reload All must remain retryable after a startup rollback.");
+                "Global restart must remain retryable after a startup rollback.");
             Assert(created.Skip(4).Count() == 2 && created.Skip(4).All(session => session.StartCount == 1),
                 "Retry after global restart rollback must create and start a fresh session set.");
         }
@@ -1709,8 +1716,11 @@ internal static class Program
             AssertThrows<InvalidOperationException>(() => manager.ReloadTarget(config.Outputs.Targets[0],
                 manager.GetDashboardAssignments()["screen-a"], _ => { }),
                 "A target command must not override the global lifetime stop during shutdown.");
-            Assert(control.Execute(new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll)).Success &&
-                   control.GetStatus().Outputs.All(output => output.IsActive),
+            Assert(!control.Execute(new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll)).Success &&
+                   control.GetStatus().Outputs.All(output => !output.IsActive),
+                "All without the common-configuration controller must fail without bypassing the global lifetime stop.");
+            manager.Start();
+            Assert(control.GetStatus().Outputs.All(output => output.IsActive),
                 "The retained global lifecycle primitive must remain retryable after Stop All.");
 
             Assert(RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(
@@ -1810,7 +1820,7 @@ internal static class Program
             "A pending Output command must disable every competing per-target and global Output action.");
 
         Assert(ScreenMenuContract.StartReloadText == "Start / Reload" &&
-               ScreenMenuContract.StartReloadAllText == "Start / Reload All" &&
+               ScreenMenuContract.StartReloadAllText == "Reload All" &&
                ScreenMenuContract.StopAllText == "Stop / Unload All Outputs",
             "The retained global shutdown label must describe its Output scope without exposing a target-stop action.");
     }

@@ -69,7 +69,7 @@ internal static class RuntimeStatusStage24Tests
             "Status enrichment must retain the established target-scoped command format.");
     }
 
-    public static void TrayAndStartAllPolicy()
+    public static void TrayAndStartupPolicy()
     {
         InSandbox(root =>
         {
@@ -78,13 +78,12 @@ internal static class RuntimeStatusStage24Tests
                 new MetricStore(), new FileLogger(Path.Combine(root, "test.log")),
                 (app, target, board, store, log) => new Session(target.Id, target.Name));
             var control = new RuntimeOutputControl(manager, () => "(per-output dashboards)");
-            var response = control.Execute(new(RuntimeIpcCommandKind.StartOrReloadAll));
+            manager.Start();
             var status = control.GetStatus();
             var desktop = status.Outputs.Single(o => o.TargetId == "desktop-a");
             var physical = status.Outputs.Single(o => o.TargetId == "device-b");
-            Check(response.Success && desktop.IsActive && !physical.IsActive &&
-                  !response.Message.Contains("Desktop outputs remain inactive", StringComparison.Ordinal),
-                "Start All must include eligible Desktop sessions and must not report the retired physical-only contract.");
+            Check(desktop.IsActive && !physical.IsActive,
+                "Normal startup must include eligible Desktop sessions and retain disabled physical policy.");
             Check(RuntimeTrayOutputContract.CanStartOrReload(desktop) && !RuntimeTrayOutputContract.CanStartOrReload(physical),
                 "Tray reload eligibility must follow canonical enablement independently of Provider Enabled.");
             Check(RuntimeTrayOutputContract.Summary(status) ==

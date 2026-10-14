@@ -220,7 +220,7 @@ internal static class RuntimeConfigurationStage24Tests
         Check(f.Created.Count == count && f.Status("desktop-a") is { IsActive: false, OutputEnabled: true, UsbState: "STOPPED" },
             "Settings operations during global shutdown must not wake Output sessions or lose saved enablement.");
         Failure<InvalidOperationException>(() => f.Execute(new(RuntimeIpcCommandKind.StartOrReloadTarget, "desktop-a")));
-        f.Manager.StartOrReloadAll();
+        f.Manager.Start();
         Check(f.Status("desktop-a").IsActive && f.Latest("desktop-a").Width == 600 && f.Status("desktop-b").IsActive,
             "The global lifecycle primitive must restore all enabled Outputs using current assignments.");
     }
