@@ -78,42 +78,51 @@ internal static class BlockedTransportStage27Tests
                         : new DesktopOutputSession(app, target, board, store, logger,
                             draw => panel = new FakeWindow(draw)));
 
-            manager.Start();
-            Check(sendEntered.Wait(TimeSpan.FromSeconds(5)),
-                "Physical worker must reach the injected blocking send.");
+            try
+            {
+                manager.Start();
+                Check(sendEntered.Wait(TimeSpan.FromSeconds(5)),
+                    "Physical worker must reach the injected blocking send.");
 
-            var desktop = panel ?? throw new InvalidOperationException("Desktop window was not created.");
-            Check(desktop.IsVisible && transport.SendCount == 1 &&
-                  manager.GetStatuses().Single(s => s.TargetId == "trofeo-1").SentFrames == 0,
-                "Physical transfer must remain incomplete while its sibling Desktop is visible.");
+                var desktop = panel ?? throw new InvalidOperationException("Desktop window was not created.");
+                Check(desktop.IsVisible && transport.SendCount == 1 &&
+                      manager.GetStatuses().Single(s => s.TargetId == "trofeo-1").SentFrames == 0,
+                    "Physical transfer must remain incomplete while its sibling Desktop is visible.");
 
-            // Both use the same MetricStore, but neither waits for physical USB completion.
-            var source = new CountingSource();
-            var telemetry = TelemetryConfig.CreateDefaults([source]);
-            using var engine = new TelemetryEngine(metrics, [source], telemetry,
-                [Provider], [Metric], log);
-            engine.Start();
+                // Both use the same MetricStore, but neither waits for physical USB completion.
+                var source = new CountingSource();
+                var telemetry = TelemetryConfig.CreateDefaults([source]);
+                using var engine = new TelemetryEngine(metrics, [source], telemetry,
+                    [Provider], [Metric], log);
+                engine.Start();
 
-            Check(SpinWait.SpinUntil(() =>
-                    source.Captures >= 2 &&
-                    metrics.Snapshot().TryGetValue(Metric, out var value) && value is not null,
-                    TimeSpan.FromSeconds(5)),
-                "Shared telemetry scheduling must continue while a physical send is blocked.");
+                Check(SpinWait.SpinUntil(() =>
+                        source.Captures >= 2 &&
+                        metrics.Snapshot().TryGetValue(Metric, out var value) && value is not null,
+                        TimeSpan.FromSeconds(5)),
+                    "Shared telemetry scheduling must continue while a physical send is blocked.");
 
-            var draw = Task.Run(desktop.Tick);
-            Check(draw.Wait(TimeSpan.FromSeconds(5)),
-                "Desktop frame rendering must not wait for the blocked physical send.");
-            draw.GetAwaiter().GetResult();
+                var draw = Task.Run(desktop.Tick);
+                Check(draw.Wait(TimeSpan.FromSeconds(5)),
+                    "Desktop frame rendering must not wait for the blocked physical send.");
+                draw.GetAwaiter().GetResult();
 
-            var statuses = manager.GetStatuses();
-            Check(desktop.PresentCount == 1 &&
-                  statuses.Single(s => s.TargetId == "desktop-1").SentFrames == 1 &&
-                  statuses.Single(s => s.TargetId == "trofeo-1").SentFrames == 0 &&
-                  transport.SendCount == 1,
-                "Desktop must present independently without completing the blocked physical frame.");
+                var statuses = manager.GetStatuses();
+                Check(desktop.PresentCount == 1 &&
+                      statuses.Single(s => s.TargetId == "desktop-1").SentFrames == 1 &&
+                      statuses.Single(s => s.TargetId == "trofeo-1").SentFrames == 0 &&
+                      transport.SendCount == 1,
+                    "Desktop must present independently without completing the blocked physical frame.");
 
-            // Do not release the fake USB sender until the independent work is verified.
-            Check(!releaseSend.IsSet, "The physical send must still be blocked at the assertion point.");
+                // Do not release the fake USB sender until the independent work is verified.
+                Check(!releaseSend.IsSet, "The physical send must still be blocked at the assertion point.");
+            }
+            finally
+            {
+                // Release fake USB I/O before OutputSessionManager disposes FramePump.
+                // FramePump.Dispose legitimately waits for an in-flight synchronous send.
+                releaseSend.Set();
+            }
         }
         finally
         {
