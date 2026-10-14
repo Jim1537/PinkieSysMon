@@ -76,4 +76,8 @@ PinkieSysMon was developed through [AI-assisted vibe coding](development/vibe-co
 
 ## Project Awards and Certification
 
-![GitHub Bureaucracy Slayer — Community Standards: 100%](images/github-bureaucracy-slayer.png)
+<p align="center">
+  <a href="https://make-everything-ok.com/">
+    <img src="images/github-bureaucracy-slayer.png" width="255" alt="GitHub Bureaucracy Slayer — Community Standards: 100%" width="50%">
+  </a>
+</p>
