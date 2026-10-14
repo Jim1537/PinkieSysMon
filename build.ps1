@@ -18,7 +18,7 @@ $artifactsRoot = Join-Path $root 'artifacts'
 $publishOut = Join-Path $artifactsRoot 'publish'
 $testsOut = Join-Path $artifactsRoot 'tests'
 $launcherOut = Join-Path $artifactsRoot 'launcher'
-$launcherExe = Join-Path $launcherOut 'PinkieSysMon.Launcher.exe'
+$launcherExe = Join-Path $launcherOut 'Launcher.exe'
 $releaseRoot = Join-Path $root 'release'
 $releaseStageRoot = Join-Path $artifactsRoot 'portable-release'
 $releaseStageAppRoot = Join-Path $releaseStageRoot 'PinkieSysMon'
@@ -233,7 +233,7 @@ function Assert-PortableReleaseStaging {
         'config\app.json',
         'LICENSE',
         'THIRD-PARTY-NOTICES.md',
-        'PinkieSysMon.Launcher.exe'
+        'Launcher.exe'
     )
 
     foreach ($relative in $requiredFiles) {
@@ -308,7 +308,7 @@ function Prepare-PortableReleasePackage {
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $releaseStageAppRoot 'LICENSE') -Force
         Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.md') -Destination (Join-Path $releaseStageAppRoot 'THIRD-PARTY-NOTICES.md') -Force
 
-        Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $releaseStageAppRoot 'PinkieSysMon.Launcher.exe') -Force
+        Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $releaseStageAppRoot 'Launcher.exe') -Force
 
         Assert-PortableReleaseStaging -AppRoot $releaseStageAppRoot
 
@@ -332,7 +332,7 @@ function Prepare-PortableReleasePackage {
                 'PinkieSysMon/config/app.json',
                 'PinkieSysMon/LICENSE',
                 'PinkieSysMon/THIRD-PARTY-NOTICES.md',
-                'PinkieSysMon/PinkieSysMon.Launcher.exe'
+                'PinkieSysMon/Launcher.exe'
             )) {
                 if ($required -notin $entries) {
                     throw "Portable release ZIP integrity check failed. Missing entry: $required"
@@ -424,12 +424,17 @@ function Assert-PublishPackage {
 
 function Stop-PinkieProcesses {
     $names = @('PinkieSysMon', 'PinkieSysMon.Editor', 'PinkieSysMon.Launcher')
+    $launcherPath = Join-Path $LocalRoot 'Launcher.exe'
     $running = @()
 
     foreach ($name in $names) {
         $running += @(Get-Process -Name $name -ErrorAction SilentlyContinue)
     }
 
+    # Launcher.exe is a generic process name: stop it only when its image
+    # belongs to this managed installation, never another vendor's launcher.
+    $running += @(Get-Process -Name 'Launcher' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -eq $launcherPath })
     $running = @($running | Sort-Object Id -Unique)
     if ($running.Count -eq 0) {
         Write-Host 'Running PinkieSysMon processes: none'
@@ -448,6 +453,8 @@ function Stop-PinkieProcesses {
         foreach ($name in $names) {
             $alive += @(Get-Process -Name $name -ErrorAction SilentlyContinue)
         }
+        $alive += @(Get-Process -Name 'Launcher' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $launcherPath })
         if ($alive.Count -eq 0) { break }
         Start-Sleep -Milliseconds 200
     } while ((Get-Date) -lt $deadline)
@@ -494,7 +501,7 @@ function Publish-Local {
             Source = $publishOut
         },
         [PSCustomObject]@{
-            Relative = 'PinkieSysMon.Launcher.exe'
+            Relative = 'Launcher.exe'
             Source = $launcherExe
         },
         [PSCustomObject]@{
@@ -532,7 +539,7 @@ function Publish-Local {
             }
         }
 
-        if (-not (Test-Path -LiteralPath (Join-Path $stagingRoot 'PinkieSysMon.Launcher.exe') -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath (Join-Path $stagingRoot 'Launcher.exe') -PathType Leaf)) {
             throw 'Local deployment staging is incomplete. Missing root Launcher.'
         }
 
@@ -541,7 +548,7 @@ function Publish-Local {
         Write-Host 'Replacing managed local product paths...'
         $activated = New-Object System.Collections.Generic.List[string]
         $backedUp = New-Object System.Collections.Generic.List[string]
-        $backedUpShortcuts = New-Object System.Collections.Generic.List[string]
+        $backedUpObsoleteRootEntries = New-Object System.Collections.Generic.List[string]
 
         try {
             foreach ($item in $managed) {
@@ -575,13 +582,13 @@ function Publish-Local {
                 Write-Host 'Preserved existing config\app.json.'
             }
 
-            # Retire the two obsolete root shortcuts without touching user-created
-            # Desktop/Start Menu links. Restore these paths on deployment rollback.
-            foreach ($name in @("Pinkie's System Monitor.lnk", 'PinkieSysMon Dashboard Editor.lnk')) {
+            # Retire obsolete managed root entries, including the previous Launcher
+            # filename. Desktop/Start Menu links are untouched; rollback restores these.
+            foreach ($name in @("Pinkie's System Monitor.lnk", 'PinkieSysMon Dashboard Editor.lnk', 'PinkieSysMon.Launcher.exe')) {
                 $existingShortcut = Join-Path $LocalRoot $name
                 if (Test-Path -LiteralPath $existingShortcut -PathType Leaf) {
                     Move-Item -LiteralPath $existingShortcut -Destination (Join-Path $backupRoot $name) -Force
-                    $backedUpShortcuts.Add($name)
+                    $backedUpObsoleteRootEntries.Add($name)
                 }
             }
 
@@ -592,13 +599,13 @@ function Publish-Local {
                 }
             }
 
-            if (-not (Test-Path -LiteralPath (Join-Path $LocalRoot 'PinkieSysMon.Launcher.exe') -PathType Leaf)) {
+            if (-not (Test-Path -LiteralPath (Join-Path $LocalRoot 'Launcher.exe') -PathType Leaf)) {
                 throw 'Local deployment verification failed. Root Launcher is missing.'
             }
         } catch {
             Write-Warning 'Local publish failed after deployment began. Rolling managed paths back.'
 
-            foreach ($name in @($backedUpShortcuts)) {
+            foreach ($name in @($backedUpObsoleteRootEntries)) {
                 $backup = Join-Path $backupRoot $name
                 $live = Join-Path $LocalRoot $name
                 if (Test-Path -LiteralPath $backup -PathType Leaf) {
@@ -629,7 +636,7 @@ function Publish-Local {
         Write-Host "Updated: $LocalRoot\bin"
         Write-Host 'Updated public assets: Roboto + Lucide'
         Write-Host 'Updated public dashboard: Default'
-        Write-Host 'Installed root PinkieSysMon.Launcher.exe; retired obsolete root .lnk files.'
+        Write-Host 'Installed root Launcher.exe; retired obsolete root shortcuts and previous Launcher executable name.'
         Write-Host 'Desktop / Start Menu shortcuts: not created'
         Write-Host 'Preserved: config, PinkiePie_Vertical, private/local assets, logs'
         Write-Host 'Application was left stopped.'

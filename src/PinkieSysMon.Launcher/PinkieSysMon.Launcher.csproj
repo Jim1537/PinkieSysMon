@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <AssemblyName>PinkieSysMon.Launcher</AssemblyName>
+    <AssemblyName>Launcher</AssemblyName>
     <AssemblyTitle>Pinkie's System Monitor Launcher</AssemblyTitle>
     <Description>Portable launcher and shared product information dialog</Description>
     <ApplicationIcon>..\PinkieSysMon\PinkieSysMon.ico</ApplicationIcon>

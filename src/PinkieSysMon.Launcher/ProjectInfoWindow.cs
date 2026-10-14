@@ -14,7 +14,7 @@ internal static class ProjectPresentation
         "Direct Skia dashboard editor and Windows monitor runtime for Desktop and supported physical Outputs.";
     public const string Website = "https://jim1537.github.io/PinkieSysMon";
 
-    public const string LauncherExe = "PinkieSysMon.Launcher.exe";
+    public const string LauncherExe = "Launcher.exe";
     public static readonly (string Name, string Arguments)[] Shortcuts =
     [
         ("Pinkie's System Monitor", ""),

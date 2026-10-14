@@ -16,6 +16,9 @@ internal static class LauncherPackagingContractTests
         if (!ProjectPresentation.Shortcuts.SequenceEqual(expected))
             throw new InvalidOperationException("Launcher shortcut contract changed.");
 
+        if (ProjectPresentation.LauncherExe != "Launcher.exe")
+            throw new InvalidOperationException("Portable root launcher filename contract changed.");
+
         if (ProjectPresentation.Website != "https://jim1537.github.io/PinkieSysMon")
             throw new InvalidOperationException("Product website contract changed.");
 
