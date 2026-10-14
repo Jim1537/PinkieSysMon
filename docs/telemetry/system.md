@@ -473,6 +473,8 @@ Failure of the AIMP fallback simply leaves playback progress unavailable.
 
 ### Runtime and Output Performance Metrics
 
+Configure the producing Output through the [Desktop guide](../outputs/desktop.md#step-2-create-and-configure-the-panel) or [Physical Devices guide](../outputs/physical_devices.md#step-3-configure-and-adopt-the-output). This section owns the metric catalog and publication contract.
+
 The System provider publishes application identity as the global `system.runtime.version` text metric, independently of device sessions when the System provider is enabled. **The previous global device statistics are deliberately retired**, with no compatibility aliases. Existing dashboard widgets referencing those IDs must be assigned a new output-scoped ID manually:
 
 | Retired ID | Replacement for a physical Output `screen-1` | Meaning |

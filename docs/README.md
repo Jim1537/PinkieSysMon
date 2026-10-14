@@ -60,7 +60,7 @@ Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack an
 
 Use the [Physical Devices guide](outputs/physical_devices.md) for supported hardware discovery, adoption, Device Settings and output management.
 
-Runtime loads each active Output's assigned saved dashboard and collects the metrics it needs. Physical Outputs receive JPEG frames over USB; Desktop Outputs render through native layered Windows panels with per-pixel alpha support. The tray provides independent Output status and Start/Reload/Stop controls; the Editor can apply dashboard choices to individual Outputs. Saving a dashboard in the Editor does not silently replace the Runtime's loaded document; apply or reload it explicitly.
+For the shared Runtime/Editor document boundary, telemetry demand and control path, see [Application Architecture](development/architecture.md).
 
 ## System Requirements
 

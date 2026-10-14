@@ -14,6 +14,9 @@ nav:
   - Supported Devices: supported-devices.md
   - Development Approach: development/vibe-coding.md
   - Support Me: https://ko-fi.com/Z5X220SWVK
+  - Outputs:
+      - Desktop: outputs/desktop.md
+      - Physical Devices: outputs/physical_devices.md
   - Telemetry providers:
       - System: telemetry/system.md
       - Libre Hardware Monitor: telemetry/libre-hardware-monitor.md

@@ -124,6 +124,7 @@ The user may provide exhaustive context; the assistant owns editorial selection.
 Use the single canonical owner for each type of information:
 
 - **Cross-component topology and state ownership:** [Application Architecture](docs/development/architecture.md).
+- **Desktop and common physical Output workflows/implementation:** [Desktop](docs/outputs/desktop.md) and [Physical Devices](docs/outputs/physical_devices.md); shared process/IPC coordination remains with Architecture and model-specific transport remains with Device Integration.
 - **Individual telemetry providers:** [Telemetry documentation](docs/telemetry/system.md) and its sibling pages.
 - **Widgets and properties:** [Widget documentation](docs/widgets/text-value.md) and [Property Dictionary](docs/widgets/properties.md).
 - **Supported hardware and transport-specific contracts:** [Supported Devices](docs/supported-devices.md) and [Device Integration](docs/development/devices/trofeo-vision-9.16.md).

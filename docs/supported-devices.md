@@ -10,4 +10,6 @@ Pinkie's System Monitor currently implements direct hardware output for the devi
 
 The Trofeo Vision 9.16 is suitable for PinkieSysMon because it operates as a dedicated frame-output device rather than an additional Windows desktop monitor. PinkieSysMon renders the dashboard locally and transfers its JPEG frames directly through USB, allowing a wide, independent telemetry display without extending or mirroring the Windows desktop.
 
+To connect, adopt and manage a supported display, follow [Physical Devices](outputs/physical_devices.md). For hardware-free Windows panels, use [Desktop](outputs/desktop.md).
+
 See [Compatibility & Testing](compatibility.md) for tested Windows configurations and the [device integration reference](development/devices/trofeo-vision-9.16.md) for protocol and implementation details.
