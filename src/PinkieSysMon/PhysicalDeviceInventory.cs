@@ -135,21 +135,3 @@ internal static class PhysicalDeviceInventory
         return entries;
     }
 }
-
-// Configuration-only removal: physical discovery never mutates or recreates an Output.
-internal static class PhysicalDeviceRemovalPolicy
-{
-    public static bool CanRemove(AppConfig config, string targetId) =>
-        config.Outputs.Targets.Count > 1 &&
-        config.Outputs.Targets.Any(target =>
-            target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
-            target.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
-
-    public static void Remove(AppConfig config, string targetId)
-    {
-        if (!CanRemove(config, targetId))
-            throw new InvalidOperationException("Cannot remove an unknown physical Output or the last remaining Output.");
-        config.Outputs.Targets.RemoveAll(target =>
-            target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase));
-    }
-}

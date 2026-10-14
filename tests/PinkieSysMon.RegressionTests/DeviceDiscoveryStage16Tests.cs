@@ -1,4 +1,5 @@
 using PinkieSysMon;
+using PinkieSysMon.Editor;
 
 namespace PinkieSysMon.RegressionTests;
 
@@ -229,13 +230,15 @@ internal static class DeviceDiscoveryStage16Tests
         var config = new AppConfig { Outputs = new OutputConfig { Targets = [physical, desktop] } };
         var device = new OutputDeviceDescriptor(
             physical.DeviceId, OutputTargetContract.TrofeoTransport, "Known device", "synthetic-path");
+        var model = new DeviceSettingsModel(config, "Default");
+        var draft = model.Entries.Single().Target;
         var before = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
         var disconnected = PhysicalDeviceInventory.Build(config.Outputs.Targets, []);
         Check(before.Single(entry => entry.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected &&
               disconnected.Single().Status == PhysicalDeviceInventoryStatus.Disconnected &&
               disconnected.Single().CanRemove &&
               !disconnected.Single().CanEditSettings &&
-              PhysicalDeviceRemovalPolicy.CanRemove(config, physical.Id),
+              model.CanRemove(draft, 1),
             "A configured physical Output must remain removable even when disconnected.");
         var reconnected = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
         Check(reconnected.Single(entry => entry.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected &&
@@ -243,7 +246,9 @@ internal static class DeviceDiscoveryStage16Tests
               physical.Dashboard == "PhysicalBoard",
             "Passive reconnect must retain the original identity and both independent switches.");
 
-        PhysicalDeviceRemovalPolicy.Remove(config, physical.Id);
+        model.Remove(draft, 1);
+        Check(config.Outputs.Targets.Count == 2, "Settings removal must remain detached until apply.");
+        model.ApplyTo(config);
         Check(config.Outputs.Targets.Count == 1 &&
               ReferenceEquals(config.Outputs.Targets[0], desktop) &&
               !config.Outputs.Targets.Any(t => t.Id == physical.Id),
@@ -252,10 +257,10 @@ internal static class DeviceDiscoveryStage16Tests
         Check(after.Count == 1 && after[0].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
               after[0].ConfiguredTarget is null && after[0].DiscoveredDevice == device,
             "An attached removed device may be observed passively but must never be re-adopted.");
-        Check(!PhysicalDeviceRemovalPolicy.CanRemove(config, desktop.Id),
-            "Desktop Outputs must never be removable through the physical-device command.");
+        Check(!model.CanRemove(desktop, 1),
+            "The physical Settings draft must never remove a Desktop Output.");
         var rejected = false;
-        try { PhysicalDeviceRemovalPolicy.Remove(config, desktop.Id); }
+        try { model.Remove(desktop, 1); }
         catch (InvalidOperationException) { rejected = true; }
         Check(rejected && config.Outputs.Targets.Single() == desktop,
             "Invalid physical removal must not change surviving output configuration.");
@@ -264,10 +269,12 @@ internal static class DeviceDiscoveryStage16Tests
         {
             Outputs = new OutputConfig { Targets = [Target()] }
         };
-        Check(!PhysicalDeviceRemovalPolicy.CanRemove(solePhysical, solePhysical.Outputs.Targets[0].Id),
+        var soleModel = new DeviceSettingsModel(solePhysical, "Default");
+        var soleDraft = soleModel.Entries.Single().Target;
+        Check(!soleModel.CanRemove(soleDraft, 0),
             "The final physical Output must never offer Remove.");
         rejected = false;
-        try { PhysicalDeviceRemovalPolicy.Remove(solePhysical, solePhysical.Outputs.Targets[0].Id); }
+        try { soleModel.Remove(soleDraft, 0); }
         catch (InvalidOperationException) { rejected = true; }
         Check(rejected && solePhysical.Outputs.Targets.Count == 1,
             "The last remaining Output must not be removed even through a direct call.");

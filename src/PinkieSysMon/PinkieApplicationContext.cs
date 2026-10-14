@@ -14,10 +14,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private readonly NotifyIcon _trayIcon = new();
     private readonly Icon? _applicationIcon;
-    private readonly ToolStripMenuItem _statusItem = new("Starting...") { Enabled = false };
-    private readonly ToolStripMenuItem _dashboardsMenu = new("Dashboards");
-    private readonly ToolStripMenuItem _outputsMenu = new("Outputs");
-    private readonly ToolStripMenuItem _physicalDevicesMenu = new("Physical Devices");
+    private readonly RuntimeTrayMenu _trayMenu;
     private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
@@ -86,6 +83,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             ex => _log.Warn("Runtime command notification failed; command result retained.", ex),
             ex => _log.Error("Runtime user command or result verification failed.", ex));
 
+        _trayMenu = new RuntimeTrayMenu(OpenDashboardEditor, ExecuteTrayOutputCommand,
+            () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled);
         BuildTray();
         _uiInvoker.CreateControl();
         _ipcServer = new RuntimeIpcServer(HandleIpcCommandAsync, _log);
@@ -108,7 +107,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             $"dashboardMetrics={_lastRequiredMetrics.Count}; outputTargets={_config.Outputs.Targets.Count}.");
     }
 
-    // Captured on startup and after successful configuration reload, not on the
+    // Captured on startup, successful reload and root-menu opening, not on the
     // one-second tray timer. Never opens WinUSB or authorizes Device Enabled.
     // An optional discovery failure must not interrupt a working output.
     private bool RefreshPhysicalInventory()
@@ -131,60 +130,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             // Discovery must not block Runtime or take down active device sessions.
             _log.Warn("Passive physical discovery failed; previous snapshot retained.", ex);
             return false;
-        }
-    }
-
-    // A convenient Runtime control until Stage 23 exposes the full Device Settings.
-    // No USB handle is opened by inspecting or displaying this menu.
-    private void RefreshPhysicalDeviceMenu()
-    {
-        _physicalDevicesMenu.DropDownItems.Clear();
-        if (!RefreshPhysicalInventory())
-        {
-            _physicalDevicesMenu.DropDownItems.Add(
-                new ToolStripMenuItem("(device discovery unavailable)") { Enabled = false });
-            return;
-        }
-
-        if (_physicalInventory.Count == 0)
-        {
-            _physicalDevicesMenu.DropDownItems.Add(
-                new ToolStripMenuItem("(no physical devices)") { Enabled = false });
-            return;
-        }
-
-        foreach (var entry in _physicalInventory)
-        {
-            if (entry.ConfiguredTarget is not { } target)
-            {
-                _physicalDevicesMenu.DropDownItems.Add(
-                    new ToolStripMenuItem("Detected Trofeo — not configured") { Enabled = false });
-                continue;
-            }
-
-            var enabled = target.DeviceEnabled;
-            var status = entry.Status.ToString();
-            var item = new ToolStripMenuItem($"{target.Name} — {status}")
-            {
-                Checked = enabled,
-                Enabled = enabled || PhysicalDeviceInventory.CanOfferEnable(entry),
-                ToolTipText = enabled
-                    ? "Disable USB output for this device"
-                    : "Enable USB output after explicit consent"
-            };
-            var id = target.Id;
-            item.Click += (_, _) => ChangePhysicalDeviceEnabled(id, !enabled);
-            _physicalDevicesMenu.DropDownItems.Add(item);
-
-            var remove = new ToolStripMenuItem($"Remove {target.Name}...")
-            {
-                Enabled = PhysicalDeviceRemovalPolicy.CanRemove(_config, id),
-                ToolTipText = _config.Outputs.Targets.Count > 1
-                    ? "Remove this saved physical Output after confirmation"
-                    : "The last Output cannot be removed"
-            };
-            remove.Click += (_, _) => RemovePhysicalDevice(id);
-            _physicalDevicesMenu.DropDownItems.Add(remove);
         }
     }
 
@@ -255,52 +200,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
-    private void RemovePhysicalDevice(string targetId)
-    {
-        try
-        {
-            // A confirmed removal changes configuration, not a dashboard file or USB binding.
-            var original = AppConfig.Load(AppConfigPath, _log);
-            var target = original.Outputs.Targets.SingleOrDefault(t =>
-                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
-                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
-                throw new InvalidOperationException("The physical Output is no longer configured.");
-            if (!PhysicalDeviceRemovalPolicy.CanRemove(original, targetId))
-                throw new InvalidOperationException("The last Output cannot be removed.");
-
-            var consent = MessageBox.Show(
-                $"Remove the saved physical Output '{target.Name}'?\n\n" +
-                "PinkieSysMon will stop using this device and remove ONLY this Output's " +
-                "configuration. Its dashboard files and all other Outputs will be kept.\n\n" +
-                "If the device stays attached, it will appear as not configured.\n\n" +
-                "Continue?",
-                "Remove physical Output",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button2);
-            if (consent != DialogResult.Yes)
-                return;
-
-            // Reload after confirmation so another writer's edits are not overwritten.
-            var config = AppConfig.Load(AppConfigPath, _log);
-            var selected = config.Outputs.Targets.SingleOrDefault(t =>
-                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
-                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
-            if (selected is null ||
-                !selected.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("The physical Output binding changed; nothing was removed.");
-            PhysicalDeviceRemovalPolicy.Remove(config, targetId);
-            SaveAndReloadPhysicalOutputChange(config);
-            _notifications.Show($"Removed physical Output '{target.Name}' ({target.Id}). Dashboard files were retained.");
-        }
-        catch (Exception ex)
-        {
-            _log.Error("Could not remove physical Output.", ex);
-            _notifications.Show($"Device removal failed for Output '{targetId}': {ex.Message}", RuntimeNotificationKind.Error);
-        }
-    }
-
     private void SaveAndReloadPhysicalOutputChange(AppConfig config)
     {
         // This established path reloads all persisted settings, so older completions
@@ -330,42 +229,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private void BuildTray()
     {
-        var menu = new ContextMenuStrip();
-        menu.Items.Add(_statusItem);
-        menu.Items.Add(new ToolStripSeparator());
-
-        var reload = new ToolStripMenuItem("Reload All");
-        reload.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StartOrReloadAll));
-        menu.Items.Add(reload);
-
-        var openLogs = new ToolStripMenuItem("Open Logs Folder");
-        openLogs.Click += (_, _) => OpenFolder(Path.Combine(_baseDir, "logs"));
-        menu.Items.Add(openLogs);
-
-        // Dashboard selection belongs to each Output, never a global tray switch.
-        _dashboardsMenu.Text = "Edit Output Dashboard";
-        _dashboardsMenu.DropDownOpening += (_, _) => RefreshDashboardMenuSafe();
-        menu.Items.Add(_dashboardsMenu);
-        RefreshDashboardMenuSafe();
-
-        _outputsMenu.DropDownItems.Add(new ToolStripMenuItem("(select to view Outputs)") { Enabled = false });
-        _outputsMenu.DropDownOpening += (_, _) => RefreshOutputMenu();
-        menu.Items.Add(_outputsMenu);
-
-        // An initial placeholder makes this a real drop-down before its first open.
-        _physicalDevicesMenu.DropDownItems.Add(
-            new ToolStripMenuItem("(select to scan devices)") { Enabled = false });
-        _physicalDevicesMenu.DropDownOpening += (_, _) => RefreshPhysicalDeviceMenu();
-        menu.Items.Add(_physicalDevicesMenu);
-
-        menu.Items.Add(new ToolStripSeparator());
-        var exit = new ToolStripMenuItem("Exit");
-        exit.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.Exit));
-        menu.Items.Add(exit);
-
+        _trayMenu.Menu.Opening += (_, e) => e.Cancel = _exiting || !RefreshTrayMenu();
         _trayIcon.Icon = _applicationIcon ?? SystemIcons.Application;
         _trayIcon.Text = "PinkieSysMon";
-        _trayIcon.ContextMenuStrip = menu;
+        _trayIcon.ContextMenuStrip = _trayMenu.Menu;
         _trayIcon.Visible = true;
     }
 
@@ -534,40 +401,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _telemetryConfig = snapshot.Telemetry;
         _boards = snapshot.Boards;
         _lastRequiredMetrics = _outputSessions.GetRequiredMetrics().ToHashSet(StringComparer.OrdinalIgnoreCase);
-        RefreshDashboardMenuSafe();
-    }
-
-    private void RefreshDashboardMenuSafe()
-    {
-        try
-        {
-            RefreshDashboardMenu();
-        }
-        catch (Exception ex)
-        {
-            // Tray menu discovery is derived UI state. Filesystem/menu failures are recoverable
-            // and must not misreport or roll back an otherwise consistent runtime configuration.
-            _log.Warn("Dashboard tray menu refresh failed.", ex);
-            foreach (var item in _dashboardsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
-                item.Dispose();
-            _dashboardsMenu.DropDownItems.Clear();
-            _dashboardsMenu.DropDownItems.Add(
-                new ToolStripMenuItem("(dashboard list unavailable)") { Enabled = false });
-        }
-    }
-
-    private void RefreshDashboardMenu()
-    {
-        foreach (var item in _dashboardsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
-            item.Dispose();
-        _dashboardsMenu.DropDownItems.Clear();
-        foreach (var target in _config.Outputs.Targets)
-        {
-            var board = target.Dashboard ?? string.Empty;
-            var item = new ToolStripMenuItem($"{target.Name} — {board}");
-            item.Click += (_, _) => OpenDashboardEditor(board);
-            _dashboardsMenu.DropDownItems.Add(item);
-        }
     }
 
     private void CommitTargetRuntimeConfiguration(AppConfig config)
@@ -580,7 +413,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _config = config;
         _boards = _outputSessions.GetDashboardAssignments();
-        RefreshDashboardMenuSafe();
     }
 
     private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
@@ -625,65 +457,36 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
-    private void RefreshOutputMenu()
+    private bool RefreshTrayMenu()
     {
-        foreach (var item in _outputsMenu.DropDownItems.Cast<ToolStripItem>().ToArray())
-            item.Dispose();
-        _outputsMenu.DropDownItems.Clear();
-        IReadOnlyList<string> dashboards;
-        try { dashboards = DashboardCatalog.Discover(_baseDir); }
+        try
+        {
+            var discoveryAvailable = RefreshPhysicalInventory();
+            var enableable = _physicalInventory
+                .Where(entry => discoveryAvailable && PhysicalDeviceInventory.CanOfferEnable(entry))
+                .Select(entry => entry.ConfiguredTarget!.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            IReadOnlyList<string> dashboards;
+            try { dashboards = DashboardCatalog.Discover(_baseDir); }
+            catch (Exception ex)
+            {
+                _log.Warn("Tray dashboard discovery failed; assignment choices unavailable.", ex);
+                dashboards = [];
+            }
+            var quality = _config.Outputs.Targets
+                .Where(target => target.Kind == OutputTargetContract.TrofeoKind)
+                .ToDictionary(target => target.Id,
+                    target => target.JpegQuality ?? _config.Renderer.JpegQuality,
+                    StringComparer.OrdinalIgnoreCase);
+            _trayMenu.RefreshOutputs(_outputSessions.GetStatuses(), dashboards, enableable, quality);
+            RefreshTrayStatus();
+            return true;
+        }
         catch (Exception ex)
         {
-            _log.Warn("Output tray dashboard discovery failed.", ex);
-            dashboards = [];
-        }
-        var statistics = _outputSessions.GetStatuses().ToDictionary(s => s.TargetId, StringComparer.OrdinalIgnoreCase);
-        foreach (var output in _outputControl.GetStatus().Outputs)
-        {
-            var item = new ToolStripMenuItem($"{output.TargetName} — {output.Kind}");
-            var assignment = new ToolStripMenuItem($"Dashboard: {output.Dashboard}") { Enabled = dashboards.Count > 0 };
-            foreach (var dashboard in dashboards)
-            {
-                var choice = new ToolStripMenuItem(dashboard)
-                {
-                    Checked = dashboard.Equals(output.Dashboard, StringComparison.OrdinalIgnoreCase)
-                };
-                choice.Click += (_, _) => ExecuteTrayOutputCommand(
-                    new(RuntimeIpcCommandKind.AssignDashboard, output.TargetId, Dashboard: dashboard));
-                assignment.DropDownItems.Add(choice);
-            }
-            item.DropDownItems.Add(assignment);
-            item.DropDownItems.Add(new ToolStripMenuItem($"State: {output.UsbState}") { Enabled = false });
-            item.DropDownItems.Add(new ToolStripMenuItem($"Provider Enabled: {output.ProviderEnabled}") { Enabled = false });
-            if (output.Kind == OutputTargetContract.DesktopKind)
-            {
-                var boardEnabled = new ToolStripMenuItem("Board Enabled") { Checked = output.BoardEnabled == true };
-                boardEnabled.Click += (_, _) => ExecuteTrayOutputCommand(
-                    new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, output.TargetId, Value: output.BoardEnabled != true));
-                var locked = new ToolStripMenuItem("Lock") { Checked = output.Lock == true };
-                locked.Click += (_, _) => ExecuteTrayOutputCommand(
-                    new(RuntimeIpcCommandKind.SetDesktopLock, output.TargetId, Value: output.Lock != true));
-                item.DropDownItems.Add(boardEnabled);
-                item.DropDownItems.Add(locked);
-                item.DropDownItems.Add(new ToolStripMenuItem($"Visible: {output.IsVisible}") { Enabled = false });
-            }
-            else
-                item.DropDownItems.Add(new ToolStripMenuItem($"Device Enabled: {output.DeviceEnabled}") { Enabled = false });
-            item.DropDownItems.Add(new ToolStripMenuItem($"Refresh interval: {output.RefreshIntervalMs} ms") { Enabled = false });
-            if (output.IsConnected && statistics.TryGetValue(output.TargetId, out var frame))
-            {
-                item.DropDownItems.Add(new ToolStripMenuItem($"Frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms") { Enabled = false });
-                if (output.Kind == OutputTargetContract.TrofeoKind)
-                    item.DropDownItems.Add(new ToolStripMenuItem($"JPEG: {frame.LastJpegBytes / 1024.0:F0} KiB") { Enabled = false });
-            }
-            item.DropDownItems.Add(new ToolStripSeparator());
-            var start = new ToolStripMenuItem("Start / Reload")
-            {
-                Enabled = RuntimeTrayOutputContract.CanStartOrReload(output)
-            };
-            start.Click += (_, _) => ExecuteTrayOutputCommand(new(RuntimeIpcCommandKind.StartOrReloadTarget, output.TargetId));
-            item.DropDownItems.Add(start);
-            _outputsMenu.DropDownItems.Add(item);
+            // A failed projection must not expose stale interactive Output entries.
+            _log.Warn("Runtime tray snapshot could not be refreshed; menu opening canceled.", ex);
+            return false;
         }
     }
 
@@ -691,23 +494,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         var status = _outputControl.GetStatus();
         _commandFeedback.Observe(status);
+        _trayMenu.Status.Text = RuntimeTrayOutputContract.Summary(status);
         var tooltip = RuntimeTrayOutputContract.Tooltip(status);
-        if (status.Outputs.Length == 1)
-        {
-            // Preserve the established single-Output diagnostics while resolving
-            // its board/type from the same per-Output control contract.
-            var output = status.Outputs[0];
-            var frame = _outputSessions.GetStatuses().Single();
-            var desktop = output.Kind == OutputTargetContract.DesktopKind;
-            _statusItem.Text = output.IsConnected
-                ? desktop
-                    ? $"{output.TargetName} displaying · {output.Dashboard} · frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms"
-                    : $"{output.TargetName} connected · {output.Dashboard} · frame {frame.SentFrames} · {frame.LastFrameMs:F1} ms · {frame.LastJpegBytes / 1024.0:F0} KiB"
-                : $"{output.TargetName} {output.UsbState.ToLowerInvariant()} · {output.Dashboard}";
-            tooltip = $"PinkieSysMon - {output.Dashboard}";
-        }
-        else
-            _statusItem.Text = RuntimeTrayOutputContract.Summary(status);
         _trayIcon.Text = tooltip.Length <= 63 ? tooltip : tooltip[..63];
     }
 
@@ -747,7 +535,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
-    private void OpenDashboardEditor(string dashboardName)
+    private void OpenDashboardEditor()
     {
         try
         {
@@ -762,8 +550,6 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             };
             startInfo.ArgumentList.Add("--root");
             startInfo.ArgumentList.Add(_baseDir);
-            startInfo.ArgumentList.Add("--dashboard");
-            startInfo.ArgumentList.Add(dashboardName);
             using var process = Process.Start(startInfo);
         }
         catch (Exception ex)
@@ -814,6 +600,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _notifications.Dispose();
         _uiInvoker.Dispose();
         _trayIcon.Visible = false;
+        _trayIcon.ContextMenuStrip = null;
+        _trayMenu.Dispose();
         _trayIcon.Dispose();
         _applicationIcon?.Dispose();
         _statusTimer.Dispose();

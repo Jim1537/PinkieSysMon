@@ -57,12 +57,14 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 ### Reload and choose the dashboard
 
 - In the Editor, choose **Output → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
-- In Runtime's tray menu, use **Outputs → &lt;Output name&gt; → Start / Reload**. The submenu reports its assignment, current state, Device Enabled and Provider Enabled.
-- Change assignment in **Settings → Device #N → Dashboard → OK**, or through **Outputs → &lt;Output&gt; → Dashboard: &lt;current name&gt;** in the tray. A tray assignment reloads an active session, preserves saved disabled state and respects global Runtime lifetime.
+- In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
+- Change assignment in **Settings → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
 The selected command's saved-input, inheritance, ownership and recovery boundaries are defined by the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload).
+
+The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only **Connected**, **Provider Enabled**, **Refresh interval**, **Frame count**, **Frame time**, **JPEG Size** and **JPEG Quality**. Connected describes Runtime transport, not passive Settings presence. Shared statistics/availability and root navigation are defined by [Architecture](../development/architecture.md#output-status-and-tray-control).
 
 [**Reload All**](../development/architecture.md#reload-all-saved-configuration) uses the shared common-settings contract, including Editor choices and possible partial results. A successful command with **WAITING** or **SUSPENDED** is not a claim that frames reached the display; consult [Runtime command feedback](../development/architecture.md#runtime-command-feedback).
 
@@ -70,15 +72,15 @@ The selected command's saved-input, inheritance, ownership and recovery boundari
 
 | Operation | Effect |
 | --- | --- |
-| Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The tray's **Physical Devices** entry also offers disabling. |
+| Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The configured device's tray **Enabled** switch also offers disabling. |
 | Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke saved enablement or remove its record. |
 | **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
 
-The Runtime tray's **Physical Devices** menu offers enable/disable for an explicitly configured device, with fresh presence checks and the same consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings.
+The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings.
 
-For removal, either use **Settings → Device #N → Remove → Yes → OK**, or **Physical Devices → Remove &lt;name&gt;…** in the tray and confirm. At least one configured Desktop or physical Output must remain. The Settings guard counts the combined configured draft, including adopted additions/removals on other tabs; an unsaved unadopted candidate does not count.
+For removal, use **Control Center → Edit → Settings… → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the combined configured draft, including adopted additions/removals on other tabs; an unsaved unadopted candidate does not count.
 
-An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening; the tray can show it as unconfigured. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
+An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
 !!! info "Saved enablement and global shutdown"
     Disabling the final Output leaves Runtime available for configuration. The global **Stop / Unload All Outputs** command requests Runtime shutdown without revoking saved enablement consent; a later normal Runtime launch starts all saved enabled Outputs. The [shared output-control contract](../development/architecture.md#output-status-and-tray-control) owns Enabled storage and lifecycle rules.
@@ -121,7 +123,7 @@ Provider descriptors and unavailable values are defined by the [Output metric ow
 
 `DeviceDiscovery` uses Windows Configuration Manager/PnP metadata without opening a WinUSB transport. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities, duplicate discovered bindings and duplicated verified fingerprints fail closed. A changed path is not rebound merely because an optional fingerprint matches.
 
-Runtime captures inventory at startup and successful configuration reload and refreshes it when the tray Physical Devices menu is opened. It retains the snapshot in memory, with no periodic scan or live Runtime hotplug subscription. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
+Runtime captures inventory at startup and successful configuration reload and refreshes it when the Runtime tray root menu is opened. It retains the snapshot in memory, with no periodic scan or live Runtime hotplug subscription. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
 
 The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates, removed bindings and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Add explicitly adopts a disabled candidate; a confirmed enabled transition also adopts it. A removed binding is suppressed within the dialog, while reopening can offer it as a new unsaved candidate.
 
@@ -129,7 +131,7 @@ The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_D
 
 The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
 
-The two detached Settings models form one transaction: physical edits preserve Desktop targets, Desktop edits preserve physical targets, and the final combined configured set cannot be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray uses `PhysicalDeviceRemovalPolicy` and the existing configuration-reload lifecycle for its saved physical changes; failed apply restores prior configuration and attempts live recovery rather than claiming an infallible rollback.
+The two detached Settings models form one transaction: physical edits preserve Desktop targets, Desktop edits preserve physical targets, and the final combined configured set cannot be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray has no removal command. Its current physical Enabled handler still validates all assignments, saves the application model and requests common configuration reload. This can apply saved common/sibling changes; failed apply attempts disk/live recovery. The [physical-enable transaction scope and recovery/concurrent-write limits](https://github.com/Jim1537/PinkieSysMon/issues/63#issuecomment-6176189720) are tracked separately.
 
 ### Session lifecycle and evidence limits
 
@@ -141,7 +143,7 @@ Transport retry, stale-generation rejection, cancellation, buffer lifetime and d
 
 | Contract | Sources and existing checks |
 | --- | --- |
-| Discovery and inventory | [DeviceDiscovery](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DeviceDiscovery.cs), [PhysicalDeviceInventory/removal policy](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PhysicalDeviceInventory.cs) |
+| Discovery and inventory | [DeviceDiscovery](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DeviceDiscovery.cs), [PhysicalDeviceInventory](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PhysicalDeviceInventory.cs) |
 | Settings and consent | [DeviceSettingsModel](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/DeviceSettingsModel.cs), [Device Settings UI](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorSettingsDialog.Devices.cs), [discovery/adoption/consent/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DeviceSettingsStage23Tests.cs) |
 | Configuration and assignment | [AppConfig/OutputTargetContract](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/AppConfig.cs), [configuration tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputConfigurationModelTests.cs), [assignment isolation tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputDashboardOwnershipTests.cs) |
 | Live session/control | [OutputSessionManager](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [Runtime tray/application](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs), [target-control checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/RuntimeConfigurationStage24Tests.cs), [Editor workflow checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/EditorOutputStartStage25Tests.cs) |

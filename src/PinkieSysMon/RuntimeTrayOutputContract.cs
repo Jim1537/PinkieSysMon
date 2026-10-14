@@ -1,9 +1,29 @@
+using System.Globalization;
+
 namespace PinkieSysMon;
 
 // Read-only presentation policy shared by the native tray and deterministic checks.
 internal static class RuntimeTrayOutputContract
 {
-    public static bool CanStartOrReload(RuntimeOutputStatus output) => output.OutputEnabled == true;
+    public static bool CanUseActions(bool? outputEnabled) => outputEnabled == true;
+
+    public static (string Count, string Time, string JpegKiB) FrameValues(OutputSessionStatus output)
+    {
+        var ready = output.Kind switch
+        {
+            OutputTargetContract.DesktopKind => output.IsVisible == true &&
+                output.UsbState.Equals("DISPLAYING", StringComparison.OrdinalIgnoreCase),
+            OutputTargetContract.TrofeoKind => output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+        if (!output.OutputEnabled || !output.IsActive || !output.IsConnected || !ready || output.SentFrames <= 0)
+            return ("N/A", "N/A", "N/A");
+        return (output.SentFrames.ToString(CultureInfo.InvariantCulture),
+            double.IsFinite(output.LastFrameMs) && output.LastFrameMs >= 0
+                ? output.LastFrameMs.ToString("F1", CultureInfo.InvariantCulture) : "N/A",
+            output.Kind == OutputTargetContract.TrofeoKind && output.LastJpegBytes > 0
+                ? (output.LastJpegBytes / 1024.0).ToString("F1", CultureInfo.InvariantCulture) : "N/A");
+    }
 
     public static string Summary(RuntimeStatusSnapshot status)
     {

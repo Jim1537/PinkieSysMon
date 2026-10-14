@@ -45,7 +45,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 
 ### Move a panel and set its stacking order
 
-1. Clear **Lock (click-through)** for the panel and apply with **OK**, or clear **Outputs → &lt;panel&gt; → Lock** in Runtime's tray menu.
+1. Clear **Lock (click-through)** for the panel and apply with **OK**, or clear **&lt;panel name&gt; → Lock** in Runtime's tray menu.
 2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
 3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
 
@@ -55,30 +55,37 @@ If a monitor disappears or a panel has too little visible area, Runtime recovers
 
 ### Show, hide and reload
 
-Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The submenu shows the assigned dashboard, state, visibility and refresh interval.
+Right-click Runtime's tray icon and choose the panel name directly below the **Desktop** heading. The heading is not a submenu. Use **Control Center** to open the Editor and its Settings.
 
-| Action | Result |
+| Submenu item, in order | Effect |
 | --- | --- |
-| Toggle **Board Enabled** off/on | Unload/hide or start/show this panel; preserve its assignment, Lock and provider setting. The switch is persisted. |
-| Toggle **Lock** | Change mouse pass-through for this panel; preserve Board Enabled and global Runtime lifetime. |
-| **Start / Reload** | Apply this panel's saved edits through the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload). |
+| **Enabled** | Persistently unload/hide or start/show this panel; preserve its assignment, Lock and provider setting. |
+| **Dashboard** | Choose a saved dashboard; the assigned choice is checked. |
+| **Reload** | Apply this panel's saved edits through the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload). |
+| **Lock** | Change native mouse pass-through; preserve enablement and global Runtime lifetime. |
+| **Provider Enabled** | Read-only publication setting; change it in Settings. |
+| **Refresh interval** | Read-only configured interval in ms. |
+| **Frame count** | Existing completed panel-frame count. |
+| **Frame time** | Existing measured completed-frame duration in ms. |
+
+When Enabled is off, the panel name and Enabled remain reachable; Dashboard, Reload and Lock are unavailable. The shared [tray projection contract](../development/architecture.md#output-status-and-tray-control) owns frame availability and provider-independent observations.
 
 The Editor offers target **Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
 
 !!! info "Disabling the final panel and global shutdown"
-    Turning **Board Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.
+    Turning **Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.
 
-Settings calls the tray's **Board Enabled** setting **Enabled**. Its shared storage and lifecycle rules are defined by [Architecture](../development/architecture.md#output-status-and-tray-control).
+Saved enablement storage and lifecycle rules are defined by [Architecture](../development/architecture.md#output-status-and-tray-control).
 
 ### Change the dashboard or load saved edits
 
 - **Settings:** select the panel and choose **Dashboard**, then **OK**.
-- **Runtime tray:** choose **Outputs → &lt;panel&gt; → Dashboard: &lt;current name&gt; → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload an active panel; a disabled panel remains disabled.
+- **Runtime tray:** choose **&lt;panel name&gt; → Dashboard → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload the enabled panel; enable a disabled panel before using this tray action.
 - **Editor:** use the selected Output's **Reload**. If its assignment differs from the open Editor document, choose **Use editor dashboard**, **Keep assigned dashboard**, or **Cancel**.
 
 **Save** writes a dashboard to disk. It does not silently replace any Runtime-loaded document. When prompted about unsaved edits, **Save** supplies the new saved content, **Don't Save** uses the last saved content while retaining the editing draft, and **Cancel** aborts the action. See the complete [Editor Reload workflow](../development/architecture.md#editor-output-reload), including all-target partial results.
 
-Two panels can use the same saved dashboard. Reload each panel that should receive changes; a target reload does not replace a sibling's loaded copy. The tray's **Edit Output Dashboard** command opens the assigned document for editing, rather than switching a global Runtime dashboard.
+Two panels can use the same saved dashboard. Reload each panel that should receive changes; a target reload does not replace a sibling's loaded copy. Open **Control Center**, then open the desired saved dashboard in the Editor; tray assignment does not edit its content.
 
 ### Remove a panel
 

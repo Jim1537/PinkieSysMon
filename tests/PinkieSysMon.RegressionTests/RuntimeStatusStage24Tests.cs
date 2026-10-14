@@ -84,7 +84,7 @@ internal static class RuntimeStatusStage24Tests
             var physical = status.Outputs.Single(o => o.TargetId == "device-b");
             Check(desktop.IsActive && !physical.IsActive,
                 "Normal startup must include eligible Desktop sessions and retain disabled physical policy.");
-            Check(RuntimeTrayOutputContract.CanStartOrReload(desktop) && !RuntimeTrayOutputContract.CanStartOrReload(physical),
+            Check(RuntimeTrayOutputContract.CanUseActions(desktop.OutputEnabled) && !RuntimeTrayOutputContract.CanUseActions(physical.OutputEnabled),
                 "Tray reload eligibility must follow canonical enablement independently of Provider Enabled.");
             Check(RuntimeTrayOutputContract.Summary(status) ==
                   "2 configured · 1 active · 1 Desktop visible · 0 devices connected",
@@ -94,7 +94,7 @@ internal static class RuntimeStatusStage24Tests
             manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desktop-a", false),
                 manager.GetDashboardAssignments());
             desktop = control.GetStatus().Outputs.Single(o => o.TargetId == "desktop-a");
-            Check(!RuntimeTrayOutputContract.CanStartOrReload(desktop) && !desktop.IsActive,
+            Check(!RuntimeTrayOutputContract.CanUseActions(desktop.OutputEnabled) && !desktop.IsActive,
                 "A disabled Desktop must deny reload instead of retaining an independent manual stopped state.");
         });
     }
