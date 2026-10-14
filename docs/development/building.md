@@ -92,6 +92,8 @@ until synchronization has been resolved explicitly.
 
 Run the build and regression checks again after synchronizing updated source.
 
+For the usual **sync → build → regressions** workflow, run `.\pull-build.ps1` from a clean working tree on the intended branch. This convenience wrapper uses fast-forward-only synchronization followed by `build.ps1 -Action End`: it **does not install, start, commit, or push** PinkieSysMon. It stops if synchronization or the Windows build/regression suite fails. For an explicitly requested local installation or portable release, run `.\build.ps1` separately and choose **Publish local** after successful tests.
+
 
 ### Local code signing
 

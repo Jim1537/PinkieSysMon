@@ -492,7 +492,7 @@ The System provider publishes application identity as the global `system.runtime
 
 | Field | Desktop | Trofeo | Base unit |
 | --- | --- | --- | --- |
-| `frame` | Yes (once Desktop rendering exists) | Yes | Count |
+| `frame` | Yes | Yes | Count |
 | `render.duration` | Yes | Yes | Milliseconds |
 | `frame.duration` | Yes | Yes | Milliseconds |
 | `fps` | Yes | Yes | Frames per second |
@@ -504,7 +504,7 @@ The System provider publishes application identity as the global `system.runtime
 
 Each configured Output registers its own dynamic metric-provider identity `system.output.<OutputId>`, independent of the global **System** provider switch, Libre Hardware Monitor and iCUE. The Editor selector shows branches `Outputs → <display name> [<OutputId>] → <field>` only when that Output's **Provider Enabled** switch is ON (default OFF). The display name may change without breaking saved metric IDs. Disabled providers are omitted from the selector, and existing widget references can appear as unavailable entries rather than being silently reassigned. Removing an Output withdraws its descriptors and invalidates its published values.
 
-**Provider Enabled does not enable a device or make a Desktop board visible.** An enabled provider can publish the passive `status` metric (for example `DISABLED`, `DESKTOP_PENDING`, `STOPPED`, `SUSPENDED`) from Runtime's existing session manager even when no session exists and no USB device has been opened. This is manager-observed state, **not** proof of connection or a probe. The `usb` metric remains a physical-only transport state. Dynamic FPS/frame counters are unavailable (`null`) while no frames are produced, and Desktop has no fictional USB/JPEG counters. The first Desktop renderer is scheduled for Stage 09.
+**Provider Enabled does not enable a device or make a Desktop board visible.** An enabled provider can publish the passive `status` metric (for example `DISABLED`, `DESKTOP_PENDING`, `STOPPED`, `SUSPENDED`) from Runtime's existing session manager even when no session exists and no USB device has been opened. This is manager-observed state, **not** proof of connection or a probe. The `usb` metric remains a physical-only transport state. Dynamic FPS/frame counters are unavailable (`null`) while no frames are produced, and Desktop has no fictional USB/JPEG counters.
 
 Active physical Outputs publish their independent frame measurements to the shared `MetricStore` at up to one batch per **1000 ms** on completed frames, plus state transitions. Only the Output's `ProviderEnabled` switch controls its own publication, independently of System. `DeviceEnabled` governs USB I/O separately; `Desktop.BoardEnabled` governs virtual rendering/visibility separately. Disabled, stopped, disconnected and disposed outputs invalidate unavailable frame measurements without clearing siblings. Possible transport states include `WAITING`, `CONNECTED`, `SUSPENDED`, `ERROR` and `AMBIGUOUS`.
 

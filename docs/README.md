@@ -10,7 +10,7 @@
   <a href="https://github.com/Jim1537/PinkieSysMon">Source on GitHub</a>
 </p>
 
-**Pinkie's System Monitor** is a fully local Windows application for building telemetry dashboards and displaying them on [supported USB devices](supported-devices.md). It includes a background **Runtime** and a separate **Dashboard Editor**.
+**Pinkie's System Monitor** is a fully local Windows application for building telemetry dashboards and displaying them on independent Windows Desktop panels or [supported USB devices](supported-devices.md). It includes a background **Runtime** and a separate **Dashboard Editor**.
 
 For tested Windows configurations see [Compatibility & Testing](compatibility.md); for known defects and outstanding work see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
 
@@ -19,7 +19,7 @@ For tested Windows configurations see [Compatibility & Testing](compatibility.md
 - Native dashboard rendering with visual layout editing, layers, groups, and Undo/Redo.
 - Flexible text, gauges, bars, images, and state-based widgets, including animated assets.
 - Customizable colors, images, thresholds, units, and text formatting.
-- Independent background Runtime with tray controls and dashboard switching.
+- Independent Desktop and physical-device Outputs with per-Output dashboard assignments and tray controls.
 - System telemetry plus optional external sensor providers.
 - Portable, self-contained Windows x64 distribution without cloud services.
 
@@ -54,14 +54,18 @@ In **Edit → Settings**, hover over the question-mark icon beside a parameter f
   </a>
 </p>
 
-## Runtime
+## Outputs and Runtime
 
-Runtime loads the selected dashboard, collects the required metrics, renders frames, and sends them to the configured device. The system tray provides output status, dashboard selection, and access to the Editor. Saving a dashboard in the Editor does not silently replace the already loaded Runtime document; apply or reload it explicitly.
+In **Edit → Settings**, use the **Desktop** page to create and configure independent Windows panels. Each panel has its own dashboard, visibility switch (**Board Enabled**), optional metric publication (**Provider Enabled**), refresh interval, position, and **Lock** setting for mouse click-through. Several Desktop panels can run simultaneously without USB hardware.
+
+For a supported physical display, use its **Device** page to select the assigned dashboard and configure it. **Device Enabled** is separate from **Provider Enabled** and requires explicit hardware-use consent. See [Trofeo Device Integration](development/devices/trofeo-vision-9.16.md#settings-and-device-ownership) for device identity and ownership rules.
+
+Runtime loads each active Output's assigned saved dashboard and collects the metrics it needs. Physical Outputs receive JPEG frames over USB; Desktop Outputs render through native layered Windows panels with per-pixel alpha support. The tray provides independent Output status and Start/Reload/Stop controls; the Editor can apply dashboard choices to individual Outputs. Saving a dashboard in the Editor does not silently replace the Runtime's loaded document; apply or reload it explicitly.
 
 ## System Requirements
 
 - 64-bit Windows; Windows 11 x64 is the primary tested platform. Compatible Windows 10 configurations depend on the .NET 10 Windows runtime requirements.
-- A [supported output device](supported-devices.md) for direct USB display output.
+- No extra display hardware for Desktop-only Outputs. A [supported device](supported-devices.md) is required only for direct USB output.
 - Optional Libre Hardware Monitor (local Remote Web Server) or Corsair iCUE (Sensor Logging) for their respective metrics.
 
 Published Runtime and Editor builds are self-contained and require no separate .NET Runtime installation.
