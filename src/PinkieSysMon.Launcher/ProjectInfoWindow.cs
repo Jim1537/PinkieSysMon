@@ -1,0 +1,343 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+
+namespace PinkieSysMon.Launcher;
+
+// This file is compiled by both the standalone Launcher and the Editor.
+// All product information and Advanced actions have one source of truth.
+internal static class ProjectPresentation
+{
+    public const string Title = "Pinkie's System Monitor";
+    public const string Description =
+        "Direct Skia dashboard editor and Windows monitor runtime for Desktop and supported physical Outputs.";
+    public const string Website = "https://jim1537.github.io/PinkieSysMon";
+
+    public const string LauncherExe = "PinkieSysMon.Launcher.exe";
+    public static readonly (string Name, string Arguments)[] Shortcuts =
+    [
+        ("Pinkie's System Monitor", ""),
+        ("PinkieSysMon Control Center", "--editor"),
+        ("PinkieSysMon Runtime", "--runtime")
+    ];
+}
+
+internal static class ProjectLauncherActions
+{
+    public static void Run(string root, string action)
+    {
+        var bin = Path.Combine(Path.GetFullPath(root), "bin");
+        if (action is "--runtime" or "--both")
+        {
+            // The existing Runtime has a machine-wide IPC/process identity. Do not
+            // start a duplicate when another instance already owns that identity.
+            var processes = Process.GetProcessesByName("PinkieSysMon");
+            try
+            {
+                if (processes.Length == 0)
+                    Start(Path.Combine(bin, "PinkieSysMon.exe"), bin);
+            }
+            finally
+            {
+                foreach (var process in processes)
+                    process.Dispose();
+            }
+        }
+
+        if (action is "--editor" or "--both")
+            Start(Path.Combine(bin, "PinkieSysMon.Editor.exe"), bin);
+
+        if (action is not ("--editor" or "--runtime" or "--both"))
+            throw new ArgumentException("Unknown launcher command.", nameof(action));
+    }
+
+    private static void Start(string executable, string workingDirectory)
+    {
+        if (!File.Exists(executable))
+            throw new FileNotFoundException("The portable application executable is missing.", executable);
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = workingDirectory,
+            UseShellExecute = true
+        }) ?? throw new InvalidOperationException("Windows did not start " + Path.GetFileName(executable) + ".");
+    }
+}
+
+internal static class ProjectShortcutInstaller
+{
+    internal static void Create(string root, bool startMenu, IWin32Window owner)
+    {
+        root = Path.GetFullPath(root);
+        var launcher = Path.Combine(root, ProjectPresentation.LauncherExe);
+        if (!File.Exists(launcher))
+            throw new FileNotFoundException("The portable Launcher is missing.", launcher);
+
+        var directory = startMenu
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "PinkieSysMon")
+            : Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        if (string.IsNullOrWhiteSpace(directory))
+            throw new InvalidOperationException("Windows did not provide the user shortcut directory.");
+
+        Directory.CreateDirectory(directory);
+        var shellType = Type.GetTypeFromProgID("WScript.Shell")
+            ?? throw new InvalidOperationException("Windows Script Host shortcut service is unavailable.");
+        var shell = Activator.CreateInstance(shellType)
+            ?? throw new InvalidOperationException("Could not create the Windows shortcut service.");
+
+        var created = 0;
+        var replaced = 0;
+        var unchanged = 0;
+        try
+        {
+            foreach (var (name, arguments) in ProjectPresentation.Shortcuts)
+            {
+                var path = Path.Combine(directory, name + ".lnk");
+                if (Directory.Exists(path))
+                    throw new IOException("The shortcut name is occupied by a directory: " + path);
+
+                dynamic link = ((dynamic)shell).CreateShortcut(path);
+                try
+                {
+                    var exists = File.Exists(path);
+                    if (exists &&
+                        SamePath((string)link.TargetPath, launcher) &&
+                        string.Equals(((string)link.Arguments).Trim(), arguments, StringComparison.OrdinalIgnoreCase) &&
+                        SamePath((string)link.WorkingDirectory, root) &&
+                        string.Equals((string)link.IconLocation, launcher + ",0", StringComparison.OrdinalIgnoreCase))
+                    {
+                        unchanged++;
+                        continue;
+                    }
+
+                    if (exists &&
+                        MessageBox.Show(owner,
+                            "An existing shortcut has a different target or settings:\n\n" +
+                            path + "\n\nReplace this shortcut?",
+                            "PinkieSysMon Shortcuts",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question,
+                            MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                        continue;
+
+                    link.TargetPath = launcher;
+                    link.Arguments = arguments;
+                    link.WorkingDirectory = root;
+                    link.IconLocation = launcher + ",0";
+                    link.Description = name;
+                    link.Save();
+                    if (exists) replaced++; else created++;
+                }
+                finally
+                {
+                    if (Marshal.IsComObject(link))
+                        Marshal.FinalReleaseComObject(link);
+                }
+            }
+        }
+        finally
+        {
+            if (Marshal.IsComObject(shell))
+                Marshal.FinalReleaseComObject(shell);
+        }
+
+        MessageBox.Show(owner,
+            $"Created: {created}\nUpdated: {replaced}\nAlready correct: {unchanged}\n\nLocation: {directory}",
+            "PinkieSysMon Shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static bool SamePath(string existing, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(existing))
+            return false;
+        try
+        {
+            return string.Equals(Path.GetFullPath(existing), Path.GetFullPath(expected),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+    }
+}
+
+internal sealed class ProjectInfoWindow : Form
+{
+    private readonly string _root;
+    private readonly int _baseHeight;
+    private readonly Panel _advanced;
+    private readonly Button _advancedToggle;
+    private bool _expanded;
+
+    public ProjectInfoWindow(string root, bool showLaunchButtons, string version)
+    {
+        _root = Path.GetFullPath(root);
+        Text = showLaunchButtons ? ProjectPresentation.Title : "About PinkieSysMon";
+        Font = new Font("Segoe UI", 9f);
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = showLaunchButtons;
+        StartPosition = showLaunchButtons ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
+        ClientSize = new Size(606, showLaunchButtons ? 298 : 231);
+        _baseHeight = ClientSize.Height;
+
+        try
+        {
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+        }
+        catch
+        {
+            Icon = SystemIcons.Application;
+        }
+
+        var heading = new Label
+        {
+            Text = ProjectPresentation.Title,
+            Font = new Font(Font.FontFamily, 16f, FontStyle.Bold),
+            Location = new Point(20, 14),
+            Size = new Size(558, 36)
+        };
+        Controls.Add(heading);
+
+        var versionLabel = new Label
+        {
+            Text = "Version " + version,
+            Location = new Point(21, 55),
+            Size = new Size(550, 20),
+            ForeColor = SystemColors.GrayText
+        };
+        Controls.Add(versionLabel);
+
+        Controls.Add(new Label
+        {
+            Text = ProjectPresentation.Description,
+            Location = new Point(21, 82),
+            Size = new Size(557, 40)
+        });
+
+        var website = new LinkLabel
+        {
+            Text = ProjectPresentation.Website,
+            Location = new Point(21, 129),
+            Size = new Size(560, 22),
+            TabStop = true
+        };
+        website.LinkClicked += (_, _) =>
+        {
+            try
+            {
+                using var process = Process.Start(new ProcessStartInfo(ProjectPresentation.Website)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Open Project Website",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        };
+        Controls.Add(website);
+
+        var launchY = 169;
+        if (showLaunchButtons)
+        {
+            var launchButtons = new (string Text, string Command)[]
+            {
+                ("Launch Control Center", "--editor"),
+                ("Launch Runtime", "--runtime"),
+                ("Launch Both", "--both")
+            };
+            for (var i = 0; i < launchButtons.Length; i++)
+            {
+                var (text, command) = launchButtons[i];
+                var button = new Button
+                {
+                    Text = text,
+                    Location = new Point(21 + i * 189, launchY),
+                    Size = new Size(181, 38),
+                    UseVisualStyleBackColor = true
+                };
+                button.Click += (_, _) =>
+                {
+                    try
+                    {
+                        ProjectLauncherActions.Run(_root, command);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, ex.Message, "PinkieSysMon Launcher",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                };
+                Controls.Add(button);
+            }
+        }
+
+        var advancedY = showLaunchButtons ? 226 : 169;
+        _advancedToggle = new Button
+        {
+            Text = "Advanced ▼",
+            TextAlign = ContentAlignment.MiddleLeft,
+            FlatStyle = FlatStyle.Flat,
+            Location = new Point(17, advancedY),
+            Size = new Size(565, 30)
+        };
+        _advancedToggle.FlatAppearance.BorderSize = 0;
+        _advancedToggle.Click += (_, _) => ToggleAdvanced();
+        Controls.Add(_advancedToggle);
+
+        _advanced = new Panel
+        {
+            Visible = false,
+            Location = new Point(21, advancedY + 32),
+            Size = new Size(560, 88)
+        };
+        var desktop = new Button
+        {
+            Text = "Create Desktop shortcuts",
+            Location = new Point(0, 6),
+            Size = new Size(263, 34)
+        };
+        var menu = new Button
+        {
+            Text = "Create Start Menu group",
+            Location = new Point(274, 6),
+            Size = new Size(263, 34)
+        };
+        desktop.Click += (_, _) => InstallShortcuts(startMenu: false);
+        menu.Click += (_, _) => InstallShortcuts(startMenu: true);
+        _advanced.Controls.Add(desktop);
+        _advanced.Controls.Add(menu);
+        Controls.Add(_advanced);
+    }
+
+    private void ToggleAdvanced()
+    {
+        _expanded = !_expanded;
+        _advanced.Visible = _expanded;
+        _advancedToggle.Text = _expanded ? "Advanced ▲" : "Advanced ▼";
+        ClientSize = new Size(ClientSize.Width, _baseHeight + (_expanded ? 72 : 0));
+    }
+
+    private void InstallShortcuts(bool startMenu)
+    {
+        try
+        {
+            ProjectShortcutInstaller.Create(_root, startMenu, this);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "PinkieSysMon Shortcuts",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+}

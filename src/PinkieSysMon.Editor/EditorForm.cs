@@ -18,6 +18,8 @@ using CanonicalStateContentType = PinkieSysMon.DashboardModel.StateContentType;
 using CanonicalImageAssetSourceType = PinkieSysMon.DashboardModel.ImageAssetSourceType;
 using CanonicalImageAssetPresentationDefinition = PinkieSysMon.DashboardModel.ImageAssetPresentationDefinition;
 
+using PinkieSysMon.Launcher;
+
 namespace PinkieSysMon.Editor;
 
 internal sealed partial class EditorForm : PinkieEditorForm
@@ -775,11 +777,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private void ShowAbout()
     {
         var version = typeof(EditorForm).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-        MessageBox.Show(
-            $"PinkieSysMon Dashboard Editor\nVersion {version}\n\nDirect Skia dashboard editor for the PinkieSysMon Trofeo display runtime.",
-            "About PinkieSysMon Editor",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        using var dialog = new ProjectInfoWindow(_root, showLaunchButtons: false, version);
+        dialog.ShowDialog(this);
     }
 
     private void UpdateStatusBar()

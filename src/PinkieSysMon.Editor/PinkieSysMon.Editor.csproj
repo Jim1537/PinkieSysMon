@@ -19,6 +19,10 @@
     <WindowsAppSdkUndockedRegFreeWinRTInitialize>false</WindowsAppSdkUndockedRegFreeWinRTInitialize>
   </PropertyGroup>
   <ItemGroup>
+    <!-- One canonical About/Launcher window source, compiled by both executables. -->
+    <Compile Include="..\PinkieSysMon.Launcher\ProjectInfoWindow.cs" Link="ProjectInfoWindow.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\PinkieSysMon\PinkieSysMon.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\PinkieSysMon\PinkieSysMon.ico')" Link="PinkieSysMon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

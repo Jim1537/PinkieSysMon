@@ -21,6 +21,7 @@ internal static class Program
     {
         var tests = new (string Name, Action Run)[]
         {
+            ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Telemetry provider failure isolation", TelemetryProviderFailureIsIsolated),
             ("Telemetry reconfiguration clears deactivated metrics", TelemetryReconfigurationClearsDeactivatedMetrics),
             ("Telemetry reconfiguration prepare/commit isolation", TelemetryReconfigurationPrepareCommitIsolation),

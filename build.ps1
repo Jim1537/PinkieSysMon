@@ -12,29 +12,19 @@ Set-StrictMode -Version 2.0
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $runtimeProject = Join-Path $root 'src\PinkieSysMon\PinkieSysMon.csproj'
 $editorProject = Join-Path $root 'src\PinkieSysMon.Editor\PinkieSysMon.Editor.csproj'
+$launcherProject = Join-Path $root 'src\PinkieSysMon.Launcher\PinkieSysMon.Launcher.csproj'
 $testsProject = Join-Path $root 'tests\PinkieSysMon.RegressionTests\PinkieSysMon.RegressionTests.csproj'
 $artifactsRoot = Join-Path $root 'artifacts'
 $publishOut = Join-Path $artifactsRoot 'publish'
 $testsOut = Join-Path $artifactsRoot 'tests'
+$launcherOut = Join-Path $artifactsRoot 'launcher'
+$launcherExe = Join-Path $launcherOut 'PinkieSysMon.Launcher.exe'
 $releaseRoot = Join-Path $root 'release'
 $releaseStageRoot = Join-Path $artifactsRoot 'portable-release'
 $releaseStageAppRoot = Join-Path $releaseStageRoot 'PinkieSysMon'
 $releaseTempZip = Join-Path $artifactsRoot 'portable-release.zip'
 $buildPropsPath = Join-Path $root 'Directory.Build.props'
 $signingTools = Join-Path $root 'tools\PinkieCodeSigning.ps1'
-
-$portableShortcutDefinitions = @(
-    [PSCustomObject]@{
-        Name = "Pinkie's System Monitor.lnk"
-        Target = 'PinkieSysMon.exe'
-        Description = "Pinkie's System Monitor"
-    },
-    [PSCustomObject]@{
-        Name = 'PinkieSysMon Dashboard Editor.lnk'
-        Target = 'PinkieSysMon.Editor.exe'
-        Description = 'PinkieSysMon Dashboard Editor'
-    }
-)
 
 function Invoke-External {
     param(
@@ -98,133 +88,6 @@ function Remove-UnsupportedPublishCultures {
         Write-Host 'Publish language cleanup: no non-English culture directories found.'
     } else {
         Write-Host "Publish language cleanup: removed $($removed.Count) non-English culture directories."
-    }
-}
-
-function Initialize-PortableShellLinkInterop {
-    if ('PinkieSysMon.Build.PortableShellLink' -as [type]) {
-        return
-    }
-
-    Add-Type -Language CSharp -TypeDefinition @'
-using System;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
-
-namespace PinkieSysMon.Build
-{
-    [ComImport]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    [Guid("000214F9-0000-0000-C000-000000000046")]
-    internal interface IShellLinkW
-    {
-        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszFile, int cch, IntPtr pfd, uint fFlags);
-        void GetIDList(out IntPtr ppidl);
-        void SetIDList(IntPtr pidl);
-        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszName, int cch);
-        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
-        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszDir, int cch);
-        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
-        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszArgs, int cch);
-        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
-        void GetHotkey(out short pwHotkey);
-        void SetHotkey(short wHotkey);
-        void GetShowCmd(out int piShowCmd);
-        void SetShowCmd(int iShowCmd);
-        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pszIconPath, int cch, out int piIcon);
-        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
-        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
-        void Resolve(IntPtr hwnd, uint fFlags);
-        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
-    }
-
-    [ComImport]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    [Guid("0000010B-0000-0000-C000-000000000046")]
-    internal interface IPersistFile
-    {
-        void GetClassID(out Guid pClassID);
-        [PreserveSig] int IsDirty();
-        void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, uint dwMode);
-        void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, bool fRemember);
-        void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
-        void GetCurFile([MarshalAs(UnmanagedType.LPWStr)] out string ppszFileName);
-    }
-
-    [ComImport]
-    [Guid("00021401-0000-0000-C000-000000000046")]
-    [ClassInterface(ClassInterfaceType.None)]
-    internal class ShellLink
-    {
-    }
-
-    public static class PortableShellLink
-    {
-        public static void Create(string shortcutPath, string targetPath, string description)
-        {
-            if (string.IsNullOrWhiteSpace(shortcutPath))
-                throw new ArgumentException("Shortcut path is required.", "shortcutPath");
-            if (string.IsNullOrWhiteSpace(targetPath))
-                throw new ArgumentException("Target path is required.", "targetPath");
-
-            string shortcutFullPath = Path.GetFullPath(shortcutPath);
-            string targetFullPath = Path.GetFullPath(targetPath);
-            string shortcutDirectory = Path.GetDirectoryName(shortcutFullPath);
-            if (string.IsNullOrEmpty(shortcutDirectory))
-                throw new InvalidOperationException("Shortcut path does not have a parent directory.");
-
-            Directory.CreateDirectory(shortcutDirectory);
-
-            object comObject = new ShellLink();
-            try
-            {
-                IShellLinkW shellLink = (IShellLinkW)comObject;
-                IPersistFile persistFile = (IPersistFile)comObject;
-
-                // Keep a normal absolute fallback, then ask Windows Shell to record
-                // the relationship relative to the .lnk file for portable moves.
-                shellLink.SetPath(targetFullPath);
-                shellLink.SetDescription(description ?? string.Empty);
-                shellLink.SetRelativePath(shortcutFullPath, 0);
-                persistFile.Save(shortcutFullPath, true);
-            }
-            finally
-            {
-                if (Marshal.IsComObject(comObject))
-                    Marshal.FinalReleaseComObject(comObject);
-            }
-        }
-    }
-}
-'@
-}
-
-function New-PortableShellLink {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ShortcutPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$TargetPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Description
-    )
-
-    if (-not (Test-Path -LiteralPath $TargetPath -PathType Leaf)) {
-        throw "Shortcut target does not exist: $TargetPath"
-    }
-
-    Initialize-PortableShellLinkInterop
-
-    [PinkieSysMon.Build.PortableShellLink]::Create(
-        [System.IO.Path]::GetFullPath($ShortcutPath),
-        [System.IO.Path]::GetFullPath($TargetPath),
-        $Description)
-
-    if (-not (Test-Path -LiteralPath $ShortcutPath -PathType Leaf)) {
-        throw "Shortcut was not created: $ShortcutPath"
     }
 }
 
@@ -370,8 +233,7 @@ function Assert-PortableReleaseStaging {
         'config\app.json',
         'LICENSE',
         'THIRD-PARTY-NOTICES.md',
-        "Pinkie's System Monitor.lnk",
-        'PinkieSysMon Dashboard Editor.lnk'
+        'PinkieSysMon.Launcher.exe'
     )
 
     foreach ($relative in $requiredFiles) {
@@ -446,12 +308,7 @@ function Prepare-PortableReleasePackage {
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $releaseStageAppRoot 'LICENSE') -Force
         Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.md') -Destination (Join-Path $releaseStageAppRoot 'THIRD-PARTY-NOTICES.md') -Force
 
-        foreach ($definition in $portableShortcutDefinitions) {
-            New-PortableShellLink `
-                -ShortcutPath (Join-Path $releaseStageAppRoot $definition.Name) `
-                -TargetPath (Join-Path (Join-Path $releaseStageAppRoot 'bin') $definition.Target) `
-                -Description $definition.Description
-        }
+        Copy-Item -LiteralPath $launcherExe -Destination (Join-Path $releaseStageAppRoot 'PinkieSysMon.Launcher.exe') -Force
 
         Assert-PortableReleaseStaging -AppRoot $releaseStageAppRoot
 
@@ -475,8 +332,7 @@ function Prepare-PortableReleasePackage {
                 'PinkieSysMon/config/app.json',
                 'PinkieSysMon/LICENSE',
                 'PinkieSysMon/THIRD-PARTY-NOTICES.md',
-                "PinkieSysMon/Pinkie's System Monitor.lnk",
-                'PinkieSysMon/PinkieSysMon Dashboard Editor.lnk'
+                'PinkieSysMon/PinkieSysMon.Launcher.exe'
             )) {
                 if ($required -notin $entries) {
                     throw "Portable release ZIP integrity check failed. Missing entry: $required"
@@ -548,6 +404,9 @@ function Commit-PortableReleasePackage {
 }
 
 function Assert-PublishPackage {
+    if (-not (Test-Path -LiteralPath $launcherExe -PathType Leaf)) {
+        throw "Published Launcher is missing: $launcherExe"
+    }
     $required = @(
         'PinkieSysMon.exe',
         'PinkieSysMon.dll',
@@ -564,7 +423,7 @@ function Assert-PublishPackage {
 }
 
 function Stop-PinkieProcesses {
-    $names = @('PinkieSysMon', 'PinkieSysMon.Editor')
+    $names = @('PinkieSysMon', 'PinkieSysMon.Editor', 'PinkieSysMon.Launcher')
     $running = @()
 
     foreach ($name in $names) {
@@ -635,6 +494,10 @@ function Publish-Local {
             Source = $publishOut
         },
         [PSCustomObject]@{
+            Relative = 'PinkieSysMon.Launcher.exe'
+            Source = $launcherExe
+        },
+        [PSCustomObject]@{
             Relative = 'assets\fonts\Roboto'
             Source = (Join-Path $root 'assets\fonts\Roboto')
         },
@@ -653,7 +516,12 @@ function Publish-Local {
         Write-Host "Preparing local deployment staging under $LocalRoot ..."
         foreach ($item in $managed) {
             $staged = Join-Path $stagingRoot $item.Relative
-            Copy-DirectoryContent -Source $item.Source -Destination $staged
+            if (Test-Path -LiteralPath $item.Source -PathType Leaf) {
+                New-Item -ItemType Directory -Path (Split-Path -Parent $staged) -Force | Out-Null
+                Copy-Item -LiteralPath $item.Source -Destination $staged -Force
+            } else {
+                Copy-DirectoryContent -Source $item.Source -Destination $staged
+            }
         }
 
         # Validate staging before touching the live managed paths.
@@ -664,12 +532,15 @@ function Publish-Local {
             }
         }
 
+        if (-not (Test-Path -LiteralPath (Join-Path $stagingRoot 'PinkieSysMon.Launcher.exe') -PathType Leaf)) {
+            throw 'Local deployment staging is incomplete. Missing root Launcher.'
+        }
+
         New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 
         Write-Host 'Replacing managed local product paths...'
         $activated = New-Object System.Collections.Generic.List[string]
         $backedUp = New-Object System.Collections.Generic.List[string]
-        $activatedShortcuts = New-Object System.Collections.Generic.List[string]
         $backedUpShortcuts = New-Object System.Collections.Generic.List[string]
 
         try {
@@ -704,24 +575,14 @@ function Publish-Local {
                 Write-Host 'Preserved existing config\app.json.'
             }
 
-            # Root launch shortcuts are developer-managed portable entry points.
-            # They deliberately stay inside the installation root; Publish local
-            # never creates Desktop or Start Menu shortcuts.
-            foreach ($definition in $portableShortcutDefinitions) {
-                $shortcutPath = Join-Path $LocalRoot $definition.Name
-                $shortcutBackup = Join-Path $backupRoot $definition.Name
-
-                if (Test-Path -LiteralPath $shortcutPath -PathType Leaf) {
-                    Move-Item -LiteralPath $shortcutPath -Destination $shortcutBackup -Force
-                    $backedUpShortcuts.Add($definition.Name)
+            # Retire the two obsolete root shortcuts without touching user-created
+            # Desktop/Start Menu links. Restore these paths on deployment rollback.
+            foreach ($name in @("Pinkie's System Monitor.lnk", 'PinkieSysMon Dashboard Editor.lnk')) {
+                $existingShortcut = Join-Path $LocalRoot $name
+                if (Test-Path -LiteralPath $existingShortcut -PathType Leaf) {
+                    Move-Item -LiteralPath $existingShortcut -Destination (Join-Path $backupRoot $name) -Force
+                    $backedUpShortcuts.Add($name)
                 }
-
-                $targetPath = Join-Path (Join-Path $LocalRoot 'bin') $definition.Target
-                New-PortableShellLink `
-                    -ShortcutPath $shortcutPath `
-                    -TargetPath $targetPath `
-                    -Description $definition.Description
-                $activatedShortcuts.Add($definition.Name)
             }
 
             foreach ($name in @('PinkieSysMon.exe', 'PinkieSysMon.dll', 'PinkieSysMon.Editor.exe', 'PinkieSysMon.Editor.dll')) {
@@ -731,18 +592,11 @@ function Publish-Local {
                 }
             }
 
-            foreach ($definition in $portableShortcutDefinitions) {
-                $shortcutPath = Join-Path $LocalRoot $definition.Name
-                if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
-                    throw "Local deployment verification failed. Missing shortcut: $shortcutPath"
-                }
+            if (-not (Test-Path -LiteralPath (Join-Path $LocalRoot 'PinkieSysMon.Launcher.exe') -PathType Leaf)) {
+                throw 'Local deployment verification failed. Root Launcher is missing.'
             }
         } catch {
             Write-Warning 'Local publish failed after deployment began. Rolling managed paths back.'
-
-            foreach ($name in @($activatedShortcuts)) {
-                Remove-Item -LiteralPath (Join-Path $LocalRoot $name) -Force -ErrorAction SilentlyContinue
-            }
 
             foreach ($name in @($backedUpShortcuts)) {
                 $backup = Join-Path $backupRoot $name
@@ -775,7 +629,7 @@ function Publish-Local {
         Write-Host "Updated: $LocalRoot\bin"
         Write-Host 'Updated public assets: Roboto + Lucide'
         Write-Host 'Updated public dashboard: Default'
-        Write-Host "Updated root launch shortcuts: $($portableShortcutDefinitions.Name -join ', ')"
+        Write-Host 'Installed root PinkieSysMon.Launcher.exe; retired obsolete root .lnk files.'
         Write-Host 'Desktop / Start Menu shortcuts: not created'
         Write-Host 'Preserved: config, PinkiePie_Vertical, private/local assets, logs'
         Write-Host 'Application was left stopped.'
@@ -1072,7 +926,7 @@ if (-not (Test-Path -LiteralPath $signingTools -PathType Leaf)) {
 }
 . $signingTools
 
-foreach ($project in @($runtimeProject, $editorProject, $testsProject)) {
+foreach ($project in @($runtimeProject, $editorProject, $launcherProject, $testsProject)) {
     if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
         throw "Required project is missing: $project"
     }
@@ -1099,9 +953,18 @@ try {
     Write-Host 'Publishing PinkieSysMon Dashboard Editor...'
     Invoke-External dotnet 'publish' $editorProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $publishOut $resolvedVersionArgument
 
+    Write-Host ''
+    Write-Host 'Publishing single-file portable Launcher...'
+    Invoke-External dotnet 'publish' $launcherProject '-c' 'Release' '-r' 'win-x64' '--self-contained' 'true' '-o' $launcherOut $resolvedVersionArgument
+
     Remove-UnsupportedPublishCultures
     Assert-PublishPackage
     Assert-PinkiePublishedVersion -ExpectedVersion $buildIdentity.Version
+    $launcherVersion = (Get-Item -LiteralPath $launcherExe).VersionInfo
+    $actualLauncherVersion = "$($launcherVersion.FileMajorPart).$($launcherVersion.FileMinorPart).$($launcherVersion.FileBuildPart).$($launcherVersion.FilePrivatePart)"
+    if ($actualLauncherVersion -ne "$($buildIdentity.Version).0") {
+        throw "Launcher FileVersion mismatch: expected $($buildIdentity.Version).0, got $actualLauncherVersion"
+    }
 
     Write-Host ''
     Write-Host 'Applying Windows application identity / Authenticode signing...'
@@ -1122,7 +985,8 @@ try {
             (Join-Path $publishOut 'PinkieSysMon.exe'),
             (Join-Path $publishOut 'PinkieSysMon.dll'),
             (Join-Path $publishOut 'PinkieSysMon.Editor.exe'),
-            (Join-Path $publishOut 'PinkieSysMon.Editor.dll')
+            (Join-Path $publishOut 'PinkieSysMon.Editor.dll'),
+            $launcherExe
         )
 
         try {

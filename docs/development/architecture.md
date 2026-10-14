@@ -2,14 +2,17 @@
 
 ## Process and assembly boundaries
 
-There are two independent Windows processes:
+There are two primary application processes and an optional standalone Launcher process:
 
 | Boundary | Ownership |
 | --- | --- |
 | **Runtime** (`src/PinkieSysMon/`) | Application lifetime, telemetry scheduling, metric snapshots, live output sessions, and the local control endpoint. `PinkieApplicationContext` coordinates these services. |
 | **Dashboard Editor** (`src/PinkieSysMon.Editor/`) | Interactive document editing, Editor-only metadata, preview state, and the client side of Runtime control. `EditorForm` coordinates these services. |
+| **Launcher** (`src/PinkieSysMon.Launcher/`) | Optional portable entry point; resolves `bin/` Runtime and Editor from its current application root. Launch buttons and user-requested shortcut installation are independent of telemetry and dashboard state. |
 
-Both processes use classes from `PinkieSysMon.dll`. **The shared assembly is not a shared process or shared memory:** Editor and Runtime instantiate separate dashboards, metric sources, renderers, and caches. The Editor project references the published Runtime assembly, rather than a third shared-class-library project. See [Editor project configuration](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/PinkieSysMon.Editor.csproj).
+The Launcher has no dependency on the application implementation assembly. Its `ProjectInfoWindow.cs` is a single canonical **source file** compiled into both Launcher and Editor, giving the Launcher and the Editor About command the same text, link, expandable Advanced area, and shortcut maintenance; only the three launch buttons are omitted in About mode. This source sharing does not create a shared process or IPC endpoint.
+
+Both primary application processes use classes from `PinkieSysMon.dll`. **The shared assembly is not a shared process or shared memory:** Editor and Runtime instantiate separate dashboards, metric sources, renderers, and caches. The Editor project references the published Runtime assembly, rather than a third shared-class-library project. See [Editor project configuration](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/PinkieSysMon.Editor.csproj).
 
 ## System topology
 
