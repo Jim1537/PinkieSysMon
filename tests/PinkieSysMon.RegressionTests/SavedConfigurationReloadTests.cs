@@ -229,6 +229,11 @@ internal static class SavedConfigurationReloadTests
     public static void GlobalLifetimeSuspensionAndWire()
     {
         using var f = new Fixture();
+        var initial = f.Control.GetStatus();
+        Check(initial.Outputs.Single(o => o.TargetId == "c") is { IsConnected: true, UsbState: "CONNECTED" } &&
+              initial.Outputs.Where(o => o.Kind == OutputTargetContract.DesktopKind && o.OutputEnabled == true)
+                  .All(o => o.IsVisible == true && o.UsbState == "DISPLAYING"),
+            "The mixed fixture must distinguish physical transport readiness from Desktop presentation readiness.");
         f.Manager.Suspend();
         f.Board("Same", 610, Left);
         var response = f.ReloadObserved();
@@ -237,9 +242,17 @@ internal static class SavedConfigurationReloadTests
               f.Events.Single() == RuntimeNotificationKind.Warning && f.Created.Count == 3,
             "The established All wire command must apply saved configuration while preserving real suspension, zero demand and honest pending readiness.");
         f.Manager.Resume();
-        f.Feedback.Observe(f.Control.GetStatus());
+        var resumed = f.Control.GetStatus();
+        // Desktop readiness alone cannot complete All while a physical transport waits.
+        f.Feedback.Observe(resumed with { Outputs = resumed.Outputs.Select(o => o.TargetId == "c"
+            ? o with { IsConnected = false, UsbState = "WAITING" } : o).ToArray() });
+        Check(f.Events.Count == 1,
+            "Aggregate readiness must remain pending until the enabled physical transport is ready too.");
+        f.Feedback.Observe(resumed);
         Check(f.Events.Count == 2 && f.Events[^1] == RuntimeNotificationKind.Information,
             "Readiness completion must follow observed resume rather than command acknowledgement.");
+        f.Feedback.Observe(resumed);
+        Check(f.Events.Count == 2, "Repeated ready snapshots must not duplicate the terminal All notification.");
         var session = f.Session("a");
         f.Manager.StopAll();
         var commits = session.Commits;
@@ -366,7 +379,8 @@ internal static class SavedConfigurationReloadTests
         public long SentFrames => 0;
         public double LastFrameMs => 0;
         public int LastJpegBytes => 0;
-        public string UsbState => _suspended ? "SUSPENDED" : IsConnected ? "DISPLAYING" : "STOPPED";
+        public string UsbState => _suspended ? "SUSPENDED" : !IsConnected ? "STOPPED" :
+            Target.Kind == OutputTargetContract.DesktopKind ? "DISPLAYING" : "CONNECTED";
         public void Start()
         {
             _started = true;
