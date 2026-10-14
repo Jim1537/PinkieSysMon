@@ -12,7 +12,7 @@ Open the Dashboard Editor and open an existing dashboard, such as `Default`, or 
 
 Select **Canvas** in the Editor to configure [Width](../widgets/properties.md#width), [Height](../widgets/properties.md#height), [Orientation](../widgets/properties.md#orientation) and [Background Color](../widgets/properties.md#background-color). These properties determine the panel's size and appearance; the panel has no resize border. A 90° or 270° orientation exchanges the displayed width and height.
 
-Transparent Canvas, image and widget pixels remain transparent on the Windows desktop. An opaque Canvas remains opaque. Use the [image-layer properties](../widgets/properties-by-tab.md#image) for artwork and opacity; **Lock** changes mouse behavior, not transparency.
+Transparent Canvas, image and widget pixels remain transparent on the Windows desktop. An opaque Canvas remains opaque. Use the [image-layer properties](../widgets/properties-by-tab.md#image) for artwork and opacity; **Lock** changes mouse behavior, not transparency. See the [native alpha implementation](#session-and-native-alpha-presentation).
 
 ### Step 2. Create and configure the panel
 
@@ -103,7 +103,7 @@ At least one **configured Output** must remain, counting Desktop and physical Ou
 
 ### Configuration and detached editing
 
-Desktop records live under `Outputs.Targets` in local `config/app.json`. They use `Kind = desktop`, `Transport = desktop`, and a `Desktop` object:
+The [panel creation procedure](#step-2-create-and-configure-the-panel) edits these records. Desktop records live under `Outputs.Targets` in local `config/app.json`. They use `Kind = desktop`, `Transport = desktop`, and a `Desktop` object:
 
 | Fields | Responsibility |
 | --- | --- |
@@ -121,7 +121,7 @@ Desktop records live under `Outputs.Targets` in local `config/app.json`. They us
 
 `OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`; its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
 
-The session consumes the canonical renderer's [logical BGRA frame](../development/architecture.md#runtime-output-ownership). `DesktopLayeredSurface` copies premultiplied BGRA8888 rows into a reusable top-down 32-bit GDI DIB. `UpdateLayeredWindow` uses `ULW_ALPHA` and `AC_SRC_ALPHA` for native per-pixel compositing. There is no JPEG conversion or opaque-black flattening in this presentation path; the [Trofeo wire path](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remains separate.
+The session consumes the canonical renderer's [logical BGRA frame](../development/architecture.md#runtime-output-ownership). `DesktopLayeredSurface` copies premultiplied BGRA8888 rows, retaining Canvas `#AARRGGBB` color alpha and image/widget alpha, into a reusable top-down 32-bit GDI DIB. `UpdateLayeredWindow` uses `ULW_ALPHA` and `AC_SRC_ALPHA` for native per-pixel compositing. There is no JPEG conversion or opaque-black flattening in this presentation path; the [Trofeo wire path](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remains separate.
 
 The session disposes each caller-owned rendered frame after presentation. The window owns its DIB/DC, refresh/move timers and display-change subscription and releases them on disposal; the session releases its renderer and invalidates its own metrics. Prepared renderer replacements retain ownership until commit, so failed preparation/configuration can be cleaned up or rolled back without adopting a sibling's renderer.
 

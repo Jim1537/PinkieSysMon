@@ -27,7 +27,7 @@ Open **Edit → Settings…**. After **General** and **Desktop**, **Device #1**,
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Add are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Add are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
 
-Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport.
+Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport. See the [inventory mechanism](#passive-inventory-and-explicit-adoption).
 
 ### Step 3. Configure and adopt the Output
 
@@ -71,11 +71,11 @@ Runtime uses saved dashboard content. Saving an Editor document alone does not r
 | **Stop / Unload Output** under Editor **Output** or tray **Outputs** | Stop that live session; retain its assignment, saved record and Device Enabled value. An enabled Output can restart on a later normal Runtime launch. |
 | Turn **Device Enabled** off | Persistently prevent hardware output. Use an editable connected Device tab and OK, or the tray's **Physical Devices** entry. |
 | Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke Device Enabled or remove its record. |
-| **Remove** and confirm | Delete the selected Output record, stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
+| **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
 
 The Runtime tray's **Physical Devices** menu offers enable/disable for an explicitly configured device, with fresh presence checks and the same consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings.
 
-For removal, either use **Settings → Device #N → Remove → Yes → OK**, or **Physical Devices → Remove &lt;name&gt;…** in the tray and confirm. At least one configured Desktop or physical Output must remain. The Settings guard counts the combined draft, including additions/removals on other tabs.
+For removal, either use **Settings → Device #N → Remove → Yes → OK**, or **Physical Devices → Remove &lt;name&gt;…** in the tray and confirm. At least one configured Desktop or physical Output must remain. The Settings guard counts the combined configured draft, including adopted additions/removals on other tabs; an unsaved unadopted candidate does not count.
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening; the tray can show it as unconfigured. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
@@ -126,7 +126,7 @@ The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_D
 
 ### Draft validation and application
 
-`DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
+The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
 
 The two detached Settings models form one transaction: physical edits preserve Desktop targets, Desktop edits preserve physical targets, and the final combined configured set cannot be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray uses `PhysicalDeviceRemovalPolicy` and the existing configuration-reload lifecycle for its saved physical changes; failed apply restores prior configuration and attempts live recovery rather than claiming an infallible rollback.
 
@@ -145,4 +145,4 @@ Transport retry, stale-generation rejection, cancellation, buffer lifetime and d
 | Configuration and assignment | [AppConfig/OutputTargetContract](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/AppConfig.cs), [configuration tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputConfigurationModelTests.cs), [assignment isolation tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputDashboardOwnershipTests.cs) |
 | Live session/control | [OutputSessionManager](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [Runtime tray/application](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs), [target-control checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/RuntimeConfigurationStage24Tests.cs), [Editor workflow checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/EditorOutputStartStage25Tests.cs) |
 
-These source/regression contracts do not establish compatibility with additional hardware or a new real-device PASS. Current investigations and acceptance remain in [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues); this guide does not require reopening retired hardware acceptance tasks.
+These source/regression contracts do not establish compatibility with additional hardware or a new real-device PASS. Current investigations and acceptance remain in [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).

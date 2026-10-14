@@ -16,9 +16,9 @@ Open a dashboard in **PinkieSysMon Dashboard Editor** and choose `Gauge` from `A
 Select the new widget on the Canvas to edit its properties.
 
 !!! info
-    A new Gauge starts at 200 × 200, with `Metric = system.runtime.fps`, `Min = 0`, `Max = 100`, `Start Angle = 30`, and `End Angle = 330`.
+    A new Gauge starts at 200 × 200, with the first configured Output’s FPS metric (`system.output.<OutputId>.fps`), `Min = 0`, `Max = 100`, `Start Angle = 30`, and `End Angle = 330`.
 
-    Its track is enabled with a thickness of 20 and a translucent background. The needle is disabled by default. These are starting values, not requirements for your own dashboard.
+    Its track is enabled with a thickness of 20 and a translucent background. The needle is disabled by default. These are starting values, not requirements for your own dashboard. Output FPS availability follows the [Output provider contract](../telemetry/system.md#runtime-and-output-performance-metrics).
 
 
 ### Step 2. Select a numeric metric

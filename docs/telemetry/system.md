@@ -9,9 +9,7 @@ The provider does not require any third-party software to be installed or config
 
 ### Step 1
 
-[![system_settings_001.png](../images/system_settings_001.png)](../images/system_settings_001.png)
-
-In Pinkie's System Monitor settings, make sure the `System` provider is enabled under Metric providers.
+In **Edit → Settings… → General**, make sure **System** is enabled under **Metric providers**.
 
 !!! info
     The `System` provider is enabled by default and normally requires no additional setup.
@@ -19,7 +17,7 @@ In Pinkie's System Monitor settings, make sure the `System` provider is enabled 
     It does not require any external applications, services, log directories, network ports, or other parameters.
 
 
-If Runtime is already running and the provider state has been changed, apply the new settings through `Output → Start / Reload`.
+Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
 
 
 ### Done
@@ -71,7 +69,6 @@ The System provider combines the following sources:
 | Windows network | `WindowsNetworkTelemetrySource` | `5000 ms` | Internet connectivity state |
 | Windows power | `WindowsPowerTelemetrySource` | `5000 ms` | UPS and battery telemetry |
 | Windows media | `WindowsMediaTelemetrySource` | `1000 ms` | Default audio endpoints and media playback |
-| Runtime metrics | `FramePump` / output-session path | `1000 ms` publication interval | Pinkie's System Monitor runtime and output statistics |
 
 All four `IMetricSource` implementations are registered as separate telemetry sources but share:
 
@@ -79,7 +76,7 @@ All four `IMetricSource` implementations are registered as separate telemetry so
 
 `system.runtime.version` and `system.output.<OutputId>.*` metrics are exceptions: they bypass regular `IMetricSource` scheduling. Active output sessions publish only their own Output-scoped counters; application version is global.
 
-Provider enablement controls publication and scheduling of these metrics as a single user-facing category.
+The global System switch governs the four scheduled sources and application-version publication. Independent per-Output providers follow the [Output publication contract](#runtime-and-output-performance-metrics).
 
 The internal System source objects are created when Runtime or Editor starts regardless of the checkbox state. Provider enablement is therefore primarily a telemetry scheduling and publication boundary rather than a mechanism for conditionally loading the source classes.
 
@@ -103,7 +100,9 @@ Primary metric families:
 - `system.network.*`
 - `system.power.*`
 - `system.media.*`
-- `system.runtime.version` (application identity) and `system.output.<OutputId>.*` (per-output performance)
+- `system.runtime.version` (application identity)
+
+Output-scoped descriptors are registered dynamically from configured Outputs; see [Runtime and Output Performance Metrics](#runtime-and-output-performance-metrics).
 
 Metric IDs are part of the persistent dashboard contract and must not be renamed without an intentional compatibility change.
 
@@ -529,7 +528,7 @@ The minimum telemetry interval allowed by the shared telemetry configuration is:
 
   `100 ms`
 
-`system.runtime.version` and `system.output.<OutputId>.*` metrics are exceptions to this mechanism. They are published directly by the output session and are not controlled by individual `telemetry.json` entries.
+`system.runtime.version` and `system.output.<OutputId>.*` metrics are exceptions to this mechanism. Application identity is published by Runtime coordination at startup/reconfiguration; Output readings use the session/manager publication path. Neither is controlled by individual `telemetry.json` entries.
 
 
 ### Availability and Failure Isolation

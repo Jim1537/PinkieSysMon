@@ -46,11 +46,9 @@ Let the system run for a couple of minutes, then verify that Sensor Logging CSV 
 
 ### Step 4
 
-[![icue_settings_004.png](../images/icue_settings_004.png)](../images/icue_settings_004.png)
+In **Edit → Settings… → General → Metric providers**, enable **iCUE**.
 
-Enable the iCUE metric provider in Pinkie's System Monitor settings.
-
-If Runtime is already running, apply the changed settings through `Output → Start / Reload`.
+Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
 
 !!! info
     When the provider is disabled, Pinkie's System Monitor does not poll the iCUE provider or process its metrics, avoiding unnecessary system load.
@@ -83,7 +81,7 @@ The current implementation is provided by `IcueSensorLogTelemetrySource`.
 - Default polling interval: `1000 ms`
 - Default provider state: disabled
 
-The provider is registered in both Runtime and Dashboard Editor. Its enabled state is stored in `AppConfig.MetricProviders` under the `icue` key. Runtime scheduling only includes iCUE metrics when the provider is enabled and the active dashboard actually requires those metrics.
+The provider is registered in both Runtime and Dashboard Editor. Its enabled state is stored in `AppConfig.MetricProviders` under the `icue` key. Runtime schedules iCUE metrics according to the shared [active-Output demand](../development/architecture.md#runtime-data-path).
 
 The provider's dynamic metric IDs remain resolvable through `CanProvide()` even when no current iCUE catalog is available. This allows dashboards and configuration containing existing `icue.*` metric IDs to remain structurally valid while the external data source is temporarily unavailable.
 
@@ -275,7 +273,7 @@ When the iCUE provider is enabled:
 
 If iCUE discovery fails while opening the selector, the selector remains usable. Existing iCUE metric selections are left unchanged and are reported as unavailable rather than being removed.
 
-Changing the provider setting in the Editor immediately updates the Editor-side configuration and preview snapshot. A running Runtime process must reload its configuration before the provider change affects Runtime scheduling.
+Provider changes follow the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply); Editor preview and Runtime remain separate consumers.
 
 ### Log Retention and Cleanup
 

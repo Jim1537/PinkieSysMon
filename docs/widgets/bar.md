@@ -19,9 +19,9 @@ The Bar widget does not print the numeric value or unit as text. To display a re
 Open a dashboard in **PinkieSysMon Dashboard Editor**, then choose `Bar` from `Add Widget` or the `Add widget` toolbar menu. Select the widget on the Canvas to edit its properties.
 
 !!! info
-    A new Bar starts with `Width = 300`, `Height = 20`, `Metric = system.runtime.fps`, `Min = 0`, `Max = 100`, and `Mode = Fill`.
+    A new Bar starts with `Width = 300`, `Height = 20`, the first configured Output’s FPS metric (`system.output.<OutputId>.fps`), `Min = 0`, `Max = 100`, and `Mode = Fill`.
 
-    These defaults demonstrate the widget; choose the metric, range, and appearance appropriate for your dashboard.
+    These defaults demonstrate the widget; choose the metric, range, and appearance appropriate for your dashboard. Output FPS availability follows the [Output provider contract](../telemetry/system.md#runtime-and-output-performance-metrics).
 
 
 ### Step 2. Select a numeric metric

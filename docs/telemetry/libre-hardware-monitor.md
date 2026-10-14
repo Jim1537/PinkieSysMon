@@ -56,11 +56,9 @@ Remote Web Server authentication must remain disabled.
 ---
 ### Step 4
 
-[![lhm_settings_004.png](../images/lhm_settings_004.png)](../images/lhm_settings_004.png)
+In **Edit → Settings… → General → Metric providers**, enable **LibreHardwareMonitor**.
 
-In Pinkie's System Monitor settings, enable the LibreHardwareMonitor metric provider.
-
-If Runtime is already running, apply the changed settings through `Output → Start / Reload`.
+Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
 
 !!! info
     When the provider is disabled, Pinkie's System Monitor does not poll Libre Hardware Monitor and does not include its metrics in the active telemetry schedule.
@@ -397,7 +395,7 @@ An old value is not kept published indefinitely after LHM or a sensor disappears
 
 The shared scheduling eligibility and metric-deactivation rules belong to [Application Architecture → Runtime data path](../development/architecture.md#runtime-data-path).
 
-For **`lhm`**, Runtime requests only the current dashboard's sensor metrics from the enabled provider, not the entire dynamically discovered catalog.
+For **`lhm`**, Runtime requests LHM sensor identities selected by the shared active-Output demand, not the entire dynamically discovered catalog.
 
 The provider default polling interval is:
 
