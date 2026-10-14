@@ -73,3 +73,7 @@ For the shared Runtime/Editor document boundary, telemetry demand and control pa
 Published Runtime and Editor builds are self-contained and require no separate .NET Runtime installation.
 
 PinkieSysMon was developed through [AI-assisted vibe coding](development/vibe-coding.md). It is an independent fan-made project, not affiliated with or endorsed by Hasbro. Source code is released under the [MIT License](https://github.com/Jim1537/PinkieSysMon/blob/main/LICENSE).
+
+## Project Awards and Certification
+
+![GitHub Bureaucracy Slayer — Community Standards: 100%](images/github-bureaucracy-slayer.png)
