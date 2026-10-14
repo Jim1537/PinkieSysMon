@@ -222,7 +222,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     {
         Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList
     };
-    private readonly CheckBox _boardEnabled = new() { Text = "Board Enabled", AutoSize = true };
+    private readonly CheckBox _boardEnabled = new() { Text = EditorSettingsHelp.OutputEnabledCaption, AutoSize = true };
     private readonly CheckBox _providerEnabled = new() { Text = "Provider Enabled", AutoSize = true };
     private readonly CheckBox _desktopLock = new() { Text = "Lock (click-through)", AutoSize = true };
     private readonly NumericUpDown _desktopInterval = new()
@@ -605,7 +605,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
                 !_desktopDashboard.Items.Cast<string>().Contains(dashboard, StringComparer.OrdinalIgnoreCase))
                 _desktopDashboard.Items.Add(dashboard);
             _desktopDashboard.SelectedItem = dashboard;
-            _boardEnabled.Checked = target?.Desktop?.BoardEnabled ?? false;
+            _boardEnabled.Checked = target is not null && OutputTargetContract.IsEnabled(target);
             _providerEnabled.Checked = target?.ProviderEnabled ?? false;
             _desktopLock.Checked = target?.Desktop?.Lock ?? false;
             _desktopInterval.Value = target?.RefreshIntervalMs ?? 1000;
@@ -629,7 +629,7 @@ internal static class EditorDialogs
     {
         using var dialog = new Form
         {
-            Text = "Start / Reload Output",
+            Text = "Reload Output",
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
             MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false,

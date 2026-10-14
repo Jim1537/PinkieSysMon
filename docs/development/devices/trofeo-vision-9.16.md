@@ -41,7 +41,7 @@ The common [physical Output guide](../../outputs/physical_devices.md#passive-inv
 
 ## Settings and device ownership
 
-Device tab states, adoption/consent, independent Device Enabled/Provider Enabled, removal and recovery are now maintained in [Physical Devices](../../outputs/physical_devices.md#user-guide). The shared [Settings save/apply transaction](../architecture.md#settings-save-and-apply) owns persistence and Runtime reload. This heading is retained for existing links; protocol and native I/O details remain below.
+Device tab states, adoption/consent, independent Enabled/Provider Enabled controls, removal and recovery are now maintained in [Physical Devices](../../outputs/physical_devices.md#user-guide). The shared [Settings save/apply transaction](../architecture.md#settings-save-and-apply) owns persistence and Runtime reload. This heading is retained for existing links; protocol and native I/O details remain below.
 
 ## Opening the transport and handshake
 

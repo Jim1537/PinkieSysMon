@@ -22,7 +22,7 @@ Open **Edit → Settings…**. After **General** and **Desktop**, **Device #1**,
 | Settings state | Meaning and available actions |
 | --- | --- |
 | **Connected**, configured | A saved Output resolves to one present device. Its settings are editable. This is passive presence, not proof of a Runtime connection or delivered frames. |
-| **Connected**, **Not configured** | A newly detected disabled candidate. Edit it, then explicitly adopt it with **Add Device**, or through confirmed Device Enabled consent. |
+| **Connected**, **Not configured** | A newly detected disabled candidate. Edit it, then explicitly adopt it with **Add Device**, or through confirmed **Enabled** consent. |
 | **Disconnected** | Saved values remain visible, but settings and Add are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Add are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Add are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
@@ -43,7 +43,7 @@ Hover over a control or its help icon for its effect and dependencies. These dev
 
 ### Step 4. Grant device-use consent and apply
 
-To permit hardware output, turn on **Device Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. Confirmed enabling of a new candidate also adopts it, so a separate Add Device click is not required in that route.
+To permit hardware output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. Confirmed enabling of a new candidate also adopts it, so a separate Add Device click is not required in that route.
 
 Click **OK** to validate/save the draft and apply it through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). A newly enabled device is rechecked after consent and immediately before saving. If it has disappeared or become ambiguous, enabling fails instead of selecting replacement hardware.
 
@@ -51,16 +51,16 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 | Switch | What it permits |
 | --- | --- |
-| **Device Enabled** | Runtime hardware use for this configured Output. Off prevents its USB session from starting. |
+| **Enabled** | Runtime hardware use for this configured Output. Off prevents its USB session from starting. |
 | **Provider Enabled** | This Output's metric publication. On does not authorize USB use; off does not stop an otherwise enabled device. |
 
-### Start, reload and choose the dashboard
+### Reload and choose the dashboard
 
-- In the Editor, choose **Output → &lt;Output name&gt; → Start / Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
+- In the Editor, choose **Output → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, use **Outputs → &lt;Output name&gt; → Start / Reload**. The submenu reports its assignment, current state, Device Enabled and Provider Enabled.
 - Change assignment in **Settings → Device #N → Dashboard → OK**, or through **Outputs → &lt;Output&gt; → Dashboard: &lt;current name&gt;** in the tray. A tray assignment reloads an active session, preserves saved disabled state and respects global Runtime lifetime.
 
-Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Start/Reload workflow](../development/architecture.md#editor-output-start-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
+Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
 The selected command's saved-input, inheritance, ownership and recovery boundaries are defined by the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload).
 
@@ -70,8 +70,8 @@ The selected command's saved-input, inheritance, ownership and recovery boundari
 
 | Operation | Effect |
 | --- | --- |
-| Turn **Device Enabled** off | Persistently prevent hardware output. Use an editable connected Device tab and OK, or the tray's **Physical Devices** entry. |
-| Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke Device Enabled or remove its record. |
+| Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The tray's **Physical Devices** entry also offers disabling. |
+| Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke saved enablement or remove its record. |
 | **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
 
 The Runtime tray's **Physical Devices** menu offers enable/disable for an explicitly configured device, with fresh presence checks and the same consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings.
@@ -81,14 +81,14 @@ For removal, either use **Settings → Device #N → Remove → Yes → OK**, or
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening; the tray can show it as unconfigured. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
 !!! info "Saved enablement and global shutdown"
-    Device Enabled is the physical Output's only per-target activation policy. Disabling the final Output leaves Runtime available for configuration. The global **Stop / Unload All Outputs** command requests Runtime shutdown without revoking saved Device Enabled consent; a later normal Runtime launch starts all saved enabled Outputs. See the [shared output-control contract](../development/architecture.md#output-status-and-tray-control).
+    Disabling the final Output leaves Runtime available for configuration. The global **Stop / Unload All Outputs** command requests Runtime shutdown without revoking saved enablement consent; a later normal Runtime launch starts all saved enabled Outputs. The [shared output-control contract](../development/architecture.md#output-status-and-tray-control) owns Enabled storage and lifecycle rules.
 
 ### Troubleshooting and recovery
 
 | Observation | Check or next action |
 | --- | --- |
 | No Device tab | Verify model/interface support and physical connection. Never-detected absent hardware has no placeholder tab. |
-| Connected in Settings, but no display output | Check Device Enabled, Runtime's target state and Start/Reload result, then the saved assignment. Passive detection does not acquire the transport. |
+| Connected in Settings, but no display output | Check Enabled in Settings, Runtime's target state and Reload result, then the saved assignment. Passive detection does not acquire the transport. |
 | **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Automatic retry does not establish that recovery succeeded. |
 | Ambiguous identity or a changed interface path | Resolve the actual binding using the [adapter's selection/identity rules](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection). No first-match fallback or automatic rebinding is performed. |
 | Disconnected controls cannot be edited | Reconnect that device to edit; use the tray to disable an already-enabled absent device, or Remove if appropriate. |
@@ -133,7 +133,7 @@ The two detached Settings models form one transaction: physical edits preserve D
 
 ### Session lifecycle and evidence limits
 
-`OutputSessionManager` owns the active-session set and isolates each Output's loaded dashboard and renderer. Device Enabled and a running global Runtime lifetime are required before a physical session can start. Disabling the Output disposes its session without a separate manual stop flag. Current physical sessions use a dedicated `FramePump` worker; that worker owns the device transport. A disabled/unavailable state does not authorize another device, replace a sibling's document or clear a sibling's metrics.
+`OutputSessionManager` owns the active-session set and isolates each Output's loaded dashboard and renderer. Saved Enabled and a running global Runtime lifetime are required before a physical session can start. Disabling the Output disposes its session without a separate manual stop flag. Current physical sessions use a dedicated `FramePump` worker; that worker owns the device transport. A disabled/unavailable state does not authorize another device, replace a sibling's document or clear a sibling's metrics.
 
 Transport retry, stale-generation rejection, cancellation, buffer lifetime and diagnostics are specified by the [adapter lifecycle contract](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits). Shared enablement, reload, global shutdown, status, IPC and notification behavior belongs to [Architecture](../development/architecture.md#output-status-and-tray-control). A configured, passively present, active or transport-connected device represents a different observation at each boundary; none alone proves a displayed frame.
 

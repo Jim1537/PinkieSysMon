@@ -23,13 +23,13 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 
 | Control | Effect |
 | --- | --- |
-| **Board Enabled** | Permits the panel to appear and render its dashboard. |
+| **Enabled** | Permits the panel to appear and render its dashboard. |
 | **Provider Enabled** | Makes this Output's own status/performance metrics available for use in dashboards. It does not show the panel or enable the telemetry providers its widgets need. See the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
 | **Lock (click-through)** | Passes mouse input through the panel to applications underneath. Clear it to move the panel with the mouse. |
 | **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
 | **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
 
-A panel created with **Create New** starts with **Board Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial dashboard is taken from the selected panel, or the first saved dashboard when none is selected. Review that choice before applying.
+A panel created with **Create New** starts with **Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial dashboard is taken from the selected panel, or the first saved dashboard when none is selected. Review that choice before applying.
 
 Hover over a control or its help icon for the current parameter explanation. The list selects which panel you are editing; it does not select a global active dashboard.
 
@@ -39,7 +39,7 @@ Click **OK** to validate and save the panel configuration. **Cancel** discards t
 
 - If Runtime is running and responds to IPC, changed Output settings are applied through a configuration reload.
 - If Runtime cannot be reached, settings are saved for its next start; Settings does not launch it. Check the Editor's status message rather than assuming the panel is already visible.
-- Use **Output → &lt;panel name&gt; → Start / Reload** in the Editor to load saved edits into an enabled panel. This can launch an absent Runtime normally, starting all saved enabled Outputs. A disabled board must first be enabled in Settings or the Runtime tray.
+- Use **Output → &lt;panel name&gt; → Reload** in the Editor to load saved edits into an enabled panel. This can launch an absent Runtime normally, starting all saved enabled Outputs. A disabled panel must first be enabled in Settings or the Runtime tray.
 
 The shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply) describes concurrent-change rejection and failed-apply recovery. The Editor preview is independent of the live panel.
 
@@ -63,20 +63,20 @@ Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The
 | Toggle **Lock** | Change mouse pass-through for this panel; preserve Board Enabled and global Runtime lifetime. |
 | **Start / Reload** | Apply this panel's saved edits through the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload). |
 
-The Editor offers target **Start / Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
+The Editor offers target **Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
 
 !!! info "Disabling the final panel and global shutdown"
     Turning **Board Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.
 
-Board Enabled is the panel's only per-target activation policy. There is no separate manually stopped panel state or target Stop/Unload action.
+Settings calls the tray's **Board Enabled** setting **Enabled**. Its shared storage and lifecycle rules are defined by [Architecture](../development/architecture.md#output-status-and-tray-control).
 
 ### Change the dashboard or load saved edits
 
 - **Settings:** select the panel and choose **Dashboard**, then **OK**.
 - **Runtime tray:** choose **Outputs → &lt;panel&gt; → Dashboard: &lt;current name&gt; → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload an active panel; a disabled panel remains disabled.
-- **Editor:** use the selected Output's **Start / Reload**. If its assignment differs from the open Editor document, choose **Use editor dashboard**, **Keep assigned dashboard**, or **Cancel**.
+- **Editor:** use the selected Output's **Reload**. If its assignment differs from the open Editor document, choose **Use editor dashboard**, **Keep assigned dashboard**, or **Cancel**.
 
-**Save** writes a dashboard to disk. It does not silently replace any Runtime-loaded document. When prompted about unsaved edits, **Save** supplies the new saved content, **Don't Save** uses the last saved content while retaining the editing draft, and **Cancel** aborts the action. See the complete [Editor Start/Reload workflow](../development/architecture.md#editor-output-start-reload), including all-target partial results.
+**Save** writes a dashboard to disk. It does not silently replace any Runtime-loaded document. When prompted about unsaved edits, **Save** supplies the new saved content, **Don't Save** uses the last saved content while retaining the editing draft, and **Cancel** aborts the action. See the complete [Editor Reload workflow](../development/architecture.md#editor-output-reload), including all-target partial results.
 
 Two panels can use the same saved dashboard. Reload each panel that should receive changes; a target reload does not replace a sibling's loaded copy. The tray's **Edit Output Dashboard** command opens the assigned document for editing, rather than switching a global Runtime dashboard.
 
@@ -90,7 +90,7 @@ At least one **configured Output** must remain, counting Desktop and physical Ou
 
 | Observation | Check or next action |
 | --- | --- |
-| No panel after OK | Check Runtime status, Board Enabled, the target's Start / Reload result and its assigned saved dashboard. |
+| No panel after OK | Check Runtime status, Enabled in Settings, the target's Reload result and its assigned saved dashboard. |
 | Panel is visible but cannot be dragged | Clear Lock through Settings or the tray; drag a visible part, or set X/Y directly. |
 | Empty or partly invisible panel | Inspect Canvas/image/widget alpha and size. Missing telemetry uses each widget's unavailable presentation; it does not necessarily hide the whole panel. |
 | Old dashboard content | Save the document, then reload the intended Output. Verify its assignment rather than the currently open Editor tab alone. |
@@ -112,7 +112,7 @@ The [panel creation procedure](#step-2-create-and-configure-the-panel) edits the
 | `Desktop.BoardEnabled`, `Desktop.Lock` | Presentation enablement and native pointer policy. |
 | `Desktop.X`, `Desktop.Y`, `Desktop.ZOrder` | Physical-pixel placement and sibling stacking order. |
 
-`OutputTargetContract` rejects Desktop records with hardware bindings, Device Enabled, JPEG or USB settings. Fresh application defaults configure a Desktop Output rather than implicitly enabling hardware. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
+`OutputTargetContract` rejects Desktop records with hardware bindings, `DeviceEnabled`, JPEG or USB settings. Fresh application defaults configure a Desktop Output rather than implicitly enabling hardware. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
 
 `DesktopSettingsModel` owns copied Desktop targets until OK. It preserves physical target objects, assigns a new stable ID on creation, renumbers Z-order on reorder/removal and uses the combined Device/Desktop draft count for the last-Output guard. `EditorSettingsDialog` binds only the selected draft. Validation and commit use the shared [Settings transaction](../development/architecture.md#settings-save-and-apply).
 

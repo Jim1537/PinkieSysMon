@@ -200,11 +200,11 @@ internal sealed class RuntimeCommandFeedback(
         }));
 
     private static string Describe(RuntimeOutputStatus output) =>
-        $"'{output.TargetName}' ({output.TargetId}), dashboard '{output.Dashboard ?? "unknown"}', " +
+        $"'{output.TargetName}' ({output.TargetId}), dashboard '{output.Dashboard ?? "unknown"}', Enabled={output.OutputEnabled?.ToString() ?? "unknown"}, " +
         (output.Kind switch
         {
-            OutputTargetContract.DesktopKind => $"Board Enabled={output.BoardEnabled?.ToString() ?? "unknown"}, Lock={output.Lock?.ToString() ?? "unknown"}, ",
-            OutputTargetContract.TrofeoKind => $"Device Enabled={output.DeviceEnabled?.ToString() ?? "unknown"}, ",
+            OutputTargetContract.DesktopKind => $"Lock={output.Lock?.ToString() ?? "unknown"}, ",
+            OutputTargetContract.TrofeoKind => string.Empty,
             _ => "Output kind unknown, "
         }) +
         $"state {output.UsbState}, " + (output.IsActive
@@ -241,7 +241,7 @@ internal sealed class RuntimeCommandFeedback(
     private static string ActionName(RuntimeIpcCommand command) => command.Kind switch
     {
         RuntimeIpcCommandKind.ReloadConfiguration => "Configuration reload",
-        RuntimeIpcCommandKind.StartOrReloadTarget => "Start/reload",
+        RuntimeIpcCommandKind.StartOrReloadTarget => "Reload",
         RuntimeIpcCommandKind.StartOrReloadAll => "Reload all",
         RuntimeIpcCommandKind.StopAll => "Stop/unload",
         RuntimeIpcCommandKind.AssignDashboard => "Dashboard assignment",

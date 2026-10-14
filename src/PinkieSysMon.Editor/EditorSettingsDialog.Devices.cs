@@ -124,7 +124,7 @@ internal sealed partial class EditorSettingsDialog
                     "Enable Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                 if (!confirmed)
-                    return target.DeviceEnabled;
+                    return OutputTargetContract.IsEnabled(target);
                 RefreshDeviceDiscovery();
             }
             if (!_devices.SetEnabled(target, enabled, confirmed))
@@ -132,7 +132,7 @@ internal sealed partial class EditorSettingsDialog
             UpdateDevicePages();
         }
         catch (Exception ex) { ShowDeviceError(ex); }
-        return target.DeviceEnabled;
+        return OutputTargetContract.IsEnabled(target);
     }
 
     private void RemoveDevice(OutputTargetConfig target)
@@ -164,7 +164,7 @@ internal sealed class DeviceSettingsPage : TabPage
     };
     private readonly Button _add = new() { Text = "Add Device", Name = "AddDevice", AutoSize = true };
     private readonly Button _remove = new() { Text = "Remove", Name = "RemoveDevice", AutoSize = true };
-    private readonly CheckBox _enabled = new() { Text = "Device Enabled", Name = "DeviceEnabled", AutoSize = true };
+    private readonly CheckBox _enabled = new() { Text = EditorSettingsHelp.OutputEnabledCaption, Name = "DeviceEnabled", AutoSize = true };
     private bool _binding;
 
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
@@ -214,7 +214,7 @@ internal sealed class DeviceSettingsPage : TabPage
         dashboard.SelectedItem = target.Dashboard;
         dashboard.SelectedIndexChanged += (_, _) => Change(() => target.Dashboard = dashboard.SelectedItem as string);
         Row("Dashboard", dashboard, EditorSettingsHelp.Dashboard);
-        _enabled.Checked = target.DeviceEnabled;
+        _enabled.Checked = OutputTargetContract.IsEnabled(target);
         _enabled.CheckedChanged += (_, _) =>
         {
             if (_binding || !_fields.Enabled)
@@ -280,7 +280,7 @@ internal sealed class DeviceSettingsPage : TabPage
         _remove.Enabled = canRemove;
         var wasBinding = _binding;
         _binding = true;
-        try { _enabled.Checked = entry.Target.DeviceEnabled; }
+        try { _enabled.Checked = OutputTargetContract.IsEnabled(entry.Target); }
         finally { _binding = wasBinding; }
     }
 }

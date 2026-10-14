@@ -81,16 +81,16 @@ The two processes can load the same persisted dashboard from disk without sharin
 
 **Source anchors:** [Editor preview](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Preview.cs), [Preview renderer](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardPreviewRenderer.cs), [Editor document persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Document.cs).
 
-### Editor Output Start / Reload
+### Editor Output Reload
 
-Before an Output Start/Reload action, the Editor uses its existing **Save / Don't Save / Cancel** prompt for a dirty document. Save failure or Cancel prevents the action. Don't Save retains the unsaved editing state; Runtime loads the last saved dashboard version. The initiating dashboard name is captured for the action, and comparison uses fresh `STATUS` metadata for the selected Output rather than the top-level compatibility summary.
+Before **Output → &lt;Output name&gt; → Reload** or **Reload All**, the Editor uses its existing **Save / Don't Save / Cancel** prompt for a dirty document. Save failure or Cancel prevents the action. Don't Save retains the unsaved editing state; Runtime loads the last saved dashboard version. The initiating dashboard name is captured for the action, and comparison uses fresh `STATUS` metadata for the selected Output rather than the top-level compatibility summary.
 
 | Assignment choice | Editor request |
 | --- | --- |
 | Same assigned dashboard | Request the selected Output's saved reload. |
 | Use editor dashboard | Request target assignment through Runtime IPC, confirm it, and request reload if assignment did not already reload an active session. |
 | Keep assigned dashboard | Request selected saved reload and verify its observed assignment still matches the choice. |
-| Cancel | Send no assignment/start request and do not launch an absent Runtime. |
+| Cancel | Send no assignment/reload request and do not launch an absent Runtime. |
 
 **Reload All** collects every enabled Output's individual choice before dispatch. It applies and confirms requested per-ID assignments in order, then sends one [aggregate saved-configuration request](#reload-all-saved-configuration), including when no Output is enabled. An assignment can already reload an active target; this does not replace the subsequent common-settings operation. This Editor sequence is not atomic: a later assignment or aggregate failure reports earlier confirmed actions without claiming complete rollback. A single-target action never uses global configuration `RELOAD`. The Output menu shows reported assignments and distinguishes Desktop display state from physical connection state.
 
@@ -98,7 +98,7 @@ When Runtime is absent, local configuration provides a provisional choice only. 
 
 Completed requests are checked against observed assignment and active-session status. A selected saved reload can apply a newer disk assignment; detected drift from the Editor's plan is reported rather than claiming that the planned board was loaded. `WAITING`/`SUSPENDED` are reported as such and do not imply a connected or visible display; reported Output error/ambiguity is a failed result. These client-side snapshots are checks, not a cross-process atomic reservation; concurrent state can change between IPC operations.
 
-**Source anchors:** [Editor Output commands](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Commands.cs), [Start workflow](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorOutputStartWorkflow.cs), [Choice dialogs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs).
+**Source anchors:** [Editor Output commands](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Commands.cs), [Reload workflow](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorOutputStartWorkflow.cs), [Choice dialogs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs).
 
 ## Persistence and schema boundary
 
@@ -136,7 +136,7 @@ The kind-specific workflows are [Desktop](../outputs/desktop.md#step-3-apply-the
 
 ### Output status and tray control
 
-`STATUS` returns the Runtime's manager-owned snapshot for every configured Output. Each Output includes its assigned `Dashboard`, `Kind`, refresh interval, independent `OutputEnabled` and `ProviderEnabled`, and kind-specific Device Enabled or Desktop Board Enabled/Lock/visibility. `OutputEnabled` uses the shared `OutputTargetContract.IsEnabled` policy: `Desktop.BoardEnabled` for Desktop or `DeviceEnabled` for physical Outputs. It is derived from the existing kind-specific storage, not a second saved switch; JSON names, defaults and inheritance remain compatible. `IsActive` describes an instantiated active session; `IsConnected` is the physical transport connection or Desktop native-window visibility, not passive USB presence. Desktop `IsVisible` is unavailable for a physical Output; device-only fields are unavailable for Desktop. The existing `UsbState` payload field carries the session lifecycle/status string for either kind, without fabricating Desktop USB measurements.
+`STATUS` returns the Runtime's manager-owned snapshot for every configured Output. Each Output includes its assigned `Dashboard`, `Kind`, refresh interval, independent `OutputEnabled` and `ProviderEnabled`, and kind-specific `DeviceEnabled` or Desktop `BoardEnabled`/Lock/visibility. Settings presents one **Enabled** activation checkbox for each Output, and Runtime command feedback reports its observed value. Both use the shared `OutputTargetContract.IsEnabled` policy: `Desktop.BoardEnabled` for Desktop or `DeviceEnabled` for physical Outputs. `OutputEnabled` is derived from this existing kind-specific storage, not a second saved switch; JSON names, defaults and inheritance remain compatible. `IsActive` describes an instantiated active session; `IsConnected` is the physical transport connection or Desktop native-window visibility, not passive USB presence. Desktop `IsVisible` is unavailable for a physical Output; device-only fields are unavailable for Desktop. The existing `UsbState` payload field carries the session lifecycle/status string for either kind, without fabricating Desktop USB measurements.
 
 The v1 named pipe and top-level `Dashboard` compatibility summary remain unchanged. The retired target `OUTPUT_STOP` verb is rejected; global `OUTPUT_STOP_ALL` remains the explicit shutdown control. Per-Output `Dashboard` is authoritative for assignments. The added nullable fields are **unknown** when an older Runtime omits them; clients must not infer false enablement, a board assignment or a device kind from a missing property.
 
@@ -182,7 +182,7 @@ The tray and Editor **Reload All** command retains the v1 wire verb `OUTPUT_STAR
 | Persistence | Read-only on disk. Capture application and optional telemetry bytes; reject detected content/presence changes before and immediately after Output commit, retaining newer files and unknown fields. These checks do not reserve files across processes. |
 | Recovery | Prepare Output replacement/recovery plans before session commit. A later subsystem failure attempts to restore prior sessions/documents, telemetry policy/demand, media, descriptors/version and composition-root state. Release prepared resources and report incomplete recovery explicitly; native or external failures can prevent complete restoration. |
 
-Editor planning and partial client results belong to the [Editor workflow](#editor-output-start-reload); Runtime notifications and observed readiness belong to [command feedback](#runtime-command-feedback).
+Editor planning and partial client results belong to the [Editor workflow](#editor-output-reload); Runtime notifications and observed readiness belong to [command feedback](#runtime-command-feedback).
 
 **Source anchors:** [Common reload controller](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationReloadControl.cs), [Enabled-assignment loader](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationValidator.cs), [common reload/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/SavedConfigurationReloadTests.cs), [Editor planning checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/EditorOutputStartStage25Tests.cs).
 

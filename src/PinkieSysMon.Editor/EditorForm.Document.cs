@@ -65,7 +65,7 @@ internal sealed partial class EditorForm
             _savedJson = DashboardJson.Serialize(_definition, indented: false);
             _dirty = false;
             UpdateTitle();
-            SetStatus($"Saved {_dashboardPath}. Use the selected Output → Start / Reload to apply runtime changes.");
+            SetStatus($"Saved {_dashboardPath}. Use the selected Output → Reload to apply runtime changes.");
             UpdateCommandStates();
             return true;
         }

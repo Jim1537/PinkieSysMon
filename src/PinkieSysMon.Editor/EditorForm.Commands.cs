@@ -581,7 +581,7 @@ internal sealed partial class EditorForm
             output =>
             {
                 if (!dashboard.Equals(_dashboardName, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("The Editor dashboard changed while preparing Start / Reload. Retry the action.");
+                    throw new InvalidOperationException("The Editor dashboard changed while preparing Reload. Retry the action.");
                 return EditorDialogs.ChooseOutputDashboard(this, output, dashboard);
             },
             (id, board) => RuntimeIpc.AssignDashboardAsync(id, board),
@@ -589,8 +589,8 @@ internal sealed partial class EditorForm
             () => RuntimeIpc.StartOrReloadAllAsync());
         await ExecuteOutputCommandAsync(
             () => EditorOutputStartWorkflow.RunAsync(dashboard, targetId, actions),
-            dialogTitle: targetId is null ? "Reload All Outputs" : "Start / Reload Output",
-            fallbackSuccessMessage: targetId is null ? "Common settings and enabled Outputs reloaded." : "Selected Output started/reloaded.");
+            dialogTitle: targetId is null ? "Reload All Outputs" : "Reload Output",
+            fallbackSuccessMessage: targetId is null ? "Common settings and enabled Outputs reloaded." : "Selected Output reloaded.");
     }
 
     private Task ExecuteStartOrReloadAllAsync() => ExecuteEditorOutputStartAsync(null);
@@ -621,7 +621,7 @@ internal sealed partial class EditorForm
             var response = await command();
             if (response is null)
             {
-                SetStatus("Start / Reload canceled.");
+                SetStatus("Reload canceled.");
             }
             else if (response.Success)
             {
@@ -764,7 +764,7 @@ internal sealed record ScreenMenuCommandState(
 
 internal static class ScreenMenuContract
 {
-    public const string StartReloadText = "Start / Reload";
+    public const string StartReloadText = "Reload";
     public const string StartReloadAllText = "Reload All";
     public const string StopAllText = "Stop / Unload All Outputs";
 

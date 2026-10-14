@@ -153,7 +153,8 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string ToolbarSize = "Set the Editor toolbar icon size in pixels.\nThis does not resize dashboard widgets.";
     public const string DisplayName = "Name shown in Settings and Output menus.\nThis does not rename the dashboard or change the stable Output ID.";
     public const string Dashboard = "Select this Output's saved dashboard.\nOther Outputs keep their own assignments; changes apply after OK.";
-    public const string BoardEnabled = "Show this Desktop panel and render its dashboard.\nOff unloads the panel and removes its dashboard demand; Provider Enabled is independent.";
+    public const string OutputEnabledCaption = "Enabled";
+    public const string BoardEnabled = "Allow Runtime to show this Desktop panel and render its dashboard after OK.\nOff unloads the panel and removes its dashboard demand; Provider Enabled is independent.";
     public const string OutputProvider = "Make this Output's status and performance metrics available to dashboards.\nThis does not enable the panel or USB output; live values require an active Output.";
     public const string Lock = "Pass all mouse clicks through the Desktop panel to windows underneath.\nTurn Lock off to drag the panel; its appearance is unchanged.";
     public const string DesktopRefresh = "Requested interval between panel redraws, in milliseconds.\nLower values use more CPU; sensor polling has its own schedule.";
@@ -164,7 +165,7 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string CreateDesktop = "Add a new virtual Desktop Output to this Settings draft.\nIt takes effect after OK; Cancel discards it.";
     public const string RemoveDesktop = "Remove the selected Desktop Output after OK, keeping its dashboard files.\nAt least one Output must remain.";
     public const string DeviceType = "The detected physical display model.\nRenaming the Output does not change its hardware binding.";
-    public const string DeviceEnabled = "Allow Runtime to open this USB display and send dashboard frames after OK.\nClose other display-control software first; enabling requires confirmation.";
+    public const string DeviceEnabled = "Allow Runtime to open this USB display and send dashboard frames after OK.\nClose other display-control software first; enabling requires confirmation.\nOff unloads this Output; Provider Enabled is independent.";
     public const string JpegQuality = "JPEG quality for this USB display, from 10 to 100.\nHigher values usually create larger frames and use more USB bandwidth.";
     public const string UsbRetry = "Wait this many milliseconds before another connection attempt after\na missing device or failed USB connection/transfer. It is not a transfer timeout.";
     public const string UsbTimeout = "Time limit requested for each USB read/write operation, in milliseconds.\nHigher values allow slower transfers but delay error recovery.";

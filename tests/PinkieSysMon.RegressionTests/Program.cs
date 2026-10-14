@@ -1819,10 +1819,10 @@ internal static class Program
                !busy.CanStartOrReloadAll && !busy.CanStopAll,
             "A pending Output command must disable every competing per-target and global Output action.");
 
-        Assert(ScreenMenuContract.StartReloadText == "Start / Reload" &&
+        Assert(ScreenMenuContract.StartReloadText == "Reload" &&
                ScreenMenuContract.StartReloadAllText == "Reload All" &&
                ScreenMenuContract.StopAllText == "Stop / Unload All Outputs",
-            "The retained global shutdown label must describe its Output scope without exposing a target-stop action.");
+            "Editor labels must expose Reload and Reload All while retaining the existing global shutdown scope.");
     }
 
 

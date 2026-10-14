@@ -59,7 +59,7 @@ internal static class EditorOutputStartWorkflow
                 return Failed("A Runtime process exists but its status is unavailable. A duplicate Runtime was not launched.", completed);
             var snapshot = running ? initial.Status! : actions.ReadConfiguration();
             if (targetId is null && snapshot.Outputs.Any(o => o.OutputEnabled is null))
-                return Failed("Runtime does not report per-Output enablement. Update Runtime before Start / Reload.", completed);
+                return Failed("Runtime does not report per-Output enablement. Update Runtime before Reload All.", completed);
             var selected = targetId is null
                 ? snapshot.Outputs.Where(o => o.OutputEnabled == true).ToArray()
                 : snapshot.Outputs.Where(o => o.TargetId.Equals(targetId, StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -74,7 +74,7 @@ internal static class EditorOutputStartWorkflow
                 if (output.OutputEnabled is null)
                     return Failed($"Runtime does not report enablement for '{output.TargetName}'. Update Runtime first.", completed);
                 if (output.OutputEnabled != true)
-                    return Failed($"Output '{output.TargetName}' is disabled. Enable its Device or Desktop Board in Settings first.", completed);
+                    return Failed($"Output '{output.TargetName}' is disabled. Turn on Enabled for this Output in Settings first.", completed);
                 if (string.IsNullOrWhiteSpace(output.Dashboard) ||
                     output.Kind is not (OutputTargetContract.DesktopKind or OutputTargetContract.TrofeoKind))
                     return Failed($"Runtime does not report the assignment/type for '{output.TargetName}'. Update Runtime first.", completed);
@@ -129,7 +129,7 @@ internal static class EditorOutputStartWorkflow
                 {
                     var start = await actions.StartOrReload(plan.Original.TargetId);
                     if (!start.Success)
-                        return Failed($"Start / Reload for '{plan.Original.TargetName}' was not confirmed: {start.Message}", completed);
+                        return Failed($"Reload for '{plan.Original.TargetName}' was not confirmed: {start.Message}", completed);
                 }
                 var observed = await actions.GetStatus();
                 var actual = observed.Status is null ? null : Find(observed.Status, plan.Original.TargetId);
