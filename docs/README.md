@@ -14,6 +14,8 @@
 
 For tested Windows configurations see [Compatibility & Testing](compatibility.md); for known defects and outstanding work see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
 
+For accessibility status, known limitations and reporting barriers, see the [Accessibility Statement](https://github.com/Jim1537/PinkieSysMon/blob/main/ACCESSIBILITY.md).
+
 ## Key Features
 
 - Native dashboard rendering with visual layout editing, layers, groups, and Undo/Redo.
