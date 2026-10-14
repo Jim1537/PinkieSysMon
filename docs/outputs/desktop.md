@@ -1,0 +1,152 @@
+# Desktop
+
+A **Desktop Output** displays a saved dashboard in an independent Windows panel. Several panels can run at once, each with its own dashboard, position and settings. No USB display is required.
+
+An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Creating or removing a panel does not create or delete its dashboard files. For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
+
+## User Guide
+
+### Step 1. Prepare a saved dashboard
+
+Open the Dashboard Editor and open an existing dashboard, such as `Default`, or create and save one. Use the [widget guides](../README.md#available-widgets) to build its content.
+
+Select **Canvas** in the Editor to configure [Width](../widgets/properties.md#width), [Height](../widgets/properties.md#height), [Orientation](../widgets/properties.md#orientation) and [Background Color](../widgets/properties.md#background-color). These properties determine the panel's size and appearance; the panel has no resize border. A 90° or 270° orientation exchanges the displayed width and height.
+
+Transparent Canvas, image and widget pixels remain transparent on the Windows desktop. An opaque Canvas remains opaque. Use the [image-layer properties](../widgets/properties-by-tab.md#image) for artwork and opacity; **Lock** changes mouse behavior, not transparency.
+
+### Step 2. Create and configure the panel
+
+1. Choose **Edit → Settings… → Desktop**.
+2. Click **Create New**. The new panel is selected in the list on the left; select an existing entry instead to edit it.
+3. Set **Display name** and choose a saved **Dashboard**. The display name identifies the panel in menus; it does not rename the dashboard.
+4. Configure the selected panel's controls:
+
+| Control | Effect |
+| --- | --- |
+| **Board Enabled** | Permits the panel to appear and render its dashboard. |
+| **Provider Enabled** | Makes this Output's own status/performance metrics available for use in dashboards. It does not show the panel or enable the telemetry providers its widgets need. See the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
+| **Lock (click-through)** | Passes mouse input through the panel to applications underneath. Clear it to move the panel with the mouse. |
+| **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
+| **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
+
+A panel created with **Create New** starts with **Board Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial dashboard is taken from the selected panel, or the first saved dashboard when none is selected. Review that choice before applying.
+
+Hover over a control or its help icon for the current parameter explanation. The list selects which panel you are editing; it does not select a global active dashboard.
+
+### Step 3. Apply the settings and display the panel
+
+Click **OK** to validate and save the panel configuration. **Cancel** discards the Settings draft, including new panels, removals and reorder operations.
+
+- If Runtime is running and responds to IPC, changed Output settings are applied through a configuration reload.
+- If Runtime cannot be reached, settings are saved for its next start; Settings does not launch it. Check the Editor's status message rather than assuming the panel is already visible.
+- To start a stopped, enabled panel, use **Output → &lt;panel name&gt; → Start / Reload** in the Editor. This can launch an absent Runtime. A disabled board must first be enabled in Settings or the Runtime tray.
+
+The shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply) describes concurrent-change rejection and failed-apply recovery. The Editor preview is independent of the live panel.
+
+### Move a panel and set its stacking order
+
+1. Clear **Lock (click-through)** for the panel and apply with **OK**, or clear **Outputs → &lt;panel&gt; → Lock** in Runtime's tray menu.
+2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
+3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
+
+For overlapping panels, drag their **list entries in Settings → Desktop**, then click **OK**. Earlier entries are behind later entries. This order controls sibling Desktop windows; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order, and panels are not made always-on-top windows.
+
+If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
+
+### Show, hide, stop and reload
+
+Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The submenu shows the assigned dashboard, state, visibility and refresh interval.
+
+| Action | Result |
+| --- | --- |
+| Toggle **Board Enabled** off/on | Unload/hide or start/show this panel; preserve its assignment, Lock and provider setting. The switch is persisted. |
+| Toggle **Lock** | Change mouse pass-through for this panel. A stopped panel remains stopped. |
+| **Start / Reload** | Start an enabled stopped panel, or reload its saved dashboard into the active panel. It does not turn Board Enabled on. |
+| **Stop / Unload Output** | Stop and dispose this session; retain its configuration and dashboard. It does not change Board Enabled. |
+
+The Editor offers the same target **Start / Reload** and **Stop / Unload Output** operations under **Output**, plus **Start / Reload All** and **Stop / Unload All Outputs**. All-target start addresses eligible Outputs; disabled boards/devices remain disabled.
+
+!!! info "Hiding the final panel and stopping the final Output"
+    Turning **Board Enabled** off for the final Desktop leaves Runtime available in an idle state so the tray can show it again. An explicit **Stop / Unload Output** of the final active Output, or **Stop / Unload All Outputs**, requests Runtime shutdown. Start it again from the Editor when needed.
+
+Session Stop is not a saved disable setting. An enabled Output can start again on the next ordinary Runtime launch.
+
+### Change the dashboard or load saved edits
+
+- **Settings:** select the panel and choose **Dashboard**, then **OK**.
+- **Runtime tray:** choose **Outputs → &lt;panel&gt; → Dashboard: &lt;current name&gt; → &lt;saved dashboard&gt;**. Assignment changes are persisted and reload an active panel; a stopped panel stays stopped.
+- **Editor:** use the selected Output's **Start / Reload**. If its assignment differs from the open Editor document, choose **Use editor dashboard**, **Keep assigned dashboard**, or **Cancel**.
+
+**Save** writes a dashboard to disk. It does not silently replace any Runtime-loaded document. When prompted about unsaved edits, **Save** supplies the new saved content, **Don't Save** uses the last saved content while retaining the editing draft, and **Cancel** aborts the action. See the complete [Editor Start/Reload workflow](../development/architecture.md#editor-output-start-reload), including all-target partial results.
+
+Two panels can use the same saved dashboard. Reload each panel that should receive changes; a target reload does not replace a sibling's loaded copy. The tray's **Edit Output Dashboard** command opens the assigned document for editing, rather than switching a global Runtime dashboard.
+
+### Remove a panel
+
+In **Edit → Settings… → Desktop**, select the panel, click **Remove**, confirm **Yes**, then **OK**. Cancel leaves the saved configuration unchanged. Removal unloads that panel when applied; dashboard files and other Outputs remain.
+
+At least one **configured Output** must remain, counting Desktop and physical Outputs in the same Settings draft. This guard is independent of how many sessions are currently active. Create/adopt another Output before removing the final configured one.
+
+### Troubleshooting
+
+| Observation | Check or next action |
+| --- | --- |
+| No panel after OK | Check Runtime status, Board Enabled, the target's Start / Reload result and its assigned saved dashboard. |
+| Panel is visible but cannot be dragged | Clear Lock through Settings or the tray; drag a visible part, or set X/Y directly. |
+| Empty or partly invisible panel | Inspect Canvas/image/widget alpha and size. Missing telemetry uses each widget's unavailable presentation; it does not necessarily hide the whole panel. |
+| Old dashboard content | Save the document, then reload the intended Output. Verify its assignment rather than the currently open Editor tab alone. |
+| Missing/corrupt dashboard or **ERROR** | Read the reported target-specific failure and local log; repair the saved assignment/content and retry. Runtime does not silently select another dashboard. |
+| Configuration changed while Settings was open | Reopen Settings to load current state. A tray change or saved panel move may have changed the file. |
+| Apply failed or recovery unconfirmed | Inspect current Runtime status and the reported disk/recovery result before retrying; rollback is not guaranteed after every external failure. |
+
+## Technical Information
+
+### Configuration and detached editing
+
+Desktop records live under `Outputs.Targets` in local `config/app.json`. They use `Kind = desktop`, `Transport = desktop`, and a `Desktop` object:
+
+| Fields | Responsibility |
+| --- | --- |
+| `Id`, `Name` | Stable Output identity and editable display label. |
+| `Dashboard`, `RefreshIntervalMs` | Per-Output saved dashboard reference and redraw interval. Legacy absent values inherit application defaults. |
+| `ProviderEnabled` | Independent metric-publication policy; metric IDs and availability are owned by the [metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
+| `Desktop.BoardEnabled`, `Desktop.Lock` | Presentation enablement and native pointer policy. |
+| `Desktop.X`, `Desktop.Y`, `Desktop.ZOrder` | Physical-pixel placement and sibling stacking order. |
+
+`OutputTargetContract` rejects Desktop records with hardware bindings, Device Enabled, JPEG or USB settings. Fresh application defaults configure a Desktop Output rather than implicitly enabling hardware. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
+
+`DesktopSettingsModel` owns copied Desktop targets until OK. It preserves physical target objects, assigns a new stable ID on creation, renumbers Z-order on reorder/removal and uses the combined Device/Desktop draft count for the last-Output guard. `EditorSettingsDialog` binds only the selected draft. Validation and commit use the shared [Settings transaction](../development/architecture.md#settings-save-and-apply).
+
+### Session and native alpha presentation
+
+`OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`; its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
+
+The session consumes the canonical renderer's [logical BGRA frame](../development/architecture.md#runtime-output-ownership). `DesktopLayeredSurface` copies premultiplied BGRA8888 rows into a reusable top-down 32-bit GDI DIB. `UpdateLayeredWindow` uses `ULW_ALPHA` and `AC_SRC_ALPHA` for native per-pixel compositing. There is no JPEG conversion or opaque-black flattening in this presentation path; the [Trofeo wire path](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remains separate.
+
+The session disposes each caller-owned rendered frame after presentation. The window owns its DIB/DC, refresh/move timers and display-change subscription and releases them on disposal; the session releases its renderer and invalidates its own metrics. Prepared renderer replacements retain ownership until commit, so failed preparation/configuration can be cleaned up or rolled back without adopting a sibling's renderer.
+
+### Placement, DPI and mouse routing
+
+`FrameGeometry.GetLogicalSize` maps the oriented Canvas to physical client pixels. `AutoScaleMode.None` and PerMonitorV2 handling preserve that client size across DPI changes. `DesktopPlacement.Recover` tests monitor working-area visibility and recovers unusable positions without modifying the configured Canvas or saved monitor coordinates.
+
+`DesktopPositionStore` patches only the matching Desktop target's X/Y in `app.json`, preserving unrelated and unknown JSON fields. The 500 ms move debounce avoids a save on each native movement event; programmatic recovery and locked/configuration moves do not overwrite saved placement.
+
+`DesktopPointerStyle` preserves layered and unrelated extended styles. A locked layered window adds `WS_EX_TRANSPARENT`, passing even opaque-widget hits to other applications. Unlock removes that flag and maps client hit-testing to native caption dragging. A Lock reload updates the existing window without changing alpha, Canvas dimensions or physical sessions.
+
+### Sibling stacking and shared boundaries
+
+`DesktopZOrderPolicy` orders enabled active panels by ascending `Desktop.ZOrder`, with persisted target order breaking ties. The manager restores sibling order on start, reload, target start/stop and resume. `WM_EXITSIZEMOVE` restores it immediately after an unlocked native drag. Non-topmost `SetWindowPos` uses no-activation flags and references only owned Desktop windows; no third-party window is explicitly moved.
+
+Shared telemetry demand, per-Output document isolation, IPC transactions and notifications remain owned by [Application Architecture](../development/architecture.md#runtime-data-path). Provider fields, push cadence and passive versus frame measurements remain with the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics).
+
+### Implementation and regression references
+
+| Contract | Sources and existing checks |
+| --- | --- |
+| Settings and persistence | [DesktopSettingsModel](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/DesktopSettingsModel.cs), [Settings dialog](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs), [configuration model tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputConfigurationModelTests.cs) |
+| Lifecycle and frame suppression | [DesktopOutputSession/window](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DesktopOutputSession.cs), [lifecycle checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopSessionStage09Tests.cs) |
+| Alpha and native resources | [DesktopLayeredSurface](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DesktopLayeredSurface.cs), [alpha checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopTransparencyStage10Tests.cs) |
+| Placement and Lock | [DesktopPositioning](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DesktopPositioning.cs), [position checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopPositionStage11Tests.cs), [Lock checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopLockStage12Tests.cs) |
+| Stacking and multi-panel isolation | [OutputSessionManager](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [Z-order checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopZOrderStage14Tests.cs), [multi-session checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DesktopMultiSessionStage15Tests.cs) |
+
+These are implementation references, not a claim that native Windows behavior has been exercised for every documentation revision. Tested platforms belong to [Compatibility & Testing](../compatibility.md); current checks and acceptance belong to [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).

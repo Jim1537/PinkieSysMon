@@ -56,7 +56,7 @@ In **Edit → Settings**, hover over the question-mark icon beside a parameter f
 
 ## Outputs and Runtime
 
-In **Edit → Settings**, use the **Desktop** page to create and configure independent Windows panels. Each panel has its own dashboard, visibility switch (**Board Enabled**), optional metric publication (**Provider Enabled**), refresh interval, position, and **Lock** setting for mouse click-through. Several Desktop panels can run simultaneously without USB hardware.
+Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack and manage independent Windows panels.
 
 For a supported physical display, use its **Device** page to select the assigned dashboard and configure it. **Device Enabled** is separate from **Provider Enabled** and requires explicit hardware-use consent. See [Trofeo Device Integration](development/devices/trofeo-vision-9.16.md#settings-and-device-ownership) for device identity and ownership rules.
 
