@@ -179,6 +179,19 @@ internal static class OutputTargetContract
         left.Transport.Equals(right.Transport, StringComparison.OrdinalIgnoreCase) &&
         left.DeviceId.Equals(right.DeviceId, StringComparison.OrdinalIgnoreCase);
 
+    // One logical setting backed by the existing kind-specific configuration fields.
+    // Provider publication and observed session state do not grant output ownership.
+    public static bool IsEnabled(OutputTargetConfig target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        return target.Kind switch
+        {
+            DesktopKind => target.Desktop?.BoardEnabled == true,
+            TrofeoKind => target.DeviceEnabled,
+            _ => false
+        };
+    }
+
     public static void ValidateAndNormalize(
         List<OutputTargetConfig> targets,
         string legacyDashboard = "Default",

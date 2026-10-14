@@ -833,8 +833,7 @@ internal static class ScreenMenuContract
         var targetStates = targets.Select(target =>
         {
             statusByTarget.TryGetValue(target.Id, out var outputStatus);
-            var enabled = outputStatus?.OutputEnabled ??
-                (target.Kind == OutputTargetContract.DesktopKind ? target.Desktop?.BoardEnabled == true : target.DeviceEnabled);
+            var enabled = outputStatus?.OutputEnabled ?? OutputTargetContract.IsEnabled(target);
             var description = DescribeStatus(runtimeRunning, outputStatus);
             if (!string.IsNullOrWhiteSpace(outputStatus?.Dashboard))
                 description += $" · Dashboard: {outputStatus.Dashboard}";

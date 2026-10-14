@@ -161,7 +161,7 @@ internal sealed class OutputSessionManager : IDisposable
                 if (_started)
                     return;
 
-                foreach (var target in _config.Outputs.Targets.Where(CanStartTarget))
+                foreach (var target in _config.Outputs.Targets.Where(OutputTargetContract.IsEnabled))
                     created.Add(CreateSession(_config, target, BoardFor(_boards, target)));
 
                 // Do not publish a partially started output set. A session that cannot enter
@@ -224,7 +224,7 @@ internal sealed class OutputSessionManager : IDisposable
                 foreach (var pair in _sessions)
                 {
                     if (newTargets.TryGetValue(pair.Key, out var replacementTarget) &&
-                        CanStartTarget(replacementTarget))
+                        OutputTargetContract.IsEnabled(replacementTarget))
                     {
                         prepared.Add((
                             pair.Value,
@@ -252,7 +252,7 @@ internal sealed class OutputSessionManager : IDisposable
                 {
                     foreach (var target in config.Outputs.Targets)
                     {
-                        if (!CanStartTarget(target) ||
+                        if (!OutputTargetContract.IsEnabled(target) ||
                             _sessions.ContainsKey(target.Id) ||
                             stoppedForNewConfig.Contains(target.Id))
                             continue;
@@ -365,7 +365,7 @@ internal sealed class OutputSessionManager : IDisposable
             {
                 ThrowIfDisposed();
                 var target = FindConfiguredTargetLocked(targetId);
-                if (!CanStartTarget(target))
+                if (!OutputTargetContract.IsEnabled(target))
                     throw new InvalidOperationException(
                         target.Kind == OutputTargetContract.DesktopKind
                             ? $"Desktop output '{target.Id}' is disabled (Board Enabled is off)."
@@ -477,13 +477,13 @@ internal sealed class OutputSessionManager : IDisposable
                 var commitAttempted = false;
                 try
                 {
-                    if (existing is not null && CanStartTarget(replacement))
+                    if (existing is not null && OutputTargetContract.IsEnabled(replacement))
                     {
                         prepared = existing.PrepareReconfiguration(nextConfig, replacement, board);
                         rollback = existing.PrepareReconfiguration(previousConfig, previousTarget,
                             BoardFor(previousBoards, previousTarget));
                     }
-                    else if (existing is null && activate && CanStartTarget(replacement))
+                    else if (existing is null && activate && OutputTargetContract.IsEnabled(replacement))
                     {
                         created = CreateSession(nextConfig, replacement, board);
                         if (_suspended) created.Suspend();
@@ -495,7 +495,7 @@ internal sealed class OutputSessionManager : IDisposable
                         commitAttempted = true;
                         existing!.CommitReconfiguration(prepared);
                     }
-                    if (existing is not null && !CanStartTarget(replacement))
+                    if (existing is not null && !OutputTargetContract.IsEnabled(replacement))
                     {
                         _sessions.Remove(previousTarget.Id);
                         removed = existing;
@@ -611,7 +611,7 @@ internal sealed class OutputSessionManager : IDisposable
 
                 foreach (var target in _config.Outputs.Targets)
                 {
-                    if (!CanStartTarget(target))
+                    if (!OutputTargetContract.IsEnabled(target))
                         continue;
                     if (_sessions.TryGetValue(target.Id, out var existing))
                     {
@@ -780,7 +780,7 @@ internal sealed class OutputSessionManager : IDisposable
                 {
                     Kind = target.Kind,
                     Dashboard = target.Dashboard ?? _config.Dashboard.Active,
-                    OutputEnabled = CanStartTarget(target),
+                    OutputEnabled = OutputTargetContract.IsEnabled(target),
                     ProviderEnabled = target.ProviderEnabled,
                     DeviceEnabled = desktop ? null : target.DeviceEnabled,
                     BoardEnabled = desktop ? target.Desktop?.BoardEnabled : null,
@@ -838,10 +838,6 @@ internal sealed class OutputSessionManager : IDisposable
             }
         }
     }
-
-    private static bool CanStartTarget(OutputTargetConfig target) =>
-        (target.Kind == OutputTargetContract.TrofeoKind && target.DeviceEnabled) ||
-        (target.Kind == OutputTargetContract.DesktopKind && target.Desktop?.BoardEnabled == true);
 
     private OutputTargetConfig FindConfiguredTargetLocked(string targetId) =>
         _config.Outputs.Targets.FirstOrDefault(target =>

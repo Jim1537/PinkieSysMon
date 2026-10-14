@@ -39,6 +39,7 @@ internal static class Program
             ("Output config legacy default and persistence", OutputConfigLegacyDefaultAndPersistence),
             ("Output config multi-target safety", OutputConfigMultiTargetSafety),
             ("Output per-instance configuration persistence", OutputConfigurationModelTests.Persistence),
+            ("Issue63 compatible Enabled persistence and consumer policy", OutputEnabledContractTests.PersistenceAndConsumers),
             ("Output desktop-only configuration", OutputConfigurationModelTests.DesktopOnly),
             ("Output per-instance invalid references and identity", OutputConfigurationModelTests.InvalidReferences),
             ("Runtime config clean desktop-only bootstrap", RuntimeConfigurationStartupTests.DesktopOnly),

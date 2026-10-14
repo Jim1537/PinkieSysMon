@@ -36,7 +36,7 @@ internal static class EditorOutputStartWorkflow
             return new RuntimeOutputStatus(target.Id, target.Name, false, false, "NOT_RUNNING")
             {
                 Kind = target.Kind, Dashboard = target.Dashboard,
-                OutputEnabled = desktop ? target.Desktop?.BoardEnabled == true : target.DeviceEnabled,
+                OutputEnabled = OutputTargetContract.IsEnabled(target),
                 ProviderEnabled = target.ProviderEnabled,
                 BoardEnabled = desktop ? target.Desktop?.BoardEnabled : null,
                 DeviceEnabled = desktop ? null : target.DeviceEnabled

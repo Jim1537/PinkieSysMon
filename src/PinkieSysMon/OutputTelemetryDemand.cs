@@ -25,20 +25,8 @@ internal static class OutputTelemetryDemand
 
             // Provider Enabled governs publication of output status, not whether a
             // visible board requests metrics. Never conflate it with rendering.
-            if (target.Kind == OutputTargetContract.DesktopKind)
-            {
-                if (target.Desktop?.BoardEnabled != true)
-                    continue;
-            }
-            else if (target.Kind == OutputTargetContract.TrofeoKind)
-            {
-                if (!target.DeviceEnabled)
-                    continue;
-            }
-            else
-            {
+            if (!OutputTargetContract.IsEnabled(target))
                 continue;
-            }
 
             if (!boards.TryGetValue(target.Id, out var board) || board is null)
                 throw new InvalidDataException($"Active Output '{target.Id}' has no assigned dashboard definition.");
