@@ -55,13 +55,13 @@ internal static class OutputDashboardOwnershipTests
             using var manager = Manager(config, boards, root, log, sessions);
             manager.Start();
             Board(root, "Same", 520);
-            manager.StartOrReloadTarget("a");
+            ReloadTarget(manager, config, "a", root);
             Check(sessions["a"].Width == 520 && sessions["b"].Width == 400 &&
                   sessions["b"].Commits == 0,
                 "Target reload must not re-read or reconfigure a sibling sharing the same file.");
 
             Board(root, "Same", 0);
-            Check(Throws<InvalidDataException>(() => manager.StartOrReloadTarget("a"), out var message) &&
+            Check(Throws<InvalidDataException>(() => ReloadTarget(manager, config, "a", root), out var message) &&
                   message.Contains("a") && message.Contains("Same"),
                 "Target reload must surface corrupt board diagnostics.");
             Check(sessions["a"].Width == 520 && sessions["b"].Width == 400 &&
@@ -93,7 +93,7 @@ internal static class OutputDashboardOwnershipTests
                 "Failed multi-target reconfiguration must restore both old document assignments.");
 
             sessions["a"].FailNextCommit = true;
-            Check(Throws<InvalidOperationException>(() => manager.StartOrReloadTarget("a")),
+            Check(Throws<InvalidOperationException>(() => ReloadTarget(manager, config, "a", root)),
                 "Single-target commit failure must be surfaced.");
             Check(sessions["a"].Width == 300 && sessions["b"].Width == 600,
                 "Failed targeted commit must roll back without touching another board.");
@@ -107,6 +107,12 @@ internal static class OutputDashboardOwnershipTests
             Check(sessions["a"].Width == 350 && sessions["b"].Width == 650,
                 "A successful retry must load the latest independent boards.");
         });
+    }
+
+    private static void ReloadTarget(OutputSessionManager manager, AppConfig config, string id, string root)
+    {
+        var target = config.Outputs.Targets.Single(t => t.Id == id);
+        manager.ReloadTarget(target, RuntimeConfigurationValidator.LoadTarget(target, root), _ => { });
     }
 
     private static AppConfig Config(params (string Id, string Dashboard)[] assignments) => new()

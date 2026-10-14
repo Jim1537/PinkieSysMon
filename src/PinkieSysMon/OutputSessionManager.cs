@@ -339,93 +339,36 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
-    public void StartOrReloadTarget(string targetId)
+    public void EnsureCanReloadTarget(string targetId)
     {
-        if (string.IsNullOrWhiteSpace(targetId))
-            throw new ArgumentException("Output target ID must not be empty.", nameof(targetId));
-
-        IOutputSession? created = null;
-        IOutputSessionReconfiguration? prepared = null;
-        IOutputSessionReconfiguration? rollbackPrepared = null;
-        try
+        ArgumentException.ThrowIfNullOrWhiteSpace(targetId);
+        lock (_sync)
         {
-            lock (_sync)
-            {
-                ThrowIfDisposed();
-                var target = FindConfiguredTargetLocked(targetId);
-                if (!_started)
-                    throw new InvalidOperationException("Runtime output lifetime is stopped. Start Runtime normally before reloading an individual Output.");
-                if (!OutputTargetContract.IsEnabled(target))
-                    throw new InvalidOperationException(
-                        target.Kind == OutputTargetContract.DesktopKind
-                            ? $"Desktop output '{target.Id}' is disabled (Board Enabled is off)."
-                            : $"Physical output '{target.Id}' is disabled. Device Enabled must be explicitly enabled.");
-
-                // A targeted reload must never reload or commit a sibling dashboard.
-                var board = _reloadBoard is null ? BoardFor(_boards, target) : _reloadBoard(target);
-                if (_sessions.TryGetValue(target.Id, out var existing))
-                {
-                    prepared = existing.PrepareReconfiguration(_config, target, board);
-                    rollbackPrepared = existing.PrepareReconfiguration(
-                        _config, target, BoardFor(_boards, target));
-                    try
-                    {
-                        existing.CommitReconfiguration(prepared);
-                    }
-                    catch (Exception commitError)
-                    {
-                        try { existing.CommitReconfiguration(rollbackPrepared); }
-                        catch (Exception rollbackError)
-                        {
-                            _log.Error($"Output '{target.Id}' target reload rollback failed.", rollbackError);
-                            throw new AggregateException(
-                                $"Output '{target.Id}' reload failed and rollback was incomplete.",
-                                commitError, rollbackError);
-                        }
-                        throw;
-                    }
-                }
-                else
-                {
-                    created = CreateSession(_config, target, board);
-                    if (_suspended)
-                        created.Suspend();
-                    created.Start();
-                    _sessions.Add(target.Id, created);
-                }
-
-                var updatedBoards = _boards.ToDictionary(
-                    pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-                updatedBoards[target.Id] = board;
-                _boards = updatedBoards;
-                UpdateRuntimeMetricPublisherLocked();
-                RestoreDesktopStackLocked();
-            }
-        }
-        catch
-        {
-            if (created is not null)
-            {
-                lock (_sync)
-                {
-                    if (_sessions.TryGetValue(created.TargetId, out var active) && ReferenceEquals(active, created))
-                        _sessions.Remove(created.TargetId);
-                }
-                DisposeSessionsBestEffort([created]);
-            }
-            throw;
-        }
-        finally
-        {
-            prepared?.Dispose();
-            rollbackPrepared?.Dispose();
+            ThrowIfDisposed();
+            EnsureCanReloadTargetLocked(FindConfiguredTargetLocked(targetId));
         }
     }
 
-    // Runtime setting changes prepare/commit only the selected session. The callback
-    // commits persistence and shared telemetry; failure restores this exact session set.
+    private void EnsureCanReloadTargetLocked(OutputTargetConfig target)
+    {
+        if (!_started)
+            throw new InvalidOperationException("Runtime output lifetime is stopped. Start Runtime normally before reloading an individual Output.");
+        if (!OutputTargetContract.IsEnabled(target))
+            throw new InvalidOperationException($"Output '{target.Id}' is disabled. Enable it through its established settings first.");
+    }
+
+    // Saved reload and field changes share one selected-session transaction. Only
+    // reload accepts saved provider policy, and it cannot change enablement/binding.
+    public void ReloadTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
+        Action<AppConfig> commit, Action? validateInput = null) =>
+        ApplyTarget(replacement, board, commit, requireEnabledLifetime: true, validateInput: validateInput);
+
     public void ReconfigureTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
-        Action<AppConfig> commit)
+        Action<AppConfig> commit) =>
+        ApplyTarget(replacement, board, commit, requireEnabledLifetime: false, validateInput: null);
+
+    private void ApplyTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
+        Action<AppConfig> commit, bool requireEnabledLifetime, Action? validateInput)
     {
         ArgumentNullException.ThrowIfNull(replacement);
         ArgumentNullException.ThrowIfNull(board);
@@ -440,10 +383,16 @@ internal sealed class OutputSessionManager : IDisposable
             {
                 ThrowIfDisposed();
                 var previousTarget = FindConfiguredTargetLocked(replacement.Id);
+                if (requireEnabledLifetime)
+                {
+                    EnsureCanReloadTargetLocked(previousTarget);
+                    if (!OutputTargetContract.IsEnabled(replacement))
+                        throw new InvalidOperationException("Output enablement changed on disk. Apply configuration before reloading this Output.");
+                }
                 if (!OutputTargetContract.ConnectionEquals(previousTarget, replacement) ||
                     previousTarget.DeviceEnabled != replacement.DeviceEnabled ||
-                    previousTarget.ProviderEnabled != replacement.ProviderEnabled)
-                    throw new InvalidOperationException("Target settings cannot change device ownership or Provider Enabled.");
+                    (!requireEnabledLifetime && previousTarget.ProviderEnabled != replacement.ProviderEnabled))
+                    throw new InvalidOperationException("Target settings cannot change device ownership; field commands cannot change Provider Enabled.");
                 var previousConfig = _config;
                 var previousBoards = _boards;
                 _sessions.TryGetValue(previousTarget.Id, out var existing);
@@ -470,9 +419,10 @@ internal sealed class OutputSessionManager : IDisposable
                     {
                         created = CreateSession(nextConfig, replacement, board);
                         if (_suspended) created.Suspend();
-                        created.Start();
                     }
 
+                    validateInput?.Invoke();
+                    created?.Start();
                     if (prepared is not null)
                     {
                         commitAttempted = true;

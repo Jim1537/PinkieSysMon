@@ -45,15 +45,12 @@ internal sealed class RuntimeOutputControl
 
         switch (command.Kind)
         {
+            case RuntimeIpcCommandKind.StartOrReloadTarget:
             case RuntimeIpcCommandKind.AssignDashboard:
             case RuntimeIpcCommandKind.SetDesktopBoardEnabled:
             case RuntimeIpcCommandKind.SetDesktopLock:
                 return _configureOutput?.Invoke(command)
                     ?? new RuntimeIpcResponse(false, "Runtime output configuration is unavailable.");
-
-            case RuntimeIpcCommandKind.StartOrReloadTarget:
-                _sessions.StartOrReloadTarget(command.TargetId!);
-                return new RuntimeIpcResponse(true, $"Output target '{command.TargetId}' started/reloaded.");
 
             case RuntimeIpcCommandKind.StartOrReloadAll:
                 _sessions.StartOrReloadAll();

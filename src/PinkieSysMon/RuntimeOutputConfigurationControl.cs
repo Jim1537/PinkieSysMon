@@ -12,6 +12,8 @@ internal sealed class RuntimeOutputConfigurationControl(
     public RuntimeIpcResponse Execute(RuntimeIpcCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
+        if (command.Kind == RuntimeIpcCommandKind.StartOrReloadTarget)
+            return Reload(command.TargetId!);
         var previous = currentConfig();
         var selected = previous.Outputs.Targets.SingleOrDefault(t =>
             t.Id.Equals(command.TargetId, StringComparison.OrdinalIgnoreCase))
@@ -85,6 +87,52 @@ internal sealed class RuntimeOutputConfigurationControl(
             throw;
         }
         return new RuntimeIpcResponse(true, message);
+    }
+
+    private RuntimeIpcResponse Reload(string targetId)
+    {
+        sessions.EnsureCanReloadTarget(targetId);
+        var previous = currentConfig();
+        var selected = previous.Outputs.Targets.Single(t =>
+            t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase));
+        var path = Path.Combine(applicationRoot, "config", "app.json");
+        var original = File.ReadAllBytes(path);
+        // Retain structural/identity validation, but do not load sibling dashboards
+        // or apply the saved common settings and unrelated target edits.
+        var disk = AppConfig.Load(path, log);
+        EnsureCurrent(path, original);
+        var replacement = disk.Outputs.Targets.SingleOrDefault(t =>
+            t.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Output '{selected.Id}' was removed on disk. Apply configuration before reloading it.");
+        if (!OutputTargetContract.ConnectionEquals(selected, replacement) ||
+            selected.DeviceEnabled != replacement.DeviceEnabled ||
+            OutputTargetContract.IsEnabled(selected) != OutputTargetContract.IsEnabled(replacement))
+            throw new InvalidOperationException($"Output '{selected.Id}' binding or enablement changed on disk. Apply configuration through the established settings/consent route first.");
+        var board = RuntimeConfigurationValidator.LoadTarget(replacement, applicationRoot);
+        var runtimeCommitAttempted = false;
+        try
+        {
+            sessions.ReloadTarget(replacement, board, next =>
+            {
+                EnsureCurrent(path, original);
+                runtimeCommitAttempted = true;
+                commitRuntime(next);
+            }, () => EnsureCurrent(path, original));
+        }
+        catch (Exception error)
+        {
+            if (runtimeCommitAttempted)
+            {
+                try { commitRuntime(previous); }
+                catch (Exception rollbackError)
+                {
+                    throw new AggregateException("Output reload failed; Runtime recovery was incomplete.",
+                        error, rollbackError);
+                }
+            }
+            throw;
+        }
+        return new RuntimeIpcResponse(true, $"Output '{replacement.Id}' reloaded saved settings and dashboard '{replacement.Dashboard}'.");
     }
 
     private static ConfigurationDraft PrepareDraft(string path, OutputTargetConfig selected,

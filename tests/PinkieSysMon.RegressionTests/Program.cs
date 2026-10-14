@@ -48,6 +48,11 @@ internal static class Program
             ("Per-output dashboard assignment isolation", OutputDashboardOwnershipTests.IndependentAssignments),
             ("Per-output shared board and targeted reload", OutputDashboardOwnershipTests.SharedBoardTargetReload),
             ("Per-output dashboard transaction rollback", OutputDashboardOwnershipTests.Rollback),
+            ("Issue63 selected saved settings and shared-board isolation", SavedOutputReloadTests.SavedSettingsIsolation),
+            ("Issue63 physical inherited settings and reload ownership", SavedOutputReloadTests.PhysicalDefaultsAndOwnership),
+            ("Issue63 selected reload validation and read-only failures", SavedOutputReloadTests.ValidationAndReadOnlyFailures),
+            ("Issue63 selected reload rollback and concurrent writes", SavedOutputReloadTests.RollbackAndConcurrentWrite),
+            ("Issue63 selected reload global lifetime and feedback", SavedOutputReloadTests.LifecycleAndFeedback),
             ("Output telemetry demand active union", OutputTelemetryDemandTests.ActiveUnion),
             ("Output telemetry demand activation and clearing", OutputTelemetryDemandTests.Transitions),
             ("Output telemetry demand independent Desktop switches", OutputTelemetryDemandTests.DesktopPolicy),
@@ -1687,7 +1692,8 @@ internal static class Program
                    control.GetStatus().Outputs.All(output => !output.IsActive) &&
                    !control.ShouldExitRuntimeAfter(disableBCommand),
                 "Disabling the final Output must leave Runtime available for configuration.");
-            AssertThrows<InvalidOperationException>(() => manager.StartOrReloadTarget("screen-a"),
+            AssertThrows<InvalidOperationException>(() => manager.ReloadTarget(config.Outputs.Targets[0],
+                manager.GetDashboardAssignments()["screen-a"], _ => { }),
                 "Target reload must not bypass disabled configuration.");
 
             manager.Reconfigure(config, manager.GetDashboardAssignments());
@@ -1700,7 +1706,8 @@ internal static class Program
                    control.GetStatus().Outputs.All(output => !output.IsActive) &&
                    control.ShouldExitRuntimeAfter(stopAllCommand),
                 "Stop All must unload every configured output session and request runtime-process shutdown.");
-            AssertThrows<InvalidOperationException>(() => manager.StartOrReloadTarget("screen-a"),
+            AssertThrows<InvalidOperationException>(() => manager.ReloadTarget(config.Outputs.Targets[0],
+                manager.GetDashboardAssignments()["screen-a"], _ => { }),
                 "A target command must not override the global lifetime stop during shutdown.");
             Assert(control.Execute(new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll)).Success &&
                    control.GetStatus().Outputs.All(output => output.IsActive),

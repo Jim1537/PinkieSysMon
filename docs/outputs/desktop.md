@@ -61,7 +61,7 @@ Right-click Runtime's tray icon and open **Outputs → &lt;panel name&gt;**. The
 | --- | --- |
 | Toggle **Board Enabled** off/on | Unload/hide or start/show this panel; preserve its assignment, Lock and provider setting. The switch is persisted. |
 | Toggle **Lock** | Change mouse pass-through for this panel; preserve Board Enabled and global Runtime lifetime. |
-| **Start / Reload** | Reload the saved dashboard within Runtime's running output lifetime. It does not turn Board Enabled on or bypass global shutdown. |
+| **Start / Reload** | Apply this panel's saved edits through the [selected saved-reload contract](../development/architecture.md#selected-output-saved-reload). |
 
 The Editor offers target **Start / Reload** under **Output**, plus **Start / Reload All** and the existing global **Stop / Unload All Outputs** shutdown command. All-target reload addresses eligible Outputs; disabled boards/devices remain disabled.
 

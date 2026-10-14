@@ -114,7 +114,7 @@ internal static class OutputTelemetryDemandTests
                 "Enabling a target must resume its metrics without a second Start command.");
 
             requested["a"] = newA;
-            manager.StartOrReloadTarget("a");
+            manager.ReloadTarget(cfg.Outputs.Targets.Single(t => t.Id == "a"), newA, _ => { });
             Reconcile();
             Check(store.Snapshot().TryGetValue(Left, out var removed) && removed is null &&
                   manager.GetRequiredMetrics().SetEquals(new[] { Shared, Changed }),

@@ -60,7 +60,7 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 Configured Outputs register dynamic provider descriptors independently of telemetry acquisition. The [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics) owns provider enablement, namespaces, fields, publication and unavailable values.
 
-**Runtime owns independently loaded canonical dashboards keyed by stable Output ID.** Each active session receives its assigned document rather than a global active board. Outputs selecting the same saved dashboard receive separate in-memory definitions/renderers. Target Start/Reload commits only that target's board; full configuration reload validates all assignments and has rollback paths for failed session commits.
+**Runtime owns independently loaded canonical dashboards keyed by stable Output ID.** Each active session receives its assigned document rather than a global active board. Outputs selecting the same saved dashboard receive separate in-memory definitions/renderers. A [selected saved reload](#selected-output-saved-reload) commits only that target's configuration/document; full configuration reload validates all assignments and has rollback paths for failed session commits.
 
 `DashboardRenderer` owns Skia surfaces and resource caches and rasterizes the canonical logical Canvas, including image layers and widgets, in premultiplied BGRA. `RenderBgra` returns a caller-owned logical-size bitmap with alpha intact; it remains independent of subsequent renders and must be disposed by the caller. Desktop's [native alpha presentation](../outputs/desktop.md#session-and-native-alpha-presentation) consumes that raster. Trofeo's [wire rendering](devices/trofeo-vision-9.16.md#geometry-and-configuration) composites/rotates it onto an opaque black native-size surface before JPEG encoding. Session/transport ownership remains separate from the shared renderer contract.
 
@@ -87,16 +87,16 @@ Before an Output Start/Reload action, the Editor uses its existing **Save / Don'
 
 | Assignment choice | Editor request |
 | --- | --- |
-| Same assigned dashboard | Start/Reload that Output directly. |
-| Use editor dashboard | Request target assignment through Runtime IPC, confirm it, and start the Output if assignment did not already reload an active session. |
-| Keep assigned dashboard | Start/Reload the target's existing assignment. |
+| Same assigned dashboard | Request the selected Output's saved reload. |
+| Use editor dashboard | Request target assignment through Runtime IPC, confirm it, and request reload if assignment did not already reload an active session. |
+| Keep assigned dashboard | Request selected saved reload and verify its observed assignment still matches the choice. |
 | Cancel | Send no assignment/start request and do not launch an absent Runtime. |
 
 **Start/Reload All** collects every enabled Output's individual choice before dispatch. It then addresses those explicit IDs in order, preserving disabled Device/Board ownership. This Editor sequence is not an atomic multi-output transaction: a later failure reports the earlier confirmed assignments/loads instead of claiming that every change was rolled back. A single-target action never uses global configuration `RELOAD`. The Output menu shows each reported assignment and distinguishes Desktop display state from physical connection state.
 
 When Runtime is absent, local configuration provides a provisional choice only. After the choices, Editor launches Runtime normally: every saved enabled Output can start, including eligible siblings of a selected target; disabled devices remain disabled. Editor confirms actual IPC status, reports the observed startup count and rechecks planned assignments/enablement before target dispatch. A later failure retains that confirmed startup in its partial result. An existing process with unavailable IPC blocks a duplicate launch. The retired `--outputs-stopped` argument and other unsupported startup arguments are rejected before output sessions are created. The Editor does not persist Output assignments directly; Runtime owns those writes. Missing legacy per-Output metadata or detected assignment/target-set drift produces an actionable failure rather than a guessed assignment.
 
-Completed requests are checked against observed assignment and active-session status. `WAITING`/`SUSPENDED` are reported as such and do not imply a connected or visible display; reported Output error/ambiguity is a failed result. These client-side snapshots are checks, not a cross-process atomic reservation; concurrent state can change between IPC operations.
+Completed requests are checked against observed assignment and active-session status. A selected saved reload can apply a newer disk assignment; detected drift from the Editor's plan is reported rather than claiming that the planned board was loaded. `WAITING`/`SUSPENDED` are reported as such and do not imply a connected or visible display; reported Output error/ambiguity is a failed result. These client-side snapshots are checks, not a cross-process atomic reservation; concurrent state can change between IPC operations.
 
 **Source anchors:** [Editor Output commands](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Commands.cs), [Start workflow](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorOutputStartWorkflow.cs), [Choice dialogs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs).
 
@@ -150,9 +150,25 @@ Target configuration requests use the same v1 pipe and Runtime UI-thread control
 | `DESKTOP_SET_BOARD_ENABLED` | `{"TargetId":"desktop-1","Value":true}` | Save that Desktop's enablement; start/show or disable/unload it within the running global lifetime, preserving Provider Enabled, Lock and siblings. |
 | `DESKTOP_SET_LOCK` | `{"TargetId":"desktop-1","Value":true}` | Change only that Desktop's Lock; retain its loaded board, enablement and global lifetime. |
 
-These requests prepare only the selected session and preserve sibling document instances and pending local configuration values. Persistence patches only the requested field in existing `app.json`, retaining unknown fields; checks reject a changed target binding/requested field or a detected intervening write. Session, persistence and telemetry failures attempt to restore the prior state. Disk rollback checks that the file still matches this operation's write before restoring the original bytes; detected newer content is retained and incomplete recovery is reported. These byte checks and atomic file replacement do not provide a cross-process compare-and-swap guarantee; native/driver recovery can also fail as described above. The tray exposes dashboard assignment and Desktop Board Enabled/Lock through these same requests. Hiding the final Desktop through Board Enabled leaves Runtime available for a later enable; global Stop All retains its shutdown policy. No target configuration request grants physical Device Enabled or changes Provider Enabled.
+These field-writing requests prepare only the selected session and preserve sibling document instances and pending local configuration values. Persistence patches only the requested field in existing `app.json`, retaining unknown fields; checks reject a changed target binding/requested field or a detected intervening write. Session, persistence and telemetry failures attempt to restore the prior state. Disk rollback checks that the file still matches this operation's write before restoring the original bytes; detected newer content is retained and incomplete recovery is reported. These byte checks and atomic file replacement do not provide a cross-process compare-and-swap guarantee; native/driver recovery can also fail as described above. The tray exposes dashboard assignment and Desktop Board Enabled/Lock through these same requests. Hiding the final Desktop through Board Enabled leaves Runtime available for a later enable; global Stop All retains its shutdown policy. These field requests do not grant physical Device Enabled or change Provider Enabled.
 
 **Source anchors:** [Runtime IPC](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeIpc.cs), [Runtime output control](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputControl.cs), [Target configuration transaction](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputConfigurationControl.cs), [Application coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs).
+
+### Selected-Output saved reload
+
+The existing v1 request `OUTPUT_START_RELOAD`, followed by a tab and `{"TargetId":"desktop-1"}`, now routes through `RuntimeOutputConfigurationControl` rather than a board-only manager operation. Runtime and Editor use this same target request.
+
+| Boundary | Contract |
+| --- | --- |
+| Saved input | Read and normalize current `app.json`, retaining application structure, duplicate-ID/binding and value validation. Load only the selected target's assigned saved dashboard; a missing sibling dashboard file does not need to be loaded. |
+| Scope | Replace only the selected normalized target and its loaded document. Keep current common application/media/provider/telemetry settings, sibling target objects and sibling loaded documents. Per-target values inherited from saved common defaults become that selected target's effective settings without applying the common defaults globally. |
+| Ownership | Require an enabled target in a running global output lifetime. Reject changed saved enablement, kind/transport/binding or a removed target; apply such changes through the established configuration/consent path. Reload does not adopt hardware, enable a disabled Output or wake global shutdown. Existing suspension remains in force. |
+| Provider policy | Apply that target's saved Provider Enabled along with its other saved settings; it remains independent of output enablement and common telemetry-provider settings. |
+| Persistence | Reload is read-only on disk. It retains pending/unknown fields and unrelated saved edits, with byte checks rejecting detected intervening application-file writes. |
+
+The manager prepares the selected session's replacement and old-state recovery plan before commit, and rechecks input after preparation. A failed session or composition-root apply attempts to restore the selected session/configuration/document and shared telemetry coordination; incomplete recovery is reported explicitly. Prepared resources are released. File checks and client status snapshots do not reserve files or device ownership across processes; a detected newer file is retained rather than overwritten.
+
+**Source anchors:** [Saved-target controller](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeOutputConfigurationControl.cs), [Selected-session transaction](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [saved reload isolation/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/SavedOutputReloadTests.cs).
 
 ### Runtime command feedback
 

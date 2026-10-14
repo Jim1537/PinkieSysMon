@@ -183,7 +183,7 @@ internal static class RuntimeConfigurationStage24Tests
         f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
         Check(f.Created.Count == 0 && !f.Status("desktop-a").IsActive,
             "Assignment, Lock and Enabled must respect the global lifetime gate before Runtime starts.");
-        Failure<InvalidOperationException>(() => f.Manager.StartOrReloadTarget("desktop-a"));
+        Failure<InvalidOperationException>(() => f.Execute(new(RuntimeIpcCommandKind.StartOrReloadTarget, "desktop-a")));
         f.Manager.Start();
         var sibling = f.Latest("desktop-b");
         Check(f.Status("desktop-a").IsActive && f.Status("desktop-a").IsVisible == false &&
@@ -219,7 +219,7 @@ internal static class RuntimeConfigurationStage24Tests
         f.Execute(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "desktop-a", Value: true));
         Check(f.Created.Count == count && f.Status("desktop-a") is { IsActive: false, OutputEnabled: true, UsbState: "STOPPED" },
             "Settings operations during global shutdown must not wake Output sessions or lose saved enablement.");
-        Failure<InvalidOperationException>(() => f.Manager.StartOrReloadTarget("desktop-a"));
+        Failure<InvalidOperationException>(() => f.Execute(new(RuntimeIpcCommandKind.StartOrReloadTarget, "desktop-a")));
         f.Manager.StartOrReloadAll();
         Check(f.Status("desktop-a").IsActive && f.Latest("desktop-a").Width == 600 && f.Status("desktop-b").IsActive,
             "The global lifecycle primitive must restore all enabled Outputs using current assignments.");

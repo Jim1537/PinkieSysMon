@@ -41,7 +41,10 @@ internal static class DesktopMultiSessionStage15Tests
                 "Shared dashboard assignment must render separately from another board.");
 
             WriteBoard(root, "Shared", "#FF00FF00");
-            manager.StartOrReloadTarget("d1");
+            var firstTarget = config.Outputs.Targets.Single(t => t.Id == "d1");
+            void ReloadFirst() => manager.ReloadTarget(firstTarget,
+                RuntimeConfigurationValidator.LoadTarget(firstTarget, root), _ => { });
+            ReloadFirst();
             Check(Green(first.Draw()) && Red(second.Draw()) && Blue(third.Draw()) &&
                   first.DisposeCount == 0 && second.DisposeCount == 0 &&
                   third.DisposeCount == 0 && physical.DisposeCount == 0,
@@ -50,7 +53,7 @@ internal static class DesktopMultiSessionStage15Tests
             WriteBoard(root, "Shared", "#FFFFFF00");
             first.FailNextConfigure = true;
             var failed = false;
-            try { manager.StartOrReloadTarget("d1"); }
+            try { ReloadFirst(); }
             catch (InvalidOperationException) { failed = true; }
             Check(failed && Green(first.Draw()) && Red(second.Draw()) &&
                   Blue(third.Draw()) && physical.DisposeCount == 0,

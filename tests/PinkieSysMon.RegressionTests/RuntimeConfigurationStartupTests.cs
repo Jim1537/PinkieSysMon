@@ -40,7 +40,8 @@ internal static class RuntimeConfigurationStartupTests
                       "Enabled Desktop outputs must each create a session, without USB or invented fake-session frames.");
                 Check(File.ReadAllBytes(path).SequenceEqual(saved),
                       "Startup must not rewrite the persisted app.json.");
-                manager.StartOrReloadTarget("desktop-a");
+                manager.ReloadTarget(loaded.Outputs.Targets.Single(t => t.Id == "desktop-a"),
+                    RuntimeConfigurationValidator.LoadTarget(loaded.Outputs.Targets.Single(t => t.Id == "desktop-a"), root), _ => { });
                 Check(sessions.Count == 2 && manager.GetStatuses().All(status => status.IsActive),
                       "Reloading an enabled Desktop target must preserve the existing sessions.");
                 manager.StartOrReloadAll();
@@ -94,8 +95,9 @@ internal static class RuntimeConfigurationStartupTests
                   sessions.All(s => s.TargetId != "usb-off") &&
                   manager.GetStatuses().Single(s => s.TargetId == "usb-off").UsbState == "DISABLED",
                   "Enabled Desktop and explicitly enabled Trofeo outputs must start independently; disabled USB must not.");
-            Check(Throws<InvalidOperationException>(() => manager.StartOrReloadTarget("usb-off")),
-                  "Starting a disabled physical target must not open USB.");
+            Check(Throws<InvalidOperationException>(() => manager.ReloadTarget(
+                loaded.Outputs.Targets.Single(t => t.Id == "usb-off"), manager.GetDashboardAssignments()["usb-off"], _ => { })),
+                  "Reloading a disabled physical target must not open USB.");
 
             // Applying a new persisted configuration must retire the now-disabled live session.
             loaded.Outputs.Targets.Single(t => t.Id == "usb-on").DeviceEnabled = false;
