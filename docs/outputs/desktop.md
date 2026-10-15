@@ -72,10 +72,7 @@ When Enabled is off, the panel name and Enabled remain reachable; Dashboard, Rel
 
 The Editor offers target **Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
 
-!!! info "Disabling the final panel and global shutdown"
-    Turning **Enabled** off for the final Desktop leaves Runtime available so the tray can enable it again. **Stop / Unload All Outputs** requests Runtime shutdown without changing saved enablement. A later normal Runtime launch starts saved enabled Outputs.
-
-Saved enablement storage and lifecycle rules are defined by [Architecture](../development/architecture.md#output-status-and-tray-control).
+For saved enablement, disabling the final Output, global shutdown and normal restart, see the [Runtime lifetime contract](../development/architecture.md#control-path-and-reconfiguration). Its [tray-control section](../development/architecture.md#output-status-and-tray-control) defines the storage and status projection.
 
 ### Change the dashboard or load saved edits
 

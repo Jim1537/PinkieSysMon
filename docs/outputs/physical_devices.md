@@ -82,8 +82,7 @@ For removal, use **Control Center → Edit → Settings… → Device #N → Rem
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
-!!! info "Saved enablement and global shutdown"
-    Disabling the final Output leaves Runtime available for configuration. The global **Stop / Unload All Outputs** command requests Runtime shutdown without revoking saved enablement consent; a later normal Runtime launch starts all saved enabled Outputs. The [shared output-control contract](../development/architecture.md#output-status-and-tray-control) owns Enabled storage and lifecycle rules.
+For saved enablement, disabling the final Output, global shutdown and normal restart, see the [Runtime lifetime contract](../development/architecture.md#control-path-and-reconfiguration). Its [tray-control section](../development/architecture.md#output-status-and-tray-control) defines the storage and status projection.
 
 ### Troubleshooting and recovery
 
