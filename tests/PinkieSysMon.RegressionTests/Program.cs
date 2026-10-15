@@ -85,6 +85,9 @@ internal static class Program
             ("Trofeo overlapped cancellation waits for completion", TrofeoOverlappedCancelAwaitsCompletion),
             ("Frame pump suspend cancels blocked open", FramePumpSuspendCancelsBlockedOpen),
             ("Frame pump dispose cancels blocked send", FramePumpDisposeCancelsBlockedSend),
+            ("Final physical Output disable drains frame and ACK before re-enable", FramePumpShutdownTests.FinalOutputFrameCompletion),
+            ("Frame pump dispose completes pending handshake without frame admission", FramePumpShutdownTests.HandshakeCompletion),
+            ("Frame pump dispose cancels stalled handshake after grace", FramePumpShutdownTests.StalledHandshakeCancellation),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
@@ -928,7 +931,7 @@ internal static class Program
         using var sendEntered = new ManualResetEventSlim();
         var disposalCount = 0;
         var pump = new FramePump(
-            new AppConfig(),
+            new AppConfig { Usb = new UsbConfig { TransferTimeoutMs = 500 } },
             new OutputTargetConfig(),
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
@@ -945,7 +948,7 @@ internal static class Program
 
             var disposeTask = Task.Run(pump.Dispose);
             Assert(disposeTask.Wait(TimeSpan.FromSeconds(3)),
-                "Dispose must cancel a pending frame transfer before waiting for its worker.");
+                "Dispose must cancel a stalled frame transfer after its completion grace and drain the worker.");
             Assert(disposalCount == 1,
                 "Worker-owned transport must be disposed exactly once after cancellation.");
         }

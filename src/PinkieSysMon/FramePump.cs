@@ -227,7 +227,7 @@ internal sealed class FramePump : IOutputSession
     {
         var nextFrameAt = Stopwatch.GetTimestamp();
 
-        while (!token.IsCancellationRequested)
+        while (!token.IsCancellationRequested && Volatile.Read(ref _disposeState) == 0)
         {
             int delayMs;
             var intervalMs = 1000;
@@ -254,6 +254,9 @@ internal sealed class FramePump : IOutputSession
                 delayMs = Math.Max(1, intervalMs);
                 nextFrameAt = Stopwatch.GetTimestamp();
             }
+
+            if (Volatile.Read(ref _disposeState) != 0)
+                break;
 
             try
             {
@@ -707,13 +710,30 @@ internal sealed class FramePump : IOutputSession
         if (Interlocked.Exchange(ref _disposeState, 1) != 0)
             return;
 
-        _cts.Cancel();
         SignalWake();
         try
         {
-            // Until true cancellable WinUSB is introduced, this can still wait for an
-            // in-flight synchronous operation. It never closes that operation's handle.
-            _worker?.GetAwaiter().GetResult();
+            if (_worker is { } worker)
+            {
+                int graceMs;
+                lock (_sync)
+                    graceMs = (_target.Usb ?? _config.Usb).TransferTimeoutMs;
+
+                try
+                {
+                    // Stop admission first, then let an in-flight handshake or complete
+                    // JPEG/ACK transaction finish without cancelling it between writes.
+                    worker.WaitAsync(TimeSpan.FromMilliseconds(graceMs)).GetAwaiter().GetResult();
+                }
+                catch (TimeoutException)
+                {
+                    _log.Warn($"Output target '{TargetName}' did not finish its pending USB operation within {graceMs} ms; cancelling I/O.");
+                    _cts.Cancel();
+                    // Cancellation is only a request. Keep buffers and handles alive
+                    // until the worker has drained actual native completion.
+                    worker.GetAwaiter().GetResult();
+                }
+            }
         }
         catch (OperationCanceledException)
         {
