@@ -19,6 +19,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
     private readonly RuntimeOutputControl _outputControl;
+    private readonly RuntimeOutputConfigurationControl _outputConfiguration;
     private readonly RuntimeConfigurationReloadControl _configurationReload;
     private readonly WindowsMediaTelemetrySource _mediaTelemetry;
     private readonly WindowsAppNotificationService _notifications;
@@ -73,10 +74,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _outputSessions, _telemetry, _metrics, _sources, _baseDir, _log,
             () => new RuntimeConfigurationSnapshot(_config, _telemetryConfig, _boards),
             _mediaTelemetry.ApplyEndpointTypeOverrides, CommitRuntimeConfiguration);
-        var configurationControl = new RuntimeOutputConfigurationControl(
+        _outputConfiguration = new RuntimeOutputConfigurationControl(
             _outputSessions, () => _config, _baseDir, _log, CommitTargetRuntimeConfiguration);
         _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus,
-            configurationControl.Execute, () => _configurationReload.Reload());
+            _outputConfiguration.Execute, () => _configurationReload.Reload());
         _notifications = new WindowsAppNotificationService(log);
         _commandFeedback = new RuntimeCommandFeedback(
             (message, kind) => _notifications.Show(message, kind),
@@ -137,20 +138,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         try
         {
-            if (enable)
+            if (_exiting) return;
+            var apply = _outputConfiguration.PreparePhysicalEnablement(targetId, enable, target =>
             {
-                // Re-evaluate physical identity immediately before requesting consent.
-                if (!RefreshPhysicalInventory())
-                    throw new InvalidOperationException("Device discovery is unavailable.");
-
-                var entry = _physicalInventory.SingleOrDefault(e =>
-                    e.ConfiguredTarget?.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) == true);
-                if (!PhysicalDeviceInventory.CanOfferEnable(entry))
-                    throw new InvalidOperationException(
-                        "The configured device is absent or its physical identity is ambiguous.");
-
                 var consent = MessageBox.Show(
-                    $"Enable PinkieSysMon USB output for '{entry!.ConfiguredTarget!.Name}'?\n\n" +
+                    $"Enable PinkieSysMon USB output for '{target.Name}'?\n\n" +
                     "PinkieSysMon will open the physical USB device and send display frames. " +
                     "Running vendor software or another USB-display application at the same time " +
                     "may cause device-access conflicts.\n\n" +
@@ -159,72 +151,20 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2);
-                if (consent != DialogResult.Yes)
-                    return;
-            }
-
-            // Start from the disk definition so unrelated local settings are retained.
-            var config = AppConfig.Load(AppConfigPath, _log);
-            var target = config.Outputs.Targets.SingleOrDefault(t =>
-                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) &&
-                t.Kind.Equals(OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase));
-            if (target is null)
-                throw new InvalidOperationException("The physical output is no longer configured.");
-            if (target.DeviceEnabled == enable)
-                return;
-
-            if (enable)
-            {
-                // Consent does not reserve a USB interface; verify again afterward.
-                if (!RefreshPhysicalInventory())
-                    throw new InvalidOperationException("Device discovery is unavailable.");
-                var entry = _physicalInventory.SingleOrDefault(e =>
-                    e.ConfiguredTarget?.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) == true);
-                if (!PhysicalDeviceInventory.CanOfferEnable(entry) ||
-                    !target.DeviceId.Equals(entry!.DiscoveredDevice!.DeviceId, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Device identity changed. No USB ownership was taken.");
-            }
+                return consent == DialogResult.Yes;
+            }, DeviceDiscovery.EnumerateTrofeoDevices);
+            if (apply is null || _exiting) return;
 
             // Consent remains above this path. This internal feedback kind has no IPC verb.
-            _commandFeedback.Execute(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, targetId, Value: enable), () =>
-            {
-                target.DeviceEnabled = enable;
-                SaveAndReloadPhysicalOutputChange(config);
-                return new(true, $"Device Enabled = {enable}.");
-            }, _outputControl.GetStatus);
+            _commandFeedback.Execute(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, targetId, Value: enable),
+                apply, _outputControl.GetStatus);
+            RefreshTrayStatus();
         }
         catch (Exception ex)
         {
             _log.Error("Could not change physical device enabled state.", ex);
             _notifications.Show($"Device setting failed for Output '{targetId}': {ex.Message}", RuntimeNotificationKind.Error);
         }
-    }
-
-    private void SaveAndReloadPhysicalOutputChange(AppConfig config)
-    {
-        // This established path reloads all persisted settings, so older completions
-        // cannot retain ownership of potentially replaced sibling sessions/bindings.
-        _commandFeedback.Clear();
-        // Resolve all remaining dashboards before replacing the private configuration.
-        _ = RuntimeConfigurationValidator.LoadAssignments(config, _baseDir);
-        var previousJson = File.ReadAllText(AppConfigPath);
-        config.Save(AppConfigPath);
-        var response = ReloadConfigurationCore();
-        if (response.Success)
-            return;
-
-        // The session manager restores the previous live sessions on failure;
-        // restore the exact original local configuration and retry that live state.
-        var restorePath = AppConfigPath + ".rollback.tmp";
-        File.WriteAllText(restorePath, previousJson);
-        File.Move(restorePath, AppConfigPath, true);
-        var recovered = ReloadConfigurationCore();
-        if (!recovered.Success)
-            throw new InvalidOperationException(
-                $"The physical Output change failed and the previous configuration was restored on disk, " +
-                $"but restoring the live runtime also failed: {recovered.Message}");
-        throw new InvalidOperationException(
-            $"The physical Output change could not be applied; the previous configuration and runtime were restored: {response.Message}");
     }
 
     private void BuildTray()

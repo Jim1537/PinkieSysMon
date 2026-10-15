@@ -18,7 +18,7 @@ internal sealed class RuntimeOutputConfigurationControl(
         var selected = previous.Outputs.Targets.SingleOrDefault(t =>
             t.Id.Equals(command.TargetId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Output '{command.TargetId}' is not configured.");
-        var replacement = JsonSerializer.Deserialize<OutputTargetConfig>(JsonSerializer.Serialize(selected))!;
+        var replacement = CloneTarget(selected);
         string property;
         JsonNode value;
         string message;
@@ -61,15 +61,80 @@ internal sealed class RuntimeOutputConfigurationControl(
         var board = command.Kind == RuntimeIpcCommandKind.AssignDashboard || reloadBoard
             ? RuntimeConfigurationValidator.LoadTarget(replacement, applicationRoot)
             : sessions.GetDashboardAssignments().GetValueOrDefault(selected.Id);
+        return ApplySetting(previous, replacement, board, draft, message);
+    }
+
+    // No IPC route. Consent is completed before the caller creates command feedback.
+    // The returned callback retains the exact input ownership across the modal dialog.
+    public Func<RuntimeIpcResponse>? PreparePhysicalEnablement(string targetId, bool enabled,
+        Func<OutputTargetConfig, bool> confirmEnable,
+        Func<IReadOnlyList<OutputDeviceDescriptor>> discover)
+    {
+        ArgumentNullException.ThrowIfNull(confirmEnable);
+        ArgumentNullException.ThrowIfNull(discover);
+        var previous = currentConfig();
+        var target = previous.Outputs.Targets.SingleOrDefault(t =>
+            t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Output '{targetId}' is not configured.");
+        if (target.Kind != OutputTargetContract.TrofeoKind || target.DeviceEnabled == enabled)
+            throw new InvalidOperationException("The physical Output or its enablement changed. Reopen the tray menu.");
+        var selectedJson = JsonSerializer.Serialize(target);
+        var selected = CloneTarget(target);
+        var replacement = CloneTarget(selected);
+        replacement.DeviceEnabled = enabled;
+        var path = Path.Combine(applicationRoot, "config", "app.json");
+        var draft = PrepareDraft(path, selected, "DeviceEnabled", JsonValue.Create(enabled)!, log);
+
+        void ValidateInput()
+        {
+            var current = currentConfig();
+            var actual = current.Outputs.Targets.SingleOrDefault(t =>
+                t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase));
+            if (!ReferenceEquals(current, previous) || actual is null ||
+                JsonSerializer.Serialize(actual) != selectedJson)
+                throw new InvalidOperationException("Runtime configuration changed during the physical Output operation. Reopen the tray menu.");
+            draft.Validate();
+            if (enabled)
+            {
+                var entry = PhysicalDeviceInventory.Capture(current.Outputs.Targets, discover)
+                    .SingleOrDefault(e => e.ConfiguredTarget?.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase) == true);
+                if (!PhysicalDeviceInventory.CanOfferEnable(entry) ||
+                    !OutputTargetContract.ConnectionEquals(selected, entry!.ConfiguredTarget!))
+                    throw new InvalidOperationException("The configured device is absent or its exact physical identity is ambiguous. No enablement was committed.");
+            }
+            draft.Validate(); // Discovery/consent does not reserve the application file.
+        }
+
+        ValidateInput();
+        if (enabled && !confirmEnable(CloneTarget(selected))) return null;
+        return () =>
+        {
+            ValidateInput();
+            var board = enabled
+                ? RuntimeConfigurationValidator.LoadTarget(replacement, applicationRoot)
+                : sessions.GetDashboardAssignments().GetValueOrDefault(selected.Id);
+            return ApplySetting(previous, replacement, board, draft,
+                $"Physical Output '{selected.Id}' Enabled = {enabled}.", ValidateInput, physicalEnablement: true);
+        };
+    }
+
+    private RuntimeIpcResponse ApplySetting(AppConfig previous, OutputTargetConfig replacement,
+        global::PinkieSysMon.DashboardModel.DashboardDefinition? board, ConfigurationDraft draft,
+        string message, Action? validateInput = null, bool physicalEnablement = false)
+    {
         var runtimeCommitAttempted = false;
         try
         {
-            sessions.ReconfigureTarget(replacement, board, next =>
+            void Commit(AppConfig next)
             {
                 draft.Save();
                 runtimeCommitAttempted = true;
                 commitRuntime(next);
-            });
+            }
+            if (physicalEnablement)
+                sessions.ReconfigurePhysicalEnablement(replacement, board, Commit, validateInput!);
+            else
+                sessions.ReconfigureTarget(replacement, board, Commit);
         }
         catch (Exception error)
         {
@@ -88,6 +153,9 @@ internal sealed class RuntimeOutputConfigurationControl(
         }
         return new RuntimeIpcResponse(true, message);
     }
+
+    private static OutputTargetConfig CloneTarget(OutputTargetConfig target) =>
+        JsonSerializer.Deserialize<OutputTargetConfig>(JsonSerializer.Serialize(target))!;
 
     private RuntimeIpcResponse Reload(string targetId)
     {
@@ -149,6 +217,7 @@ internal sealed class RuntimeOutputConfigurationControl(
             "Dashboard" => diskTarget.Dashboard == selected.Dashboard,
             "BoardEnabled" => diskTarget.Desktop?.BoardEnabled == selected.Desktop?.BoardEnabled,
             "Lock" => diskTarget.Desktop?.Lock == selected.Desktop?.Lock,
+            "DeviceEnabled" => diskTarget.DeviceEnabled == selected.DeviceEnabled,
             _ => false
         };
         if (!unchanged)
@@ -167,7 +236,7 @@ internal sealed class RuntimeOutputConfigurationControl(
         if (matches.Length != 1)
             throw new InvalidDataException("Expected exactly one explicitly persisted Output ID.");
         var owner = matches[0];
-        if (property != "Dashboard")
+        if (property is "BoardEnabled" or "Lock")
         {
             var desktop = Get(owner, "Desktop") as JsonObject;
             if (desktop is null)
@@ -201,6 +270,7 @@ internal sealed class RuntimeOutputConfigurationControl(
     private sealed class ConfigurationDraft(string path, byte[] original, byte[] replacement)
     {
         private bool _saved;
+        public void Validate() => EnsureCurrent(path, original);
         public void Save()
         {
             Replace(original, replacement);

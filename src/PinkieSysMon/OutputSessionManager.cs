@@ -364,6 +364,7 @@ internal sealed class OutputSessionManager : IDisposable
 
     // Saved reload and field changes share one selected-session transaction. Only
     // reload accepts saved provider policy, and it cannot change enablement/binding.
+    // The dedicated physical path requires its consent/input validator before Start.
     public void ReloadTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition board,
         Action<AppConfig> commit, Action? validateInput = null) =>
         ApplyTarget(replacement, board, commit, requireEnabledLifetime: true, validateInput: validateInput);
@@ -372,8 +373,16 @@ internal sealed class OutputSessionManager : IDisposable
         Action<AppConfig> commit) =>
         ApplyTarget(replacement, board, commit, requireEnabledLifetime: false, validateInput: null);
 
+    public void ReconfigurePhysicalEnablement(OutputTargetConfig replacement, CanonicalDashboardDefinition? board,
+        Action<AppConfig> commit, Action validateInput)
+    {
+        ArgumentNullException.ThrowIfNull(validateInput);
+        ApplyTarget(replacement, board, commit, requireEnabledLifetime: false,
+            validateInput: validateInput, allowPhysicalEnablement: true);
+    }
+
     private void ApplyTarget(OutputTargetConfig replacement, CanonicalDashboardDefinition? board,
-        Action<AppConfig> commit, bool requireEnabledLifetime, Action? validateInput)
+        Action<AppConfig> commit, bool requireEnabledLifetime, Action? validateInput, bool allowPhysicalEnablement = false)
     {
         ArgumentNullException.ThrowIfNull(replacement);
         if (OutputTargetContract.IsEnabled(replacement) && board is null)
@@ -395,8 +404,9 @@ internal sealed class OutputSessionManager : IDisposable
                     if (!OutputTargetContract.IsEnabled(replacement))
                         throw new InvalidOperationException("Output enablement changed on disk. Apply configuration before reloading this Output.");
                 }
-                if (!OutputTargetContract.ConnectionEquals(previousTarget, replacement) ||
-                    previousTarget.DeviceEnabled != replacement.DeviceEnabled ||
+                if ((allowPhysicalEnablement && previousTarget.Kind != OutputTargetContract.TrofeoKind) ||
+                    !OutputTargetContract.ConnectionEquals(previousTarget, replacement) ||
+                    (!allowPhysicalEnablement && previousTarget.DeviceEnabled != replacement.DeviceEnabled) ||
                     (!requireEnabledLifetime && previousTarget.ProviderEnabled != replacement.ProviderEnabled))
                     throw new InvalidOperationException("Target settings cannot change device ownership; field commands cannot change Provider Enabled.");
                 var previousConfig = _config;
@@ -483,7 +493,7 @@ internal sealed class OutputSessionManager : IDisposable
         if (removed is not null)
         {
             try { removed.SetRuntimeMetricsPublisher(false); }
-            catch (Exception ex) { _log.Warn("Disabled Desktop publisher cleanup failed.", ex); }
+            catch (Exception ex) { _log.Warn("Disabled Output publisher cleanup failed.", ex); }
             DisposeSessionsBestEffort([removed]);
             lock (_sync)
             {

@@ -155,7 +155,7 @@ internal static class RuntimeTrayMenuTests
         using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { },
             (id, value) => permissions.Add((id, value)));
         var physical = Physical("device");
-        tray.RefreshOutputs([physical], ["Board"], new HashSet<string>(), new Dictionary<string, int> { ["device"] = 92 });
+        tray.RefreshOutputs([physical], ["Board", "Other"], new HashSet<string>(), new Dictionary<string, int> { ["device"] = 92 });
         var device = Output(tray, "device");
         Check(device.DropDownItems.Cast<ToolStripItem>().Select(i => i.Text).SequenceEqual(new[]
             {
@@ -165,6 +165,12 @@ internal static class RuntimeTrayMenuTests
         Item(device.DropDownItems, "Enabled").PerformClick();
         Check(permissions.SequenceEqual(new[] { ("device", false) }) && commands.Count == 0,
             "Physical enable/disable must route to the existing consent owner, never an unrestricted IPC setter.");
+        ((ToolStripMenuItem)Item(device.DropDownItems, "Dashboard").DropDownItems[1]).PerformClick();
+        Item(device.DropDownItems, "Reload").PerformClick();
+        Check(commands.Count == 2 && commands.All(c => c.TargetId == "device") &&
+              commands[0] is { Kind: RuntimeIpcCommandKind.AssignDashboard, Dashboard: "Other" } &&
+              commands[1].Kind == RuntimeIpcCommandKind.StartOrReloadTarget,
+            "Physical Dashboard and Reload must use the same selected-target routes as Desktop.");
         permissions.Clear();
         var absent = physical with { OutputEnabled = false, DeviceEnabled = false, IsActive = false, IsConnected = false };
         tray.RefreshOutputs([absent], ["Board"], new HashSet<string>(), new Dictionary<string, int>());
@@ -176,7 +182,10 @@ internal static class RuntimeTrayMenuTests
               Item(device.DropDownItems, "JPEG Quality: N/A%").Text == "JPEG Quality: N/A%",
             "Configured absent/unsafe disabled devices remain once with readable unavailable information and no permission grant.");
         Item(device.DropDownItems, "Enabled").PerformClick();
-        Check(permissions.Count == 0, "Unsafe physical enable must not reach the consent callback.");
+        ((ToolStripMenuItem)Item(device.DropDownItems, "Dashboard").DropDownItems[0]).PerformClick();
+        Item(device.DropDownItems, "Reload").PerformClick();
+        Check(permissions.Count == 0 && commands.Count == 2,
+            "Unsafe physical enable and disabled assignment/reload must not dispatch callbacks.");
         tray.RefreshOutputs([absent], ["Board"], new HashSet<string> { "device" }, new Dictionary<string, int>());
         Item(Output(tray, "device").DropDownItems, "Enabled").PerformClick();
         Check(permissions.SequenceEqual(new[] { ("device", true) }),
@@ -185,6 +194,17 @@ internal static class RuntimeTrayMenuTests
         Check(Item(Output(tray, "device").DropDownItems, "Enabled").Enabled &&
               !Item(Output(tray, "device").DropDownItems, "Dashboard").Enabled,
             "An enabled disconnected device stays disableable, and an unavailable dashboard catalog offers no assignment.");
+        foreach (var unavailable in new[]
+        {
+            physical with { IsActive = false }, physical with { IsConnected = false },
+            physical with { UsbState = "WAITING" }, physical with { UsbState = "SUSPENDED" },
+            physical with { UsbState = "ERROR" }, physical with { SentFrames = 0 }
+        })
+            Check(RuntimeTrayOutputContract.FrameValues(unavailable) == ("N/A", "N/A", "N/A"),
+                "Physical live/JPEG measurements must not remain valid after loss of an active ready completed frame.");
+        Check(RuntimeTrayOutputContract.FrameValues(physical with { LastJpegBytes = 0 }) == ("37", "12.5", "N/A") &&
+              RuntimeTrayOutputContract.FrameValues(physical with { LastFrameMs = double.PositiveInfinity }) == ("37", "N/A", "1.5"),
+            "Invalid physical size/duration must remain unavailable independently of other valid measurements.");
     }
 
     private static OutputSessionStatus Desktop(string id) => new(id, id, true, true, "DISPLAYING", 37, 12.5, 0)
