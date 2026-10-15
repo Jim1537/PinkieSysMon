@@ -5,7 +5,7 @@ namespace PinkieSysMon.DashboardModel;
 internal sealed class DashboardDefinition
 {
     [JsonPropertyName("schemaVersion")]
-    public int SchemaVersion { get; set; } = global::PinkieSysMon.DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion;
+    public int SchemaVersion { get; set; } = global::PinkieSysMon.DashboardSchemaMigration.CurrentSchemaVersion;
 
     [JsonPropertyName("canvas")]
     public CanvasDefinition Canvas { get; set; } = new();
@@ -33,13 +33,13 @@ internal sealed class DashboardDefinition
         }) as System.Text.Json.Nodes.JsonObject
             ?? throw new InvalidDataException("Dashboard definition is empty.");
 
-        global::PinkieSysMon.DashboardSchemaMigration.UpgradeToPropertyModelNormalization(root);
+        global::PinkieSysMon.DashboardSchemaMigration.UpgradeToCurrent(root);
         return global::PinkieSysMon.DashboardJson.DeserializeCurrent(root, path);
     }
 
     internal void Validate()
     {
-        var requiredSchemaVersion = global::PinkieSysMon.DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion;
+        var requiredSchemaVersion = global::PinkieSysMon.DashboardSchemaMigration.CurrentSchemaVersion;
         if (SchemaVersion != requiredSchemaVersion)
             throw new InvalidDataException($"Canonical property model requires dashboard schemaVersion {requiredSchemaVersion}, got {SchemaVersion}.");
         if (Canvas is null)

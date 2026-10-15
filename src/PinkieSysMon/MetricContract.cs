@@ -72,7 +72,7 @@ internal sealed record MetricDescriptor(
 /// </summary>
 internal static class MetricContract
 {
-    public const int DashboardSchemaVersion = DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion;
+    public const int DashboardSchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion;
 
     public static readonly IReadOnlyList<MetricPresentationOption> NumericFormats =
     [

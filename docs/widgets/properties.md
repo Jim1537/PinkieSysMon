@@ -136,6 +136,50 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:bump-pause] -->
 
 ---
+## Component
+
+<!-- --8<-- [start:component] -->
+
+!!! info ""
+
+    **Editor name:** Component  
+    **Semantic key:** `data.quantitative.datetime_component`  
+    **Canonical model:** `QuantitativeWidgetDefinition.Component`  
+    **JSON:** `component` (optional string; schema 20)
+
+
+    **Values:**
+
+    | Choice | JSON token | Scalar range and interpretation |
+    | --- | --- | --- |
+    | Select component | `null` | Unavailable until selected. |
+    | Year | `year` | Calendar year plus elapsed fraction of that year. |
+    | Month | `month` | 1–12 plus elapsed fraction of the month. |
+    | Day of month | `dayOfMonth` | 1–31 plus elapsed fraction of the day. |
+    | Day of year | `dayOfYear` | 1–365/366 plus elapsed fraction of the day. |
+    | Day of week (ISO) | `dayOfWeek` | Monday=1 through Sunday=7, plus elapsed fraction of the day. |
+    | Hour (24-hour) | `hour24` | 0 to less than 24, including minutes and seconds. |
+    | Hour (12-hour) | `hour12` | 0 to less than 12, including minutes and seconds. |
+    | Minute | `minute` | 0 to less than 60, including seconds. |
+    | Second | `second` | 0 to less than 60, including fractional seconds. |
+
+    A DateTime/DateTimeOffset metric must select one numeric Component before
+    Gauge or Bar can map it onto Min/Max. DateTimeOffset uses local time,
+    consistent with textual DateTime formatting. For a complete clock dial,
+    use `Min=0`, `Max=12` for Hour (12-hour), or `Min=0`, `Max=60` for
+    Minute/Second. For Month use `Min=1`, `Max=13`; calendar periods have
+    variable lengths and no fixed universal maximum for Day of month/Day of year.
+
+    This is a numeric projection, **not** the text [Format](properties.md#format)
+    editor. Compound masks such as `hh:mm` are invalid and rejected. Existing
+    schema-19 dashboards migrate with Component unset and retain their previous
+    unavailable DateTime indication until the user selects a component.
+
+    **Used by:** Gauge, Bar, only when [Metric](properties.md#metric) is DateTime.
+
+<!-- --8<-- [end:component] -->
+
+---
 ## Corner Radius
 
 

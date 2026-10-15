@@ -24,13 +24,13 @@ Open a dashboard in **PinkieSysMon Dashboard Editor**, then choose `Bar` from `A
     These defaults demonstrate the widget; choose the metric, range, and appearance appropriate for your dashboard. Output FPS availability follows the [Output provider contract](../telemetry/system.md#runtime-and-output-performance-metrics).
 
 
-### Step 2. Select a numeric metric
+### Step 2. Select a metric
 
 Open `General → Source → Metric` and select the telemetry metric to display.
 
 Supported metrics may come from [System](../telemetry/system.md), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md), or [iCUE Sensor Logging](../telemetry/icue-sensor-logging.md), depending on which providers are configured and supplying data.
 
-Bar needs a usable numeric value. An unavailable metric or a value that cannot be converted to a finite number cannot produce an active fill.
+Bar needs a usable numeric value. Date/time metrics become quantitative when a numeric [Component](properties.md#component) is selected. An unavailable or unconvertible value cannot produce an active fill.
 
 See [Metric](properties.md#metric).
 
@@ -40,6 +40,7 @@ Open the `Data` tab:
 
 - `Value → Source Unit` shows the unit associated with the selected metric. It is read-only.
 - `Value → Unit` selects a compatible numeric display/conversion unit when the metric supports one.
+- `Value → Component` selects a numeric calendar/clock component when the metric is DateTime.
 - `Range → Min` sets the value corresponding to an empty bar.
 - `Range → Max` sets the value corresponding to a completely filled bar.
 
@@ -221,6 +222,7 @@ Bar uses the common dashboard rendering pipeline for container background, borde
 | `type` | Type discriminator | `bar`. |
 | `metric` | `Metric` | Required telemetry metric identifier. |
 | `unit` | `Unit` | Optional numeric presentation unit. |
+| `component` | `Component` | Optional DateTime-to-number projection (schema 20). |
 | `min` / `max` | `Min` / `Max` | Numeric range defining 0% and 100% progress. |
 | `reverse` | `Reverse` | Reverses local progression direction. |
 | `gap` | `Gap` | Inset added inside the common widget border. |

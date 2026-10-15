@@ -120,9 +120,18 @@ internal sealed class DynamicMetricOptionConverter : StringConverter
         new(_optionsAccessor().Select(option => option.Label).ToArray());
 }
 
+internal sealed class DateTimeComponentTypeConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context) =>
+        new(DateTimeComponentContract.Options.Select(option => option.Label).ToArray());
+}
+
 internal static class CanonicalPropertyViewBuilder
 {
     private static readonly TypeConverter TextConverter = new StringConverter();
+    private static readonly TypeConverter ComponentConverter = new DateTimeComponentTypeConverter();
     private static readonly TypeConverter SourceKindConverter = new FixedStringConverter(["Metric", "Text"]);
     private static readonly TypeConverter ImageKindConverter = new FixedStringConverter(["Image", "Icon"]);
     private static readonly TypeConverter FitConverter = new FixedStringConverter(StateVisualProfileContract.SupportedFits);
@@ -544,7 +553,8 @@ internal static class CanonicalPropertyViewBuilder
             case C.QuantitativeWidgetDefinition quantitative:
             {
                 MetricDescriptor? CurrentMetric() => MetricContract.GetDescriptor(quantitative.Metric);
-                result.Add(Group("Value", [
+                var valueRows = new List<PropertyDescriptor>
+                {
                     new CanonicalPropertyDescriptor(
                         "SourceUnit",
                         "data.quantitative.metric_source_unit",
@@ -564,7 +574,20 @@ internal static class CanonicalPropertyViewBuilder
                         () => CurrentMetric() is { } metric && MetricContract.GetNumericUnits(metric).Count > 0
                             ? null
                             : NotApplicable("Metric"))
-                ]));
+                };
+                if (CurrentMetric()?.ValueKind == MetricValueKind.DateTime)
+                {
+                    valueRows.Add(new CanonicalPropertyDescriptor(
+                        nameof(C.QuantitativeWidgetDefinition.Component),
+                        "data.quantitative.datetime_component",
+                        "Component",
+                        quantitative,
+                        typeof(string),
+                        () => DateTimeComponentContract.GetLabel(quantitative.Component),
+                        value => quantitative.Component = DateTimeComponentContract.NormalizeOrThrow(Convert.ToString(value)),
+                        converter: ComponentConverter));
+                }
+                result.Add(Group("Value", valueRows));
                 result.Add(Group("Range", [
                     Double(quantitative, nameof(C.QuantitativeWidgetDefinition.Min), "data.range.min", "Min", () => quantitative.Min, v => quantitative.Min = v),
                     Double(quantitative, nameof(C.QuantitativeWidgetDefinition.Max), "data.range.max", "Max", () => quantitative.Max, v => quantitative.Max = v)

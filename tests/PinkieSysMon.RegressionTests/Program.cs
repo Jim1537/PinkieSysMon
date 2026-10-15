@@ -166,6 +166,8 @@ internal static class Program
             ("LHM throughput unit semantics", LhmThroughputUnitSemantics),
             ("Quantitative widget unit conversion", QuantitativeWidgetUnitConversion),
             ("Quantitative widget unit property visibility", QuantitativeWidgetUnitPropertyVisibility),
+            ("Issue66 DateTime component projection, editor and cache", DateTimeComponentTests.ProjectionEditorAndCache),
+            ("Issue66 schema 19 to 20 and quantitative compatibility", DateTimeComponentTests.SchemaMigrationAndCompatibility),
             ("Windows internet connectivity metric", WindowsInternetConnectivityMetric),
             ("Binary numeric truth semantics", BinaryNumericTruthSemantics),
             ("Binary setpoint semantics", BinarySetpointSemantics),
@@ -6050,8 +6052,8 @@ internal static class Program
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 13 dashboard must migrate Power presentation to the current schema.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Power migration must end at current schema 19.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Power migration must end at current schema 20.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Power widget is missing.");
@@ -6382,8 +6384,8 @@ internal static class Program
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 14 dashboard must migrate Media Player presentation to the current schema.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Media Player migration must end at current schema 19.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Media Player migration must end at current schema 20.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Media Player widget is missing.");
@@ -6742,8 +6744,8 @@ internal static class Program
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 15 dashboard must migrate Media System presentation to the current schema.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Media System migration must end at current schema 19.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Media System migration must end at current schema 20.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Media System widget is missing.");
@@ -6834,8 +6836,8 @@ internal static class Program
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 10 dashboard must report a migration to the current schema.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Schema 10 migration must end at current schema 19.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Schema 10 migration must end at current schema 20.");
 
         var widgets = root["widgets"] as JsonArray
             ?? throw new InvalidOperationException("Migrated dashboard widgets are missing.");
@@ -6921,7 +6923,7 @@ internal static class Program
         {
             var dashboardPath = Path.Combine(tempRoot, "dashboards", "migrated-current-schema.json");
             var definition = DashboardJson.ParseCurrent(root.ToJsonString(), dashboardPath);
-            Assert(definition.SchemaVersion == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion &&
+            Assert(definition.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
                    definition.Widgets.Count == 4,
                 "Migrated Binary dashboard must satisfy the canonical current schema contract.");
         }
@@ -6962,7 +6964,7 @@ internal static class Program
                     _ = DashboardJson.ParseCurrent(
                         $$"""
                         {
-                          "schemaVersion": {{DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion}},
+                          "schemaVersion": {{DashboardSchemaMigration.CurrentSchemaVersion}},
                           "canvas": {
                             "width": 1920,
                             "height": 480,
@@ -7011,8 +7013,8 @@ internal static class Program
 
             Assert(DashboardSchemaMigration.UpgradeToCurrent(legacy),
                 "Schema 11 dashboard must migrate to the canonical current schema after legacy primitive removal.");
-            Assert(legacy["schemaVersion"]?.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-                "Legacy primitive removal chain must terminate at schema 19.");
+            Assert(legacy["schemaVersion"]?.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+                "Legacy primitive removal chain must terminate at schema 20.");
             var migratedWidget = ((legacy["widgets"] as JsonArray)?[0] as JsonObject)
                 ?? throw new InvalidOperationException("Migrated legacy-property widget is missing.");
             Assert(!migratedWidget.ContainsKey("spacing") &&
@@ -7982,8 +7984,8 @@ internal static class Program
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 16 dashboard must migrate Canvas geometry and image layers to the current schema.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Canvas migration must end at current schema 19.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Canvas migration must end at current schema 20.");
 
         var canvas = root["canvas"] as JsonObject
             ?? throw new InvalidOperationException("Migrated Canvas is missing.");
@@ -8018,9 +8020,9 @@ internal static class Program
             """) as JsonObject ?? throw new InvalidOperationException("Could not create schema 17 Canvas migration document.");
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
-            "Schema 17 dashboard must migrate raw Canvas paths through canonical schema 19.");
-        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-            "Schema 17 migration must end at current schema 19.");
+            "Schema 17 dashboard must migrate raw Canvas paths through canonical schema 20.");
+        Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Schema 17 migration must end at current schema 20.");
 
         var canvas = root["canvas"] as JsonObject
             ?? throw new InvalidOperationException("Migrated Canvas is missing.");
@@ -11148,7 +11150,7 @@ internal static class Program
 
         AssertThrows<InvalidDataException>(
             () => DashboardJson.ParseCurrent(root.ToJsonString(), Path.Combine(Path.GetTempPath(), "dashboard.json")),
-            "Schema 19 current-schema deserialization must reject unknown widget fields.");
+            "Schema 20 current-schema deserialization must reject unknown widget fields.");
     }
 
     private static void CanonicalDashboardJsonRoundTrip()
@@ -11158,7 +11160,7 @@ internal static class Program
         var parsed = DashboardJson.ParseCurrent(json, Path.Combine(Path.GetTempPath(), "dashboard.json"));
         var savedAgain = DashboardJson.Serialize(parsed);
 
-        Assert(parsed.SchemaVersion == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion &&
+        Assert(parsed.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
                parsed.Widgets.Count == 1 &&
                parsed.Widgets[0] is PinkieSysMon.DashboardModel.ValueWidgetDefinition value &&
                value.SourceKind == PinkieSysMon.DashboardModel.ValueSourceKind.Text &&
@@ -11168,12 +11170,13 @@ internal static class Program
         var first = JsonNode.Parse(json)!.ToJsonString();
         var second = JsonNode.Parse(savedAgain)!.ToJsonString();
         Assert(first == second,
-            "Canonical schema-19 save -> parse -> save must be structurally idempotent for an unchanged dashboard.");
+            "Canonical schema-20 save -> parse -> save must be structurally idempotent for an unchanged dashboard.");
     }
 
     private static void PropertyModelSchema19MigrationIdempotence()
     {
         var root = JsonNode.Parse(DashboardJson.Serialize(CreateMinimalCanonicalDashboard(), indented: false))!.AsObject();
+        root["schemaVersion"] = DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion;
         var before = root.ToJsonString();
         var changed = DashboardSchemaMigration.UpgradeToPropertyModelNormalization(root);
         Assert(!changed && root.ToJsonString() == before,
@@ -11211,12 +11214,12 @@ internal static class Program
         var path = Path.Combine(Path.GetTempPath(), "runtime-canonical-dashboard.json");
         var definition = PinkieSysMon.DashboardModel.DashboardDefinition.Parse(root.ToJsonString(), path);
 
-        Assert(definition.SchemaVersion == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion &&
+        Assert(definition.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
                definition.Widgets.Single() is PinkieSysMon.DashboardModel.ValueWidgetDefinition value &&
                value.Metric == metric,
-            "Runtime dashboard loading must migrate schema 18 into the canonical schema-19 typed model before use.");
+            "Runtime dashboard loading must migrate schema 18 into the canonical schema-20 typed model before use.");
         Assert(DashboardMetricUsage.Collect(definition).SetEquals([metric]),
-            "Runtime metric discovery must consume the canonical schema-19 widget model.");
+            "Runtime metric discovery must consume the canonical schema-20 widget model.");
     }
 
     private static void CanonicalDashboardMetricUsageSemantics()
@@ -11282,9 +11285,9 @@ internal static class Program
 
     private static void CanonicalCurrentModelOwnership()
     {
-        Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 19,
-            "The executable current dashboard contract must be schema 19.");
+        Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
+               MetricContract.DashboardSchemaVersion == 20,
+            "The executable current dashboard contract must be schema 20.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition
@@ -11531,7 +11534,7 @@ internal static class Program
 
     private static PinkieSysMon.DashboardModel.DashboardDefinition CreateMinimalCanonicalDashboard() => new()
     {
-        SchemaVersion = DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
+        SchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion,
         Widgets =
         [
             new PinkieSysMon.DashboardModel.ValueWidgetDefinition

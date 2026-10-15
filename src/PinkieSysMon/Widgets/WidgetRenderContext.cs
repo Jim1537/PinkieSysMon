@@ -663,9 +663,12 @@ internal sealed class WidgetRenderContext : IDisposable
         TryGetMetricDouble(widget.Metric, widget.Unit, out value);
 
     public bool TryGetMetricDouble(CanonicalDashboard.QuantitativeWidgetDefinition widget, out double value) =>
-        TryGetMetricDouble(widget.Metric, widget.Unit, out value);
+        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, out value);
 
-    public bool TryGetMetricDouble(string? metric, string? unit, out double value)
+    public bool TryGetMetricDouble(string? metric, string? unit, out double value) =>
+        TryGetMetricDouble(metric, unit, component: null, out value);
+
+    private bool TryGetMetricDouble(string? metric, string? unit, string? component, out double value)
     {
         if (string.IsNullOrWhiteSpace(metric))
         {
@@ -677,7 +680,7 @@ internal sealed class WidgetRenderContext : IDisposable
                              unit.Equals("raw", StringComparison.OrdinalIgnoreCase)
             ? null
             : unit.Trim();
-        var key = new NumericMetricCacheKey(metric, normalizedUnit);
+        var key = new NumericMetricCacheKey(metric, normalizedUnit, component);
         if (_doubleMetricCache.TryGetValue(key, out var cached))
         {
             value = cached.GetValueOrDefault();
@@ -688,12 +691,17 @@ internal sealed class WidgetRenderContext : IDisposable
         if (Metrics.TryGetValue(metric, out var raw) && raw is not null)
         {
             var descriptor = MetricContract.GetDescriptor(metric);
-            if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
+            if (descriptor?.ValueKind == MetricValueKind.DateTime)
+            {
+                if (normalizedUnit is null && DateTimeComponentContract.TryProject(raw, component, out var candidate))
+                    converted = candidate;
+            }
+            else if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
             {
                 if (MetricValueConverter.TryConvertNumeric(raw, descriptor, normalizedUnit, out var candidate))
                     converted = candidate;
             }
-            else if (normalizedUnit is null)
+            else if (normalizedUnit is null && component is null)
             {
                 try
                 {
@@ -723,25 +731,29 @@ internal sealed class WidgetRenderContext : IDisposable
 
     private readonly struct NumericMetricCacheKey : IEquatable<NumericMetricCacheKey>
     {
-        public NumericMetricCacheKey(string metric, string? unit)
+        public NumericMetricCacheKey(string metric, string? unit, string? component)
         {
             Metric = metric;
             Unit = unit;
+            Component = component;
         }
 
         public string Metric { get; }
         public string? Unit { get; }
+        public string? Component { get; }
 
         public bool Equals(NumericMetricCacheKey other) =>
             string.Equals(Metric, other.Metric, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(Unit, other.Unit, StringComparison.OrdinalIgnoreCase);
+            string.Equals(Unit, other.Unit, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(Component, other.Component, StringComparison.Ordinal);
 
         public override bool Equals(object? obj) => obj is NumericMetricCacheKey other && Equals(other);
 
         public override int GetHashCode() =>
             HashCode.Combine(
                 StringComparer.OrdinalIgnoreCase.GetHashCode(Metric),
-                Unit is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(Unit));
+                Unit is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(Unit),
+                Component is null ? 0 : StringComparer.Ordinal.GetHashCode(Component));
     }
 
     public SKTypeface GetTypeface(TextPresentation presentation) => _typefaces.Get(presentation);

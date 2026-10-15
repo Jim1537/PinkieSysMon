@@ -173,6 +173,10 @@ internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
     [JsonPropertyName("unit")]
     public string? Unit { get; set; }
 
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Component { get; set; }
+
     [JsonPropertyName("min")]
     public double Min { get; set; }
 
@@ -191,6 +195,7 @@ internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
     protected void ValidateQuantitative(bool validateThresholds)
     {
         RequireMetric(Metric);
+        global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"{Type} widget '{Id}'");
         RequireFinite(Min, nameof(Min));
         RequireFinite(Max, nameof(Max));
         RequireFinite(Gap, nameof(Gap));

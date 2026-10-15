@@ -14,10 +14,33 @@ internal static class DashboardSchemaMigration
     public const int CanvasGeometrySchemaVersion = 17;
     public const int CanvasImageLayerSchemaVersion = 18;
     public const int PropertyModelNormalizationSchemaVersion = 19;
+    public const int DateTimeComponentSchemaVersion = 20;
+    public const int CurrentSchemaVersion = DateTimeComponentSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
-    public static bool UpgradeToCurrent(JsonObject root) =>
-        UpgradeToPropertyModelNormalization(root);
+    public static bool UpgradeToCurrent(JsonObject root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        var schemaVersion = ReadSchemaVersion(root);
+        if (schemaVersion == CurrentSchemaVersion)
+            return false;
+
+        if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+        {
+            _ = UpgradeToPropertyModelNormalization(root);
+            schemaVersion = ReadSchemaVersion(root);
+        }
+
+        if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+            throw new InvalidDataException(
+                $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
+
+        // Schema 19 has no quantitative Component. Keep its DateTime state unavailable
+        // until the user explicitly selects a numeric projection.
+        root["schemaVersion"] = CurrentSchemaVersion;
+        return true;
+    }
 
     public static bool UpgradeToPropertyModelNormalization(JsonObject root)
     {

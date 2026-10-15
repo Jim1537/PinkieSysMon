@@ -21,13 +21,13 @@ Select the new widget on the Canvas to edit its properties.
     Its track is enabled with a thickness of 20 and a translucent background. The needle is disabled by default. These are starting values, not requirements for your own dashboard. Output FPS availability follows the [Output provider contract](../telemetry/system.md#runtime-and-output-performance-metrics).
 
 
-### Step 2. Select a numeric metric
+### Step 2. Select a metric
 
-Open `General → Source → Metric` and choose a numeric telemetry metric.
+Open `General → Source → Metric` and choose a numeric or DateTime telemetry metric.
 
 You can use a supported metric from [System](../telemetry/system.md), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md), or [iCUE Sensor Logging](../telemetry/icue-sensor-logging.md), provided that the corresponding provider is enabled and the metric is available.
 
-Gauge expects a number. Text, Boolean, or missing metric values that cannot be converted into a finite numeric reading are not usable for its active indication.
+Gauge expects a number. For a DateTime metric, select a numeric [Component](properties.md#component); text, Boolean, or missing values without a finite numeric projection are unavailable.
 
 See [Metric](properties.md#metric).
 
@@ -39,6 +39,7 @@ Under `Value`:
 
 - `Source Unit` shows the unit supplied by the metric contract. It is read-only.
 - `Unit` selects a supported numeric conversion, when the metric has compatible units.
+- `Component` selects a numeric calendar/clock component when the metric is DateTime. For a clock needle, enable `Gauge → Needle → Enabled` and set the corresponding Min/Max range.
 
 Under `Range`:
 
@@ -53,7 +54,7 @@ Under `Range`:
     `Unit` changes numeric interpretation; it does not add a unit label to the gauge. Use Text / Value for a visible number or unit symbol.
 
 
-See [Source Unit](properties.md#source-unit), [Unit](properties.md#unit), [Min](properties.md#min), and [Max](properties.md#max).
+See [Source Unit](properties.md#source-unit), [Unit](properties.md#unit), [Component](properties.md#component), [Min](properties.md#min), and [Max](properties.md#max).
 
 ### Step 4. Configure the horseshoe
 
@@ -201,6 +202,7 @@ Gauge-specific and quantitative JSON fields:
 | `type` | Discriminator | `gauge`. |
 | `metric` | `Metric` | Required metric identifier. |
 | `unit` | `Unit` | Optional numeric unit conversion. |
+| `component` | `Component` | Optional DateTime-to-number projection (schema 20). |
 | `min` / `max` | `Min` / `Max` | Scale boundaries; Max must exceed Min. |
 | `reverse` | `Reverse` | Reverses progression along the arc. |
 | `gap` | `Gap` | Track inset spacing. |

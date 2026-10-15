@@ -171,6 +171,9 @@ Select a tab below to browse the same canonical property definitions by their lo
     #### Unit
     --8<-- "widgets/properties.md:unit"
 
+    #### Component
+    --8<-- "widgets/properties.md:component"
+
     #### Format
     --8<-- "widgets/properties.md:format"
 

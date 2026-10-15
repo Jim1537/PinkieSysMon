@@ -35,7 +35,7 @@ internal static class DashboardJson
         catch (JsonException ex)
         {
             throw new InvalidDataException(
-                $"Dashboard schemaVersion {DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion} is invalid.",
+                $"Dashboard schemaVersion {DashboardSchemaMigration.CurrentSchemaVersion} is invalid.",
                 ex);
         }
 
@@ -48,10 +48,10 @@ internal static class DashboardJson
     public static string Serialize(CanonicalDashboard.DashboardDefinition definition, bool indented = true)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        if (definition.SchemaVersion != DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion)
+        if (definition.SchemaVersion != DashboardSchemaMigration.CurrentSchemaVersion)
         {
             throw new InvalidDataException(
-                $"Canonical dashboard serialization requires schemaVersion {DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion}.");
+                $"Canonical dashboard serialization requires schemaVersion {DashboardSchemaMigration.CurrentSchemaVersion}.");
         }
 
         definition.Validate();
@@ -64,7 +64,7 @@ internal static class DashboardJson
     internal static string SerializeEditorSnapshot(CanonicalDashboard.DashboardDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        if (definition.SchemaVersion != DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion)
+        if (definition.SchemaVersion != DashboardSchemaMigration.CurrentSchemaVersion)
             throw new InvalidDataException("Editor snapshots require the current canonical dashboard schema.");
         return JsonSerializer.Serialize(definition, CompactOptions);
     }
@@ -117,10 +117,10 @@ internal static class DashboardJson
             throw new InvalidDataException("Dashboard schemaVersion is missing or invalid.");
         }
 
-        if (schemaVersion != DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion)
+        if (schemaVersion != DashboardSchemaMigration.CurrentSchemaVersion)
         {
             throw new InvalidDataException(
-                $"Canonical dashboard reader requires schemaVersion {DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion}, got {schemaVersion}.");
+                $"Canonical dashboard reader requires schemaVersion {DashboardSchemaMigration.CurrentSchemaVersion}, got {schemaVersion}.");
         }
     }
 
