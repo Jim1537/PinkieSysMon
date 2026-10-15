@@ -59,7 +59,7 @@ internal static class DateTimeComponentTests
             Component = "second", Width = 200, Height = 200
         };
         using var typefaces = new TypefaceCache(
-            Path.GetTempPath(), Array.Empty<C.WidgetDefinition>());
+            AppContext.BaseDirectory, Array.Empty<C.WidgetDefinition>());
         using var context = new WidgetRenderContext(
             new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
@@ -170,7 +170,7 @@ internal static class DateTimeComponentTests
             Id = "numeric", Metric = SystemMetricContract.Uptime, Unit = "minutes",
             Component = "second", Width = 200, Height = 200
         };
-        using var fonts = new TypefaceCache(Path.GetTempPath(), Array.Empty<C.WidgetDefinition>());
+        using var fonts = new TypefaceCache(AppContext.BaseDirectory, Array.Empty<C.WidgetDefinition>());
         using var context = new WidgetRenderContext(
             new Dictionary<string, object?> { [SystemMetricContract.Uptime] = 120d },
             antialias: false, fonts);
