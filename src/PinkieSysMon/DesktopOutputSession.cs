@@ -159,6 +159,23 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         return new PreparedReconfiguration(config, target, size, new DashboardRenderer(dashboard));
     }
 
+    public IOutputSessionReconfiguration PrepareRollbackReconfiguration(
+        AppConfig config, OutputTargetConfig target, CanonicalDashboardDefinition dashboard)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(dashboard);
+        if (!target.Id.Equals(_id, StringComparison.OrdinalIgnoreCase) ||
+            target.Kind != OutputTargetContract.DesktopKind ||
+            target.Desktop?.BoardEnabled != true)
+            throw new InvalidOperationException("Rollback target does not match the active Desktop Output.");
+
+        var size = FrameGeometry.GetLogicalSize(
+            dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
+        return new PreparedReconfiguration(config, target, size, _renderer.Retain());
+    }
+
     public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration)
     {
         ThrowIfDisposed();

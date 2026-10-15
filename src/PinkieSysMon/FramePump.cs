@@ -115,6 +115,24 @@ internal sealed class FramePump : IOutputSession
             new DashboardRenderer(dashboard));
     }
 
+    public IOutputSessionReconfiguration PrepareRollbackReconfiguration(
+        AppConfig config, OutputTargetConfig target,
+        global::PinkieSysMon.DashboardModel.DashboardDefinition dashboard)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(dashboard);
+        if (!target.Id.Equals(_targetId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Rollback target does not match the active Output session.");
+
+        lock (_sync)
+        {
+            return new PreparedReconfiguration(config, target,
+                dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation,
+                _renderer.Retain());
+        }
+    }
+
     public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration)
     {
         if (reconfiguration is not PreparedReconfiguration prepared)

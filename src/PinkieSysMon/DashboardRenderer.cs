@@ -25,6 +25,8 @@ internal sealed class DashboardRenderer : IDisposable
     private readonly SKColor _backgroundColor;
     private readonly ImageVisual? _backgroundImage;
     private readonly ImageVisual? _foregroundImage;
+    // Retained rollback plans share decoded assets with the still-live renderer.
+    private int _owners = 1;
 
 
     public DashboardRenderer(CanonicalDashboardDefinition definition)
@@ -266,8 +268,33 @@ internal sealed class DashboardRenderer : IDisposable
 
     private sealed record RenderEntry(CanonicalWidgetDefinition Widget, IWidgetRenderer Renderer);
 
+    internal DashboardRenderer Retain()
+    {
+        while (true)
+        {
+            var owners = Volatile.Read(ref _owners);
+            if (owners == 0)
+                throw new ObjectDisposedException(nameof(DashboardRenderer));
+            if (Interlocked.CompareExchange(ref _owners, owners + 1, owners) == owners)
+                return this;
+        }
+    }
+
     public void Dispose()
     {
+        // A rollback plan can outlive the renderer's original session ownership.
+        while (true)
+        {
+            var owners = Volatile.Read(ref _owners);
+            if (owners == 0)
+                return;
+            if (Interlocked.CompareExchange(ref _owners, owners - 1, owners) != owners)
+                continue;
+            if (owners != 1)
+                return;
+            break;
+        }
+
         foreach (var disposable in _renderEntries.Select(x => x.Renderer).OfType<IDisposable>().Distinct())
             disposable.Dispose();
         _foregroundImage?.Dispose();

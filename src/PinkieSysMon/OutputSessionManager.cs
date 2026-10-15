@@ -25,6 +25,11 @@ internal interface IOutputSession : IDisposable
     // not fail for expected operational conditions. All fallible I/O/resource preparation
     // belongs in PrepareReconfiguration; contract/precondition violations may still throw.
     void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration);
+    // Production sessions retain their currently loaded assets. This default keeps
+    // existing synthetic session implementations source-compatible.
+    IOutputSessionReconfiguration PrepareRollbackReconfiguration(
+        AppConfig config, OutputTargetConfig target, CanonicalDashboardDefinition dashboard) =>
+        PrepareReconfiguration(config, target, dashboard);
     void SetRuntimeMetricsPublisher(bool enabled);
     void Suspend();
     void Resume();
@@ -219,10 +224,9 @@ internal sealed class OutputSessionManager : IDisposable
                     target => target.Id,
                     StringComparer.OrdinalIgnoreCase);
 
-                // Phase 1: prepare every live-session replacement and a rollback plan before
-                // mutating any session. This makes the manager formally transactional even if a
-                // future IOutputSession implementation violates the normal non-failing Commit
-                // contract after successful preparation.
+                // Phase 1: prepare replacements and retain each live renderer for rollback.
+                // Former image files can disappear between saves; the already-loaded renderer
+                // must remain available if a later commit fails.
                 foreach (var pair in _sessions)
                 {
                     if (newTargets.TryGetValue(pair.Key, out var replacementTarget) &&
@@ -238,7 +242,7 @@ internal sealed class OutputSessionManager : IDisposable
 
                         rollback.Add((
                             pair.Value,
-                            pair.Value.PrepareReconfiguration(_config, oldTarget, BoardFor(_boards, oldTarget))));
+                            pair.Value.PrepareRollbackReconfiguration(_config, oldTarget, BoardFor(_boards, oldTarget))));
                     }
                     else
                     {
@@ -429,7 +433,7 @@ internal sealed class OutputSessionManager : IDisposable
                     if (existing is not null && OutputTargetContract.IsEnabled(replacement))
                     {
                         prepared = existing.PrepareReconfiguration(nextConfig, replacement, board!);
-                        rollback = existing.PrepareReconfiguration(previousConfig, previousTarget,
+                        rollback = existing.PrepareRollbackReconfiguration(previousConfig, previousTarget,
                             BoardFor(previousBoards, previousTarget));
                     }
                     else if (existing is null && _started && OutputTargetContract.IsEnabled(replacement))
