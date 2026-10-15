@@ -192,12 +192,14 @@ internal static class FramePumpShutdownTests
         public FileLogger Log { get; }
         public TestRoot()
         {
-            Directory.CreateDirectory(_path);
+            Directory.CreateDirectory(Path.Combine(_path, "config"));
+            Directory.CreateDirectory(Path.Combine(_path, "dashboards"));
+            File.WriteAllText(Path.Combine(_path, "config", "app.json"), "{}");
             Log = new FileLogger(Path.Combine(_path, "test.log"));
         }
         public C.DashboardDefinition Board() => new()
         {
-            BaseDirectory = _path,
+            BaseDirectory = Path.Combine(_path, "dashboards"),
             Canvas = new C.CanvasDefinition { Width = 64, Height = 32 },
             Widgets = []
         };
