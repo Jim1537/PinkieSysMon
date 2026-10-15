@@ -95,6 +95,9 @@ internal static class RuntimeTrayMenuTests
         var old = Output(tray, "first");
         var oldDropDown = old.DropDown;
         var oldChildren = old.DropDownItems.Cast<ToolStripItem>().ToArray();
+        var oldDashboard = Item(old.DropDownItems, "Dashboard");
+        var oldDashboardDropDown = oldDashboard.DropDown;
+        var oldChoices = oldDashboard.DropDownItems.Cast<ToolStripItem>().ToArray();
         var failed = false;
         try { tray.RefreshOutputs([Desktop("prepared"), output with { Kind = "unsupported" }], ["Board"], enabledIds, empty); }
         catch (InvalidOperationException) { failed = true; }
@@ -102,10 +105,16 @@ internal static class RuntimeTrayMenuTests
               tray.Menu.Items.Cast<ToolStripItem>().Count(i => i.Tag is string) == 1,
             "Failed preparation must retain the previous complete native tree without partially adopting new entries.");
         tray.RefreshOutputs([Desktop("second")], ["Board"], enabledIds, empty);
-        Check(old.IsDisposed && oldDropDown.IsDisposed && oldChildren.All(i => i.IsDisposed) &&
-              tray.Menu.Items.Cast<ToolStripItem>().Count(i => i.Tag is string) == 1,
-            "Replacement must dispose retired submenus/handlers and keep one current occurrence.");
+        Check(old.IsDisposed && old.Owner is null && !tray.Menu.Items.Contains(old),
+            "Replacement must dispose the retired Output while owned and let WinForms remove it.");
+        Check(oldDropDown.IsDisposed && oldChildren.All(i => i.IsDisposed),
+            "Replacement must dispose the retired submenu and every direct child.");
+        Check(oldDashboardDropDown.IsDisposed && oldChoices.All(i => i.IsDisposed),
+            "Replacement must also dispose nested Dashboard choices and their submenu.");
+        Check(tray.Menu.Items.Cast<ToolStripItem>().Count(i => i.Tag is string) == 1,
+            "Replacement must leave exactly one current Output occurrence.");
         oldChildren[0].PerformClick();
+        oldChoices[0].PerformClick();
         Item(Output(tray, "second").DropDownItems, "Enabled").PerformClick();
         Check(commands.Count == 1 && commands[0].TargetId == "second",
             "Retired callbacks must not mutate the old target; current native callbacks retain their own identity.");
@@ -124,9 +133,19 @@ internal static class RuntimeTrayMenuTests
               !RuntimeTrayOutputContract.CanUseActions(null),
             "Invalid measured duration and unknown enablement must fail closed; a real completed zero duration remains valid.");
         var current = Output(tray, "second");
+        var currentDropDown = current.DropDown;
+        var currentChildren = current.DropDownItems.Cast<ToolStripItem>().ToArray();
+        var currentDashboard = Item(current.DropDownItems, "Dashboard");
+        var currentDashboardDropDown = currentDashboard.DropDown;
+        var currentChoices = currentDashboard.DropDownItems.Cast<ToolStripItem>().ToArray();
         tray.Dispose();
-        Check(tray.Menu.IsDisposed && current.IsDisposed && tray.Status.IsDisposed,
-            "Menu owner shutdown must release fixed and dynamic native items.");
+        Check(tray.Menu.IsDisposed && current.IsDisposed && tray.Status.IsDisposed &&
+              currentDropDown.IsDisposed && currentChildren.All(i => i.IsDisposed) &&
+              currentDashboardDropDown.IsDisposed && currentChoices.All(i => i.IsDisposed),
+            "Menu owner shutdown must release fixed items and the complete dynamic submenu tree.");
+        currentChildren[0].PerformClick();
+        currentChoices[0].PerformClick();
+        Check(commands.Count == 1, "Disposed shutdown callbacks must not dispatch additional commands.");
     }
 
     public static void PhysicalPlacementAndConsentBridge()

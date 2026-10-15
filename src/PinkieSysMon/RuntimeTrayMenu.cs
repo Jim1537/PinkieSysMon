@@ -71,16 +71,12 @@ internal sealed class RuntimeTrayMenu : IDisposable
             {
                 foreach (var item in prepared)
                 {
-                    Menu.Items.Remove(item);
                     item.Dispose();
                 }
                 throw;
             }
-            foreach (var item in _outputs)
-            {
-                Menu.Items.Remove(item);
-                item.Dispose();
-            }
+            // WinForms removes owned items during disposal and records their disposed state.
+            foreach (var item in _outputs) item.Dispose();
             _outputs.Clear();
             _outputs.AddRange(prepared);
         }
