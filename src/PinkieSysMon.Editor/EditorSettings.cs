@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PinkieSysMon.Editor;
 
@@ -47,13 +49,59 @@ internal sealed class EditorSettings
         return state;
     }
 
-    public void Save(string path)
+    public void Save(string path, string? activeDashboard = null)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
-        var temp = path + ".tmp";
-        File.WriteAllText(temp, json);
-        File.Move(temp, path, true);
+        var fullPath = Path.GetFullPath(path);
+        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullPath.ToUpperInvariant())));
+        using var mutex = new Mutex(false, @"Local\PinkieSysMon.EditorSettings." + identity);
+        var acquired = false;
+        try
+        {
+            try
+            {
+                acquired = mutex.WaitOne(TimeSpan.FromSeconds(15));
+            }
+            catch (AbandonedMutexException)
+            {
+                acquired = true;
+            }
+
+            if (!acquired)
+                throw new IOException("Timed out waiting for another Editor to save shared settings.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            var latest = Load(fullPath);
+            if (activeDashboard is null)
+            {
+                foreach (var pair in Dashboards)
+                    latest.Dashboards[pair.Key] = pair.Value;
+            }
+            else if (Dashboards.TryGetValue(activeDashboard, out var view))
+            {
+                latest.Dashboards[activeDashboard] = view;
+            }
+
+            // Shared preferences follow the last Editor to save; independent
+            // dashboard views are merged under the cross-process file mutex.
+            Dashboards = latest.Dashboards;
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
+            var temp = fullPath + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                File.WriteAllText(temp, json);
+                File.Move(temp, fullPath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temp))
+                    File.Delete(temp);
+            }
+        }
+        finally
+        {
+            if (acquired)
+                mutex.ReleaseMutex();
+        }
     }
 }
 

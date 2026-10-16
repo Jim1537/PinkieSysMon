@@ -2203,7 +2203,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _settings.GridEnabled = _gridEnabled;
             _settings.GridStep = _gridStep;
             _settings.ToolbarIconSize = _toolbarIconSize;
-            _settings.Save(_settingsPath);
+            _settings.Save(_settingsPath, _dashboardName);
         }
         catch (Exception ex)
         {
