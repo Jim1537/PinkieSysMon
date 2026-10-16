@@ -9,25 +9,16 @@ internal static class DesktopZOrderStage14Tests
 {
     public static void PolicyAndPersistence()
     {
-        Check(DesktopExplorerHost.IsWallpaperCandidate(true, true, true, false),
-            "Verified Explorer WorkerW without icon view must be eligible.");
-        Check(!DesktopExplorerHost.IsWallpaperCandidate(false, true, true, false) &&
-              !DesktopExplorerHost.IsWallpaperCandidate(true, false, true, false) &&
-              !DesktopExplorerHost.IsWallpaperCandidate(true, true, false, false) &&
-              !DesktopExplorerHost.IsWallpaperCandidate(true, true, true, true),
-            "Issue78: never adopt another process, hidden HWND, foreign class, or icon host.");
-
-        Check(DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, true, true),
-            "Issue78: verified raised Progman siblings can host our panels between icons and wallpaper.");
-        Check(!DesktopExplorerHost.CanUseRaisedDesktopHost(false, true, true, true) &&
-              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, false, true, true) &&
-              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, false, true) &&
-              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, true, false),
-            "Issue78: missing, hidden, mismatched or foreign icon/WorkerW siblings must fail closed.");
-        Check((DesktopExplorerHost.RaisedPanelPlacementFlags & 0x0004u) == 0 &&
-              (DesktopExplorerHost.ClassicPanelPlacementFlags & 0x0004u) != 0 &&
-              (DesktopExplorerHost.RaisedPanelPlacementFlags & 0x0010u) != 0,
-            "Issue78: raised panels must join the sibling Z-order without activation; classic must retain it.");
+        Check(DesktopBottomPlacement.InsertAfter(IntPtr.Zero) == DesktopBottomPlacement.HwndBottom,
+            "When there is no Progman, use literal HWND_BOTTOM.");
+        var precedingShell = new IntPtr(1537);
+        Check(DesktopBottomPlacement.InsertAfter(precedingShell) == precedingShell,
+            "With Progman, the panel must remain in front of wallpaper.");
+        const uint prohibited = 0x0004u | 0x0008u;
+        Check((DesktopBottomPlacement.Flags & prohibited) == 0 &&
+              (DesktopBottomPlacement.Flags & 0x0010u) != 0 &&
+              (DesktopBottomPlacement.Flags & 0x0200u) != 0,
+            "Native placement must permit reordering without activation.");
 
         var config = CreateConfig();
         var active = new[] { "d1", "d2", "d3", "usb-off" };
@@ -61,11 +52,9 @@ internal static class DesktopZOrderStage14Tests
               DesktopDragStartPolicy.ShouldStart(mouseDown, new Point(40, 35), dragSize),
             "Issue76: pointer jitter must not steal selection; motion beyond the drag rectangle must allow reorder.");
 
-        const uint prohibited = 0x0004u | 0x0008u; // SWP_NOZORDER and SWP_NOREDRAW
-        Check((DesktopOutputWindow.StackFlags & prohibited) == 0 &&
-              (DesktopOutputWindow.StackFlags & 0x0010u) != 0 &&
-              (DesktopOutputWindow.StackFlags & 0x0200u) != 0,
-            "Native stacking must change Z-order without activation or owner reordering.");
+        Check(DesktopBottomPlacement.WsExToolWindow == 0x80 &&
+              DesktopBottomPlacement.WsExAppWindow == 0x40000,
+            "Native ToolWindow style must exclude top-level Desktop panels from Alt+Tab.");
     }
 
     public static void SessionLifecycle()
@@ -100,12 +89,12 @@ internal static class DesktopZOrderStage14Tests
                 });
 
             manager.Start();
-            AssertEvents(events, "d1<d3", "d2<d1");
+            AssertEvents(events, "d3@back", "d1@back", "d2@back");
 
             // Native drag release must restore order without a configuration reload.
             events.Clear();
             sessions["d2"].CompleteMove();
-            AssertEvents(events, "d1<d3", "d2<d1");
+            AssertEvents(events, "d3@back", "d1@back", "d2@back");
 
             events.Clear();
             var reordered = CreateConfig();
@@ -113,17 +102,17 @@ internal static class DesktopZOrderStage14Tests
             reordered.Outputs.Targets[1].Desktop!.ZOrder = 30;
             reordered.Outputs.Targets[2].Desktop!.ZOrder = 20;
             manager.Reconfigure(reordered, board);
-            AssertEvents(events, "d3<d2", "d1<d3");
+            AssertEvents(events, "d2@back", "d3@back", "d1@back");
 
             events.Clear();
             sessions["d1"].CompleteMove();
-            AssertEvents(events, "d3<d2", "d1<d3");
+            AssertEvents(events, "d2@back", "d3@back", "d1@back");
 
             events.Clear();
             var disabledLater = sessions["d3"];
             reordered.Outputs.Targets[2].Desktop!.BoardEnabled = false;
             manager.Reconfigure(reordered, board);
-            AssertEvents(events, "d1<d2");
+            AssertEvents(events, "d2@back", "d1@back");
             events.Clear();
             disabledLater.CompleteMove();
             AssertEvents(events);
@@ -131,7 +120,7 @@ internal static class DesktopZOrderStage14Tests
             events.Clear();
             reordered.Outputs.Targets[2].Desktop!.BoardEnabled = true;
             manager.Reconfigure(reordered, board);
-            AssertEvents(events, "d3<d2", "d1<d3");
+            AssertEvents(events, "d2@back", "d3@back", "d1@back");
 
             events.Clear();
             var disabledD2 = OutputLifecycleTestConfiguration.WithEnabled(reordered, "d2", false);
@@ -139,17 +128,17 @@ internal static class DesktopZOrderStage14Tests
                 manager.GetDashboardAssignments()["d2"], _ => { });
             Check(!manager.GetStatuses().Single(s => s.TargetId == "d2").IsActive,
                 "Disabling a panel must remove its active session.");
-            AssertEvents(events, "d1<d3");
+            AssertEvents(events, "d3@back", "d1@back");
 
             events.Clear();
             manager.ReconfigureTarget(reordered.Outputs.Targets.Single(t => t.Id == "d2"),
                 manager.GetDashboardAssignments()["d2"], _ => { });
-            AssertEvents(events, "d3<d2", "d1<d3");
+            AssertEvents(events, "d2@back", "d3@back", "d1@back");
 
             events.Clear();
             manager.Suspend();
             manager.Resume();
-            AssertEvents(events, "d3<d2", "d1<d3");
+            AssertEvents(events, "d2@back", "d3@back", "d1@back");
 
             Check(physicalAttempts == 0, "Window ordering must not start USB hardware.");
         }
@@ -219,8 +208,7 @@ internal static class DesktopZOrderStage14Tests
         public IOutputSessionReconfiguration PrepareReconfiguration(
             AppConfig config, OutputTargetConfig target, C.DashboardDefinition dashboard) => new Plan();
         public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration) { }
-        public void PlaceBehind(IDesktopStackSession higher) =>
-            events.Add($"{id}<{((FakeStackSession)higher).TargetId}");
+        public void PlaceAtDesktopBack() => events.Add($"{id}@back");
         private sealed class Plan : IOutputSessionReconfiguration
         {
             public void Dispose() { }

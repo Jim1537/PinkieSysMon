@@ -85,7 +85,7 @@ internal static class Program
             ("Output metric identity and physical catalog", OutputPerformanceMetricTests.IdentityAndCatalog),
             ("Output metric multi-session isolation", OutputPerformanceMetricTests.PublisherIsolation),
             ("Output metric clearing stop and restart", OutputPerformanceMetricTests.StopAndRestart),
-            ("Issue78 unavailable Explorer host isolation and recovery", DesktopSessionStage09Tests.UnavailableExplorerHost),
+            ("Issue78 unavailable native Desktop window isolation and recovery", DesktopSessionStage09Tests.UnavailableExplorerHost),
             ("Desktop Z-order policy and persistence", DesktopZOrderStage14Tests.PolicyAndPersistence),
             ("Desktop Z-order lifecycle reconciliation", DesktopZOrderStage14Tests.SessionLifecycle),
             ("Multiple Desktop session dashboard and removal isolation", DesktopMultiSessionStage15Tests.SharedBoardReloadAndRemoval),

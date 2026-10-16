@@ -97,8 +97,8 @@ internal sealed class DesktopLayeredSurface : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "GetDC failed.");
         try
         {
-            // Image refresh must not reposition a native child of Explorer WorkerW.
-            // Win32 already owns placement through SetWindowPos in parent-client coordinates.
+            // Updating pixels must not relocate the standalone Desktop window.
+            // WinForms and native SetWindowPos control placement independently.
             if (!UpdateLayeredWindow(windowHandle, screenDc, IntPtr.Zero, ref size,
                     _memoryDc, ref origin, 0, ref blend, UlwAlpha))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "UpdateLayeredWindow failed.");

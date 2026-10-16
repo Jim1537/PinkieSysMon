@@ -58,19 +58,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         {
             window = (windowFactory ?? (render => new DesktopOutputWindow(render,
                 point => PersistPosition(dashboard.BaseDirectory, point),
-                () => _restoreStack?.Invoke(),
-                error =>
-                {
-                    if (!_started || _suspended || _idlePaused)
-                        return;
-                    if (error is null)
-                        ChangeState("DISPLAYING");
-                    else
-                    {
-                        ChangeState("HOST_UNAVAILABLE");
-                        _log.Warn($"Desktop output '{_id}' cannot use the Explorer wallpaper host: {error}");
-                    }
-                })))(DrawFrame)
+                () => _restoreStack?.Invoke())))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
             var size = FrameGeometry.GetLogicalSize(
                 dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
@@ -110,14 +98,10 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     void IDesktopStackSession.SetStackRestorer(Action restorer) =>
         _restoreStack = restorer ?? throw new ArgumentNullException(nameof(restorer));
 
-    void IDesktopStackSession.PlaceBehind(IDesktopStackSession higher)
+    void IDesktopStackSession.PlaceAtDesktopBack()
     {
-        // Fake windows have no native handle. Production windows are positioned only
-        // relative to another owned Desktop window, never a foreign HWND.
-        if (_window is DesktopOutputWindow lowerWindow &&
-            higher is DesktopOutputSession higherSession &&
-            higherSession._window is DesktopOutputWindow higherWindow)
-            lowerWindow.PlaceBehind(higherWindow);
+        if (_window is DesktopOutputWindow window)
+            window.PlaceAtDesktopBack();
     }
     public string TargetName => _target.Name;
     public bool IsConnected => _started && !_suspended && !_idlePaused && _window.IsVisible && _state == "DISPLAYING";
@@ -144,7 +128,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             if (!_suspended && !_idlePaused)
                 _window.ShowWindow();
             ChangeState(_suspended ? "SUSPENDED" : _idlePaused ? "IDLE_PAUSED" :
-                _window.IsVisible ? "DISPLAYING" : "HOST_UNAVAILABLE");
+                _window.IsVisible ? "DISPLAYING" : "WINDOW_UNAVAILABLE");
             _log.Info($"Desktop output '{TargetName}' started; targetId={_id}; no USB transport.");
         }
         catch (Exception ex)
@@ -213,7 +197,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         if (Publishing)
             PublishState();
         if (_started && !_suspended && !_idlePaused)
-            _window.ShowWindow(); // restore Explorer hosting after native geometry/style changes
+            _window.ShowWindow(); // restore the top-level panel after geometry/style changes
         _window.RequestFrame();
         try { previous.Dispose(); }
         catch (Exception ex) { _log.Warn($"Desktop output '{_id}' former renderer cleanup failed.", ex); }
@@ -252,7 +236,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
                 _window.ShowWindow();
         }
         ChangeState(_suspended ? "SUSPENDED" :
-            paused ? "IDLE_PAUSED" : _started ? (_window.IsVisible ? "DISPLAYING" : "HOST_UNAVAILABLE") : "STOPPED");
+            paused ? "IDLE_PAUSED" : _started ? (_window.IsVisible ? "DISPLAYING" : "WINDOW_UNAVAILABLE") : "STOPPED");
     }
 
     public void Suspend()
@@ -270,7 +254,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _suspended = false;
         if (_started && !_idlePaused)
             _window.ShowWindow();
-        ChangeState(_idlePaused ? "IDLE_PAUSED" : _started ? (_window.IsVisible ? "DISPLAYING" : "HOST_UNAVAILABLE") : "STOPPED");
+        ChangeState(_idlePaused ? "IDLE_PAUSED" : _started ? (_window.IsVisible ? "DISPLAYING" : "WINDOW_UNAVAILABLE") : "STOPPED");
     }
 
     public void RequestFrame()
@@ -404,7 +388,7 @@ internal static class DesktopPointerStyle
 internal interface IDesktopStackSession
 {
     bool IsStackVisible { get; }
-    void PlaceBehind(IDesktopStackSession higher);
+    void PlaceAtDesktopBack();
     void SetStackRestorer(Action restorer);
 }
 
@@ -440,66 +424,52 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 {
     private const int GwlExStyle = -20;
     private const uint SwpFrameChangedNoMove = 0x0001u | 0x0002u | 0x0004u | 0x0010u | 0x0020u;
-    // Reorder only normal (non-topmost) sibling windows, without resizing or activation.
-    internal const uint StackFlags = 0x0001u | 0x0002u | 0x0010u | 0x0200u;
     private const int WmNcHitTest = 0x0084;
     internal const int WmExitSizeMove = 0x0232;
     private const int WmDpiChanged = 0x02E0;
     private readonly Action _render;
     private readonly Action<Point> _savePosition;
     private readonly Action _restoreStack;
-    private readonly Action<string?> _hostChanged;
-    private readonly System.Windows.Forms.Timer _hostProbe = new() { Interval = 5000 };
     private readonly System.Windows.Forms.Timer _refresh = new();
     private readonly System.Windows.Forms.Timer _moveDebounce = new() { Interval = 500 };
     private DesktopLayeredSurface? _surface;
     private Size _canvas;
     private Point _lastPosition;
-    private Point _screenPosition;
-    private DesktopExplorerHost.Host? _host;
-    private string? _hostError;
-    private bool _wantedVisible;
     private bool _locked = true;
     private bool _configuring;
     private bool _disposed;
 
-    public bool IsVisible => Visible && _host is { } host && IsHandleCreated &&
-        DesktopExplorerHost.IsAttached(host, Handle);
+    public bool IsVisible => Visible;
     protected override CreateParams CreateParams
     {
         get
         {
             var result = base.CreateParams;
-            result.ExStyle = DesktopPointerStyle.ForLock(result.ExStyle, _locked);
+            result.ExStyle = DesktopPointerStyle.ForLock(
+                (result.ExStyle & ~DesktopBottomPlacement.WsExAppWindow) |
+                    DesktopBottomPlacement.WsExToolWindow, _locked);
             return result;
         }
     }
 
-    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack,
-        Action<string?> hostChanged)
+    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack)
     {
         _render = render ?? throw new ArgumentNullException(nameof(render));
         _savePosition = savePosition ?? throw new ArgumentNullException(nameof(savePosition));
         _restoreStack = restoreStack ?? throw new ArgumentNullException(nameof(restoreStack));
-        _hostChanged = hostChanged ?? throw new ArgumentNullException(nameof(hostChanged));
         FormBorderStyle = FormBorderStyle.None;
         // Desktop panels are managed through the Runtime tray, not Windows taskbar buttons.
         ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.None;
         StartPosition = FormStartPosition.Manual;
-        _refresh.Tick += (_, _) => { if (IsVisible) _render(); };
-        _hostProbe.Tick += (_, _) => TryShowHosted();
+        _refresh.Tick += (_, _) => _render();
         _moveDebounce.Tick += (_, _) =>
         {
             _moveDebounce.Stop();
-            if (_locked || !IsVisible)
+            if (_locked || !Visible || Location == _lastPosition)
                 return;
-            var physical = DesktopExplorerHost.PhysicalPoint(Handle);
-            if (physical == _lastPosition)
-                return;
-            _savePosition(physical);
-            _screenPosition = physical;
-            _lastPosition = physical;
+            _savePosition(Location);
+            _lastPosition = Location;
         };
         SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
     }
@@ -511,13 +481,6 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 
     public void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked)
     {
-        // Never allow WinForms geometry/DPI handle recreation to expose a popup.
-        // The caller restores the embedded window after adopting its renderer.
-        if (Visible)
-        {
-            _refresh.Stop();
-            Hide();
-        }
         _configuring = true;
         try
         {
@@ -526,11 +489,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _canvas = clientPixels;
             _locked = locked;
             ClientSize = clientPixels;
-            _screenPosition = Resolve(location);
-            Location = _host is { } host && DesktopExplorerHost.IsAttached(host, Handle)
-                ? DesktopExplorerHost.ParentPoint(host.Handle, _screenPosition)
-                : _screenPosition;
-            _lastPosition = _screenPosition;
+            Location = Resolve(location);
+            _lastPosition = Location;
             _refresh.Interval = refreshMs;
             ApplyLockStyle();
         }
@@ -571,88 +531,26 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private static extern bool SetWindowPos(
         IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
-    internal void PlaceBehind(DesktopOutputWindow higher)
+    internal void PlaceAtDesktopBack()
     {
-        if (_disposed || higher._disposed || !IsVisible || !higher.IsVisible ||
-            _host != higher._host || !IsHandleCreated || !higher.IsHandleCreated)
-            return;
-        if (!SetWindowPos(Handle, higher.Handle, 0, 0, 0, 0, StackFlags))
-            throw new Win32Exception(Marshal.GetLastWin32Error(),
-                "Cannot restore Desktop sibling window stacking order.");
+        if (!_disposed && IsVisible && IsHandleCreated)
+            DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
     }
 
     public void ShowWindow()
     {
-        _wantedVisible = true;
-        _hostProbe.Start();
-        TryShowHosted();
-    }
-
-    // Probe only Explorer host identity/lifetime, not global Z-order. A missing
-    // host must NEVER expose an ordinary top-level Desktop overlay.
-    private void TryShowHosted()
-    {
-        if (_disposed || !_wantedVisible)
-            return;
-        try
-        {
-            var found = DesktopExplorerHost.Discover() ??
-                throw new InvalidOperationException("No supported Explorer wallpaper WorkerW is available.");
-            var wasVisible = IsVisible;
-            var isCurrent = _host == found && IsHandleCreated &&
-                DesktopExplorerHost.IsAttached(found, Handle);
-            if (!isCurrent)
-            {
-                _refresh.Stop();
-                if (Visible)
-                    Hide();
-                _configuring = true;
-                try
-                {
-                    // Creating Handle while hidden prevents even a transient popup.
-                    DesktopExplorerHost.Attach(Handle, found, _screenPosition, _canvas);
-                    _host = found;
-                    Location = DesktopExplorerHost.ParentPoint(found.Handle, _screenPosition);
-                }
-                finally { _configuring = false; }
-            }
-            if (!Visible)
-                Show();
-            if (!IsVisible)
-                throw new InvalidOperationException("Native Desktop panel did not remain parented to Explorer.");
-            if (!isCurrent)
-                DesktopExplorerHost.RestoreBehindIcons(Handle, found);
-            RecoverVisible();
-            _refresh.Start();
-            if (!isCurrent || _hostError is not null)
-            {
-                _hostError = null;
-                _hostChanged(null);
-                _restoreStack();
-            }
-            if (!wasVisible)
-                _render();
-        }
-        catch (Exception ex)
-        {
-            _refresh.Stop();
-            if (Visible)
-                Hide();
-            _host = null;
-            if (_hostError != ex.Message)
-            {
-                _hostError = ex.Message;
-                _hostChanged(_hostError);
-            }
-        }
+        if (!Visible)
+            Show();
+        RecoverVisible();
+        PlaceAtDesktopBack();
+        _refresh.Start();
+        _render();
     }
 
     public void HideWindow()
     {
         _moveDebounce.Stop();
         _refresh.Stop();
-        _hostProbe.Stop();
-        _wantedVisible = false;
         Hide();
     }
 
@@ -679,7 +577,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     protected override void OnMove(EventArgs e)
     {
         base.OnMove(e);
-        if (_configuring || _locked || _disposed || !IsVisible)
+        if (_configuring || _locked || _disposed || !Visible)
             return;
         _moveDebounce.Stop();
         _moveDebounce.Start();
@@ -701,19 +599,12 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         if (m.Msg == WmExitSizeMove)
         {
             base.WndProc(ref m);
-            if (!_disposed && !_locked && IsVisible)
+            if (!_disposed && !_locked && Visible)
                 _restoreStack();
             return;
         }
         if (m.Msg == WmDpiChanged)
         {
-            // A DPI transition may recreate a WinForms handle: keep it hidden
-            // until its Explorer child-window ownership has been verified again.
-            if (Visible)
-            {
-                _refresh.Stop();
-                Hide();
-            }
             _configuring = true;
             try
             {
@@ -723,7 +614,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
                 RecoverVisible();
             }
             finally { _configuring = false; }
-            TryShowHosted();
+            if (Visible)
+                _render();
             return;
         }
         base.WndProc(ref m);
@@ -733,28 +625,23 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     {
         if (_disposed || !IsHandleCreated)
             return;
-        try { BeginInvoke((Action)(() => { TryShowHosted(); RecoverVisible(); })); }
-        catch (InvalidOperationException) { /* The host may be recreating; the lifetime probe will retry. */ }
+        try { BeginInvoke((Action)RecoverVisible); }
+        catch (InvalidOperationException) when (_disposed || !IsHandleCreated) { }
     }
 
     private void RecoverVisible()
     {
         if (_disposed || _canvas.Width <= 0 || _canvas.Height <= 0)
             return;
-        var physical = IsVisible ? DesktopExplorerHost.PhysicalPoint(Handle) : _screenPosition;
-        var recovered = Resolve(physical);
-        if (recovered == physical)
+        var recovered = Resolve(Location);
+        if (recovered == Location)
             return;
         _configuring = true;
         try
         {
             _moveDebounce.Stop();
-            _screenPosition = recovered;
-            if (_host is { } host && IsVisible)
-                Location = DesktopExplorerHost.ParentPoint(host.Handle, recovered);
-            else
-                Location = recovered;
-            _lastPosition = recovered; // do not overwrite saved position of detached monitor
+            Location = recovered;
+            _lastPosition = Location; // do not overwrite location of detached monitor
         }
         finally { _configuring = false; }
         if (Visible)
@@ -771,7 +658,6 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _disposed = true;
             SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
             _refresh.Dispose();
-            _hostProbe.Dispose();
             _moveDebounce.Dispose();
             _surface?.Dispose();
             _surface = null;

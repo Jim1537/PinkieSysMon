@@ -9,9 +9,12 @@ internal static class DesktopLockStage12Tests
 {
     public static void TaskbarExclusion()
     {
-        using var panel = new DesktopOutputWindow(() => { }, _ => { }, () => { }, _ => { });
+        using var panel = new DesktopOutputWindow(() => { }, _ => { }, () => { });
         Check(!panel.ShowInTaskbar,
             "Desktop panels must not create taskbar buttons; use the Runtime tray.");
+        Check(DesktopBottomPlacement.WsExToolWindow == 0x80 &&
+              DesktopBottomPlacement.WsExAppWindow == 0x40000,
+            "Top-level panels need a native style to exclude them from Alt+Tab.");
     }
 
     public static void NativeStylePolicy()

@@ -211,7 +211,7 @@ internal static class DesktopSessionStage09Tests
         });
     }
 
-    // An unsupported or unavailable Explorer host must not start a top-level overlay,
+    // An unavailable native Desktop window must not start a top-level overlay,
     // crash session startup, or invent successful Desktop status and frames.
     public static void UnavailableExplorerHost()
     {
@@ -229,22 +229,22 @@ internal static class DesktopSessionStage09Tests
             manager.Start();
             var window = panel ?? throw new InvalidOperationException("Missing Desktop fixture.");
             var status = manager.GetStatuses().Single();
-            Check(status.IsActive && !status.IsConnected && status.UsbState == "HOST_UNAVAILABLE",
-                "Missing Explorer host must leave Desktop active but unavailable, without a visible popup.");
+            Check(status.IsActive && !status.IsConnected && status.UsbState == "WINDOW_UNAVAILABLE",
+                "Missing native Desktop window must leave Desktop active but unavailable, without claiming a visible board.");
             manager.RequestFramesAfterInitialTelemetry();
             Check(window.PresentCount == 0, "Unavailable Explorer host must not render frames.");
 
             manager.Suspend();
             manager.Resume();
             Check(!manager.GetStatuses().Single().IsConnected,
-                "Resume must not report a missing Explorer desktop as connected.");
+                "Resume must not report a unavailable native Desktop window as connected.");
 
             window.SuppressShow = false;
             manager.Suspend();
             manager.Resume();
             Check(manager.GetStatuses().Single().IsConnected &&
                   manager.GetStatuses().Single().UsbState == "DISPLAYING",
-                "Recovery after Explorer hosting becomes possible must restore Desktop readiness.");
+                "Recovery after the native window becomes available must restore Desktop readiness.");
         });
     }
 

@@ -734,14 +734,15 @@ internal sealed class OutputSessionManager : IDisposable
             .Where(session => session.IsStackVisible)
             .ToArray();
 
-        // Anchor each lower panel immediately behind the next higher panel. Never
-        // promote a window with HWND_TOP/HWND_TOPMOST or alter another process's HWND.
-        for (var index = ordered.Length - 2; index >= 0; index--)
+        // Insert each owned panel immediately above desktop wallpaper, high-to-low
+        // so the final insertion is the lowest saved Desktop.ZOrder.
+        // No global timer, no third-party HWND reordering.
+        for (var index = ordered.Length - 1; index >= 0; index--)
         {
-            try { ordered[index].PlaceBehind(ordered[index + 1]); }
+            try { ordered[index].PlaceAtDesktopBack(); }
             catch (Exception ex)
             {
-                _log.Warn("Desktop sibling stacking adjustment failed; continuing other outputs.", ex);
+                _log.Warn("Desktop bottom-stack adjustment failed; continuing other outputs.", ex);
             }
         }
     }
