@@ -141,7 +141,8 @@ internal sealed partial class EditorForm
             var transfer = new C.DashboardDefinition
             {
                 SchemaVersion = _definition.SchemaVersion,
-                Canvas = _definition.Canvas,
+                // Transfer widgets only; unrelated canvas artwork must not enter the clipboard.
+                Canvas = new C.CanvasDefinition(),
                 Widgets = widgets,
                 BaseDirectory = _definition.BaseDirectory
             };
