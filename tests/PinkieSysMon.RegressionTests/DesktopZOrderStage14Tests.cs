@@ -1,5 +1,6 @@
 using System.Text.Json;
 using PinkieSysMon;
+using PinkieSysMon.Editor;
 using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon.RegressionTests;
