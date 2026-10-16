@@ -199,9 +199,6 @@ internal sealed partial class EditorForm
     private void PasteTransferredWidgets(WidgetTransferPackage package)
     {
         var undoBefore = CaptureSnapshot();
-        var staged = DashboardJson.ParseEditorSnapshot(
-            DashboardJson.SerializeEditorSnapshot(_definition!), _dashboardPath);
-        var metadata = DashboardEditorMetadata.FromJson(_dashboardMetadata.ToCompactJson());
         var incoming = DashboardJson.ParseEditorSnapshot(package.SnapshotJson, _dashboardPath);
         if (incoming.Widgets.Count == 0 && package.Groups.Count == 0)
             throw new InvalidDataException("The clipboard does not contain widgets or groups.");
@@ -215,71 +212,16 @@ internal sealed partial class EditorForm
                 Path.GetDirectoryName(_dashboardPath)!, newlyCreatedAssets))
                 return;
 
-            var knownIds = new HashSet<string>(
-                staged.Widgets.Select(widget => widget.Id
-                    ?? throw new InvalidDataException("Destination widget ID is missing.")),
-                StringComparer.OrdinalIgnoreCase);
-            var idMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var nextZ = staged.Widgets.Count == 0 ? -1 : staged.Widgets.Max(widget => widget.Z);
-            foreach (var widget in clones)
-            {
-                if (string.IsNullOrWhiteSpace(widget.Id) || !idMap.TryAdd(widget.Id, string.Empty))
-                    throw new InvalidDataException("Clipboard widget IDs must be present and distinct.");
-                var suffix = 1;
-                string id;
-                do { id = $"{widget.Type}-{suffix++}"; } while (!knownIds.Add(id));
-                idMap[widget.Id] = id;
-                widget.Id = id;
-                widget.X += 16;
-                widget.Y += 16;
-                widget.Z = ++nextZ;
-                staged.Widgets.Add(widget);
-            }
-
-            var newGroups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var group in package.Groups)
-            {
-                if (string.IsNullOrWhiteSpace(group.Id) || string.IsNullOrWhiteSpace(group.Name) ||
-                    newGroups.ContainsKey(group.Id))
-                    throw new InvalidDataException("Clipboard group definitions are invalid.");
-                var parent = group.ParentGroupId is not null &&
-                             newGroups.TryGetValue(group.ParentGroupId, out var mappedParent)
-                    ? mappedParent : null;
-                var name = group.Name;
-                if (metadata.NameExistsAmongSiblings(name, parent))
-                {
-                    var suffix = 2;
-                    while (metadata.NameExistsAmongSiblings($"{group.Name} {suffix}", parent))
-                        suffix++;
-                    name = $"{group.Name} {suffix}";
-                }
-                var targetGroup = metadata.CreateGroup(name, parent);
-                newGroups.Add(group.Id, targetGroup.Id);
-            }
-
-            foreach (var pair in package.WidgetGroupIds)
-            {
-                if (idMap.TryGetValue(pair.Key, out var widgetId) &&
-                    newGroups.TryGetValue(pair.Value, out var groupId))
-                    metadata.SetWidgetGroup(widgetId, groupId);
-            }
-
-            var hierarchy = new EditorLayerHierarchy(staged, metadata);
-            hierarchy.SyncGroupDeclarationOrder();
-            NormalizePreparedLayerOrder(staged, hierarchy.FlattenWidgets());
-            staged.Validate();
-            ReplacePreviewRenderer(staged);
-            _definition = staged;
-            _dashboardMetadata = metadata;
+            var plan = WidgetPastePlanner.Prepare(
+                _definition!, _dashboardMetadata, clones, package, _dashboardPath);
+            ReplacePreviewRenderer(plan.Definition);
+            _definition = plan.Definition;
+            _dashboardMetadata = plan.Metadata;
             committed = true;
 
             _selectedTreeKeys.Clear();
-            foreach (var rootId in package.RootGroupIds)
-                if (newGroups.TryGetValue(rootId, out var pastedGroup))
-                    _selectedTreeKeys.Add(GroupTreeKey(pastedGroup));
-            if (_selectedTreeKeys.Count == 0)
-                foreach (var widget in clones)
-                    _selectedTreeKeys.Add(WidgetTreeKey(widget));
+            foreach (var key in plan.SelectionKeys)
+                _selectedTreeKeys.Add(key);
             _treePrimaryKey = _selectedTreeKeys.LastOrDefault();
             _treeSelectionAnchorKey = _treePrimaryKey;
             _selectedWidget = null;
