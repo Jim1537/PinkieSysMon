@@ -22,6 +22,14 @@ internal static class LauncherPackagingContractTests
         if (ProjectPresentation.Website != "https://jim1537.github.io/PinkieSysMon")
             throw new InvalidOperationException("Product website contract changed.");
 
+        const string expectedDescription =
+            "Pinkie's System Monitor is a fully local Windows application for building telemetry dashboards and " +
+            "displaying them on independent Windows Desktop panels or supported USB devices.";
+        if (ProjectPresentation.Description != expectedDescription ||
+            ProjectPresentation.SupportedDevicesText != "supported USB devices" ||
+            ProjectPresentation.SupportedDevicesUrl != "https://jim1537.github.io/PinkieSysMon/supported-devices/")
+            throw new InvalidOperationException("About copy or supported-devices destination changed.");
+
         // Construct both modes from the same compiled source; do not show or
         // launch external processes or create Windows desktop shortcuts.
         using var launcher = new ProjectInfoWindow(Path.GetTempPath(), true, "test-version");
@@ -41,8 +49,31 @@ internal static class LauncherPackagingContractTests
         {
             if (FindControls<LinkLabel>(form).Count(link => link.Text == ProjectPresentation.Website) != 1)
                 throw new InvalidOperationException("Product website is missing or duplicated.");
-            if (FindControls<Label>(form).Count(label => label.Text == ProjectPresentation.Description) != 1)
-                throw new InvalidOperationException("The shared product description is missing.");
+            var description = FindControls<LinkLabel>(form)
+                .SingleOrDefault(link => link.Text == ProjectPresentation.Description)
+                ?? throw new InvalidOperationException("The shared product description must be a link label.");
+            var link = description.Links.Cast<LinkLabel.Link>().SingleOrDefault();
+            if (link is null ||
+                link.Start != ProjectPresentation.Description.IndexOf(ProjectPresentation.SupportedDevicesText, StringComparison.Ordinal) ||
+                link.Length != ProjectPresentation.SupportedDevicesText.Length ||
+                link.LinkData is not string destination ||
+                destination != ProjectPresentation.SupportedDevicesUrl)
+                throw new InvalidOperationException("The supported-devices hyperlink is missing or incorrect.");
+
+            var website = FindControls<LinkLabel>(form).Single(label => label.Text == ProjectPresentation.Website);
+            var advanced = FindControls<Button>(form).Single(button => button.Text == "Advanced ▼");
+            if (description.Bottom > website.Top || website.Bottom > advanced.Top ||
+                advanced.Bottom > form.ClientSize.Height)
+                throw new InvalidOperationException("About content overlaps or exceeds the window.");
+
+            if (ReferenceEquals(form, launcher))
+            {
+                foreach (var button in launcherButtons.Where(button => button.Text.StartsWith("Launch ", StringComparison.Ordinal)))
+                {
+                    if (website.Bottom > button.Top || button.Bottom > advanced.Top)
+                        throw new InvalidOperationException("Launcher controls overlap adjacent content.");
+                }
+            }
             if (FindControls<Button>(form).Count(button => button.Text == "Advanced ▼") != 1)
                 throw new InvalidOperationException("Advanced is missing or expanded by default.");
             if (FindControls<Button>(form).Count(button => button.Text == "Create Desktop shortcuts") != 1 ||

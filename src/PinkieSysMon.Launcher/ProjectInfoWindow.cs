@@ -10,8 +10,11 @@ namespace PinkieSysMon.Launcher;
 internal static class ProjectPresentation
 {
     public const string Title = "Pinkie's System Monitor";
+    public const string SupportedDevicesText = "supported USB devices";
+    public const string SupportedDevicesUrl = "https://jim1537.github.io/PinkieSysMon/supported-devices/";
     public const string Description =
-        "Direct Skia dashboard editor and Windows monitor runtime for Desktop and supported physical Outputs.";
+        "Pinkie's System Monitor is a fully local Windows application for building telemetry dashboards and " +
+        "displaying them on independent Windows Desktop panels or " + SupportedDevicesText + ".";
     public const string Website = "https://jim1537.github.io/PinkieSysMon";
 
     public const string LauncherExe = "Launcher.exe";
@@ -186,7 +189,7 @@ internal sealed class ProjectInfoWindow : Form
         MinimizeBox = false;
         ShowInTaskbar = showLaunchButtons;
         StartPosition = showLaunchButtons ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
-        ClientSize = new Size(606, showLaunchButtons ? 298 : 231);
+        ClientSize = new Size(606, showLaunchButtons ? 319 : 252);
         _baseHeight = ClientSize.Height;
 
         try
@@ -216,38 +219,34 @@ internal sealed class ProjectInfoWindow : Form
         };
         Controls.Add(versionLabel);
 
-        Controls.Add(new Label
+        var description = new LinkLabel
         {
             Text = ProjectPresentation.Description,
             Location = new Point(21, 82),
-            Size = new Size(557, 40)
-        });
+            Size = new Size(557, 60)
+        };
+        description.Links.Add(
+            ProjectPresentation.Description.IndexOf(ProjectPresentation.SupportedDevicesText, StringComparison.Ordinal),
+            ProjectPresentation.SupportedDevicesText.Length,
+            ProjectPresentation.SupportedDevicesUrl);
+        description.LinkClicked += (_, e) =>
+        {
+            if (e.Link?.LinkData is string url)
+                OpenWebPage(url, "Open Supported Devices");
+        };
+        Controls.Add(description);
 
         var website = new LinkLabel
         {
             Text = ProjectPresentation.Website,
-            Location = new Point(21, 129),
+            Location = new Point(21, 150),
             Size = new Size(560, 22),
             TabStop = true
         };
-        website.LinkClicked += (_, _) =>
-        {
-            try
-            {
-                using var process = Process.Start(new ProcessStartInfo(ProjectPresentation.Website)
-                {
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, ex.Message, "Open Project Website",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        };
+        website.LinkClicked += (_, _) => OpenWebPage(ProjectPresentation.Website, "Open Project Website");
         Controls.Add(website);
 
-        var launchY = 169;
+        var launchY = 190;
         if (showLaunchButtons)
         {
             var launchButtons = new (string Text, string Command)[]
@@ -282,7 +281,7 @@ internal sealed class ProjectInfoWindow : Form
             }
         }
 
-        var advancedY = showLaunchButtons ? 226 : 169;
+        var advancedY = showLaunchButtons ? 247 : 190;
         _advancedToggle = new Button
         {
             Text = "Advanced ▼",
@@ -318,6 +317,22 @@ internal sealed class ProjectInfoWindow : Form
         _advanced.Controls.Add(desktop);
         _advanced.Controls.Add(menu);
         Controls.Add(_advanced);
+    }
+
+    private void OpenWebPage(string url, string title)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, title,
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void ToggleAdvanced()
