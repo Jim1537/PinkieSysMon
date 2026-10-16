@@ -7,8 +7,11 @@ internal static class Issue70EmptyImageSourceTests
 {
     public static void CanonicalAndRendering()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "pinkiesysmon-issue70-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-issue70-" + Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(root, "dashboards", "BlankSources");
+        Directory.CreateDirectory(Path.Combine(root, "config"));
         Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
         try
         {
             foreach (var blank in new string?[] { null, "", "  " })
@@ -89,6 +92,6 @@ internal static class Issue70EmptyImageSourceTests
                     throw new InvalidOperationException("Nonempty invalid file sources must still be rejected.");
             }
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally { Directory.Delete(root, recursive: true); }
     }
 }

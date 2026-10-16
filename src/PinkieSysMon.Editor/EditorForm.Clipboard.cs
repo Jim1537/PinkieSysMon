@@ -156,9 +156,13 @@ internal sealed partial class EditorForm
             };
             foreach (var widget in widgets)
             {
-                var groupId = _dashboardMetadata.GetWidgetGroupId(widget.Id);
-                if (groupId is not null && includedGroups.Contains(groupId))
-                    package.WidgetGroupIds[widget.Id] = groupId;
+                var widgetId = widget.Id;
+                var groupId = _dashboardMetadata.GetWidgetGroupId(widgetId);
+                if (!string.IsNullOrWhiteSpace(widgetId) &&
+                    groupId is not null && includedGroups.Contains(groupId))
+                {
+                    package.WidgetGroupIds[widgetId] = groupId;
+                }
             }
 
             EditorWidgetClipboard.Write(package);
@@ -212,7 +216,9 @@ internal sealed partial class EditorForm
                 return;
 
             var knownIds = new HashSet<string>(
-                staged.Widgets.Select(widget => widget.Id), StringComparer.OrdinalIgnoreCase);
+                staged.Widgets.Select(widget => widget.Id
+                    ?? throw new InvalidDataException("Destination widget ID is missing.")),
+                StringComparer.OrdinalIgnoreCase);
             var idMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var nextZ = staged.Widgets.Count == 0 ? -1 : staged.Widgets.Max(widget => widget.Z);
             foreach (var widget in clones)
