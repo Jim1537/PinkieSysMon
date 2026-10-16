@@ -82,6 +82,38 @@ internal static class LauncherPackagingContractTests
         }
     }
 
+    public static void ClosesAfterSuccessfulLaunchOnly()
+    {
+        var expectedRoot = Path.GetFullPath(Path.GetTempPath());
+        foreach (var command in new[] { "--editor", "--runtime", "--both" })
+        {
+            using var launcher = new ProjectInfoWindow(expectedRoot, true, "test-version");
+            var calls = 0;
+            launcher.LaunchAndClose(command, (root, action) =>
+            {
+                calls++;
+                if (root != expectedRoot || action != command)
+                    throw new InvalidOperationException("Launcher did not dispatch the requested action.");
+            });
+            if (calls != 1 || !launcher.IsDisposed)
+                throw new InvalidOperationException("Launcher must close after a successful launch: " + command);
+        }
+
+        using var failedLauncher = new ProjectInfoWindow(expectedRoot, true, "test-version");
+        try
+        {
+            failedLauncher.LaunchAndClose("--editor", (_, _) =>
+                throw new InvalidOperationException("Simulated launch failure."));
+            throw new InvalidOperationException("Launcher unexpectedly accepted a failed start.");
+        }
+        catch (InvalidOperationException ex) when (ex.Message == "Simulated launch failure.")
+        {
+            // A failed process start must keep the Launcher open for retry.
+        }
+        if (failedLauncher.IsDisposed)
+            throw new InvalidOperationException("Launcher closed after a failed start.");
+    }
+
     private static IEnumerable<T> FindControls<T>(Control parent) where T : Control
     {
         foreach (Control child in parent.Controls)

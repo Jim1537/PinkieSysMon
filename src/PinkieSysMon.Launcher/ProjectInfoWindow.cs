@@ -269,7 +269,7 @@ internal sealed class ProjectInfoWindow : Form
                 {
                     try
                     {
-                        ProjectLauncherActions.Run(_root, command);
+                        LaunchAndClose(command, ProjectLauncherActions.Run);
                     }
                     catch (Exception ex)
                     {
@@ -317,6 +317,12 @@ internal sealed class ProjectInfoWindow : Form
         _advanced.Controls.Add(desktop);
         _advanced.Controls.Add(menu);
         Controls.Add(_advanced);
+    }
+
+    internal void LaunchAndClose(string command, Action<string, string> launch)
+    {
+        launch(_root, command);
+        Close();
     }
 
     private void OpenWebPage(string url, string title)
