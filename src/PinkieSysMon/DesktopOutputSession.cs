@@ -671,7 +671,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _surface = newSurface;
             old?.Dispose();
         }
-        _surface.Present(Handle, DesktopExplorerHost.PhysicalPoint(Handle), frame);
+        _surface.Present(Handle, frame);
     }
 
     protected override void OnMove(EventArgs e)

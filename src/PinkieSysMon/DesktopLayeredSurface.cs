@@ -74,7 +74,7 @@ internal sealed class DesktopLayeredSurface : IDisposable
         }
     }
 
-    public void Present(IntPtr windowHandle, Point location, SKBitmap bitmap)
+    public void Present(IntPtr windowHandle, SKBitmap bitmap)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (bitmap.Width != Width || bitmap.Height != Height)
@@ -82,7 +82,6 @@ internal sealed class DesktopLayeredSurface : IDisposable
 
         CopyPremultipliedPixels(bitmap, _bits, Stride);
 
-        var destination = new NativePoint(location.X, location.Y);
         var origin = new NativePoint(0, 0);
         var size = new NativeSize(Width, Height);
         var blend = new BlendFunction
@@ -98,7 +97,9 @@ internal sealed class DesktopLayeredSurface : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error(), "GetDC failed.");
         try
         {
-            if (!UpdateLayeredWindow(windowHandle, screenDc, ref destination, ref size,
+            // Image refresh must not reposition a native child of Explorer WorkerW.
+            // Win32 already owns placement through SetWindowPos in parent-client coordinates.
+            if (!UpdateLayeredWindow(windowHandle, screenDc, IntPtr.Zero, ref size,
                     _memoryDc, ref origin, 0, ref blend, UlwAlpha))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "UpdateLayeredWindow failed.");
         }
@@ -205,6 +206,6 @@ internal sealed class DesktopLayeredSurface : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr destinationDc,
-        ref NativePoint destination, ref NativeSize size, IntPtr sourceDc,
+        IntPtr destination, ref NativeSize size, IntPtr sourceDc,
         ref NativePoint source, int colorKey, ref BlendFunction blend, uint flags);
 }
