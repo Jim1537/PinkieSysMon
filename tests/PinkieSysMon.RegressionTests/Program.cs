@@ -9936,9 +9936,19 @@ internal static class Program
         Assert(fillImage.Count == 0,
             "Fill-mode Bar must hide image-specific properties while retaining dormant image configuration.");
 
-        widget.ContentMode = BarImageContract.ContentModeImage;
+        var modeProperty = GetNestedProperty(
+            new EditorPropertyView(widget, section: EditorPropertySection.Gauge).GetProperties(),
+            "Bar", "BarContentMode");
+        Assert(modeProperty is { DisplayName: "Mode" } &&
+               EditorForm.IsPropertyContextSwitch(modeProperty.Name),
+            "Issue75: editing Gauge > Bar > Mode must rebuild the applicable property tabs.");
+
+        modeProperty!.SetValue(null, BarImageContract.ContentModeImage);
         var imageAppearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
-        var imageProperties = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
+        var imageProperties = new EditorPropertyView(widget, dashboardDirectory: "dashboard", section: EditorPropertySection.Image).GetProperties();
+        var imageSource = GetNestedProperty(imageProperties, "Image", "BarImageSource");
+        Assert(imageSource?.GetEditor(typeof(UITypeEditor)) is DashboardImageSourceEditor,
+            "Issue75: the newly applicable Image tab must provide the existing file picker.");
         Assert(GetNestedProperty(imageProperties, "Image", "BarImageSource") is not null,
             "Image-mode Bar must expose Image Source.");
         Assert(GetNestedProperty(imageProperties, "Image", "BarImageFit") is not null,
@@ -9959,6 +9969,18 @@ internal static class Program
                widget.Image.ProgressMode == BarImageContract.ProgressModeReveal &&
                widget.Image.Loop,
             "Switching Bar content mode must preserve dormant canonical image configuration.");
+
+        modeProperty.SetValue(null, BarImageContract.ContentModeFill);
+        Assert(new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties().Count == 0 &&
+               GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties(),
+                   "Foreground", nameof(C.WidgetDefinition.Color)) is not null,
+            "Issue75: returning to Fill must remove the Image tab and restore Fill-only properties.");
+
+        modeProperty.SetValue(null, BarImageContract.ContentModeImage);
+        Assert(GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties(),
+                   "Image", "BarImageSource") is not null &&
+               widget.Image.Source == "bar.png" && widget.Image.ProgressMode == BarImageContract.ProgressModeReveal,
+            "Issue75: repeated Fill/Image switches must restore the picker without losing image settings.");
     }
 
     private static void BarImageProgressModes()

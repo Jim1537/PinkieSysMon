@@ -1011,6 +1011,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
+    internal static bool IsPropertyContextSwitch(string propertyName) =>
+        propertyName is "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode";
+
     private bool ApplyWidgetPropertyChange(
         CanonicalWidgetDefinition widget,
         string propertyName)
@@ -1080,7 +1083,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             }
             refreshPropertyView = true;
         }
-        else if (propertyName is "SourceType" or "SourceKind" or "ContentMode")
+        else if (IsPropertyContextSwitch(propertyName))
         {
             refreshPropertyView = true;
         }
