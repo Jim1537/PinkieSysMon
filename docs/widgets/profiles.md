@@ -23,7 +23,7 @@ This list describes **model composition**, not a second set of property definiti
 
 Both payload objects remain separate in the canonical profile, including when one is inactive. A graphical source-kind change can clear an incompatible stored asset source, but selecting Value does not convert that asset into text. Changing one state's presentation must preserve unrelated state profiles.
 
-Each widget owns its required profile keys, defaults, and state-selection/unavailable rules. Shared validation checks supported profile content, non-null graphical and text-presentation structures, and valid state appearance; **only an active graphical source** must resolve to a valid icon or existing dashboard-relative file. The precise field and range contracts are in the Property Dictionary. Unsupported extra profile keys and missing required states are rejected by each widget's canonical validation.
+Each widget owns its required profile keys, defaults, and state-selection/unavailable rules. Shared validation checks supported profile content, non-null graphical and text-presentation structures, and valid state appearance; **only a nonempty active graphical source** must resolve to a valid icon or existing dashboard-relative file. An empty graphical source is valid and draws no graphic. The precise field and range contracts are in the Property Dictionary. Unsupported extra profile keys and missing required states are rejected by each widget's canonical validation.
 
 <!-- --8<-- [end:profile-schema] -->
 

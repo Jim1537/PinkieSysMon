@@ -45,7 +45,7 @@ internal sealed class ImageAssetPresentationDefinition
     {
         ValidateStructure(context);
         if (string.IsNullOrWhiteSpace(Source))
-            throw new InvalidDataException($"{context} Source is required.");
+            return;
 
         if (ImageAssetSourceType.IsFile(SourceType))
         {
@@ -116,7 +116,7 @@ internal sealed class BarImagePresentationDefinition
     {
         ValidateStructure(context);
         if (string.IsNullOrWhiteSpace(Source))
-            throw new InvalidDataException($"{context} Source is required.");
+            return;
         if (Path.IsPathRooted(Source))
             throw new InvalidDataException($"{context} Source must be relative to the dashboard directory.");
 

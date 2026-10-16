@@ -700,7 +700,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Bar Image mode: dashboard-relative image file.
 
 
-    Active graphical source.
+    Active graphical source. An empty source is a valid unconfigured image for Image, Bar Image mode, and graphical state profiles; any nonempty source must still resolve.
 
     **Used by:** Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 

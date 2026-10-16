@@ -201,7 +201,7 @@ The Editor's display term `Image` for a file source maps to the canonical token 
 
 #### File source
 
-For `sourceType = file`, `source` must identify an existing image using a path relative to the dashboard directory. Absolute paths and paths that escape the dashboard directory are rejected.
+An empty `asset.source` is valid: Image keeps its geometry and common appearance but draws no image until a source is selected. For `sourceType = file`, a **nonempty** `source` must identify an existing file relative to the dashboard directory; absolute paths and paths escaping that directory are rejected.
 
 `AssetPathResolver` first checks the relative path exactly as stored under the dashboard directory. For a **bare filename** without a directory, it can also check the dashboard-local `images` subdirectory. An explicitly named subdirectory is not silently rewritten.
 

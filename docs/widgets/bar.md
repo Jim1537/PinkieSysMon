@@ -167,7 +167,7 @@ The `Appearance` tab provides:
 The widget's `Corner Radius` also influences the rounded active-fill clipping geometry. `Gap` and border width reduce the internal space available for Fill or Image content.
 
 !!! warning
-    A Bar with a nonzero reading may still show no active content if its interior is reduced to zero size by the border and gap, or if the selected metric is unavailable. In Image mode, an invalid or missing image source is a dashboard validation problem rather than an alternate fallback rendering mode.
+    A Bar with a nonzero reading may still show no active content if its interior is reduced to zero size by the border and gap, or if the selected metric is unavailable. In Image mode, an empty image source is a valid unconfigured state that draws no progress image; a nonempty invalid source still fails dashboard validation.
 
 
 See [Width](properties.md#width), [Height](properties.md#height), [Rotation](properties.md#rotation), [Background Color](properties.md#background-color), [Border Width](properties.md#border-width), and [Corner Radius](properties.md#corner-radius).
@@ -272,7 +272,7 @@ Threshold coloring affects only Bar's active Fill, not its shared background. **
 
 The `Image` mode stores a dashboard-relative image `source`, a `fit` option, a `progressMode`, and `loop`.
 
-The active image source must exist and resolve within the dashboard directory. Bar Image mode is file-backed; it does not store or resolve a global icon identifier as its image source.
+A nonempty active image source must exist and resolve within the dashboard directory. An empty source leaves the Bar in Image mode without rendering the progress image. Bar Image mode is file-backed; it does not store or resolve a global icon identifier as its image source.
 
 The renderer loads the source through `ImageAssetCache` and prepares a destination rectangle using `fit`:
 
@@ -330,7 +330,7 @@ The canonical Bar model requires:
 - supported Image `Fit` and `ProgressMode` tokens;
 - valid common geometry and visual properties.
 
-In Fill mode, the three threshold slots are validated, including ordered enabled thresholds within the range. In Image mode, an image source is mandatory, dashboard-relative, and resolvable; the threshold color contract is not used for Image rendering.
+In Fill mode, the three threshold slots are validated, including ordered enabled thresholds within the range. In Image mode, an empty image source is valid and draws no image; nonempty sources must be dashboard-relative and resolvable. The threshold color contract is not used for Image rendering.
 
 Compatibility-sensitive details include:
 

@@ -21,6 +21,7 @@ internal static class Program
     {
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue70 empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),

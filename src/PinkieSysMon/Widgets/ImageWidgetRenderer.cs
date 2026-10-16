@@ -23,6 +23,9 @@ internal sealed class ImageWidgetRenderer : IWidgetRenderer, IDisposable
     {
         var image = widget as CanonicalDashboard.ImageWidgetDefinition
             ?? throw new InvalidDataException($"Image renderer received widget type '{widget.Type}'.");
+        if (string.IsNullOrWhiteSpace(image.Asset.Source))
+            return;
+
         var compiled = GetCompiled(image, context.Antialias);
         var bounds = new SKRect(image.X, image.Y, image.X + image.Width, image.Y + image.Height);
         compiled.Draw(canvas, bounds, context.Antialias);
