@@ -749,7 +749,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     return;
                 }
 
-                SetStatus($"Editor theme: {EditorThemeContract.Serialize(_themeMode)} · restart required.");
+                var themeStatus = $"Editor theme: {EditorThemeContract.Serialize(_themeMode)} · restart required.";
+                SetStatus(runtimeChanged
+                    ? $"{(runtimeReloaded ? "Runtime settings applied." : "Runtime settings saved for next start.")} {themeStatus}"
+                    : themeStatus);
             }
             else if (runtimeChanged)
             {

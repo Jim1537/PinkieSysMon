@@ -135,3 +135,17 @@ internal sealed class DesktopSettingsModel
         }
     };
 }
+
+// Insertion slots are boundaries (0..Count); Move expects the final item index.
+internal static class DesktopInsertionPolicy
+{
+    public static int SlotForItem(int itemIndex, bool afterMidpoint) =>
+        itemIndex + (afterMidpoint ? 1 : 0);
+
+    public static int DestinationIndex(int count, int sourceIndex, int insertionSlot)
+    {
+        if (sourceIndex < 0 || sourceIndex >= count || insertionSlot < 0 || insertionSlot > count)
+            return -1;
+        return insertionSlot > sourceIndex ? insertionSlot - 1 : insertionSlot;
+    }
+}

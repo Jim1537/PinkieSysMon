@@ -35,7 +35,7 @@ Hover over a control or its help icon for the current parameter explanation. The
 
 ### Step 3. Apply the settings and display the panel
 
-Click **OK** to validate and save the panel configuration. **Cancel** discards the Settings draft, including new panels, removals and reorder operations.
+Settings controls stage changes until **OK**, which validates and saves the panel configuration. **Cancel** discards the draft, including new panels, removals and reorder operations. The timing note at the bottom of Settings explains when Runtime and Editor changes become effective.
 
 - If Runtime is running and responds to IPC, changed Output settings are applied through a configuration reload.
 - If Runtime cannot be reached, settings are saved for its next start; Settings does not launch it. Check the Editor's status message rather than assuming the panel is already visible.
@@ -49,7 +49,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
 3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
 
-For overlapping panels, drag their **list entries in Settings → Desktop**, then click **OK**. Earlier entries are behind later entries. This order controls sibling Desktop windows; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order, and panels are not made always-on-top windows.
+For overlapping panels, drag their **list entries in Settings → Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls sibling Desktop windows; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order, and panels are not made always-on-top windows.
 
 If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
 

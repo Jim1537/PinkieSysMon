@@ -2068,6 +2068,16 @@ internal static class Program
         added.Desktop.BoardEnabled = true;
         added.RefreshIntervalMs = 333;
         model.MarkChanged();
+        Assert(DesktopInsertionPolicy.SlotForItem(1, false) == 1 &&
+               DesktopInsertionPolicy.SlotForItem(1, true) == 2 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 0, 3) == 2 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 2, 0) == 0 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 1, 1) == 1 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 1, 2) == 1 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 2, 2) == 2 &&
+               DesktopInsertionPolicy.DestinationIndex(3, -1, 0) == -1 &&
+               DesktopInsertionPolicy.DestinationIndex(3, 1, 4) == -1,
+            "Desktop insertion preview must map before/after boundaries to the correct final list position.");
         model.Move(1, 0);
         Assert(model.Desktops[0] == added && added.Desktop.ZOrder == 0 &&
                model.Desktops[1].Desktop!.ZOrder == 1,
@@ -2107,6 +2117,17 @@ internal static class Program
             "Desktop Settings must use a single two-column master/detail layout.");
         Assert(!dialog.DesktopChanged,
             "Opening Desktop Settings must not modify persisted configuration.");
+        Assert(dialog.Controls.OfType<Label>().Any(label =>
+                   label.Text == EditorSettingsDialog.ApplyTimingNotice &&
+                   label.Text.Contains("after OK", StringComparison.Ordinal) &&
+                   label.Text.Contains("next start", StringComparison.Ordinal) &&
+                   label.Text.Contains("restarting the Editor", StringComparison.Ordinal)),
+            "Settings must explain when its independent Runtime and Editor changes become effective.");
+        var desktopList = desktopPage.Controls.OfType<TableLayoutPanel>().Single()
+            .Controls.OfType<TableLayoutPanel>().Single()
+            .Controls.OfType<ListBox>().Single();
+        Assert(desktopList.DrawMode == DrawMode.OwnerDrawFixed,
+            "Desktop list must support painting the precise before/after insertion marker.");
     }
 
     private static void EditorThemeSettingsContract()

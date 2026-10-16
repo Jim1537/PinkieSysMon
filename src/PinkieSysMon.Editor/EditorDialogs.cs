@@ -213,7 +213,8 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     private readonly IReadOnlyList<string> _dashboardChoices;
     private readonly ListBox _desktopList = new()
     {
-        Dock = DockStyle.Fill, IntegralHeight = false, AllowDrop = true
+        Dock = DockStyle.Fill, IntegralHeight = false, AllowDrop = true,
+        DrawMode = DrawMode.OwnerDrawFixed
     };
     private readonly Button _createDesktop = new() { Text = "Create New", AutoSize = true };
     private readonly Button _removeDesktop = new() { Text = "Remove", AutoSize = true };
@@ -241,6 +242,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     private OutputTargetConfig? _selectedDesktop;
     private bool _bindingDesktop;
     private int _desktopDragIndex = -1;
+    private int _desktopInsertionSlot = -1;
 
     // Stage21 owns app-wide preferences; Stage22 owns virtual Output controls.
     // The physical Device pages are added separately in Stage23.
@@ -362,8 +364,16 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(ok);
+        var applyTimingNote = new Label
+        {
+            Dock = DockStyle.Bottom, Height = 54,
+            Padding = new Padding(12, 4, 12, 4),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = ApplyTimingNotice
+        };
         Controls.Add(tabs);
         Controls.Add(_discoveryNotice);
+        Controls.Add(applyTimingNote);
         Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
@@ -376,6 +386,11 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     public bool IcueProviderEnabled => _icueProvider.Checked;
     public int ToolbarIconSize => _toolbarIconSize.SelectedIndex switch { 0 => 16, 2 => 48, _ => 32 };
     public EditorThemeMode ThemeMode => EditorThemeContract.Parse(_theme.SelectedItem as string);
+
+    internal const string ApplyTimingNotice =
+        "Changes in Settings take effect after OK (Cancel discards them). " +
+        "Output and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
+        "Editor toolbar size updates after OK; a theme change requires restarting the Editor.";
 
     public bool DesktopChanged => _desktops.IsDirty;
 
@@ -469,6 +484,43 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             if (!_bindingDesktop)
                 BindSelectedDesktop();
         };
+        _desktopList.DrawItem += (_, e) =>
+        {
+            if (e.Index < 0)
+                return;
+            e.DrawBackground();
+            TextRenderer.DrawText(e.Graphics, _desktopList.Items[e.Index]?.ToString() ?? string.Empty,
+                e.Font ?? _desktopList.Font, Rectangle.Inflate(e.Bounds, -4, 0), e.ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            e.DrawFocusRectangle();
+            if (_desktopInsertionSlot == e.Index ||
+                (_desktopInsertionSlot == _desktopList.Items.Count &&
+                 e.Index == _desktopList.Items.Count - 1))
+            {
+                var y = _desktopInsertionSlot == e.Index ? e.Bounds.Top + 1 : e.Bounds.Bottom - 2;
+                using var marker = new Pen(SystemColors.Highlight, 2);
+                e.Graphics.DrawLine(marker, e.Bounds.Left + 3, y, e.Bounds.Right - 4, y);
+            }
+        };
+
+        void ShowInsertionSlot(int slot)
+        {
+            if (_desktopInsertionSlot == slot)
+                return;
+            _desktopInsertionSlot = slot;
+            _desktopList.Invalidate();
+        }
+
+        int InsertionSlotAt(Point point)
+        {
+            var itemIndex = _desktopList.IndexFromPoint(point);
+            if (itemIndex < 0)
+                return point.Y < 0 ? _desktopList.TopIndex : _desktopList.Items.Count;
+            var bounds = _desktopList.GetItemRectangle(itemIndex);
+            return DesktopInsertionPolicy.SlotForItem(itemIndex, point.Y >= bounds.Top + bounds.Height / 2);
+        }
+
         _desktopList.MouseDown += (_, e) =>
             _desktopDragIndex = e.Button == MouseButtons.Left
                 ? _desktopList.IndexFromPoint(e.Location) : -1;
@@ -478,23 +530,34 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             {
                 var source = _desktopDragIndex;
                 _desktopDragIndex = -1;
-                _desktopList.DoDragDrop(source, DragDropEffects.Move);
+                try { _desktopList.DoDragDrop(source, DragDropEffects.Move); }
+                finally { ShowInsertionSlot(-1); }
             }
         };
         _desktopList.DragEnter += (_, e) =>
+            e.Effect = e.Data?.GetDataPresent(typeof(int)) == true
+                ? DragDropEffects.Move : DragDropEffects.None;
+        _desktopList.DragOver += (_, e) =>
         {
-            if (e.Data?.GetDataPresent(typeof(int)) == true)
-                e.Effect = DragDropEffects.Move;
+            if (e.Data?.GetData(typeof(int)) is not int source ||
+                source < 0 || source >= _desktops.Desktops.Count)
+            {
+                e.Effect = DragDropEffects.None;
+                ShowInsertionSlot(-1);
+                return;
+            }
+            e.Effect = DragDropEffects.Move;
+            ShowInsertionSlot(InsertionSlotAt(_desktopList.PointToClient(new Point(e.X, e.Y))));
         };
+        _desktopList.DragLeave += (_, _) => ShowInsertionSlot(-1);
         _desktopList.DragDrop += (_, e) =>
         {
+            ShowInsertionSlot(-1);
             if (e.Data?.GetData(typeof(int)) is not int source)
                 return;
-            var point = _desktopList.PointToClient(new Point(e.X, e.Y));
-            var dest = _desktopList.IndexFromPoint(point);
-            if (dest < 0)
-                dest = _desktops.Desktops.Count - 1;
-            if (source < 0 || dest < 0 || source == dest)
+            var slot = InsertionSlotAt(_desktopList.PointToClient(new Point(e.X, e.Y)));
+            var dest = DesktopInsertionPolicy.DestinationIndex(_desktops.Desktops.Count, source, slot);
+            if (dest < 0 || source == dest)
                 return;
             var selection = _desktops.Desktops[source];
             _desktops.Move(source, dest);
