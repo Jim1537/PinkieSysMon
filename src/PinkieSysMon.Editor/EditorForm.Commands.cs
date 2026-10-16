@@ -513,21 +513,21 @@ internal sealed partial class EditorForm
         UpdateScreenMenuStates();
     }
 
+    private void SynchronizeScreenMenu()
+    {
+        if (ScreenMenuContract.TargetsRequireRebuild(_screenTargetMenuItems.Keys, _appConfig.Outputs.Targets))
+            RebuildScreenMenu();
+        else
+            UpdateScreenMenuStates();
+    }
+
     private void RefreshScreenTargetsFromConfiguration()
     {
         try
         {
             var config = AppConfig.Load(_appConfigPath, _log);
-            var oldIdentity = _appConfig.Outputs.Targets
-                .Select(target => (target.Id, target.Name))
-                .ToArray();
-            var newIdentity = config.Outputs.Targets
-                .Select(target => (target.Id, target.Name))
-                .ToArray();
-
             _appConfig.Outputs = config.Outputs;
-            if (!oldIdentity.SequenceEqual(newIdentity))
-                RebuildScreenMenu();
+            SynchronizeScreenMenu();
         }
         catch (Exception ex)
         {
@@ -767,6 +767,13 @@ internal static class ScreenMenuContract
     public const string StartReloadText = "Reload";
     public const string StartReloadAllText = "Reload All";
     public const string StopAllText = "Stop / Unload All Outputs";
+
+    public static bool TargetsRequireRebuild(IEnumerable<string> displayedTargetIds, IReadOnlyList<OutputTargetConfig> targets)
+    {
+        ArgumentNullException.ThrowIfNull(displayedTargetIds);
+        ArgumentNullException.ThrowIfNull(targets);
+        return !displayedTargetIds.SequenceEqual(targets.Select(target => target.Id), StringComparer.OrdinalIgnoreCase);
+    }
 
     public static ScreenMenuCommandState Build(
         IReadOnlyList<OutputTargetConfig> targets,

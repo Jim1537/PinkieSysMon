@@ -711,7 +711,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
                 _appConfig.Runtime = runtimeConfig.Runtime;
                 if (outputsChanged)
+                {
                     _appConfig.Outputs = runtimeConfig.Outputs;
+                    SynchronizeScreenMenu();
+                }
             }
 
             if (startupChanged)

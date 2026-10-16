@@ -199,6 +199,23 @@ internal static class EditorOutputStartStage25Tests
         Check(state.Targets[0].CanStartOrReload && state.Targets[0].StatusText.Contains("Dashboard: A", StringComparison.Ordinal) &&
               !state.Targets[1].CanStartOrReload,
             "Menu must show per-target assignment and deny disabled physical activation independently of Provider Enabled.");
+        var displayedIds = config.Outputs.Targets.Select(target => target.Id).ToArray();
+        Check(!ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets),
+            "Unchanged Output menu targets must not be recreated.");
+        var withNewDesktop = config.Outputs.Targets.Append(new OutputTargetConfig
+        {
+            Id = "new-desktop", Name = "New Desktop", Kind = OutputTargetContract.DesktopKind,
+            Transport = OutputTargetContract.DesktopTransport, Dashboard = "A", Desktop = new()
+        }).ToArray();
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, withNewDesktop),
+            "Settings-created Outputs must rebuild the Editor menu after its configuration snapshot was updated.");
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets.Skip(1).ToArray()),
+            "Settings-removed Outputs must rebuild the Editor menu.");
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets.AsEnumerable().Reverse().ToArray()),
+            "Reordering Outputs must update their Editor menu order.");
+        Check(!ScreenMenuContract.TargetsRequireRebuild(["A", "c"], config.Outputs.Targets),
+            "Output IDs must retain case-insensitive matching for existing Editor menu entries.");
+
         var offline = EditorOutputStartWorkflow.FromConfiguration(config);
         Check(offline.Outputs.All(o => !o.IsActive && !o.IsConnected) && offline.Outputs[0].Dashboard == "A" &&
               offline.Outputs[1].OutputEnabled == false && offline.Outputs[1].ProviderEnabled == true,
