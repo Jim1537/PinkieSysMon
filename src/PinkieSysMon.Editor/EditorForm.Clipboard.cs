@@ -9,7 +9,7 @@ namespace PinkieSysMon.Editor;
 // The clipboard wire format is independent of Editor process lifetime.
 internal sealed class WidgetTransferPackage
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; }
     public string SourceDirectory { get; set; } = string.Empty;
     public string SnapshotJson { get; set; } = string.Empty;
     public List<WidgetTransferGroup> Groups { get; set; } = [];
@@ -43,6 +43,16 @@ internal static class EditorWidgetClipboard
         if (string.IsNullOrWhiteSpace(package.SnapshotJson) || package.Groups is null ||
             package.RootGroupIds is null || package.WidgetGroupIds is null)
             throw new InvalidDataException("Widget clipboard payload is incomplete.");
+        var groupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in package.Groups)
+        {
+            if (string.IsNullOrWhiteSpace(group.Id) || !groupIds.Add(group.Id) ||
+                string.IsNullOrWhiteSpace(group.Name))
+                throw new InvalidDataException("Clipboard group definitions are invalid.");
+        }
+        if (package.RootGroupIds.Any(id => !groupIds.Contains(id)) ||
+            package.WidgetGroupIds.Values.Any(id => !groupIds.Contains(id)))
+            throw new InvalidDataException("Clipboard group relationships are invalid.");
         return package;
     }
 
@@ -125,8 +135,8 @@ internal sealed partial class EditorForm
                 .Where(widget => !string.IsNullOrWhiteSpace(widget.Id) && widgetIds.Contains(widget.Id))
                 .Select(DashboardJson.CloneWidget)
                 .ToList();
-            if (widgets.Count == 0)
-                throw new InvalidOperationException("The selected layers contain no widgets to copy.");
+            if (widgets.Count == 0 && groups.Count == 0)
+                throw new InvalidOperationException("The selection contains no transferable widgets or groups.");
 
             var transfer = new C.DashboardDefinition
             {
@@ -137,6 +147,7 @@ internal sealed partial class EditorForm
             };
             var package = new WidgetTransferPackage
             {
+                Version = 1,
                 SourceDirectory = Path.GetDirectoryName(_dashboardPath)!,
                 SnapshotJson = DashboardJson.SerializeEditorSnapshot(transfer),
                 Groups = groups,
@@ -187,8 +198,8 @@ internal sealed partial class EditorForm
             DashboardJson.SerializeEditorSnapshot(_definition!), _dashboardPath);
         var metadata = DashboardEditorMetadata.FromJson(_dashboardMetadata.ToCompactJson());
         var incoming = DashboardJson.ParseEditorSnapshot(package.SnapshotJson, _dashboardPath);
-        if (incoming.Widgets.Count == 0)
-            throw new InvalidDataException("The clipboard does not contain any widgets.");
+        if (incoming.Widgets.Count == 0 && package.Groups.Count == 0)
+            throw new InvalidDataException("The clipboard does not contain widgets or groups.");
 
         var clones = incoming.Widgets.Select(DashboardJson.CloneWidget).ToList();
         var newlyCreatedAssets = new List<string>();
@@ -351,8 +362,11 @@ internal sealed partial class EditorForm
             }
 
             var originalPath = AssetPathResolver.ResolveExistingFile(sourceRoot, slot.Source, "Clipboard image");
+            RejectLinkedImagePath(sourceRoot, originalPath);
             Directory.CreateDirectory(imagesDirectory);
+            RejectLinkedImagePath(destinationRoot, imagesDirectory);
             var proposed = Path.Combine(imagesDirectory, Path.GetFileName(originalPath));
+            RejectLinkedImagePath(destinationRoot, proposed);
             if (File.Exists(proposed) && !SameContents(proposed, originalPath))
             {
                 var collision = MessageBox.Show(
@@ -387,6 +401,26 @@ internal sealed partial class EditorForm
         }
 
         return true;
+    }
+
+    private static void RejectLinkedImagePath(string dashboardDirectory, string requestedPath)
+    {
+        var root = Path.GetFullPath(dashboardDirectory).TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(requestedPath);
+        var prefix = root + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The image path leaves the dashboard directory.");
+
+        for (var current = candidate;
+             !string.Equals(current, root, StringComparison.OrdinalIgnoreCase);
+             current = Path.GetDirectoryName(current)
+                 ?? throw new InvalidDataException("Could not verify image path containment."))
+        {
+            if ((File.Exists(current) || Directory.Exists(current)) &&
+                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Image import through a symbolic link or junction is not supported.");
+        }
     }
 
     private static bool SameContents(string a, string b)

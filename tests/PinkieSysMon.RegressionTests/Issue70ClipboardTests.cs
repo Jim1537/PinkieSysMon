@@ -9,6 +9,7 @@ internal static class Issue70ClipboardTests
     {
         var package = new WidgetTransferPackage
         {
+            Version = 1,
             SourceDirectory = @"C:\\boards\\source",
             SnapshotJson = "{\"schemaVersion\":1}",
             Groups = [new WidgetTransferGroup { Id = "group", Name = "Indicators" }],
@@ -22,7 +23,6 @@ internal static class Issue70ClipboardTests
             throw new InvalidOperationException("Widget clipboard package failed its serialization round trip.");
 
         var json = JsonSerializer.Serialize(package);
-        using var document = JsonDocument.Parse(json);
         var unsupported = JsonSerializer.Deserialize<WidgetTransferPackage>(json)!;
         unsupported.Version = 2;
         try
