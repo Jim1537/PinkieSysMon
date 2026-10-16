@@ -278,11 +278,16 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(_addWidgetMenuItem);
 
         _renameMenuItem = new ToolStripMenuItem("Rename", null, (_, _) => ExecuteRenameCommand()) { ShortcutKeys = Keys.F2 };
+        _copyMenuItem = new ToolStripMenuItem("Copy", null, (_, _) => ExecuteCopyWidgetsCommand()) { ShortcutKeyDisplayString = "Ctrl+C" };
+        _pasteMenuItem = new ToolStripMenuItem("Paste", null, (_, _) => ExecutePasteWidgetsCommand()) { ShortcutKeyDisplayString = "Ctrl+V" };
         _duplicateMenuItem = new ToolStripMenuItem("Duplicate", null, (_, _) => ExecuteDuplicateCommand()) { ShortcutKeys = Keys.Control | Keys.D };
         _deleteMenuItem = new ToolStripMenuItem("Delete", null, (_, _) => ExecuteDeleteCommand()) { ShortcutKeyDisplayString = "Del" };
         editMenu.DropDownItems.Add(_renameMenuItem);
-        editMenu.DropDownItems.Add(_duplicateMenuItem);
         editMenu.DropDownItems.Add(_deleteMenuItem);
+        editMenu.DropDownItems.Add(new ToolStripSeparator());
+        editMenu.DropDownItems.Add(_copyMenuItem);
+        editMenu.DropDownItems.Add(_pasteMenuItem);
+        editMenu.DropDownItems.Add(_duplicateMenuItem);
         editMenu.DropDownItems.Add(new ToolStripSeparator());
 
         _groupSelectedMenuItem = new ToolStripMenuItem("Group Selected...", null, (_, _) => ExecuteGroupSelectedCommand());
@@ -381,6 +386,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         var treeMenu = new ContextMenuStrip();
         _treeRenameMenuItem = new ToolStripMenuItem("Rename", null, (_, _) => ExecuteRenameCommand());
+        _treeCopyMenuItem = new ToolStripMenuItem("Copy", null, (_, _) => ExecuteCopyWidgetsCommand());
+        _treePasteMenuItem = new ToolStripMenuItem("Paste", null, (_, _) => ExecutePasteWidgetsCommand());
         _treeDuplicateMenuItem = new ToolStripMenuItem("Duplicate", null, (_, _) => ExecuteDuplicateCommand());
         _treeDeleteMenuItem = new ToolStripMenuItem("Delete", null, (_, _) => ExecuteDeleteCommand());
         _treeMoveUpMenuItem = new ToolStripMenuItem("Move Up", null, (_, _) => ExecuteMoveSelectedCommand(-1));
@@ -391,8 +398,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _treeUngroupSelectedMenuItem = new ToolStripMenuItem("Ungroup Selected", null, (_, _) => ExecuteUngroupSelectedCommand());
 
         treeMenu.Items.Add(_treeRenameMenuItem);
-        treeMenu.Items.Add(_treeDuplicateMenuItem);
         treeMenu.Items.Add(_treeDeleteMenuItem);
+        treeMenu.Items.Add(new ToolStripSeparator());
+        treeMenu.Items.Add(_treeCopyMenuItem);
+        treeMenu.Items.Add(_treePasteMenuItem);
+        treeMenu.Items.Add(_treeDuplicateMenuItem);
         treeMenu.Items.Add(new ToolStripSeparator());
         treeMenu.Items.Add(_treeMoveUpMenuItem);
         treeMenu.Items.Add(_treeMoveDownMenuItem);
@@ -1700,6 +1710,21 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             ExecuteRedoCommand();
             return true;
+        }
+        if (modifiers == Keys.Control &&
+            (IsEditorInputSurfaceActive(EditorInputSurface.Canvas) ||
+             IsEditorInputSurfaceActive(EditorInputSurface.Layers)))
+        {
+            if (keyCode == Keys.C)
+            {
+                ExecuteCopyWidgetsCommand();
+                return true;
+            }
+            if (keyCode == Keys.V)
+            {
+                ExecutePasteWidgetsCommand();
+                return true;
+            }
         }
         if ((modifiers & Keys.Control) != 0 && keyCode == Keys.D)
         {

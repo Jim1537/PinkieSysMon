@@ -27,6 +27,8 @@ internal sealed partial class EditorForm
     private ToolStripMenuItem _redoMenuItem = null!;
     private ToolStripMenuItem _addWidgetMenuItem = null!;
     private ToolStripMenuItem _renameMenuItem = null!;
+    private ToolStripMenuItem _copyMenuItem = null!;
+    private ToolStripMenuItem _pasteMenuItem = null!;
     private ToolStripMenuItem _duplicateMenuItem = null!;
     private ToolStripMenuItem _deleteMenuItem = null!;
     private ToolStripMenuItem _groupSelectedMenuItem = null!;
@@ -37,6 +39,8 @@ internal sealed partial class EditorForm
     private ToolStripMenuItem _sendToBackMenuItem = null!;
 
     private ToolStripMenuItem _treeRenameMenuItem = null!;
+    private ToolStripMenuItem _treeCopyMenuItem = null!;
+    private ToolStripMenuItem _treePasteMenuItem = null!;
     private ToolStripMenuItem _treeDuplicateMenuItem = null!;
     private ToolStripMenuItem _treeDeleteMenuItem = null!;
     private ToolStripMenuItem _treeMoveUpMenuItem = null!;
@@ -65,6 +69,8 @@ internal sealed partial class EditorForm
     private ToolStripButton _toolbarSaveButton = null!;
     private ToolStripButton _toolbarReloadEditorButton = null!;
     private ToolStripDropDownButton _toolbarAddButton = null!;
+    private ToolStripButton _toolbarCopyButton = null!;
+    private ToolStripButton _toolbarPasteButton = null!;
     private ToolStripButton _toolbarDuplicateButton = null!;
     private ToolStripButton _toolbarUndoButton = null!;
     private ToolStripButton _toolbarRedoButton = null!;
@@ -146,6 +152,9 @@ internal sealed partial class EditorForm
 
     private bool CanDuplicateSelectedCommand() =>
         GetHomogeneousSelectedLayerKind().HasValue;
+
+    private bool CanCopyWidgetsCommand() => CanDuplicateSelectedCommand();
+    private bool CanPasteWidgetsCommand() => _definition is not null;
 
     private bool CanGroupSelectedCommand()
     {
@@ -293,6 +302,8 @@ internal sealed partial class EditorForm
         _redoMenuItem.Enabled = canRedo;
         _addWidgetMenuItem.Enabled = canAddWidget;
         _renameMenuItem.Enabled = canRename;
+        _copyMenuItem.Enabled = CanCopyWidgetsCommand();
+        _pasteMenuItem.Enabled = CanPasteWidgetsCommand();
         _duplicateMenuItem.Enabled = canDuplicate;
         _deleteMenuItem.Enabled = canDelete;
         _groupSelectedMenuItem.Enabled = canGroupSelected;
@@ -303,6 +314,8 @@ internal sealed partial class EditorForm
         _sendToBackMenuItem.Enabled = canSendToBack;
 
         _treeRenameMenuItem.Enabled = canRename;
+        _treeCopyMenuItem.Enabled = CanCopyWidgetsCommand();
+        _treePasteMenuItem.Enabled = CanPasteWidgetsCommand();
         _treeDuplicateMenuItem.Enabled = canDuplicate;
         _treeDeleteMenuItem.Enabled = canDelete;
         _treeGroupSelectedMenuItem.Enabled = canGroupSelected;
@@ -329,6 +342,8 @@ internal sealed partial class EditorForm
         _toolbarSaveButton.Enabled = canSave;
         _toolbarReloadEditorButton.Enabled = canReloadEditor;
         _toolbarAddButton.Enabled = canAddWidget;
+        _toolbarCopyButton.Enabled = CanCopyWidgetsCommand();
+        _toolbarPasteButton.Enabled = CanPasteWidgetsCommand();
         _toolbarDuplicateButton.Enabled = canDuplicate;
         _toolbarUndoButton.Enabled = canUndo;
         _toolbarRedoButton.Enabled = canRedo;

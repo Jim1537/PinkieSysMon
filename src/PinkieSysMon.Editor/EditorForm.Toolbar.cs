@@ -14,7 +14,9 @@ internal sealed partial class EditorForm
     private static readonly string[] ToolbarSaveIcons = ["save"];
     private static readonly string[] ToolbarReloadIcons = ["refresh-cw", "rotate-cw"];
     private static readonly string[] ToolbarAddIcons = ["plus"];
-    private static readonly string[] ToolbarDuplicateIcons = ["copy", "copy-plus", "files"];
+    private static readonly string[] ToolbarCopyIcons = ["copy", "files"];
+    private static readonly string[] ToolbarPasteIcons = ["clipboard-paste", "clipboard"];
+    private static readonly string[] ToolbarDuplicateIcons = ["copy-plus", "files", "copy"];
     private static readonly string[] ToolbarUndoIcons = ["undo-2", "undo", "rotate-ccw"];
     private static readonly string[] ToolbarRedoIcons = ["redo-2", "redo", "rotate-cw"];
     private static readonly string[] ToolbarGroupIcons = ["group", "combine", "layers"];
@@ -54,6 +56,11 @@ internal sealed partial class EditorForm
             _toolbarAddButton.DropDownItems.Add(new ToolStripMenuItem(WidgetTypeDisplayName(type), null, (_, _) => ExecuteAddWidgetCommand(captured)));
         }
         _toolbar.Items.Add(_toolbarAddButton);
+        _toolbar.Items.Add(CreateToolbarSeparator());
+        _toolbarCopyButton = CreateToolbarButton("Copy selected widgets (Ctrl+C)", ToolbarCopyIcons, (_, _) => ExecuteCopyWidgetsCommand());
+        _toolbarPasteButton = CreateToolbarButton("Paste widgets (Ctrl+V)", ToolbarPasteIcons, (_, _) => ExecutePasteWidgetsCommand());
+        _toolbar.Items.Add(_toolbarCopyButton);
+        _toolbar.Items.Add(_toolbarPasteButton);
         _toolbarDuplicateButton = CreateToolbarButton("Duplicate selected items (Ctrl+D)", ToolbarDuplicateIcons, (_, _) => ExecuteDuplicateCommand());
         _toolbar.Items.Add(_toolbarDuplicateButton);
         _toolbar.Items.Add(CreateToolbarSeparator());
@@ -424,6 +431,8 @@ internal sealed partial class EditorForm
             replacements.Add((_toolbarSaveButton, CreateLucideToolbarImage(size, ToolbarSaveIcons)));
             replacements.Add((_toolbarReloadEditorButton, CreateLucideToolbarImage(size, ToolbarReloadIcons)));
             replacements.Add((_toolbarAddButton, CreateLucideToolbarImage(size, ToolbarAddIcons)));
+            replacements.Add((_toolbarCopyButton, CreateLucideToolbarImage(size, ToolbarCopyIcons)));
+            replacements.Add((_toolbarPasteButton, CreateLucideToolbarImage(size, ToolbarPasteIcons)));
             replacements.Add((_toolbarDuplicateButton, CreateLucideToolbarImage(size, ToolbarDuplicateIcons)));
             replacements.Add((_toolbarUndoButton, CreateLucideToolbarImage(size, ToolbarUndoIcons)));
             replacements.Add((_toolbarRedoButton, CreateLucideToolbarImage(size, ToolbarRedoIcons)));

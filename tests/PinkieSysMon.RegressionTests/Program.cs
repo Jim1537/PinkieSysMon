@@ -23,6 +23,7 @@ internal static class Program
         {
             ("Issue70 empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
             ("Issue70 shared Editor settings concurrent merge", Issue70ConcurrentEditorSettingsTests.MergesDashboardViews),
+            ("Issue70 widget clipboard package version and payload", Issue70ClipboardTests.PackageRoundTrip),
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),
