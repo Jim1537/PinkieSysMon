@@ -19,10 +19,12 @@ internal static class DesktopZOrderStage14Tests
             "When Progman is first in Z-order, HWND_TOP (not BOTTOM) keeps panels visible.");
         Check(DesktopShellZOrderWatcher.IsRelevantEvent(0x0003u, 0, 0) &&
               DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, 0, 0) &&
-              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, -4, 0) &&
+              DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, -4, 0) &&
+              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, -4, 1) &&
+              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, -5, 0) &&
               !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, 0, 1) &&
               !DesktopShellZOrderWatcher.IsRelevantEvent(0x8005u, 0, 0),
-            "Only foreground and top-level reorder events may trigger shell placement checks.");
+            "Foreground and root/client reorder events must include the Win+D notification observed after desktop promotion.");
         const uint prohibited = 0x0004u | 0x0008u;
         Check((DesktopBottomPlacement.Flags & prohibited) == 0 &&
               (DesktopBottomPlacement.Flags & 0x0010u) != 0 &&
@@ -100,12 +102,19 @@ internal static class DesktopZOrderStage14Tests
             manager.Start();
             AssertEvents(events, "d3@back", "d1@back", "d2@back");
 
-            // No native move unless a visible panel is actually behind the shell.
+            // Reproduce native trace: FOREGROUND fires before Win+D moves Progman,
+            // then a client REORDER is delivered with panels behind the wallpaper.
+            // Only the later event may restore owned windows.
             events.Clear();
-            manager.RestoreDesktopAfterShellChange();
+            if (DesktopShellZOrderWatcher.IsRelevantEvent(
+                    DesktopShellZOrderWatcher.EventSystemForeground, 0, 0))
+                manager.RestoreDesktopAfterShellChange();
             AssertEvents(events);
             sessions["d1"].BelowDesktop = true;
-            manager.RestoreDesktopAfterShellChange();
+            if (DesktopShellZOrderWatcher.IsRelevantEvent(
+                    DesktopShellZOrderWatcher.EventObjectReorder,
+                    DesktopShellZOrderWatcher.ObjIdClient, 0))
+                manager.RestoreDesktopAfterShellChange();
             AssertEvents(events, "d3@back", "d1@back", "d2@back");
             sessions["d1"].BelowDesktop = false;
             events.Clear();

@@ -9,6 +9,8 @@ internal sealed class DesktopShellZOrderWatcher : IDisposable
 {
     internal const uint EventSystemForeground = 0x0003;
     internal const uint EventObjectReorder = 0x8004;
+    internal const int ObjIdWindow = 0;
+    internal const int ObjIdClient = -4;
     private const uint OutOfContextSkipOwnProcess = 0x0000u | 0x0002u;
     private readonly FileLogger _log;
     private readonly Action _reconcile;
@@ -20,7 +22,8 @@ internal sealed class DesktopShellZOrderWatcher : IDisposable
 
     internal static bool IsRelevantEvent(uint eventType, int objectId, int childId) =>
         eventType == EventSystemForeground ||
-        (eventType == EventObjectReorder && objectId == 0 && childId == 0);
+        (eventType == EventObjectReorder && childId == 0 &&
+         (objectId == ObjIdWindow || objectId == ObjIdClient));
 
     internal DesktopShellZOrderWatcher(Action reconcile, FileLogger log)
     {
@@ -47,6 +50,10 @@ internal sealed class DesktopShellZOrderWatcher : IDisposable
     private void OnEvent(IntPtr hook, uint eventType, IntPtr hwnd, int objectId,
         int childId, uint eventThread, uint eventTime)
     {
+        // On the owner's Windows 11 build, Win+D promotes Progman *after* the
+        // foreground notification and signals the completed change with
+        // EVENT_OBJECT_REORDER/OBJID_CLIENT. Check current native stack rather
+        // than relying on the earlier foreground notification alone.
         if (_disposed || _handling || !IsRelevantEvent(eventType, objectId, childId))
             return;
         _handling = true;
