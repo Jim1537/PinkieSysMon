@@ -17,6 +17,18 @@ internal static class DesktopZOrderStage14Tests
               !DesktopExplorerHost.IsWallpaperCandidate(true, true, true, true),
             "Issue78: never adopt another process, hidden HWND, foreign class, or icon host.");
 
+        Check(DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, true, true),
+            "Issue78: verified raised Progman siblings can host our panels between icons and wallpaper.");
+        Check(!DesktopExplorerHost.CanUseRaisedDesktopHost(false, true, true, true) &&
+              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, false, true, true) &&
+              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, false, true) &&
+              !DesktopExplorerHost.CanUseRaisedDesktopHost(true, true, true, false),
+            "Issue78: missing, hidden, mismatched or foreign icon/WorkerW siblings must fail closed.");
+        Check((DesktopExplorerHost.RaisedPanelPlacementFlags & 0x0004u) == 0 &&
+              (DesktopExplorerHost.ClassicPanelPlacementFlags & 0x0004u) != 0 &&
+              (DesktopExplorerHost.RaisedPanelPlacementFlags & 0x0010u) != 0,
+            "Issue78: raised panels must join the sibling Z-order without activation; classic must retain it.");
+
         var config = CreateConfig();
         var active = new[] { "d1", "d2", "d3", "usb-off" };
         Check(DesktopZOrderPolicy.BackToFront(config.Outputs.Targets, active)

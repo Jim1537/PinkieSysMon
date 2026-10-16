@@ -620,6 +620,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
                 Show();
             if (!IsVisible)
                 throw new InvalidOperationException("Native Desktop panel did not remain parented to Explorer.");
+            if (!isCurrent)
+                DesktopExplorerHost.RestoreBehindIcons(Handle, found);
             RecoverVisible();
             _refresh.Start();
             if (!isCurrent || _hostError is not null)

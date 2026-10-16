@@ -10,7 +10,18 @@ namespace PinkieSysMon;
 // Only our own HWND is changed. Unknown shell layouts fail closed.
 internal static class DesktopExplorerHost
 {
-    internal readonly record struct Host(IntPtr Handle, uint ExplorerProcessId);
+    internal readonly record struct Host(IntPtr Handle, uint ExplorerProcessId,
+        IntPtr WallpaperWorker, IntPtr IconView)
+    {
+        internal bool IsRaised => IconView != IntPtr.Zero;
+    }
+
+    // Reposition only our panel, relative to the existing Explorer icon sibling.
+    // Never reorder a shell-owned HWND to make our content visible.
+    internal const uint RaisedPanelPlacementFlags = 0x0010u /* SWP_NOACTIVATE */ |
+        0x0020u /* SWP_FRAMECHANGED */;
+    internal const uint ClassicPanelPlacementFlags = RaisedPanelPlacementFlags |
+        0x0004u /* SWP_NOZORDER */;
     private const int GwlStyle = -16;
     private const long WsChild = 0x40000000;
     private const long WsPopup = unchecked((long)0x80000000);
@@ -31,7 +42,22 @@ internal static class DesktopExplorerHost
                 0x0002, 500, out _);
             worker = FindWorker(progman, explorerId);
         }
-        return worker == IntPtr.Zero ? null : new Host(worker, explorerId);
+        if (worker == IntPtr.Zero)
+            return null;
+        if (GetParent(worker) != progman)
+            return new Host(worker, explorerId, worker, IntPtr.Zero);
+
+        // Raised Windows 11 desktop: the wallpaper WorkerW is BEHIND a
+        // full-size layered SHELLDLL_DefView sibling. Child panels inserted
+        // into that WorkerW were native-visible but not visually composited
+        // on the owner's Windows 11 build 26300. Host OUR HWND as a Progman
+        // sibling between the icon view and wallpaper instead.
+        var iconView = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
+        if (!CanUseRaisedDesktopHost(true,
+                GetParent(iconView) == progman, IsWindowVisible(iconView),
+                SameExplorerProcess(iconView, explorerId)))
+            return null;
+        return new Host(progman, explorerId, worker, iconView);
     }
 
     private static IntPtr FindWorker(IntPtr progman, uint explorerId)
@@ -55,6 +81,32 @@ internal static class DesktopExplorerHost
         return selected;
     }
 
+    internal static bool CanUseRaisedDesktopHost(bool workerIsProgmanChild,
+        bool iconIsProgmanChild, bool iconVisible, bool iconExplorerOwned) =>
+        workerIsProgmanChild && iconIsProgmanChild && iconVisible && iconExplorerOwned;
+
+    private static bool SameExplorerProcess(IntPtr hwnd, uint explorerId) =>
+        hwnd != IntPtr.Zero &&
+        GetWindowThreadProcessId(hwnd, out var pid) != 0 && pid == explorerId;
+
+    private static bool ValidHost(Host host)
+    {
+        if (!ValidWorker(host.WallpaperWorker, host.ExplorerProcessId) ||
+            !IsExplorerWindow(host.Handle, out var hostPid) || hostPid != host.ExplorerProcessId)
+            return false;
+        if (!host.IsRaised)
+            return host.Handle == host.WallpaperWorker;
+        if (FindWindow("Progman", null) != host.Handle ||
+            !IsExplorerWindow(host.Handle, out var pid) || pid != host.ExplorerProcessId)
+            return false;
+        return CanUseRaisedDesktopHost(
+            GetParent(host.WallpaperWorker) == host.Handle,
+            IsWindow(host.IconView) && GetParent(host.IconView) == host.Handle &&
+                ClassName(host.IconView) == "SHELLDLL_DefView",
+            IsWindowVisible(host.IconView),
+            SameExplorerProcess(host.IconView, host.ExplorerProcessId));
+    }
+
     // The shell host may not be an icon container or belong to another process.
     // Keep this decision pure for deterministic regression tests.
     internal static bool IsWallpaperCandidate(bool explorerOwned, bool visible,
@@ -65,7 +117,7 @@ internal static class DesktopExplorerHost
     {
         if (window == IntPtr.Zero || !IsWindow(window))
             return false;
-        var sameExplorer = GetWindowThreadProcessId(window, out var pid) != 0 && pid == explorerId;
+        var sameExplorer = SameExplorerProcess(window, explorerId);
         return IsWallpaperCandidate(sameExplorer, IsWindowVisible(window),
             ClassName(window) == "WorkerW",
             FindWindowEx(window, IntPtr.Zero, "SHELLDLL_DefView", null) != IntPtr.Zero);
@@ -79,9 +131,8 @@ internal static class DesktopExplorerHost
 
     internal static void Attach(IntPtr panel, Host host, Point physicalLocation, Size pixels)
     {
-        if (!ValidWorker(host.Handle, host.ExplorerProcessId) ||
-            !IsExplorerWindow(host.Handle, out var pid) || pid != host.ExplorerProcessId)
-            throw new InvalidOperationException("Explorer wallpaper host is unavailable.");
+        if (!ValidHost(host))
+            throw new InvalidOperationException("Explorer desktop host topology is unavailable.");
 
         var windowContext = GetWindowDpiAwarenessContext(panel);
         var hostContext = GetWindowDpiAwarenessContext(host.Handle);
@@ -103,9 +154,24 @@ internal static class DesktopExplorerHost
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "Explorer SetParent failed.");
 
         var point = ParentPoint(host.Handle, physicalLocation);
-        if (!SetWindowPos(panel, IntPtr.Zero, point.X, point.Y, pixels.Width, pixels.Height,
-                0x0004u /* SWP_NOZORDER */ | 0x0010u /* SWP_NOACTIVATE */ | 0x0020u /* SWP_FRAMECHANGED */))
+        if (!SetWindowPos(panel, host.IsRaised ? host.IconView : IntPtr.Zero,
+                point.X, point.Y, pixels.Width, pixels.Height,
+                host.IsRaised ? RaisedPanelPlacementFlags : ClassicPanelPlacementFlags))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot place Explorer-hosted Desktop window.");
+    }
+
+    internal static void RestoreBehindIcons(IntPtr panel, Host host)
+    {
+        if (!host.IsRaised)
+            return;
+        if (!ValidHost(host) || !IsAttached(host, panel))
+            throw new InvalidOperationException("Explorer icon-plane host changed during panel display.");
+        // Show() may bring a new child to the front: return only our HWND
+        // directly behind SHELLDLL_DefView, ahead of the wallpaper WorkerW.
+        if (!SetWindowPos(panel, host.IconView, 0, 0, 0, 0,
+                0x0001u /* SWP_NOSIZE */ | 0x0002u /* SWP_NOMOVE */ |
+                0x0010u /* SWP_NOACTIVATE */ | 0x0200u /* SWP_NOOWNERZORDER */))
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot place Desktop panel behind Explorer icons.");
     }
 
     internal static Point ParentPoint(IntPtr parent, Point physicalLocation)
