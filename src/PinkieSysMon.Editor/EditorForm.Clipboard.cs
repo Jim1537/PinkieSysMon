@@ -53,7 +53,8 @@ internal static class EditorWidgetClipboard
             throw new InvalidDataException("Selected widgets exceed the clipboard transfer size limit.");
 
         var data = new DataObject();
-        data.SetData(Format, false, new MemoryStream(bytes, writable: false));
+        data.SetDataAsJson(Format, Serialize(package));
+        // Flush clipboard ownership so a second Editor can paste after this process exits.
         Clipboard.SetDataObject(data, copy: true);
     }
 
@@ -61,14 +62,8 @@ internal static class EditorWidgetClipboard
     {
         if (!Clipboard.ContainsData(Format))
             return null;
-        var raw = Clipboard.GetData(Format);
-        string json = raw switch
-        {
-            MemoryStream stream => Encoding.UTF8.GetString(stream.ToArray()),
-            byte[] bytes => Encoding.UTF8.GetString(bytes),
-            string str => str,
-            _ => throw new InvalidDataException("Unsupported widget clipboard data representation.")
-        };
+        if (!Clipboard.TryGetData<string>(Format, out var json) || json is null)
+            throw new InvalidDataException("Windows clipboard data could not be deserialized.");
         return Parse(json);
     }
 }
