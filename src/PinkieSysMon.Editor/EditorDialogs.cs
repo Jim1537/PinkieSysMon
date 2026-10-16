@@ -242,6 +242,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     private OutputTargetConfig? _selectedDesktop;
     private bool _bindingDesktop;
     private int _desktopDragIndex = -1;
+    private Point _desktopDragStart;
     private int _desktopInsertionSlot = -1;
 
     // Stage21 owns app-wide preferences; Stage22 owns virtual Output controls.
@@ -522,11 +523,17 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         }
 
         _desktopList.MouseDown += (_, e) =>
+        {
             _desktopDragIndex = e.Button == MouseButtons.Left
                 ? _desktopList.IndexFromPoint(e.Location) : -1;
+            if (_desktopDragIndex >= 0)
+                _desktopDragStart = e.Location;
+        };
         _desktopList.MouseMove += (_, e) =>
         {
-            if (e.Button == MouseButtons.Left && _desktopDragIndex >= 0)
+            if (e.Button == MouseButtons.Left && _desktopDragIndex >= 0 &&
+                DesktopDragStartPolicy.ShouldStart(_desktopDragStart, e.Location,
+                    SystemInformation.DragSize))
             {
                 var source = _desktopDragIndex;
                 _desktopDragIndex = -1;
@@ -534,6 +541,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
                 finally { ShowInsertionSlot(-1); }
             }
         };
+        _desktopList.MouseUp += (_, _) => _desktopDragIndex = -1;
         _desktopList.DragEnter += (_, e) =>
             e.Effect = e.Data?.GetDataPresent(typeof(int)) == true
                 ? DragDropEffects.Move : DragDropEffects.None;

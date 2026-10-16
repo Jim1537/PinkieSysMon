@@ -149,3 +149,16 @@ internal static class DesktopInsertionPolicy
         return insertionSlot > sourceIndex ? insertionSlot - 1 : insertionSlot;
     }
 }
+
+// Respect the Windows drag rectangle so small pointer movements do not steal clicks.
+internal static class DesktopDragStartPolicy
+{
+    public static bool ShouldStart(Point mouseDown, Point current, Size dragSize)
+    {
+        var dragBounds = new Rectangle(
+            mouseDown.X - dragSize.Width / 2,
+            mouseDown.Y - dragSize.Height / 2,
+            dragSize.Width, dragSize.Height);
+        return !dragBounds.Contains(current);
+    }
+}

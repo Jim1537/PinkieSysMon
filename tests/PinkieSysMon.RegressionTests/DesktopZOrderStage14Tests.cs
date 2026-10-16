@@ -32,6 +32,14 @@ internal static class DesktopZOrderStage14Tests
               saved.Outputs.Targets[2].Desktop!.ZOrder == 30,
             "Panel ordering and visibility must persist in app configuration.");
 
+        var mouseDown = new Point(40, 40);
+        var dragSize = new Size(8, 8);
+        Check(!DesktopDragStartPolicy.ShouldStart(mouseDown, mouseDown, dragSize) &&
+              !DesktopDragStartPolicy.ShouldStart(mouseDown, new Point(42, 42), dragSize) &&
+              DesktopDragStartPolicy.ShouldStart(mouseDown, new Point(45, 40), dragSize) &&
+              DesktopDragStartPolicy.ShouldStart(mouseDown, new Point(40, 35), dragSize),
+            "Issue76: pointer jitter must not steal selection; motion beyond the drag rectangle must allow reorder.");
+
         const uint prohibited = 0x0004u | 0x0008u; // SWP_NOZORDER and SWP_NOREDRAW
         Check((DesktopOutputWindow.StackFlags & prohibited) == 0 &&
               (DesktopOutputWindow.StackFlags & 0x0010u) != 0 &&
