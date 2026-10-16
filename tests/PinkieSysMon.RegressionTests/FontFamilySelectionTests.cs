@@ -14,6 +14,7 @@ internal static class FontFamilySelectionTests
             "The bundled Roboto test fixture must be available.");
 
         var value = new C.ValueWidgetDefinition { Id = "font-value" };
+        value.TextPresentation.FontFamily = "BeforeSelection";
         var valueRow = FindProperty(
             new EditorPropertyView(value, applicationRoot: root, section: EditorPropertySection.Text).GetProperties(),
             "Font", nameof(C.TextPresentationDefinition.FontFamily));
@@ -40,6 +41,7 @@ internal static class FontFamilySelectionTests
             TextOverflowStateContract.EnsureProfiles(widget);
             var state = StateVisualProfileContract.GetSpecs(widget.Type).First();
             widget.Profiles[state.Key].ContentType = C.StateContentType.Value;
+            widget.Profiles[state.Key].TextPresentation.FontFamily = "BeforeSelection";
 
             var row = FindProperty(
                 new EditorPropertyView(widget, applicationRoot: root, section: EditorPropertySection.Text).GetProperties(),
@@ -53,6 +55,8 @@ internal static class FontFamilySelectionTests
         }
 
         var second = new C.ValueWidgetDefinition { Id = "font-value-second" };
+        value.TextPresentation.FontFamily = "BeforeSelection";
+        second.TextPresentation.FontFamily = "BeforeSelection";
         var multiple = new EditorMultiPropertyView(
         [
             new EditorPropertyView(value, applicationRoot: root, section: EditorPropertySection.Text),
@@ -93,10 +97,11 @@ internal static class FontFamilySelectionTests
     {
         PropertyDescriptorCollection current = properties;
         PropertyDescriptor? row = null;
-        foreach (var name in names)
+        for (var i = 0; i < names.Length; i++)
         {
+            var name = names[i];
             row = current[name] ?? throw new InvalidOperationException("Missing font property: " + name);
-            if (name != names[^1])
+            if (i < names.Length - 1)
             {
                 var group = row.GetValue(null)
                     ?? throw new InvalidOperationException("Missing font property group: " + name);
