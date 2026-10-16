@@ -427,7 +427,7 @@ internal sealed class MultiSelectionTypeConverter : TypeConverter
         object? value,
         Type destinationType)
     {
-        if (destinationType == typeof(string) && _isMixed())
+        if (destinationType == typeof(string) && value is null && _isMixed())
             return "...";
         return Primary.ConvertTo(context, culture, value, destinationType);
     }

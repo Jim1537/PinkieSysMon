@@ -225,6 +225,7 @@ internal static class Program
             ("Removed legacy widget types", RemovedLegacyWidgetTypes),
             ("Text property hierarchy", TextPropertyHierarchy),
             ("Issue67 bundled font selection for all text presentations", FontFamilySelectionTests.BundledFontOptions),
+            ("Issue68 mixed multi-selection dropdown labels", MultiSelectionDropdownTests.MixedValueOptionLabels),
             ("Property applicability contract", PropertyApplicabilityContract),
             ("Context-disabled custom editors", ContextDisabledCustomEditors),
             ("Date/time format editor", DateTimeFormatEditorContract),

@@ -3,6 +3,8 @@
 
 Select a tab below to browse the same canonical property definitions by their location in the Editor. Each property is presented in a standard Material info block; entries are maintained in the [Property Dictionary](properties.md).
 
+When multiple widgets are selected, the Editor shows only compatible shared properties. Different current values appear as `...`; predefined dropdown options retain their normal labels, and selecting an option applies it to all compatible selected widgets.
+
 === "General"
 
     ## General

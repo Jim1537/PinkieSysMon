@@ -56,7 +56,7 @@ internal static class FontFamilySelectionTests
 
         var second = new C.ValueWidgetDefinition { Id = "font-value-second" };
         value.TextPresentation.FontFamily = "BeforeSelection";
-        second.TextPresentation.FontFamily = "BeforeSelection";
+        second.TextPresentation.FontFamily = "DifferentSelection";
         var multiple = new EditorMultiPropertyView(
         [
             new EditorPropertyView(value, applicationRoot: root, section: EditorPropertySection.Text),
@@ -66,6 +66,15 @@ internal static class FontFamilySelectionTests
         Check(multiRow is MultiSelectionPropertyDescriptor,
             "Multi-selection must preserve the common canonical font-family property.");
         CheckBundledOptions(multiRow, "multi-selection");
+        Check(multiRow.GetValue(null) is null &&
+              multiRow.Converter.ConvertToInvariantString(multiRow.GetValue(null)) == "...",
+            "Different selected font families must retain the mixed-value placeholder.");
+        var displayedOptions = multiRow.Converter.GetStandardValues(null)?
+            .Cast<object?>()
+            .Select(option => multiRow.Converter.ConvertToInvariantString(option))
+            .ToArray() ?? [];
+        Check(displayedOptions.Contains("Roboto", StringComparer.OrdinalIgnoreCase),
+            "Mixed font-family dropdown entries must display bundled family names instead of ellipses.");
         multiRow.SetValue(null, "Roboto");
         Check(value.TextPresentation.FontFamily == "Roboto" &&
               second.TextPresentation.FontFamily == "Roboto",
