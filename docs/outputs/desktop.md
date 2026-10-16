@@ -1,6 +1,6 @@
 # Desktop
 
-A **Desktop Output** displays a saved dashboard in an independent Windows panel. Several panels can run at once, each with its own dashboard, position and settings. No USB display is required.
+A **Desktop Output** displays a saved dashboard in an independent, per-pixel-transparent panel hosted by the Windows Explorer wallpaper desktop layer, beneath ordinary application windows. Several panels can run at once, each with its own dashboard, position and settings. No USB display is required. Hosting depends on Explorer's undocumented desktop window layout and may be unavailable on some Windows configurations; an unavailable panel must not appear as an ordinary overlay.
 
 An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Creating or removing a panel does not create or delete its dashboard files. For hardware display setup, use [Physical Devices](physical_devices.md). For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
 
@@ -25,7 +25,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 | --- | --- |
 | **Enabled** | Permits the panel to appear and render its dashboard. |
 | **Provider Enabled** | Makes this Output's own status/performance metrics available for use in dashboards. It does not show the panel or enable the telemetry providers its widgets need. See the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
-| **Lock (click-through)** | Passes mouse input through the panel to applications underneath. Clear it to move the panel with the mouse. |
+| **Lock (click-through)** | Passes mouse input through the panel to the underlying Explorer desktop surface. Clear it to move the panel with the mouse. |
 | **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
 | **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
 
@@ -49,7 +49,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
 3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
 
-For overlapping panels, drag their **list entries in Settings → Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls sibling Desktop windows; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order, and panels are not made always-on-top windows.
+For overlapping panels, drag their **list entries in Settings → Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls sibling Desktop windows; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order. Panels are native Explorer wallpaper-host children, not always-on-top or independent top-level overlays; ordinary application windows remain above them. Desktop icons normally remain above the wallpaper host, but their relationship is Explorer-version-dependent.
 
 If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
 
@@ -94,7 +94,7 @@ At least one **configured Output** must remain, counting Desktop and physical Ou
 
 | Observation | Check or next action |
 | --- | --- |
-| No panel after OK | Check Runtime status, Enabled in Settings, the target's Reload result and its assigned saved dashboard. |
+| No panel after OK | Check Runtime status, Enabled in Settings, the target's Reload result and its assigned saved dashboard. If the session reports `HOST_UNAVAILABLE`, inspect the Runtime log for missing WorkerW, DPI-awareness mismatch or an Explorer-hosting failure. No ordinary overlay fallback is allowed. |
 | Panel is visible but cannot be dragged | Clear Lock through Settings or the tray; drag a visible part, or set X/Y directly. |
 | Empty or partly invisible panel | Inspect Canvas/image/widget alpha and size. Missing telemetry uses each widget's unavailable presentation; it does not necessarily hide the whole panel. |
 | Old dashboard content | Save the document, then reload the intended Output. Verify its assignment rather than the currently open Editor tab alone. |
@@ -122,11 +122,19 @@ The [panel creation procedure](#step-2-create-and-configure-the-panel) edits the
 
 ### Session and native alpha presentation
 
-`OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`, with WinForms `ShowInTaskbar = false` set before showing the native window. Its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
+`OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`, with WinForms `ShowInTaskbar = false` set before showing the native window. The HWND is reparented *while hidden* to a verified Explorer-owned wallpaper `WorkerW`, with native child/popup styles synchronized before showing. Its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
 
 The session consumes the canonical renderer's [logical BGRA frame](../development/architecture.md#runtime-output-ownership). `DesktopLayeredSurface` copies premultiplied BGRA8888 rows, retaining Canvas `#AARRGGBB` color alpha and image/widget alpha, into a reusable top-down 32-bit GDI DIB. `UpdateLayeredWindow` uses `ULW_ALPHA` and `AC_SRC_ALPHA` for native per-pixel compositing. There is no JPEG conversion or opaque-black flattening in this presentation path; the [Trofeo wire path](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remains separate.
 
 The session disposes each caller-owned rendered frame after presentation. The window owns its DIB/DC, refresh/move timers and display-change subscription and releases them on disposal; the session releases its renderer and invalidates its own metrics. Prepared renderer replacements retain ownership until commit, so failed preparation/configuration can be cleaned up or rolled back without adopting a sibling's renderer.
+
+### Explorer desktop hosting and recovery
+
+`DesktopExplorerHost` looks for a wallpaper-side `WorkerW` inside `Progman` (raised desktop) or as a top-level Explorer window (classic desktop). The selected window must be owned by `explorer.exe`, be visible, and not contain the desktop's `SHELLDLL_DefView` icon view. Classic Explorer may receive a **single** `0x052C` WorkerW-creation request; there is no repeated forced creation or global window-order enforcement. This is an undocumented Explorer technique, **not a supported stable Windows desktop-layer API**.
+
+Before native `SetParent`, Runtime checks the target HWND's DPI-awareness context against its own; a mismatch is rejected because cross-process `SetParent` can reset the process DPI awareness. Native `WS_CHILD`/`WS_POPUP` transitions are explicit. Persisted coordinates remain physical **screen** pixels; `MapWindowPoints` converts them to parent-client coordinates for placement, while rendering/persistence use physical screen coordinates. Per-pixel `UpdateLayeredWindow` alpha remains unchanged.
+
+A five-second, UI-thread host-lifetime probe checks only for unavailable/recreated Explorer hosts, **not** the global window Z-order. It attempts to restore hosting and the existing Desktop-only stack after recovery. An unsupported/missing/invalid host is reported as `HOST_UNAVAILABLE` and `IsConnected = false`; Runtime keeps the panel session without showing a top-level overlay. Normal app windows are never explicitly moved. Suspend, idle pause and disable stop this probe. Actual Explorer restart, Win+D, multi-monitor, virtual-desktop and DPI behavior require runtime/visual acceptance on the owner's Windows installation; static inspection or a green build does **not** prove those cases.
 
 ### Placement, DPI and mouse routing
 
@@ -134,11 +142,11 @@ The session disposes each caller-owned rendered frame after presentation. The wi
 
 `DesktopPositionStore` patches only the matching Desktop target's X/Y in `app.json`, preserving unrelated and unknown JSON fields. The 500 ms move debounce avoids a save on each native movement event; programmatic recovery and locked/configuration moves do not overwrite saved placement.
 
-`DesktopPointerStyle` preserves layered and unrelated extended styles. A locked layered window adds `WS_EX_TRANSPARENT`, passing even opaque-widget hits to other applications. Unlock removes that flag and maps client hit-testing to native caption dragging. A Lock reload updates the existing window without changing alpha, Canvas dimensions or physical sessions.
+`DesktopPointerStyle` preserves layered and unrelated extended styles. A locked layered window adds `WS_EX_TRANSPARENT`, passing even opaque-widget hits to the Explorer desktop beneath it (not to application windows above the wallpaper layer). Unlock removes that flag and maps client hit-testing to native caption dragging. A Lock reload updates the existing window without changing alpha, Canvas dimensions or physical sessions.
 
 ### Sibling stacking and shared boundaries
 
-`DesktopZOrderPolicy` orders enabled active panels by ascending `Desktop.ZOrder`, with persisted target order breaking ties. The manager restores sibling order on start, reload, target enable/disable and resume. `WM_EXITSIZEMOVE` restores it immediately after an unlocked native drag. Non-topmost `SetWindowPos` uses no-activation flags and references only owned Desktop windows; no third-party window is explicitly moved.
+`DesktopZOrderPolicy` orders enabled active panels by ascending `Desktop.ZOrder`, with persisted target order breaking ties. The manager restores sibling order on start, reload, target enable/disable and resume. `WM_EXITSIZEMOVE` restores it immediately after an unlocked native drag. Non-topmost `SetWindowPos` uses no-activation flags and references only owned, Explorer-hosted Desktop sibling windows; no third-party window is explicitly moved.
 
 Shared telemetry demand, per-Output document isolation, IPC transactions and notifications remain owned by [Application Architecture](../development/architecture.md#runtime-data-path). Provider fields, push cadence and passive versus frame measurements remain with the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics).
 

@@ -9,6 +9,14 @@ internal static class DesktopZOrderStage14Tests
 {
     public static void PolicyAndPersistence()
     {
+        Check(DesktopExplorerHost.IsWallpaperCandidate(true, true, true, false),
+            "Verified Explorer WorkerW without icon view must be eligible.");
+        Check(!DesktopExplorerHost.IsWallpaperCandidate(false, true, true, false) &&
+              !DesktopExplorerHost.IsWallpaperCandidate(true, false, true, false) &&
+              !DesktopExplorerHost.IsWallpaperCandidate(true, true, false, false) &&
+              !DesktopExplorerHost.IsWallpaperCandidate(true, true, true, true),
+            "Issue78: never adopt another process, hidden HWND, foreign class, or icon host.");
+
         var config = CreateConfig();
         var active = new[] { "d1", "d2", "d3", "usb-off" };
         Check(DesktopZOrderPolicy.BackToFront(config.Outputs.Targets, active)

@@ -211,6 +211,43 @@ internal static class DesktopSessionStage09Tests
         });
     }
 
+    // An unsupported or unavailable Explorer host must not start a top-level overlay,
+    // crash session startup, or invent successful Desktop status and frames.
+    public static void UnavailableExplorerHost()
+    {
+        InSandbox((directory, log) =>
+        {
+            var metrics = new MetricStore();
+            FakeWindow? panel = null;
+            using var manager = new OutputSessionManager(
+                Config(boardEnabled: true, providerEnabled: true),
+                Dashboard(directory, 0, "#FF4488AA"), metrics, log,
+                (app, target, board, store, logger) =>
+                    new DesktopOutputSession(app, target, board, store, logger,
+                        draw => panel = new FakeWindow(draw) { SuppressShow = true }));
+
+            manager.Start();
+            var window = panel ?? throw new InvalidOperationException("Missing Desktop fixture.");
+            var status = manager.GetStatuses().Single();
+            Check(status.IsActive && !status.IsConnected && status.UsbState == "HOST_UNAVAILABLE",
+                "Missing Explorer host must leave Desktop active but unavailable, without a visible popup.");
+            manager.RequestFramesAfterInitialTelemetry();
+            Check(window.PresentCount == 0, "Unavailable Explorer host must not render frames.");
+
+            manager.Suspend();
+            manager.Resume();
+            Check(!manager.GetStatuses().Single().IsConnected,
+                "Resume must not report a missing Explorer desktop as connected.");
+
+            window.SuppressShow = false;
+            manager.Suspend();
+            manager.Resume();
+            Check(manager.GetStatuses().Single().IsConnected &&
+                  manager.GetStatuses().Single().UsbState == "DISPLAYING",
+                "Recovery after Explorer hosting becomes possible must restore Desktop readiness.");
+        });
+    }
+
     private static AppConfig Config(bool boardEnabled, bool providerEnabled) => new()
     {
         Outputs = new OutputConfig
@@ -276,6 +313,7 @@ internal static class DesktopSessionStage09Tests
         public int IntervalMs { get; private set; }
         public int DisposeCount { get; private set; }
         public int PresentCount { get; private set; }
+        public bool SuppressShow { get; set; }
 
         // Deliberately deliver even when hidden to simulate an in-flight timer callback.
         public void Tick() => _render();
@@ -289,7 +327,7 @@ internal static class DesktopSessionStage09Tests
             IntervalMs = refreshMs;
         }
 
-        public void ShowWindow() => IsVisible = true;
+        public void ShowWindow() => IsVisible = !SuppressShow;
         public void HideWindow() => IsVisible = false;
         public void RequestFrame() { if (IsVisible) _render(); }
 
