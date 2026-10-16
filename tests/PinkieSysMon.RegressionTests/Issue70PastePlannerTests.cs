@@ -46,8 +46,18 @@ internal static class Issue70PastePlannerTests
                 }
             };
 
+            // Test the same serialized payload boundary used between independent Editors.
+            var source = new C.DashboardDefinition
+            {
+                BaseDirectory = destinationDirectory,
+                Canvas = new C.CanvasDefinition { Width = 200, Height = 200 },
+                Widgets = [original, child]
+            };
+            package.SnapshotJson = DashboardJson.SerializeEditorSnapshot(source);
+            var transferred = EditorWidgetClipboard.Parse(EditorWidgetClipboard.Serialize(package));
+            var snapshot = DashboardJson.ParseEditorSnapshot(transferred.SnapshotJson, destinationPath);
             var staged = WidgetPastePlanner.Prepare(
-                destination, metadata, [original, child], package, destinationPath);
+                destination, metadata, snapshot.Widgets, transferred, destinationPath);
             if (destination.Widgets.Count != 1 || destination.Widgets[0].Id != "image-1" ||
                 metadata.GroupDefinitions.Count != 1)
                 throw new InvalidOperationException("Paste planner mutated the source/destination document.");

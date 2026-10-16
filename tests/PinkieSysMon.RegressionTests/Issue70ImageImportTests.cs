@@ -79,7 +79,7 @@ internal static class Issue70ImageImportTests
                 _ => DialogResult.Yes, _ => DialogResult.Yes);
             if (!result || first.Asset.Source != "images/panel-1.png" ||
                 second.Asset.Source != first.Asset.Source || created.Count != 1 ||
-                File.ReadAllText(Path.Combine(destination, first.Asset.Source)) != "source-bytes" ||
+                File.ReadAllText(Path.Combine(destination, first.Asset.Source!)) != "source-bytes" ||
                 File.ReadAllText(Path.Combine(destination, "images", "panel.png")) != "destination-bytes")
                 throw new InvalidOperationException("Conflicting source must get unique name without overwrite.");
 
