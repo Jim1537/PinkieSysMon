@@ -208,8 +208,15 @@ internal sealed partial class EditorForm
         var committed = false;
         try
         {
-            if (!ResolveClipboardImages(clones, package.SourceDirectory,
-                Path.GetDirectoryName(_dashboardPath)!, newlyCreatedAssets))
+            if (!ResolveClipboardImages(
+                clones, package.SourceDirectory, Path.GetDirectoryName(_dashboardPath)!,
+                newlyCreatedAssets,
+                count => MessageBox.Show(
+                    $"Paste references {count} image file(s).\\n\\nImport them into the destination dashboard?\\n\\nNo keeps the widgets but clears those image sources.",
+                    "Import widget images", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question),
+                name => MessageBox.Show(
+                    $"An image named '{name}' already exists and differs.\\n\\nYes: import under a new unique name\\nNo: use the existing destination image\\nCancel: cancel paste",
+                    "Image filename conflict", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning)))
                 return;
 
             var plan = WidgetPastePlanner.Prepare(
@@ -249,9 +256,11 @@ internal sealed partial class EditorForm
         }
     }
 
-    private bool ResolveClipboardImages(
+    // Injectable decisions keep image import behavior testable without showing Windows dialogs.
+    internal static bool ResolveClipboardImages(
         IEnumerable<C.WidgetDefinition> widgets, string sourceRoot,
-        string destinationRoot, List<string> createdFiles)
+        string destinationRoot, List<string> createdFiles,
+        Func<int, DialogResult> askImport, Func<string, DialogResult> askCollision)
     {
         var sources = new List<ImageSourceSlot>();
         foreach (var widget in widgets)
@@ -288,9 +297,8 @@ internal sealed partial class EditorForm
             StringComparison.OrdinalIgnoreCase))
             return true;
 
-        var choice = MessageBox.Show(
-            $"Paste references {sources.Select(source => source.Source).Distinct(StringComparer.OrdinalIgnoreCase).Count()} image file(s).\n\nImport them into the destination dashboard?\n\nNo keeps the widgets but clears those image sources.",
-            "Import widget images", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+        var choice = askImport(sources.Select(source => source.Source)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Count());
         if (choice == DialogResult.Cancel)
             return false;
         if (choice == DialogResult.No)
@@ -318,9 +326,7 @@ internal sealed partial class EditorForm
             RejectLinkedImagePath(destinationRoot, proposed);
             if (File.Exists(proposed) && !SameContents(proposed, originalPath))
             {
-                var collision = MessageBox.Show(
-                    $"An image named '{Path.GetFileName(originalPath)}' already exists and differs.\n\nYes: import under a new unique name\nNo: use the existing destination image\nCancel: cancel paste",
-                    "Image filename conflict", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+                var collision = askCollision(Path.GetFileName(originalPath));
                 if (collision == DialogResult.Cancel)
                     return false;
                 if (collision == DialogResult.Yes)
