@@ -135,7 +135,10 @@ internal static class Issue70ImageImportTests
                         [item], source, destination, created,
                         _ => DialogResult.Yes, _ => DialogResult.Cancel);
                 }
-                catch (IOException) { rejected = true; }
+                catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
+                {
+                    rejected = true;
+                }
                 if (!rejected || created.Count != 0)
                     throw new InvalidOperationException("Missing/escaping source image must be rejected.");
             }
