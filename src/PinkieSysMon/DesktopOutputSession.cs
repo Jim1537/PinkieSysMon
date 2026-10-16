@@ -452,6 +452,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         _savePosition = savePosition ?? throw new ArgumentNullException(nameof(savePosition));
         _restoreStack = restoreStack ?? throw new ArgumentNullException(nameof(restoreStack));
         FormBorderStyle = FormBorderStyle.None;
+        // Desktop panels are managed through the Runtime tray, not Windows taskbar buttons.
+        ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.None;
         StartPosition = FormStartPosition.Manual;
         _refresh.Tick += (_, _) => _render();

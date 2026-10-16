@@ -7,6 +7,13 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class DesktopLockStage12Tests
 {
+    public static void TaskbarExclusion()
+    {
+        using var panel = new DesktopOutputWindow(() => { }, _ => { }, () => { });
+        Check(!panel.ShowInTaskbar,
+            "Desktop panels must not create taskbar buttons; use the Runtime tray.");
+    }
+
     public static void NativeStylePolicy()
     {
         const int unrelated = 0x08000100;

@@ -55,7 +55,7 @@ If a monitor disappears or a panel has too little visible area, Runtime recovers
 
 ### Show, hide and reload
 
-Right-click Runtime's tray icon and choose the panel name directly below the **Desktop** heading. The heading is not a submenu. Use **Control Center** to open the Editor and its Settings.
+Desktop panels do not appear as individual Windows taskbar buttons. Manage them using Runtime's notification-area icon: right-click it and choose the panel name directly below the **Desktop** heading. The heading is not a submenu. Use **Control Center** to open the Editor and its Settings.
 
 | Submenu item, in order | Effect |
 | --- | --- |
@@ -122,7 +122,7 @@ The [panel creation procedure](#step-2-create-and-configure-the-panel) edits the
 
 ### Session and native alpha presentation
 
-`OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`; its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
+`OutputSessionManager` creates a `DesktopOutputSession` only for an eligible board. Each session owns its renderer and borderless, non-resizable `DesktopOutputWindow`, with WinForms `ShowInTaskbar = false` set before showing the native window. Its redraw timer runs on the WinForms UI thread at the Output's requested interval. Hidden, suspended and disposed sessions suppress frame work, including late timer callbacks. Suspend hides an active window; resume restores it.
 
 The session consumes the canonical renderer's [logical BGRA frame](../development/architecture.md#runtime-output-ownership). `DesktopLayeredSurface` copies premultiplied BGRA8888 rows, retaining Canvas `#AARRGGBB` color alpha and image/widget alpha, into a reusable top-down 32-bit GDI DIB. `UpdateLayeredWindow` uses `ULW_ALPHA` and `AC_SRC_ALPHA` for native per-pixel compositing. There is no JPEG conversion or opaque-black flattening in this presentation path; the [Trofeo wire path](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remains separate.
 
