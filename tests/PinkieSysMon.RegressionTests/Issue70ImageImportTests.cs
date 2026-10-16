@@ -77,7 +77,7 @@ internal static class Issue70ImageImportTests
             var result = EditorForm.ResolveClipboardImages(
                 [first, second], source, destination, created,
                 _ => DialogResult.Yes, _ => DialogResult.Yes);
-            if (!result || first.Asset.Source != "images/panel-1.png" ||
+            if (!result || first.Asset.Source != Path.Combine("images", "panel-1.png") ||
                 second.Asset.Source != first.Asset.Source || created.Count != 1 ||
                 File.ReadAllText(Path.Combine(destination, first.Asset.Source!)) != "source-bytes" ||
                 File.ReadAllText(Path.Combine(destination, "images", "panel.png")) != "destination-bytes")
@@ -88,7 +88,7 @@ internal static class Issue70ImageImportTests
             result = EditorForm.ResolveClipboardImages(
                 [reused], source, destination, reusedCreated,
                 _ => DialogResult.Yes, _ => DialogResult.No);
-            if (!result || reused.Asset.Source != "images/panel.png" || reusedCreated.Count != 0)
+            if (!result || reused.Asset.Source != Path.Combine("images", "panel.png") || reusedCreated.Count != 0)
                 throw new InvalidOperationException("Use-existing image collision decision failed.");
 
             Save(source, "images/same.png", "identical");
@@ -99,7 +99,7 @@ internal static class Issue70ImageImportTests
                 [identical], source, destination, sameCreated,
                 _ => DialogResult.Yes,
                 _ => throw new InvalidOperationException("Identical bytes require no collision dialog."));
-            if (!result || identical.Asset.Source != "images/same.png" || sameCreated.Count != 0)
+            if (!result || identical.Asset.Source != Path.Combine("images", "same.png") || sameCreated.Count != 0)
                 throw new InvalidOperationException("Identical image must reuse destination bytes.");
         });
     }
