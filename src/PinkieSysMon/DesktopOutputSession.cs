@@ -95,6 +95,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
     public string TargetId => _id;
     bool IDesktopStackSession.IsStackVisible => _window.IsVisible;
+    bool IDesktopStackSession.IsBelowDesktop =>
+        _window is DesktopOutputWindow native && native.IsBelowDesktop;
     void IDesktopStackSession.SetStackRestorer(Action restorer) =>
         _restoreStack = restorer ?? throw new ArgumentNullException(nameof(restorer));
 
@@ -388,6 +390,7 @@ internal static class DesktopPointerStyle
 internal interface IDesktopStackSession
 {
     bool IsStackVisible { get; }
+    bool IsBelowDesktop { get; }
     void PlaceAtDesktopBack();
     void SetStackRestorer(Action restorer);
 }
@@ -440,6 +443,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private bool _disposed;
 
     public bool IsVisible => Visible;
+    internal bool IsBelowDesktop => !_disposed && Visible && IsHandleCreated &&
+        DesktopBottomPlacement.IsBelowDesktop(Handle);
+
     protected override CreateParams CreateParams
     {
         get

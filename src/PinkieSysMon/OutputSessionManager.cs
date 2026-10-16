@@ -723,6 +723,21 @@ internal sealed class OutputSessionManager : IDisposable
         return session;
     }
 
+    // An out-of-context shell event is delivered to the Runtime UI thread.
+    // Do not perturb ordinary window activation or restart hidden/suspended panels:
+    // only recover when a visible owned Desktop panel is physically below Progman.
+    internal void RestoreDesktopAfterShellChange()
+    {
+        lock (_sync)
+        {
+            if (_disposed || !_started || _suspended || _idlePaused)
+                return;
+            if (_sessions.Values.OfType<IDesktopStackSession>()
+                .Any(session => session.IsStackVisible && session.IsBelowDesktop))
+                RestoreDesktopStackLocked();
+        }
+    }
+
     // Restore sibling order after creation, configuration reload, and visibility changes.
     // Native operations are best-effort: a failed window move must not roll back the
     // committed session/configuration transaction or affect USB sessions.

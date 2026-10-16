@@ -9,6 +9,7 @@ namespace PinkieSysMon;
 internal static class DesktopBottomPlacement
 {
     internal static readonly IntPtr HwndBottom = new(1);
+    internal static readonly IntPtr HwndTop = IntPtr.Zero;
     internal const int WsExToolWindow = 0x00000080;
     internal const int WsExAppWindow = 0x00040000;
     internal const uint Flags =
@@ -17,8 +18,29 @@ internal static class DesktopBottomPlacement
         0x0010u /* SWP_NOACTIVATE */ |
         0x0200u /* SWP_NOOWNERZORDER */;
 
-    internal static IntPtr InsertAfter(IntPtr precedingShellWindow) =>
-        precedingShellWindow == IntPtr.Zero ? HwndBottom : precedingShellWindow;
+    // When Progman is already at the top, HWND_TOP is the only valid insertion
+    // directly above it. HWND_BOTTOM would bury the panel below the wallpaper.
+    internal static IntPtr InsertAfter(IntPtr shell, IntPtr precedingShellWindow) =>
+        shell == IntPtr.Zero ? HwndBottom :
+        precedingShellWindow == IntPtr.Zero ? HwndTop : precedingShellWindow;
+
+    internal static bool IsBelowDesktop(IntPtr panel)
+    {
+        var shell = FindWindow("Progman", null);
+        if (panel == IntPtr.Zero || shell == IntPtr.Zero || panel == shell)
+            return false;
+
+        // The shell precedes this panel in the global top-level Z-order only
+        // when Windows has placed the panel behind the wallpaper (e.g. Win+D).
+        for (var current = GetWindow(panel, 3u /* GW_HWNDPREV */);
+             current != IntPtr.Zero;
+             current = GetWindow(current, 3u /* GW_HWNDPREV */))
+        {
+            if (current == shell)
+                return true;
+        }
+        return false;
+    }
 
     internal static void PlaceAtDesktopBack(IntPtr panel)
     {
@@ -27,7 +49,7 @@ internal static class DesktopBottomPlacement
             GetWindow(shell, 3u /* GW_HWNDPREV */);
         if (preceding == panel)
             return;
-        if (!SetWindowPos(panel, InsertAfter(preceding), 0, 0, 0, 0, Flags))
+        if (!SetWindowPos(panel, InsertAfter(shell, preceding), 0, 0, 0, 0, Flags))
             throw new Win32Exception(Marshal.GetLastPInvokeError(),
                 "Could not place Desktop panel at the back of normal windows.");
     }

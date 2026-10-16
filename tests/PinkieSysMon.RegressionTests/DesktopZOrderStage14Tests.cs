@@ -9,11 +9,20 @@ internal static class DesktopZOrderStage14Tests
 {
     public static void PolicyAndPersistence()
     {
-        Check(DesktopBottomPlacement.InsertAfter(IntPtr.Zero) == DesktopBottomPlacement.HwndBottom,
+        Check(DesktopBottomPlacement.InsertAfter(IntPtr.Zero, IntPtr.Zero) == DesktopBottomPlacement.HwndBottom,
             "When there is no Progman, use literal HWND_BOTTOM.");
+        var shell = new IntPtr(42);
         var precedingShell = new IntPtr(1537);
-        Check(DesktopBottomPlacement.InsertAfter(precedingShell) == precedingShell,
+        Check(DesktopBottomPlacement.InsertAfter(shell, precedingShell) == precedingShell,
             "With Progman, the panel must remain in front of wallpaper.");
+        Check(DesktopBottomPlacement.InsertAfter(shell, IntPtr.Zero) == DesktopBottomPlacement.HwndTop,
+            "When Progman is first in Z-order, HWND_TOP (not BOTTOM) keeps panels visible.");
+        Check(DesktopShellZOrderWatcher.IsRelevantEvent(0x0003u, 0, 0) &&
+              DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, 0, 0) &&
+              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, -4, 0) &&
+              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8004u, 0, 1) &&
+              !DesktopShellZOrderWatcher.IsRelevantEvent(0x8005u, 0, 0),
+            "Only foreground and top-level reorder events may trigger shell placement checks.");
         const uint prohibited = 0x0004u | 0x0008u;
         Check((DesktopBottomPlacement.Flags & prohibited) == 0 &&
               (DesktopBottomPlacement.Flags & 0x0010u) != 0 &&
@@ -90,6 +99,18 @@ internal static class DesktopZOrderStage14Tests
 
             manager.Start();
             AssertEvents(events, "d3@back", "d1@back", "d2@back");
+
+            // No native move unless a visible panel is actually behind the shell.
+            events.Clear();
+            manager.RestoreDesktopAfterShellChange();
+            AssertEvents(events);
+            sessions["d1"].BelowDesktop = true;
+            manager.RestoreDesktopAfterShellChange();
+            AssertEvents(events, "d3@back", "d1@back", "d2@back");
+            sessions["d1"].BelowDesktop = false;
+            events.Clear();
+            manager.RestoreDesktopAfterShellChange();
+            AssertEvents(events);
 
             // Native drag release must restore order without a configuration reload.
             events.Clear();
@@ -194,6 +215,8 @@ internal static class DesktopZOrderStage14Tests
         public string TargetName => id;
         public bool IsConnected => _visible;
         public bool IsStackVisible => _visible;
+        public bool BelowDesktop { get; set; }
+        public bool IsBelowDesktop => BelowDesktop;
         public long SentFrames => 0;
         public double LastFrameMs => 0;
         public int LastJpegBytes => 0;

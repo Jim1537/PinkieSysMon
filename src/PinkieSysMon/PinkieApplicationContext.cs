@@ -16,6 +16,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Icon? _applicationIcon;
     private readonly RuntimeTrayMenu _trayMenu;
     private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
+    private DesktopShellZOrderWatcher? _desktopShellWatcher;
     private readonly RuntimeIdleMonitor _idleMonitor = new();
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
@@ -103,6 +104,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _telemetry.InitialValuesPublished += OnInitialTelemetryPublished;
         _telemetry.Start();
         _outputSessions.Start();
+        _desktopShellWatcher = new DesktopShellZOrderWatcher(
+            _outputSessions.RestoreDesktopAfterShellChange, _log);
         ReconcileTelemetryDemand();
         EvaluateRuntimeIdle();
         _ipcServer.Start();
@@ -623,6 +626,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         _ipcServer.Dispose();
+        _desktopShellWatcher?.Dispose();
         _telemetry.InitialValuesPublished -= OnInitialTelemetryPublished;
         _outputSessions.Dispose();
         _telemetry.Dispose();
