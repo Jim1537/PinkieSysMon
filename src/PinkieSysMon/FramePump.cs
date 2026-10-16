@@ -268,6 +268,17 @@ internal sealed class FramePump : IOutputSession
         SignalWake();
     }
 
+    public void RequestFrame()
+    {
+        lock (_sync)
+        {
+            if (_disposeState != 0 || _worker is null || _suspended || _idlePaused)
+                return;
+            _resetFrameSchedule = true;
+        }
+        SignalWake();
+    }
+
     private async Task RunAsync(CancellationToken token)
     {
         var nextFrameAt = Stopwatch.GetTimestamp();

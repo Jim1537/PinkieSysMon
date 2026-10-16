@@ -50,6 +50,8 @@ The horizontal link from `MetricStore` to output sessions carries **data snapsho
 
 `MetricStore` replaces the published dictionary on updates. Readers obtain its current snapshot without holding a per-frame read lock, and previously published dictionaries are never subsequently mutated. This is the **ownership boundary between polling and frame production**; neither side requires the other to complete a poll for every frame.
 
+An Output presents its first frame immediately using the snapshot available at activation, which can precede asynchronous acquisition. After the first completed telemetry batch for each activated/reconfigured or idle-resumed schedule, Runtime requests one additional frame from each active Output: Desktop presents on the UI thread, while physical Outputs wake their existing frame worker. This does not change the configured telemetry or Output refresh intervals, force unsupported sensor reads, or wake disabled/suspended/idle-paused Outputs. Individual capture failures still produce unavailable values rather than stale readings.
+
 Some metrics use a publication path outside the normal source scheduler. Their ownership and namespace rules are specified in [System → Runtime and Output Performance Metrics](../telemetry/system.md#runtime-and-output-performance-metrics), not here.
 
 **Source anchors:** [TelemetryEngine](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/Telemetry.cs), [MetricStore](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricStore.cs), [DashboardMetricUsage](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardMetricUsage.cs).

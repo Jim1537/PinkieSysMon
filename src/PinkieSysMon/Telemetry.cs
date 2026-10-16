@@ -192,6 +192,7 @@ internal sealed class TelemetryEngine : IDisposable
     private HashSet<string> _enabledProviders;
     private HashSet<string> _requiredMetrics;
     private long _scheduleVersion;
+    private bool _initialCapturePending;
     private bool _idlePaused;
     private Task? _worker;
     private int _disposeState;
@@ -213,6 +214,9 @@ internal sealed class TelemetryEngine : IDisposable
         _requiredMetrics = NormalizeRequiredMetrics(requiredMetrics);
         RebuildScheduleLocked();
     }
+
+    // Fired once per active schedule after its first completed capture batch has been published.
+    public event Action? InitialValuesPublished;
 
     public static IReadOnlyDictionary<string, IMetricSource> BuildMetricIndex(IEnumerable<IMetricSource> sources) =>
         MetricSourceCatalog.BuildMetricIndex(sources);
@@ -294,6 +298,7 @@ internal sealed class TelemetryEngine : IDisposable
             _requiredMetrics = prepared.RequiredMetrics;
             _metricSchedules = prepared.MetricSchedules;
             _sourceSchedules = prepared.SourceSchedules;
+            _initialCapturePending = _metricSchedules.Count > 0;
             _scheduleVersion++;
         }
 
@@ -314,8 +319,11 @@ internal sealed class TelemetryEngine : IDisposable
             _idlePaused = paused;
             _scheduleVersion++; // Reject a capture batch that started before this transition.
             if (!paused)
+            {
                 foreach (var metric in _metricSchedules)
                     metric.NextDueTimestamp = 0; // Fresh sample, no missed-cycle catch-up.
+                _initialCapturePending = _metricSchedules.Count > 0;
+            }
         }
         SignalWake();
     }
@@ -338,14 +346,24 @@ internal sealed class TelemetryEngine : IDisposable
                     CaptureDueSources();
 
                 int delayMs;
+                Action? notifyInitialValues = null;
                 lock (_sync)
                 {
                     if (!paused && !_idlePaused && planVersion == _scheduleVersion)
+                    {
                         _store.Publish(_captureBatch);
+                        if (_initialCapturePending && _captureBatch.Count > 0)
+                        {
+                            _initialCapturePending = false;
+                            notifyInitialValues = InitialValuesPublished;
+                        }
+                    }
 
                     delayMs = _idlePaused ? MaximumSchedulerDelayMs : GetNextDelayMsLocked(Stopwatch.GetTimestamp());
                 }
 
+                // Consumers must never render while holding the telemetry schedule lock.
+                notifyInitialValues?.Invoke();
                 await WaitForWakeOrDelayAsync(delayMs, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -449,6 +467,7 @@ internal sealed class TelemetryEngine : IDisposable
     {
         (_metricSchedules, _sourceSchedules) =
             BuildSchedule(_config, _enabledProviders, _requiredMetrics);
+        _initialCapturePending = _metricSchedules.Count > 0;
     }
 
     private (List<MetricSchedule> MetricSchedules, List<SourceSchedule> SourceSchedules) BuildSchedule(

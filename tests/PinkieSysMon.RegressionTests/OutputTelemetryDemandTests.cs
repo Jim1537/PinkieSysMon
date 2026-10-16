@@ -45,6 +45,47 @@ internal static class OutputTelemetryDemandTests
         });
     }
 
+    public static void InitialCaptureNotifiesOnce()
+    {
+        InSandbox(log =>
+        {
+            var source = new CountingSource(Shared);
+            var store = new MetricStore();
+            var config = new TelemetryConfig
+            {
+                Metrics = new Dictionary<string, MetricPollingConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [Shared] = new() { Enabled = true, IntervalMs = 600_000 }
+                }
+            };
+            using var engine = new TelemetryEngine(store, [source], config,
+                [Provider], Array.Empty<string>(), log);
+            var callbacks = 0;
+            engine.InitialValuesPublished += () =>
+            {
+                Check(store.Snapshot().TryGetValue(Shared, out var value) && Equals(value, 42d),
+                    "Initial telemetry notification must follow publication of the first value.");
+                Interlocked.Increment(ref callbacks);
+            };
+            engine.Start();
+            engine.Reconfigure(config, [Provider], [Shared]);
+            Check(SpinWait.SpinUntil(() => Volatile.Read(ref callbacks) == 1, TimeSpan.FromSeconds(3)),
+                "A ten-minute polling interval must still publish and notify immediately on activation.");
+            Thread.Sleep(200);
+            Check(Volatile.Read(ref callbacks) == 1,
+                "An initial capture must not repeat a notification on normal scheduler wakeups.");
+
+            engine.SetIdlePaused(true);
+            engine.SetIdlePaused(false);
+            Check(SpinWait.SpinUntil(() => Volatile.Read(ref callbacks) == 2, TimeSpan.FromSeconds(3)),
+                "Idle wake must notify after its fresh capture, not wait for the full interval.");
+            engine.Reconfigure(config, Array.Empty<string>(), [Shared]);
+            Thread.Sleep(200);
+            Check(Volatile.Read(ref callbacks) == 2,
+                "Disabled providers must not fabricate an initial-data notification.");
+        });
+    }
+
     public static void Transitions()
     {
         InSandbox(log =>

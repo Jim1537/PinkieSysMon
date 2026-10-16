@@ -100,6 +100,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         };
         _statusTimer.Start();
 
+        _telemetry.InitialValuesPublished += OnInitialTelemetryPublished;
         _telemetry.Start();
         _outputSessions.Start();
         ReconcileTelemetryDemand();
@@ -203,6 +204,32 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders),
             required);
         _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    // First values arrive asynchronously after the panel's initial paint. Schedule one
+    // additional frame on the UI thread, without changing either polling or redraw cadence.
+    private void OnInitialTelemetryPublished()
+    {
+        if (Volatile.Read(ref _exiting) || _uiInvoker.IsDisposed)
+            return;
+        try
+        {
+            _uiInvoker.BeginInvoke((Action)(() =>
+            {
+                if (_exiting)
+                    return;
+                try { _outputSessions.RequestFramesAfterInitialTelemetry(); }
+                catch (Exception ex)
+                {
+                    _log.Warn("Initial telemetry frame request failed.", ex);
+                }
+            }));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+        {
+            if (!Volatile.Read(ref _exiting))
+                _log.Warn("Initial telemetry frame could not be dispatched.", ex);
+        }
     }
 
     // The existing one-second tray timer owns idle detection; there is no input hook,
@@ -596,6 +623,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
 
         _ipcServer.Dispose();
+        _telemetry.InitialValuesPublished -= OnInitialTelemetryPublished;
         _outputSessions.Dispose();
         _telemetry.Dispose();
         foreach (var source in _sources.OfType<IDisposable>())

@@ -66,6 +66,41 @@ internal static class DesktopSessionStage09Tests
         });
     }
 
+    public static void RefreshOnFirstTelemetry()
+    {
+        InSandbox((directory, log) =>
+        {
+            var config = Config(boardEnabled: true, providerEnabled: false);
+            config.Outputs.Targets[0].RefreshIntervalMs = 600_000;
+            var store = new MetricStore();
+            FakeWindow? window = null;
+            using var manager = new OutputSessionManager(config,
+                Dashboard(directory, 0, "#FF123456"), store, log,
+                (app, target, board, metrics, logger) =>
+                    new DesktopOutputSession(app, target, board, metrics, logger,
+                        draw => window = new FakeWindow(draw)));
+            manager.Start();
+            var panel = window ?? throw new InvalidOperationException("Missing Desktop window.");
+            Check(panel.PresentCount == 0, "Headless fixture does not deliver native ShowWindow paint.");
+            store.Publish("test.first.sample", 42d);
+            manager.RequestFramesAfterInitialTelemetry();
+            Check(panel.PresentCount == 1 && panel.IntervalMs == 600_000,
+                "The first sampled values must force a frame without shortening the Desktop timer.");
+
+            manager.Suspend();
+            manager.RequestFramesAfterInitialTelemetry();
+            Check(panel.PresentCount == 1, "Suspended Desktop must reject a delayed initial frame.");
+            manager.Resume();
+            manager.RequestFramesAfterInitialTelemetry();
+            Check(panel.PresentCount == 2, "A resumed visible Desktop must accept a new frame.");
+            manager.Reconfigure(OutputLifecycleTestConfiguration.WithEnabled(config, "desk-1", false),
+                manager.GetDashboardAssignments());
+            manager.RequestFramesAfterInitialTelemetry();
+            Check(panel.PresentCount == 2 && panel.DisposeCount == 1,
+                "Disabled Desktop must not receive a stale telemetry frame.");
+        });
+    }
+
     public static void ReconfigureGeometry()
     {
         InSandbox((directory, log) =>
@@ -256,7 +291,7 @@ internal static class DesktopSessionStage09Tests
 
         public void ShowWindow() => IsVisible = true;
         public void HideWindow() => IsVisible = false;
-        public void RequestFrame() { }
+        public void RequestFrame() { if (IsVisible) _render(); }
 
         public void Present(SKBitmap bitmap)
         {

@@ -258,6 +258,13 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         ChangeState(_idlePaused ? "IDLE_PAUSED" : _started ? "DISPLAYING" : "STOPPED");
     }
 
+    public void RequestFrame()
+    {
+        ThrowIfDisposed();
+        if (_started && !_suspended && !_idlePaused)
+            _window.RequestFrame();
+    }
+
     private void DrawFrame()
     {
         if (!_started || _suspended || _idlePaused || !_window.IsVisible)

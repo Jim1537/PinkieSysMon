@@ -33,6 +33,8 @@ internal interface IOutputSession : IDisposable
     void SetRuntimeMetricsPublisher(bool enabled);
     void Suspend();
     void Resume();
+    // A one-shot telemetry-ready repaint; synthetic regression sessions may ignore it.
+    void RequestFrame() { }
     void SetIdlePaused(bool paused) { }
 }
 
@@ -575,6 +577,27 @@ internal sealed class OutputSessionManager : IDisposable
                 UpdateRuntimeMetricPublisherLocked();
                 if (!paused && !_suspended)
                     RestoreDesktopStackLocked();
+            }
+        }
+    }
+
+    // Called on the Runtime UI thread after the first capture of an active telemetry schedule.
+    // Do not impose the telemetry cadence on normal rendering, or wake paused Outputs.
+    public void RequestFramesAfterInitialTelemetry()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_started || _suspended || _idlePaused)
+                return;
+
+            foreach (var session in _sessions.Values)
+            {
+                try { session.RequestFrame(); }
+                catch (Exception ex)
+                {
+                    _log.Warn($"Output target '{session.TargetName}' initial telemetry frame failed.", ex);
+                }
             }
         }
     }

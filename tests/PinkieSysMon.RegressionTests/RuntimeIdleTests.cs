@@ -209,6 +209,45 @@ internal static class RuntimeIdleTests
         });
     }
 
+    public static void InitialTelemetryWakesLongIntervalPhysicalFrame()
+    {
+        Sandbox((root, log) =>
+        {
+            var target = new OutputTargetConfig
+            {
+                Id = "usb-first", Name = "Long interval USB", Kind = OutputTargetContract.TrofeoKind,
+                Transport = OutputTargetContract.TrofeoTransport, DeviceEnabled = true,
+                Dashboard = "Default", RefreshIntervalMs = 600_000
+            };
+            var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
+            var board = new C.DashboardDefinition
+            {
+                BaseDirectory = root,
+                Canvas = new C.CanvasDefinition { Width = 64, Height = 32 },
+                Widgets = []
+            };
+            var transport = new CountingTransport();
+            using var pump = new FramePump(config, target, board, new MetricStore(), log,
+                (device, timeout, journal, logger, token) => transport);
+            pump.Start();
+            Check(SpinWait.SpinUntil(() => transport.Sends == 1, TimeSpan.FromSeconds(5)),
+                "Physical Output must send the first frame immediately.");
+            pump.RequestFrame();
+            Check(SpinWait.SpinUntil(() => transport.Sends == 2, TimeSpan.FromSeconds(5)),
+                "First telemetry must wake the existing physical worker despite a ten-minute interval.");
+            Thread.Sleep(150);
+            Check(transport.Sends == 2,
+                "Forced initial frame must not replace the regular interval with rapid polling.");
+            pump.SetIdlePaused(true);
+            Thread.Sleep(100);
+            var pausedCount = transport.Sends;
+            pump.RequestFrame();
+            Thread.Sleep(150);
+            Check(transport.Sends == pausedCount,
+                "A late data-ready signal must not resume a paused physical Output.");
+        });
+    }
+
     public static void InFlightUsbPause()
     {
         Sandbox((root, log) =>
