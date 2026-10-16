@@ -192,6 +192,7 @@ internal sealed class TelemetryEngine : IDisposable
     private HashSet<string> _enabledProviders;
     private HashSet<string> _requiredMetrics;
     private long _scheduleVersion;
+    private bool _idlePaused;
     private Task? _worker;
     private int _disposeState;
 
@@ -304,6 +305,21 @@ internal sealed class TelemetryEngine : IDisposable
             $"deactivated={prepared.DeactivatedMetricNames.Length}.");
     }
 
+    public void SetIdlePaused(bool paused)
+    {
+        lock (_sync)
+        {
+            if (_idlePaused == paused)
+                return;
+            _idlePaused = paused;
+            _scheduleVersion++; // Reject a capture batch that started before this transition.
+            if (!paused)
+                foreach (var metric in _metricSchedules)
+                    metric.NextDueTimestamp = 0; // Fresh sample, no missed-cycle catch-up.
+        }
+        SignalWake();
+    }
+
     private async Task RunAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -311,18 +327,23 @@ internal sealed class TelemetryEngine : IDisposable
             try
             {
                 long planVersion;
+                bool paused;
                 lock (_sync)
-                    planVersion = PrepareDueSourcesLocked(Stopwatch.GetTimestamp());
+                {
+                    paused = _idlePaused;
+                    planVersion = paused ? _scheduleVersion : PrepareDueSourcesLocked(Stopwatch.GetTimestamp());
+                }
 
-                CaptureDueSources();
+                if (!paused)
+                    CaptureDueSources();
 
                 int delayMs;
                 lock (_sync)
                 {
-                    if (planVersion == _scheduleVersion)
+                    if (!paused && !_idlePaused && planVersion == _scheduleVersion)
                         _store.Publish(_captureBatch);
 
-                    delayMs = GetNextDelayMsLocked(Stopwatch.GetTimestamp());
+                    delayMs = _idlePaused ? MaximumSchedulerDelayMs : GetNextDelayMsLocked(Stopwatch.GetTimestamp());
                 }
 
                 await WaitForWakeOrDelayAsync(delayMs, token).ConfigureAwait(false);

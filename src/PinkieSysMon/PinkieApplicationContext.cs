@@ -16,6 +16,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private readonly Icon? _applicationIcon;
     private readonly RuntimeTrayMenu _trayMenu;
     private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
+    private readonly RuntimeIdleMonitor _idleMonitor = new();
     private readonly Control _uiInvoker = new();
     private readonly RuntimeIpcServer _ipcServer;
     private readonly RuntimeOutputControl _outputControl;
@@ -33,6 +34,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private IReadOnlyList<PhysicalDeviceInventoryEntry> _physicalInventory = Array.Empty<PhysicalDeviceInventoryEntry>();
     private HashSet<string> _lastRequiredMetrics = new(StringComparer.OrdinalIgnoreCase);
     private bool _exiting;
+    private bool _idlePaused;
 
     private string AppConfigPath => Path.Combine(_baseDir, "config", "app.json");
     private string TelemetryConfigPath => Path.Combine(_baseDir, "config", "telemetry.json");
@@ -91,12 +93,17 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _ipcServer = new RuntimeIpcServer(HandleIpcCommandAsync, _log);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
-        _statusTimer.Tick += (_, _) => RefreshTrayStatus();
+        _statusTimer.Tick += (_, _) =>
+        {
+            EvaluateRuntimeIdle();
+            RefreshTrayStatus();
+        };
         _statusTimer.Start();
 
         _telemetry.Start();
         _outputSessions.Start();
         ReconcileTelemetryDemand();
+        EvaluateRuntimeIdle();
         _ipcServer.Start();
         RefreshPhysicalInventory();
 
@@ -198,6 +205,51 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
+    // The existing one-second tray timer owns idle detection; there is no input hook,
+    // additional worker or active polling while paused. OS sleep is a separate cause.
+    private void EvaluateRuntimeIdle()
+    {
+        if (_exiting)
+            return;
+        bool shouldPause;
+        try
+        {
+            shouldPause = _idleMonitor.ShouldPause(_config.Runtime.IdleTimeoutMinutes);
+        }
+        catch (Exception ex)
+        {
+            _log.WarnThrottled("runtime.idle.monitor", TimeSpan.FromSeconds(30),
+                "Could not read Windows idle/power policy; leaving the idle gate open.", ex);
+            shouldPause = false;
+        }
+        if (_idlePaused == shouldPause)
+            return;
+
+        try
+        {
+            if (shouldPause)
+            {
+                _telemetry.SetIdlePaused(true);
+                _outputSessions.SetIdlePaused(true);
+                ReconcileTelemetryDemand();
+            }
+            else
+            {
+                _outputSessions.SetIdlePaused(false);
+                ReconcileTelemetryDemand();
+                _telemetry.SetIdlePaused(false);
+            }
+            _idlePaused = shouldPause;
+            _log.Info(shouldPause ? "Runtime idle: telemetry and Output frames paused."
+                : "Runtime idle: fresh telemetry and Output frames resumed.");
+        }
+        catch (Exception ex)
+        {
+            _log.ErrorThrottled("runtime.idle.transition", TimeSpan.FromSeconds(5),
+                "Runtime idle transition failed; a later evaluation will retry.", ex);
+        }
+    }
+
     // Compatibility summary only; RuntimeOutputStatus.Dashboard owns each assignment.
     private string LegacyDashboardStatus() =>
         _config.Outputs.Targets.Count == 1
@@ -210,6 +262,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             var result = _configurationReload.Reload(requireRunning: false);
             RefreshPhysicalInventory();
+            _idleMonitor.InvalidatePowerSetting();
+            EvaluateRuntimeIdle();
             return result;
         }
         catch (Exception ex)
@@ -373,6 +427,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     RefreshPhysicalInventory();
                 _boards = _outputSessions.GetDashboardAssignments();
                 ReconcileTelemetryDemand();
+                EvaluateRuntimeIdle();
             }
             RefreshTrayStatus();
             return applied;
@@ -444,6 +499,15 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (_exiting)
             return;
 
+        // SystemEvents callbacks are not guaranteed to run on the WinForms thread.
+        if (_uiInvoker.InvokeRequired)
+        {
+            try { _uiInvoker.BeginInvoke((Action)(() => OnPowerModeChanged(sender, e))); }
+            catch (InvalidOperationException) when (_exiting) { }
+            catch (ObjectDisposedException) when (_exiting) { }
+            return;
+        }
+
         try
         {
             switch (e.Mode)
@@ -455,22 +519,22 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     break;
                 case PowerModes.Resume:
                     _log.Info("Windows power event: resume.");
+                    _idleMonitor.InvalidatePowerSetting();
+                    EvaluateRuntimeIdle();
                     _outputSessions.Resume();
                     ReconcileTelemetryDemand();
                     break;
                 case PowerModes.StatusChange:
-                    _log.Info("Windows power event: status change.");
+                    _idleMonitor.InvalidatePowerSetting();
+                    EvaluateRuntimeIdle();
                     break;
             }
         }
         catch (ObjectDisposedException) when (_exiting)
         {
-            // Shutdown won the race with a queued SystemEvents callback.
         }
         catch (Exception ex)
         {
-            // Power/output lifecycle failures are operational and isolated; an OS power event
-            // must not become an unhandled UI exception under the fatal WinForms policy.
             _log.Error($"Windows power event '{e.Mode}' handling failed", ex);
         }
     }

@@ -191,6 +191,11 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         Text = "Start PinkieSysMon runtime with Windows",
         AutoSize = true
     };
+    private readonly NumericUpDown _runtimeIdleMinutes = new()
+    {
+        Minimum = 0, Maximum = RuntimeIdlePolicy.MaximumTimeoutMinutes,
+        Width = 130, ThousandsSeparator = true
+    };
     private readonly CheckBox _systemProvider = new() { Text = "System", AutoSize = true };
     private readonly CheckBox _libreHardwareMonitorProvider = new()
     {
@@ -273,6 +278,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         ClientSize = new Size(900, 600);
 
         _startRuntime.Checked = startRuntimeWithWindows;
+        _runtimeIdleMinutes.Value = config.Runtime.IdleTimeoutMinutes;
         _systemProvider.Checked = systemProviderEnabled;
         _libreHardwareMonitorProvider.Checked = libreHardwareMonitorProviderEnabled;
         _icueProvider.Checked = icueProviderEnabled;
@@ -294,6 +300,35 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
             Padding = new Padding(12)
         };
         generalGroup.Controls.Add(_help.ToggleRows((_startRuntime, EditorSettingsHelp.Startup)));
+
+        var idleGroup = new GroupBox
+        {
+            Text = "Runtime activity",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12)
+        };
+        var idleLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            Padding = new Padding(4, 6, 4, 4)
+        };
+        idleLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        idleLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        idleLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        idleLayout.Controls.Add(new Label
+        {
+            Text = "Idle timeout (minutes; 0 = disabled)", AutoSize = true,
+            Anchor = AnchorStyles.Left
+        }, 0, 0);
+        idleLayout.Controls.Add(_runtimeIdleMinutes, 1, 0);
+        idleLayout.Controls.Add(_help.Marker("Idle timeout", _runtimeIdleMinutes,
+            EditorSettingsHelp.RuntimeIdleTimeout), 2, 0);
+        idleGroup.Controls.Add(idleLayout);
 
         var providersGroup = new GroupBox
         {
@@ -348,6 +383,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
         // WinForms Top docking lays out in reverse z-order.
         general.Controls.Add(interfaceGroup);
         general.Controls.Add(providersGroup);
+        general.Controls.Add(idleGroup);
         general.Controls.Add(generalGroup);
         var tabs = _settingsTabs;
         tabs.TabPages.Add(general);
@@ -382,6 +418,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
     }
 
     public bool StartRuntimeWithWindows => _startRuntime.Checked;
+    public int RuntimeIdleTimeoutMinutes => Decimal.ToInt32(_runtimeIdleMinutes.Value);
     public bool SystemProviderEnabled => _systemProvider.Checked;
     public bool LibreHardwareMonitorProviderEnabled => _libreHardwareMonitorProvider.Checked;
     public bool IcueProviderEnabled => _icueProvider.Checked;
@@ -390,7 +427,7 @@ internal sealed partial class EditorSettingsDialog : PinkieEditorForm
 
     internal const string ApplyTimingNotice =
         "Changes in Settings take effect after OK (Cancel discards them). " +
-        "Output and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
+        "Runtime, Output and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
         "Editor toolbar size updates after OK; a theme change requires restarting the Editor.";
 
     public bool DesktopChanged => _desktops.IsDirty;

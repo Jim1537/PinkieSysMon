@@ -62,7 +62,7 @@ Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack an
 
 Use the [Physical Devices guide](outputs/physical_devices.md) for supported hardware discovery, adoption, Device Settings and output management.
 
-For the shared Runtime/Editor document boundary, telemetry demand and control path, see [Application Architecture](development/architecture.md).
+For the shared Runtime/Editor document boundary, telemetry demand and control path, see [Application Architecture](development/architecture.md). The optional global idle timeout is configured in **Edit → Settings → General → Runtime activity**; see [Global Windows user-idle pause](development/architecture.md#global-windows-user-idle-pause) for its Windows display-timeout limit and resume behavior.
 
 ## System Requirements
 

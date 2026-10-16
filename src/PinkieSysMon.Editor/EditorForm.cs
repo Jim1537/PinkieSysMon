@@ -675,10 +675,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.SystemProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System) ||
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
+        var idleChanged = dialog.RuntimeIdleTimeoutMinutes != runtimeConfig.Runtime.IdleTimeoutMinutes;
         var desktopChanged = dialog.DesktopChanged;
         var devicesChanged = dialog.DevicesChanged;
         var outputsChanged = desktopChanged || devicesChanged;
-        var runtimeChanged = providersChanged || outputsChanged;
+        var runtimeChanged = providersChanged || outputsChanged || idleChanged;
         var runtimeReloaded = false;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
@@ -695,6 +696,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     dialog.ApplyOutputChanges(runtimeConfig);
                     _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
                 }
+                runtimeConfig.Runtime.IdleTimeoutMinutes = dialog.RuntimeIdleTimeoutMinutes;
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
@@ -707,6 +709,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
                 // Keep the editor-side snapshot consistent with the file it just wrote.
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
+                _appConfig.Runtime = runtimeConfig.Runtime;
                 if (outputsChanged)
                     _appConfig.Outputs = runtimeConfig.Outputs;
             }

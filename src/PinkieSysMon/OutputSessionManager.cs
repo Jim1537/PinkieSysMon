@@ -33,6 +33,7 @@ internal interface IOutputSession : IDisposable
     void SetRuntimeMetricsPublisher(bool enabled);
     void Suspend();
     void Resume();
+    void SetIdlePaused(bool paused) { }
 }
 
 internal delegate IOutputSession OutputSessionFactory(
@@ -75,6 +76,7 @@ internal sealed class OutputSessionManager : IDisposable
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
     private bool _started;
     private bool _suspended;
+    private bool _idlePaused;
     private bool _disposed;
 
     // Legacy regression-fixture constructor. Production uses per-Output definitions.
@@ -152,7 +154,7 @@ internal sealed class OutputSessionManager : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            return _suspended
+            return _suspended || _idlePaused
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
                 : OutputTelemetryDemand.Collect(_config, _boards, _sessions.Keys);
         }
@@ -179,6 +181,9 @@ internal sealed class OutputSessionManager : IDisposable
                     foreach (var session in created)
                         session.Suspend();
                 }
+                if (_idlePaused)
+                    foreach (var session in created)
+                        session.SetIdlePaused(true);
                 StartSessions(created);
 
                 _started = true;
@@ -269,6 +274,9 @@ internal sealed class OutputSessionManager : IDisposable
                         session.Suspend();
                 }
                 validateInput?.Invoke();
+                if (_idlePaused)
+                    foreach (var session in created)
+                        session.SetIdlePaused(true);
                 StartSessions(created);
 
                 // Phase 2: production CommitReconfiguration is assignment/cleanup-only and should
@@ -418,7 +426,7 @@ internal sealed class OutputSessionManager : IDisposable
                 _sessions.TryGetValue(previousTarget.Id, out var existing);
                 var nextConfig = new AppConfig
                 {
-                    Dashboard = _config.Dashboard, Display = _config.Display,
+                    Dashboard = _config.Dashboard, Display = _config.Display, Runtime = _config.Runtime,
                     Renderer = _config.Renderer, Usb = _config.Usb, Media = _config.Media,
                     MetricProviders = _config.MetricProviders,
                     Outputs = new OutputConfig { Targets = _config.Outputs.Targets
@@ -440,6 +448,7 @@ internal sealed class OutputSessionManager : IDisposable
                     {
                         created = CreateSession(nextConfig, replacement, board!);
                         if (_suspended) created.Suspend();
+                        if (_idlePaused) created.SetIdlePaused(true);
                     }
 
                     validateInput?.Invoke();
@@ -537,6 +546,37 @@ internal sealed class OutputSessionManager : IDisposable
         DisposeSessionsBestEffort(sessions);
         lock (_sync)
             UpdateRuntimeMetricPublisherLocked();
+    }
+
+    public void SetIdlePaused(bool paused)
+    {
+        IOutputSession[] sessions;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_idlePaused == paused)
+                return;
+            _idlePaused = paused;
+            sessions = _sessions.Values.ToArray();
+        }
+
+        foreach (var session in sessions)
+        {
+            try { session.SetIdlePaused(paused); }
+            catch (Exception ex)
+            {
+                _log.Warn($"Output target '{session.TargetName}' idle transition failed; continuing siblings.", ex);
+            }
+        }
+        lock (_sync)
+        {
+            if (!_disposed)
+            {
+                UpdateRuntimeMetricPublisherLocked();
+                if (!paused && !_suspended)
+                    RestoreDesktopStackLocked();
+            }
+        }
     }
 
     public void Suspend()
@@ -704,6 +744,7 @@ internal sealed class OutputSessionManager : IDisposable
             // Disabled Desktop / Trofeo outputs do not open a device or render
             // simply because ProviderEnabled is true.
             var state = _suspended && session is not null ? "SUSPENDED" :
+                _idlePaused && session is not null ? "IDLE_PAUSED" :
                 session?.UsbState ?? InactiveStateLocked(target);
             if (!target.ProviderEnabled)
                 ClearOutputMetricsLocked(target);

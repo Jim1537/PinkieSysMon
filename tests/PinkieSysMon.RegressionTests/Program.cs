@@ -23,6 +23,11 @@ internal static class Program
         {
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
+            ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),
+            ("Issue60 Windows power policy refresh", RuntimeIdleTests.PowerPolicyRefresh),
+            ("Issue60 telemetry pause and no catch-up", RuntimeIdleTests.TelemetryDoesNotCatchUp),
+            ("Issue60 Desktop and physical idle lifecycle", RuntimeIdleTests.OutputsPreserveStateAndTransport),
+            ("Issue60 in-flight USB safe idle pause", RuntimeIdleTests.InFlightUsbPause),
             ("Telemetry provider failure isolation", TelemetryProviderFailureIsIsolated),
             ("Telemetry reconfiguration clears deactivated metrics", TelemetryReconfigurationClearsDeactivatedMetrics),
             ("Telemetry reconfiguration prepare/commit isolation", TelemetryReconfigurationPrepareCommitIsolation),

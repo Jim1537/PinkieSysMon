@@ -22,6 +22,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     private OutputTargetConfig _target;
     private bool _started;
     private bool _suspended;
+    private bool _idlePaused;
     private bool _publisherEnabled;
     private bool _disposed;
     private string _state = "STOPPED";
@@ -107,7 +108,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             lowerWindow.PlaceBehind(higherWindow);
     }
     public string TargetName => _target.Name;
-    public bool IsConnected => _started && !_suspended && _window.IsVisible;
+    public bool IsConnected => _started && !_suspended && !_idlePaused && _window.IsVisible;
     public long SentFrames => Interlocked.Read(ref _frameCount);
     public double LastFrameMs => Volatile.Read(ref _lastFrameMs);
     public int LastJpegBytes => 0;
@@ -128,9 +129,9 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _started = true;
         try
         {
-            if (!_suspended)
+            if (!_suspended && !_idlePaused)
                 _window.ShowWindow();
-            ChangeState(_suspended ? "SUSPENDED" : "DISPLAYING");
+            ChangeState(_suspended ? "SUSPENDED" : _idlePaused ? "IDLE_PAUSED" : "DISPLAYING");
             _log.Info($"Desktop output '{TargetName}' started; targetId={_id}; no USB transport.");
         }
         catch (Exception ex)
@@ -220,6 +221,25 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         }
     }
 
+    public void SetIdlePaused(bool paused)
+    {
+        ThrowIfDisposed();
+        if (_idlePaused == paused)
+            return;
+        _idlePaused = paused;
+        _lastFrameTimestamp = 0;
+        _lastPublishAt = 0;
+        if (_started)
+        {
+            if (paused)
+                _window.HideWindow();
+            else if (!_suspended)
+                _window.ShowWindow();
+        }
+        ChangeState(_suspended ? "SUSPENDED" :
+            paused ? "IDLE_PAUSED" : _started ? "DISPLAYING" : "STOPPED");
+    }
+
     public void Suspend()
     {
         ThrowIfDisposed();
@@ -233,14 +253,14 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     {
         ThrowIfDisposed();
         _suspended = false;
-        if (_started)
+        if (_started && !_idlePaused)
             _window.ShowWindow();
-        ChangeState(_started ? "DISPLAYING" : "STOPPED");
+        ChangeState(_idlePaused ? "IDLE_PAUSED" : _started ? "DISPLAYING" : "STOPPED");
     }
 
     private void DrawFrame()
     {
-        if (!_started || _suspended || !_window.IsVisible)
+        if (!_started || _suspended || _idlePaused || !_window.IsVisible)
             return;
 
         var startedAt = Stopwatch.GetTimestamp();

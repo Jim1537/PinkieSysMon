@@ -54,6 +54,16 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 **Source anchors:** [TelemetryEngine](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/Telemetry.cs), [MetricStore](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricStore.cs), [DashboardMetricUsage](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardMetricUsage.cs).
 
+### Global Windows user-idle pause
+
+The opt-in Runtime-wide idle setting is **Edit → Settings → General → Runtime activity → Idle timeout (minutes)**. It persists as `Runtime.IdleTimeoutMinutes` in `config/app.json`; `0` (also the default for older files) **disables** idle pausing, while `1..1440` selects a timeout. It is not a dashboard/widget property. The saved number is not overwritten when a Windows power setting changes.
+
+When enabled, the effective threshold is the lesser of the selected minutes and the active Windows power scheme's finite **display-off idle** time (AC or DC as appropriate). Windows **Never** imposes no ceiling. The existing one-second Runtime timer samples `GetLastInputInfo` for this logon session; it refreshes the active Windows display timeout periodically and on power changes. If the input API is unavailable, idle suspension fails open rather than leaving outputs permanently hidden. A missing power-policy reading leaves the configured Runtime timeout in force.
+
+The composition root coordinates two separate suppression causes: Windows suspend and ordinary user idle. At idle, `TelemetryEngine` admits no new scheduled captures and discards superseded in-flight batches; returning input schedules fresh captures without replaying elapsed periods. The manager retains each enabled Output and its assigned dashboard but removes idle demand from acquisition. Desktop sessions hide their existing windows and stop native repaint timers; physical `FramePump` workers suppress raster/JPEG work and periodic USB transfers **without retiring an otherwise valid USB transport**. An in-flight native transfer may complete. A real Windows suspend or changed USB configuration still retires the transport under its normal ownership/cancellation rules; resume does not override a remaining idle gate. Disabled Outputs stay disabled, and Desktop identity, Lock, placement and sibling stacking are preserved. IPC, the tray and inexpensive lifecycle monitoring remain responsive.
+
+No history samples are fabricated during idle. Physical display blanking and post-idle USB continuity on a particular device are **hardware-dependent and require physical acceptance**; a successful simulated transport regression does not establish the real Trofeo behavior.
+
 ## Runtime output ownership
 
 `OutputSessionManager` owns the active-session set. [Desktop Outputs](../outputs/desktop.md#technical-information) owns native panel configuration, presentation, placement and mouse input; [Physical Devices](../outputs/physical_devices.md#technical-information) owns physical inventory, consent and session boundaries, with transport details in its adapter reference. Both consume the shared `MetricStore` snapshot through the canonical widget renderer.

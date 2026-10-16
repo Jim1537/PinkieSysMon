@@ -6,6 +6,7 @@ internal sealed class AppConfig
 {
     public DashboardConfig Dashboard { get; set; } = new();
     public DisplayConfig Display { get; set; } = new();
+    public RuntimeConfig Runtime { get; set; } = new();
     public OutputConfig Outputs { get; set; } = new();
     public RendererConfig Renderer { get; set; } = new();
     public UsbConfig Usb { get; set; } = new();
@@ -64,14 +65,17 @@ internal sealed class AppConfig
 
     private void Validate()
     {
-        if (Dashboard is null || Display is null || Outputs is null ||
+        if (Dashboard is null || Display is null || Runtime is null || Outputs is null ||
             Renderer is null || Usb is null || Media is null)
-            throw new InvalidDataException("Application config requires Dashboard, Display, Outputs, Renderer, Usb and Media objects.");
+            throw new InvalidDataException("Application config requires Dashboard, Display, Runtime, Outputs, Renderer, Usb and Media objects.");
         if (Outputs.Targets is null)
             throw new InvalidDataException("Outputs.Targets must be an array of configured outputs.");
 
         if (string.IsNullOrWhiteSpace(Dashboard.Active))
             throw new InvalidDataException("Dashboard.Active must not be empty.");
+
+        if (Runtime.IdleTimeoutMinutes is < 0 or > RuntimeIdlePolicy.MaximumTimeoutMinutes)
+            throw new InvalidDataException("Runtime.IdleTimeoutMinutes must be 0 (disabled) or 1..1440 minutes.");
 
         if (Display.RefreshIntervalMs < 10)
             throw new InvalidDataException("Display.RefreshIntervalMs must be at least 10 ms.");
@@ -109,6 +113,12 @@ internal sealed class DashboardConfig
 internal sealed class DisplayConfig
 {
     public int RefreshIntervalMs { get; set; } = 1000;
+}
+
+internal sealed class RuntimeConfig
+{
+    // Opt-in. Existing installations continue rendering until explicitly configured.
+    public int IdleTimeoutMinutes { get; set; }
 }
 
 internal sealed class OutputConfig

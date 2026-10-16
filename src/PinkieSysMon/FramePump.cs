@@ -29,6 +29,8 @@ internal sealed class FramePump : IOutputSession
     private string _transportRetireState = "WAITING";
     private Task? _worker;
     private bool _suspended;
+    private bool _idlePaused;
+    private bool _resetFrameSchedule;
     private bool _publishRuntimeMetrics;
     private long _sentFrames;
     private double _lastFrameMs;
@@ -215,6 +217,30 @@ internal sealed class FramePump : IOutputSession
         }
     }
 
+    public void SetIdlePaused(bool paused)
+    {
+        lock (_sync)
+        {
+            if (_idlePaused == paused)
+                return;
+
+            _idlePaused = paused;
+            _resetFrameSchedule = true;
+            _lastFrameTimestamp = 0;
+            _lastFps = 0;
+            _lastRuntimeMetricsPublishAtMs = 0;
+            if (paused)
+                SetUsbStateLocked("IDLE_PAUSED");
+            else
+            {
+                // Preserve the USB handle; prove readiness with the next real frame.
+                _nextUsbAttemptAtMs = 0;
+                SetUsbStateLocked(_suspended ? "SUSPENDED" : "WAITING");
+            }
+        }
+        SignalWake();
+    }
+
     public void Suspend()
     {
         lock (_sync)
@@ -234,7 +260,8 @@ internal sealed class FramePump : IOutputSession
             _suspended = false;
             _nextUsbAttemptAtMs = 0;
             // The old connection is invalid even if suspend and resume race with a USB call.
-            RequestTransportRetirementLocked("System resume; discard prior USB handle.", "WAITING");
+            RequestTransportRetirementLocked("System resume; discard prior USB handle.",
+                _idlePaused ? "IDLE_PAUSED" : "WAITING");
         }
 
         _log.Info($"Output session '{TargetName}' resumed.");
@@ -299,7 +326,7 @@ internal sealed class FramePump : IOutputSession
         if (_transportRetirePending)
             return 0;
 
-        if (_suspended)
+        if (_suspended || _idlePaused)
             return 60_000;
 
         var nowTickMs = Environment.TickCount64;
@@ -307,6 +334,11 @@ internal sealed class FramePump : IOutputSession
             return checked((int)Math.Min(60_000L, _nextUsbAttemptAtMs - nowTickMs));
 
         var now = Stopwatch.GetTimestamp();
+        if (_resetFrameSchedule)
+        {
+            nextFrameAt = now;
+            _resetFrameSchedule = false;
+        }
         var intervalTicks = Math.Max(1L, (long)Math.Round(intervalMs * (double)Stopwatch.Frequency / 1000.0));
         nextFrameAt += intervalTicks;
         if (nextFrameAt <= now)
@@ -426,7 +458,7 @@ internal sealed class FramePump : IOutputSession
 
         lock (_sync)
         {
-            if (_suspended || _transportRetirePending || _disposeState != 0 || token.IsCancellationRequested)
+            if (_suspended || _idlePaused || _transportRetirePending || _disposeState != 0 || token.IsCancellationRequested)
                 return null;
 
             if (_display is not null)
@@ -466,7 +498,7 @@ internal sealed class FramePump : IOutputSession
 
             lock (_sync)
             {
-                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended)
+                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked(
                         ex.Status == OutputDeviceResolutionStatus.Ambiguous ? "AMBIGUOUS" : "ERROR");
@@ -486,7 +518,7 @@ internal sealed class FramePump : IOutputSession
 
             lock (_sync)
             {
-                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended)
+                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked("ERROR");
                     Volatile.Write(ref _isConnected, false);
@@ -500,7 +532,7 @@ internal sealed class FramePump : IOutputSession
         {
             lock (_sync)
             {
-                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended)
+                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked("WAITING");
                     _nextUsbAttemptAtMs = Environment.TickCount64 + retryMs;
@@ -513,7 +545,7 @@ internal sealed class FramePump : IOutputSession
         lock (_sync)
         {
             if (generation == _connectionGeneration &&
-                !_transportRetirePending && !_suspended &&
+                !_transportRetirePending && !_suspended && !_idlePaused &&
                 _disposeState == 0 && !token.IsCancellationRequested)
             {
                 _display = opened;
@@ -535,7 +567,7 @@ internal sealed class FramePump : IOutputSession
     }
 
     private bool CanSendLocked(ITrofeoFrameTransport display, long generation, CancellationToken token) =>
-        !_suspended && !_transportRetirePending && _disposeState == 0 &&
+        !_suspended && !_idlePaused && !_transportRetirePending && _disposeState == 0 &&
         !token.IsCancellationRequested &&
         _connectionGeneration == generation &&
         ReferenceEquals(_display, display);
