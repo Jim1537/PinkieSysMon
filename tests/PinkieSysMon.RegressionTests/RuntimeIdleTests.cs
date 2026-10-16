@@ -255,6 +255,9 @@ internal static class RuntimeIdleTests
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-idle-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        Directory.CreateDirectory(Path.Combine(root, "config"));
+        Directory.CreateDirectory(Path.Combine(root, "dashboards"));
+        File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
         try { action(root, new FileLogger(Path.Combine(root, "idle.log"))); }
         finally
         {

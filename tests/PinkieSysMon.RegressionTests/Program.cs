@@ -2014,6 +2014,8 @@ internal static class Program
 
     private static void EditorGeneralSettingsContract()
     {
+        var config = new AppConfig();
+        config.Runtime.IdleTimeoutMinutes = 17;
         using var dialog = new EditorSettingsDialog(
             startRuntimeWithWindows: true,
             systemProviderEnabled: true,
@@ -2021,7 +2023,7 @@ internal static class Program
             icueProviderEnabled: true,
             toolbarIconSize: 48,
             themeMode: EditorThemeMode.Dark,
-            config: new AppConfig(),
+            config: config,
             dashboards: ["Default"],
             discoverDevices: () => Array.Empty<OutputDeviceDescriptor>());
         var tabs = dialog.Controls.OfType<TabControl>().Single();
@@ -2032,11 +2034,21 @@ internal static class Program
                !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
                dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
             "General Settings must preserve startup/provider/theme/icon values passed by their existing owners.");
-        var groups = tabs.TabPages[0].Controls.OfType<GroupBox>().Select(group => group.Text).ToHashSet();
-        Assert(groups.SetEquals(["Startup", "Metric providers", "Interface"]),
-            "General tab must not expose legacy global device binding, physical JPEG, or per-output refresh settings.");
-        Assert(tabs.TabPages[0].Controls.OfType<NumericUpDown>().Count() == 0,
-            "Global Settings must not expose physical USB/display quality or refresh numeric controls.");
+        var groups = tabs.TabPages[0].Controls.OfType<GroupBox>().ToArray();
+        Assert(groups.Select(group => group.Text).ToHashSet()
+                .SetEquals(["Startup", "Runtime activity", "Metric providers", "Interface"]),
+            "General tab must expose the Runtime idle setting but no legacy device binding or per-output settings.");
+        var idleLayout = groups.Single(group => group.Text == "Runtime activity")
+            .Controls.OfType<TableLayoutPanel>().Single();
+        var idleTimeout = idleLayout.Controls.OfType<NumericUpDown>().Single();
+        Assert(dialog.RuntimeIdleTimeoutMinutes == 17 && idleTimeout.Value == 17 &&
+               idleTimeout.Minimum == 0 && idleTimeout.Maximum == RuntimeIdlePolicy.MaximumTimeoutMinutes,
+            "Runtime idle setting must preserve its configured value and supported range.");
+        var generalNumericControls = groups.SelectMany(group => group.Controls.OfType<TableLayoutPanel>())
+            .SelectMany(layout => layout.Controls.OfType<NumericUpDown>()).ToArray();
+        Assert(generalNumericControls.Length == 1 && ReferenceEquals(generalNumericControls[0], idleTimeout) &&
+               !tabs.TabPages[0].Controls.OfType<NumericUpDown>().Any(),
+            "General tab must not expose physical USB/display quality or per-output refresh controls.");
     }
 
     private static void EditorDesktopSettingsContract()
