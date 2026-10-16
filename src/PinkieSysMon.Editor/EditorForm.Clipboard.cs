@@ -235,13 +235,15 @@ internal sealed partial class EditorForm
             _selectedWidgets.Clear();
             PopulateTree();
             ApplyTreeSelectionToWidgets();
-            SaveDashboardMetadata();
             PushUndo(undoBefore);
             MarkDirty();
             UpdateStatusBar();
             RefreshPreviewTelemetry();
             RenderPreview(force: true);
-            SetStatus($"Pasted {clones.Count} widget(s).");
+            if (SaveDashboardMetadata())
+                SetStatus($"Pasted {clones.Count} widget(s).");
+            else
+                SetStatus($"Pasted {clones.Count} widget(s) in memory, but group metadata was NOT saved. Retry Save.");
         }
         finally
         {

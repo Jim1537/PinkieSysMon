@@ -63,6 +63,17 @@ internal sealed partial class EditorForm
             File.WriteAllText(temp, text);
             File.Move(temp, _dashboardPath, true);
             _savedJson = DashboardJson.Serialize(_definition, indented: false);
+            if (!SaveDashboardMetadata())
+            {
+                // JSON was written, but the associated Editor-only group tree was
+                // not. Keep Save available, and do not allow a destructive close
+                // to treat this as a successful save.
+                _dirty = true;
+                UpdateTitle();
+                SetStatus("Dashboard JSON saved, but Editor group metadata was NOT saved. Correct the error and retry Save.");
+                UpdateCommandStates();
+                return false;
+            }
             _dirty = false;
             UpdateTitle();
             SetStatus($"Saved {_dashboardPath}. Use the selected Output → Reload to apply runtime changes.");
