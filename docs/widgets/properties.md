@@ -328,10 +328,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 
     **Values:**
-    - Font family text; default `Roboto`.
+    - Bundled font family names from `assets/fonts` (TTF/OTF); default `Roboto`.
 
 
-    Font family. In the current canonical view, this is an editable text property.
+    The Editor provides an editable drop-down listing families discovered under the application's `assets/fonts` directory. You may type a family name, but Runtime rendering requires that font to be bundled; system-installed fonts are not used.
 
     **Used by:** Text / Value and Value state profiles
 

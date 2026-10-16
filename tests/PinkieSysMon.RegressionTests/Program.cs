@@ -224,6 +224,7 @@ internal static class Program
             ("Media System schema 15 migration", MediaSystemSchema15Migration),
             ("Removed legacy widget types", RemovedLegacyWidgetTypes),
             ("Text property hierarchy", TextPropertyHierarchy),
+            ("Issue67 bundled font selection for all text presentations", FontFamilySelectionTests.BundledFontOptions),
             ("Property applicability contract", PropertyApplicabilityContract),
             ("Context-disabled custom editors", ContextDisabledCustomEditors),
             ("Date/time format editor", DateTimeFormatEditorContract),

@@ -183,7 +183,7 @@ internal static class CanonicalPropertyViewBuilder
             EditorPropertySection.Gauge => BuildGauge(widget, dashboardDirectory),
             EditorPropertySection.States => BuildStates(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Image => BuildImage(widget, applicationRoot, dashboardDirectory),
-            EditorPropertySection.Text => BuildText(widget),
+            EditorPropertySection.Text => BuildText(widget, applicationRoot),
             EditorPropertySection.All => BuildAll(widget, applicationRoot, dashboardDirectory, mediaEndpoints, endpointTypeOverrides, effectiveSizeAccessor),
             _ => []
         };
@@ -728,12 +728,15 @@ internal static class CanonicalPropertyViewBuilder
         return result;
     }
 
-    private static List<PropertyDescriptor> BuildText(C.WidgetDefinition widget)
+    private static List<PropertyDescriptor> BuildText(C.WidgetDefinition widget, string? applicationRoot)
     {
         var result = new List<PropertyDescriptor>();
+        var fontConverter = string.IsNullOrWhiteSpace(applicationRoot)
+            ? null
+            : BundledFontFamilyConverter.Create(applicationRoot);
         if (widget is C.ValueWidgetDefinition value)
         {
-            AddTextGroups(result, value.TextPresentation, "text.value", null);
+            AddTextGroups(result, value.TextPresentation, "text.value", null, fontConverter);
             return result;
         }
         if (widget is C.StateVisualWidgetDefinition stateWidget)
@@ -749,18 +752,18 @@ internal static class CanonicalPropertyViewBuilder
                     Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"text.state.{spec.Key}.color", "Color", () => profile.Color ?? "#FFFFFFFF", v => profile.Color = v),
                     Float(profile, StateName(spec.Key, StateVisualProfileField.Opacity), $"text.state.{spec.Key}.opacity", "Opacity", () => profile.Opacity, v => profile.Opacity = Math.Clamp(v, 0f, 1f))
                 ]));
-                AddTextGroups(nested, profile.TextPresentation, $"text.state.{spec.Key}", null, spec.Key);
+                AddTextGroups(nested, profile.TextPresentation, $"text.state.{spec.Key}", null, fontConverter, spec.Key);
                 result.Add(Group(spec.Category, nested));
             }
         }
         return result;
     }
 
-    private static void AddTextGroups(List<PropertyDescriptor> result, C.TextPresentationDefinition text, string semanticPrefix, Func<string?>? disabled, string? stateKey = null)
+    private static void AddTextGroups(List<PropertyDescriptor> result, C.TextPresentationDefinition text, string semanticPrefix, Func<string?>? disabled, TypeConverter? fontConverter, string? stateKey = null)
     {
         string Name(StateVisualProfileField field, string plain) => stateKey is null ? plain : StateName(stateKey, field);
         result.Add(Group("Font", [
-            String(text, Name(StateVisualProfileField.FontFamily, "FontFamily"), $"{semanticPrefix}.font.family", "Family", () => text.FontFamily, v => text.FontFamily = Convert.ToString(v)?.Trim() ?? "Roboto", disabled: disabled),
+            String(text, Name(StateVisualProfileField.FontFamily, "FontFamily"), $"{semanticPrefix}.font.family", "Family", () => text.FontFamily, v => text.FontFamily = Convert.ToString(v)?.Trim() ?? "Roboto", converter: fontConverter, disabled: disabled),
             Float(text, Name(StateVisualProfileField.FontSize, "FontSize"), $"{semanticPrefix}.font.size", "Size", () => text.FontSize, v => text.FontSize = Math.Max(1f, v), disabled),
             Int(text, Name(StateVisualProfileField.FontWeight, "FontWeight"), $"{semanticPrefix}.font.weight", "Weight", () => text.FontWeight, v => text.FontWeight = Math.Clamp(v, 1, 1000), disabled),
             Bool(text, Name(StateVisualProfileField.Italic, "Italic"), $"{semanticPrefix}.font.italic", "Italic", () => text.Italic, v => text.Italic = v, disabled)
