@@ -212,10 +212,10 @@ internal sealed partial class EditorForm
                 clones, package.SourceDirectory, Path.GetDirectoryName(_dashboardPath)!,
                 newlyCreatedAssets,
                 count => MessageBox.Show(
-                    $"Paste references {count} image file(s).\\n\\nImport them into the destination dashboard?\\n\\nNo keeps the widgets but clears those image sources.",
+                    $"Paste references {count} image file(s).\n\nImport them into the destination dashboard?\n\nNo keeps the widgets but clears those image sources.",
                     "Import widget images", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question),
                 name => MessageBox.Show(
-                    $"An image named '{name}' already exists and differs.\\n\\nYes: import under a new unique name\\nNo: use the existing destination image\\nCancel: cancel paste",
+                    $"An image named '{name}' already exists and differs.\n\nYes: import under a new unique name\nNo: use the existing destination image\nCancel: cancel paste",
                     "Image filename conflict", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning)))
                 return;
 
