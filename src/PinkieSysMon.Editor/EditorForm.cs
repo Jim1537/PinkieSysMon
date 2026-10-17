@@ -57,6 +57,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private readonly EditorSettings _settings;
     private readonly Stack<EditorSnapshot> _undo = new();
     private readonly Stack<EditorSnapshot> _redo = new();
+    private EditorSnapshot? _propertyEditUndoSnapshot;
 
     private CanonicalDashboardDefinition? _definition;
     private DashboardPreviewRenderer? _preview;
@@ -421,7 +422,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _propertyGrid.PropertyValueChanged += (_, e) =>
         {
             RememberPresentedPropertyExpansionState();
-            OnPropertyChanged(e.ChangedItem?.PropertyDescriptor?.Name);
+            var undoBefore = _propertyEditUndoSnapshot;
+            _propertyEditUndoSnapshot = null;
+            OnPropertyChanged(e.ChangedItem?.PropertyDescriptor?.Name, undoBefore);
             SchedulePropertyGridPresentation();
         };
 
@@ -864,6 +867,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             ResetEditorInputSurface();
             _undo.Clear();
             _redo.Clear();
+            _propertyEditUndoSnapshot = null;
 
             _widgetTreeNodes.Clear();
             _groupTreeNodes.Clear();
@@ -919,7 +923,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         LoadDashboard(_dashboardName);
     }
 
-    private void OnPropertyChanged(string? propertyName)
+    private void CapturePropertyEditUndo()
+    {
+        _propertyEditUndoSnapshot ??= CaptureSnapshot();
+    }
+
+    private void OnPropertyChanged(string? propertyName, EditorSnapshot? undoBefore)
     {
         if (_definition is null || string.IsNullOrWhiteSpace(propertyName))
             return;
@@ -938,7 +947,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 return;
             }
 
-            var undoBefore = CaptureSnapshot();
             rollbackSnapshot = undoBefore;
 
             IReadOnlyList<CanonicalWidgetDefinition>? widgets = _propertyGrid.SelectedObject switch

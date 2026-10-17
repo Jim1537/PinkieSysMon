@@ -237,6 +237,8 @@ internal static class Program
             ("Text property hierarchy", TextPropertyHierarchy),
             ("Issue67 bundled font selection for all text presentations", FontFamilySelectionTests.BundledFontOptions),
             ("Issue68 mixed multi-selection dropdown labels", MultiSelectionDropdownTests.MixedValueOptionLabels),
+            ("Issue80 single-widget and canvas property history checkpoint", Issue80PropertyUndoTests.SingleWidgetAndCanvasCapture),
+            ("Issue80 multi-widget property history checkpoint", Issue80PropertyUndoTests.MultiWidgetCapture),
             ("Property applicability contract", PropertyApplicabilityContract),
             ("Context-disabled custom editors", ContextDisabledCustomEditors),
             ("Date/time format editor", DateTimeFormatEditorContract),

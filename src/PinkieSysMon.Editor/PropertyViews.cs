@@ -25,6 +25,7 @@ internal sealed class EditorPropertyView : CustomTypeDescriptor
     private readonly IDictionary<string, string>? _endpointTypeOverrides;
     private readonly Func<object, (float Width, float Height)?>? _effectiveSizeAccessor;
     private readonly EditorPropertySection _section;
+    private readonly Action? _beforeValueChange;
     private PropertyDescriptorCollection? _cachedProperties;
 
     public EditorPropertyView(
@@ -34,7 +35,8 @@ internal sealed class EditorPropertyView : CustomTypeDescriptor
         IReadOnlyList<WindowsMediaTelemetrySource.MediaEndpointInfo>? mediaEndpoints = null,
         IDictionary<string, string>? endpointTypeOverrides = null,
         Func<object, (float Width, float Height)?>? effectiveSizeAccessor = null,
-        EditorPropertySection section = EditorPropertySection.All)
+        EditorPropertySection section = EditorPropertySection.All,
+        Action? beforeValueChange = null)
     {
         if (target is not PinkieSysMon.DashboardModel.WidgetDefinition and
             not PinkieSysMon.DashboardModel.CanvasDefinition)
@@ -51,12 +53,17 @@ internal sealed class EditorPropertyView : CustomTypeDescriptor
         _endpointTypeOverrides = endpointTypeOverrides;
         _effectiveSizeAccessor = effectiveSizeAccessor;
         _section = section;
+        _beforeValueChange = beforeValueChange;
     }
 
     public object Target { get; }
 
-    public override PropertyDescriptorCollection GetProperties() =>
-        _cachedProperties ??= CanonicalPropertyViewBuilder.Build(
+    public override PropertyDescriptorCollection GetProperties()
+    {
+        if (_cachedProperties is not null)
+            return _cachedProperties;
+
+        var properties = CanonicalPropertyViewBuilder.Build(
             Target,
             _section,
             _applicationRoot,
@@ -64,6 +71,23 @@ internal sealed class EditorPropertyView : CustomTypeDescriptor
             _mediaEndpoints,
             _endpointTypeOverrides,
             widget => _effectiveSizeAccessor?.Invoke(widget));
+
+        if (_beforeValueChange is not null)
+            AttachBeforeValueChange(properties, _beforeValueChange);
+
+        return _cachedProperties = properties;
+    }
+
+    private static void AttachBeforeValueChange(PropertyDescriptorCollection properties, Action beforeValueChange)
+    {
+        foreach (PropertyDescriptor descriptor in properties)
+        {
+            if (descriptor is CanonicalPropertyDescriptor canonical)
+                canonical.BeforeValueChange = beforeValueChange;
+            else if (descriptor is PropertyGroupPropertyDescriptor group)
+                AttachBeforeValueChange(TypeDescriptor.GetProperties(group.GetValue(null)), beforeValueChange);
+        }
+    }
 
     public override PropertyDescriptorCollection GetProperties(Attribute[]? attributes) => GetProperties();
     public override object? GetPropertyOwner(PropertyDescriptor? pd) => this;

@@ -248,6 +248,8 @@ internal sealed partial class EditorForm
 
     private void PushUndo(EditorSnapshot? snapshot)
     {
+        // A subsequent non-property edit invalidates any incomplete PropertyGrid transaction.
+        _propertyEditUndoSnapshot = null;
         if (snapshot is null || !SnapshotDiffers(snapshot))
             return;
 
@@ -364,6 +366,7 @@ internal sealed partial class EditorForm
         if (string.IsNullOrWhiteSpace(_dashboardPath))
             return;
 
+        _propertyEditUndoSnapshot = null;
         var scroll = CaptureScrollPosition();
         var definition = DashboardJson.ParseEditorSnapshot(snapshot.Json, _dashboardPath);
         var metadata = DashboardEditorMetadata.FromJson(snapshot.EditorMetadataJson);

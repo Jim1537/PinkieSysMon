@@ -123,7 +123,8 @@ internal sealed partial class EditorForm
                 _mediaTelemetry.GetActiveEndpoints(),
                 _appConfig.Media.EndpointTypeOverrides,
                 candidate => ResolveEffectiveWidgetSize((CanonicalWidgetDefinition)candidate),
-                section);
+                section,
+                beforeValueChange: CapturePropertyEditUndo);
         }
 
         return new EditorPropertyView(
@@ -131,7 +132,8 @@ internal sealed partial class EditorForm
             _root,
             dashboardDirectory,
             effectiveSizeAccessor: candidate => ResolveEffectiveWidgetSize((CanonicalWidgetDefinition)candidate),
-            section: section);
+            section: section,
+            beforeValueChange: CapturePropertyEditUndo);
     }
 
     private (float Width, float Height)? ResolveEffectiveWidgetSize(CanonicalWidgetDefinition widget)

@@ -77,6 +77,7 @@ internal sealed class CanonicalPropertyDescriptor : PropertyDescriptor, IMultiEd
     public override TypeConverter Converter => _converter ?? base.Converter;
     public string MultiEditContextKey { get; }
     public string MultiEditContextController { get; }
+    internal Action? BeforeValueChange { get; set; }
 
     public override bool CanResetValue(object component) => !IsReadOnly && (_canReset?.Invoke() ?? false);
     public override object? GetValue(object? component) => _getter();
@@ -84,6 +85,7 @@ internal sealed class CanonicalPropertyDescriptor : PropertyDescriptor, IMultiEd
     {
         if (IsReadOnly || _reset is null)
             return;
+        BeforeValueChange?.Invoke();
         _reset();
         OnValueChanged(component, EventArgs.Empty);
     }
@@ -92,6 +94,7 @@ internal sealed class CanonicalPropertyDescriptor : PropertyDescriptor, IMultiEd
     {
         if (IsReadOnly || _setter is null)
             return;
+        BeforeValueChange?.Invoke();
         _setter(value);
         OnValueChanged(component, EventArgs.Empty);
     }
