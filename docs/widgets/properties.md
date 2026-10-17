@@ -143,9 +143,9 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Component  
-    **Semantic key:** `data.quantitative.datetime_component`  
-    **Canonical model:** `QuantitativeWidgetDefinition.Component`  
-    **JSON:** `component` (optional string; schema 20)
+    **Semantic keys:** `data.quantitative.datetime_component` / `data.binary.datetime_component`  
+    **Canonical model:** `QuantitativeWidgetDefinition.Component` / `BinaryWidgetDefinition.Component`  
+    **JSON:** `component` (optional string; Gauge/Bar since schema 20, Binary since schema 21)
 
 
     **Values:**
@@ -164,7 +164,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     | Second | `second` | 0 to less than 60, including fractional seconds. |
 
     A DateTime/DateTimeOffset metric must select one numeric Component before
-    Gauge or Bar can map it onto Min/Max. DateTimeOffset uses local time,
+    Gauge or Bar can map it onto Min/Max, or Binary can evaluate its True/False state. DateTimeOffset uses local time,
     consistent with textual DateTime formatting. For a complete clock dial,
     use `Min=0`, `Max=12` for Hour (12-hour), or `Min=0`, `Max=60` for
     Minute/Second. For Month use `Min=1`, `Max=13`; calendar periods have
@@ -172,10 +172,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     This is a numeric projection, **not** the text [Format](properties.md#format)
     editor. Compound masks such as `hh:mm` are invalid and rejected. Existing
-    schema-19 dashboards migrate with Component unset and retain their previous
-    unavailable DateTime indication until the user selects a component.
+    schema-19 Gauge/Bar and schema-20 Binary dashboards migrate with Component unset
+    and retain their previous unavailable DateTime indication until selection.
 
-    **Used by:** Gauge, Bar, only when [Metric](properties.md#metric) is DateTime.
+    **Used by:** Gauge, Bar, Binary, only when [Metric](properties.md#metric) is DateTime. For Binary the selector is available in both Auto and Setpoint, including Icon/Image-only states. The projected scalar uses ordinary zero/nonzero truth in Auto and the numeric True If comparison in Setpoint; it never changes the Value-state text [Format](properties.md#format).
 
 <!-- --8<-- [end:component] -->
 

@@ -15,7 +15,8 @@ internal static class DashboardSchemaMigration
     public const int CanvasImageLayerSchemaVersion = 18;
     public const int PropertyModelNormalizationSchemaVersion = 19;
     public const int DateTimeComponentSchemaVersion = 20;
-    public const int CurrentSchemaVersion = DateTimeComponentSchemaVersion;
+    public const int BinaryDateTimeComponentSchemaVersion = 21;
+    public const int CurrentSchemaVersion = BinaryDateTimeComponentSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -26,18 +27,30 @@ internal static class DashboardSchemaMigration
         if (schemaVersion == CurrentSchemaVersion)
             return false;
 
-        if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+        if (schemaVersion != DateTimeComponentSchemaVersion)
         {
-            _ = UpgradeToPropertyModelNormalization(root);
-            schemaVersion = ReadSchemaVersion(root);
+            if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+            {
+                _ = UpgradeToPropertyModelNormalization(root);
+                schemaVersion = ReadSchemaVersion(root);
+            }
+
+            if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+                throw new InvalidDataException(
+                    $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
+
+            // Schema 19 has no quantitative Component. Keep its DateTime state unavailable
+            // until the user explicitly selects a numeric projection.
+            root["schemaVersion"] = DateTimeComponentSchemaVersion;
+            schemaVersion = DateTimeComponentSchemaVersion;
         }
 
-        if (schemaVersion != PropertyModelNormalizationSchemaVersion)
+        if (schemaVersion != DateTimeComponentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
 
-        // Schema 19 has no quantitative Component. Keep its DateTime state unavailable
-        // until the user explicitly selects a numeric projection.
+        // Schema 20 Binary widgets had no Component: leave it unset, preserving unavailable
+        // DateTime evaluation until the user explicitly configures the projection.
         root["schemaVersion"] = CurrentSchemaVersion;
         return true;
     }

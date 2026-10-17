@@ -95,18 +95,22 @@ internal sealed class WidgetRenderContext : IDisposable
         }
 
         object? evaluationValue = raw;
-        if (string.Equals(
+        var descriptor = MetricContract.GetDescriptor(widget.Metric);
+        var dateTime = descriptor?.ValueKind == MetricValueKind.DateTime;
+        var numericSetpoint = descriptor is not null &&
+            MetricContract.IsNumericValueKind(descriptor.ValueKind) &&
+            string.Equals(
                 widget.EvaluationMode,
                 BinarySignalContract.EvaluationModeSetpoint,
-                StringComparison.OrdinalIgnoreCase))
+                StringComparison.OrdinalIgnoreCase);
+
+        // DateTime must be explicitly projected for both Auto and Setpoint.
+        // Without a component (or a usable reading), evaluation remains unavailable.
+        if (dateTime || numericSetpoint)
         {
-            var descriptor = MetricContract.GetDescriptor(widget.Metric);
-            if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
-            {
-                if (!TryGetMetricDouble(widget, out var converted))
-                    return false;
-                evaluationValue = converted;
-            }
+            if (!TryGetMetricDouble(widget, out var converted))
+                return false;
+            evaluationValue = converted;
         }
 
         if (!BinarySignalContract.TryResolve(
@@ -660,7 +664,7 @@ internal sealed class WidgetRenderContext : IDisposable
     }
 
     public bool TryGetMetricDouble(CanonicalDashboard.BinaryWidgetDefinition widget, out double value) =>
-        TryGetMetricDouble(widget.Metric, widget.Unit, out value);
+        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, out value);
 
     public bool TryGetMetricDouble(CanonicalDashboard.QuantitativeWidgetDefinition widget, out double value) =>
         TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, out value);

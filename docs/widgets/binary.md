@@ -30,7 +30,7 @@ Binary always uses a telemetry metric. Unlike [Text / Value](text-value.md), it 
 You can select a metric from an enabled provider, including [System](../telemetry/system.md), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md), or [iCUE Sensor Logging](../telemetry/icue-sensor-logging.md).
 
 !!! info
-    Binary can work with Boolean, numeric, and text metrics. The metric's value type matters because it determines how `Auto` and `Setpoint` evaluate it.
+    Binary can work with Boolean, numeric, text, and DateTime metrics. DateTime needs an explicitly selected numeric Component; the metric's value type determines how `Auto` and `Setpoint` evaluate it.
 
     The selected provider must be supplying a usable current value for Binary to select a visual state.
 
@@ -60,6 +60,8 @@ The current evaluation rules are:
 | Finite numeric value other than zero | True |
 | Empty string | False |
 | Non-empty string | True, except for reserved unavailable strings |
+| DateTime with selected numeric Component | Uses the projected number: zero is False, nonzero is True. |
+| DateTime without a selected Component | No state can be selected. |
 | Missing, `null`, or unsupported value | No state can be selected |
 
 !!! warning
@@ -87,6 +89,10 @@ For example, to indicate when a temperature is above 70 °C, select the temperat
 
     A numeric `Setpoint` is entered as a number, without a unit symbol. For numeric metrics, the selected `Unit` determines the unit used in the comparison.
 
+
+For a DateTime metric (for example, `system.os.datetime`), select **Data → Value → Component** first. Choose Year, Month, Day of month/year/week (ISO), Hour (24-hour / 12-hour), Minute, or Second. Binary uses the continuous numeric projection defined by the same [Component](properties.md#component) contract as Gauge/Bar. For example, `Component = hour24`, `Mode = Setpoint`, `True If = >=`, `Setpoint = 18` means True from 18:00 until midnight and False earlier.
+
+In `Auto`, a selected DateTime Component uses ordinary numeric truth semantics, so midnight with `hour24` evaluates False, while 01:00 evaluates True. Without an explicitly selected Component, evaluation is unavailable in either mode, not False. The numeric component is **independent of the text Format** used when a state displays the metric as Value.
 
 See [Evaluation Mode](properties.md#evaluation-mode), [True If](properties.md#true-if), and [Setpoint](properties.md#setpoint).
 
@@ -161,6 +167,7 @@ These are property combinations, not prebuilt dashboard files.
 | Exact text state | Select a text metric; `Mode = Setpoint`; `Setpoint = online` | True only when the text equals `online` exactly, including letter case. |
 | Value-based warning | `Mode = Setpoint`; set True and False `Source Type = Value`; configure each state’s text color | Both states display the current metric reading with the appearance of the evaluated state. |
 | Different icons | Set True and False to `Icon` with different sources and opacity | Displays the icon associated with the current logical state. |
+| Evening indicator | `Metric = system.os.datetime`; `Component = hour24`; `Mode = Setpoint`; `True If = >=`; `Setpoint = 18` | True from 18:00 to midnight, False earlier; unavailable when time data or Component is missing. |
 
 ---
 ## Technical Information
@@ -179,6 +186,7 @@ The widget reads an existing metric snapshot. It does not poll providers or inte
 Key implementation components:
 
 - `BinarySignalContract` — Boolean, numeric, and text evaluation.
+- `DateTimeComponentContract` — shared numeric projection of DateTime/DateTimeOffset for Boolean-state evaluation.
 - `Widgets.WidgetRenderContext.TryResolveBinaryVisualProfile` — metric lookup, optional numeric unit conversion, state resolution, and profile selection.
 - `DashboardModel.StateVisualProfileDefinition` — canonical state-specific content and presentation.
 - `Widgets.StateProfileWidgetRenderer` — shared Value/Icon/Image state rendering.
@@ -198,6 +206,7 @@ Binary-specific JSON fields:
 | --- | --- | --- |
 | `type` | Discriminator `binary` | Persistent widget identity by type. |
 | `metric` | `Metric` | Required metric ID. |
+| `component` | `Component` | Optional DateTime numeric projection for Auto/Setpoint evaluation (schema 21). |
 | `unit` | `Unit` | Selected presentation unit; also used for numeric Setpoint evaluation. |
 | `format` | `Format` | Value-state text formatting. |
 | `prefix` | `Prefix` | Text before a formatted Value-state reading. |
@@ -230,7 +239,7 @@ For `Auto`, the implementation recognizes:
 
 The strings `nil` and `undefined` are considered unavailable with case-insensitive matching. Arbitrary non-empty text, including the literal string `false`, evaluates to True.
 
-A `null`, unsupported object type, or non-finite number does not yield a valid Boolean state.
+A `null`, unsupported object type, or non-finite number does not yield a valid Boolean state. DateTime/DateTimeOffset requires a selected `Component`: it is projected to a finite scalar, then evaluated with the same zero/nonzero rule. With no Component, DateTime evaluation is unavailable.
 
 #### Setpoint evaluation
 
@@ -246,7 +255,7 @@ The numeric operator is selected from `>`, `<`, `>=`, `<=`, and `=`. An unsuppor
 
 For Boolean and string values, `TrueIf` does not control evaluation. Their Setpoint behavior is equality-based.
 
-For numeric metrics with a known numeric `MetricDescriptor`, `WidgetRenderContext.TryResolveBinaryVisualProfile` first requests a converted numeric value using `TryGetMetricDouble(widget, ...)`. This uses the widget's `Unit` and the standard `MetricValueConverter` contract. `BinarySignalContract` then compares the converted value with the entered setpoint.
+For numeric metrics with a known numeric `MetricDescriptor`, `WidgetRenderContext.TryResolveBinaryVisualProfile` first requests a converted numeric value using `TryGetMetricDouble(widget, ...)` in Setpoint mode. DateTime descriptors use the same numeric lookup in both Auto and Setpoint modes, with the selected `Component` passed to `DateTimeComponentContract`. This uses the widget's `Unit` and the standard `MetricValueConverter` contract. `BinarySignalContract` then compares the converted value with the entered setpoint.
 
 For example, with a Celsius-base temperature metric, selecting `Unit = F` makes numeric Setpoint evaluation operate on the Fahrenheit value. The source metric itself is not changed.
 
@@ -257,7 +266,7 @@ For example, with a Celsius-base temperature metric, selecting `Unit = F` makes 
 State resolution follows this sequence:
 
 - Read the configured metric from the current snapshot.
-- If Setpoint mode applies to a numeric metric with a descriptor, perform numeric conversion using the selected unit.
+- If the metric is DateTime, project the explicitly selected Component into a finite number for either mode; otherwise if Setpoint applies to a numeric metric with a descriptor, perform numeric unit conversion.
 - Evaluate using `BinarySignalContract.TryResolve`.
 - On success, select key `true` or `false`.
 - Resolve the matching canonical profile and project it to the rendering representation.
@@ -293,7 +302,7 @@ A Value profile displays the selected metric's formatted value, not the logical 
 
 The formatting pipeline supports the metric kinds recognized by `MetricValueFormatter`, including Number, Percent, Duration, DataSize, DateTime, Boolean, and Text.
 
-The `Data → Value` group is shown when at least one state uses Value content or when Setpoint evaluation is active. `Source Unit` is informational and read-only.
+The `Data → Value` group is shown when at least one state uses Value content, when Setpoint evaluation is active, **or when the metric is DateTime**. The DateTime `Component` selector is shown for both evaluation modes even with only Icon/Image states. `Source Unit` is informational and read-only.
 
 In Setpoint mode, numeric `Unit` options are constrained to units suitable for numerical comparison; presentation-only choices such as duration `auto` must not be passed into the numeric comparison path.
 
@@ -321,6 +330,7 @@ The current canonical Editor property model exposes:
 
 - `General → Source → Metric` — required data source.
 - `Data → Evaluation → Mode` — always available for Binary.
+- `Data → Value → Component` — available for DateTime metrics regardless of state content; selects the numeric input for Auto/Setpoint.
 - `Data → Evaluation → True If / Setpoint` — applicable when `Mode = Setpoint`.
 - `States → State: True / State: False` — separate state source selection.
 - `Image` — state image fit, loop, color/tint when supported, and opacity for graphical state sources.
@@ -338,6 +348,7 @@ See [Widget Properties — Tabs](properties-by-tab.md) and [Widget Property Dict
 Canonical validation requires:
 
 - a non-empty metric ID;
+- a valid optional DateTime `Component` token (unsupported tokens are rejected);
 - supported `EvaluationMode` and `TrueIf` values;
 - valid and complete `true` and `false` profiles, with no unsupported state keys;
 - structurally valid and resolvable active image assets;
@@ -351,7 +362,7 @@ The following contracts are compatibility-sensitive:
 
 - Persisted type remains `binary`.
 - Public states remain `true` and `false`; missing evaluation is neither.
-- Auto evaluation preserves type-specific Boolean, number, and string behavior.
+- Auto evaluation preserves type-specific Boolean, number, and string behavior; DateTime is evaluated only when a numeric Component has been explicitly selected.
 - Numeric Setpoint comparisons use the configured numeric presentation unit.
 - Boolean and string Setpoint evaluation use equality semantics, not the numeric operator.
 - The current metric value is displayed in a Value profile; it is not automatically replaced with a textual state label.
@@ -359,6 +370,7 @@ The following contracts are compatibility-sensitive:
 - Mixed graphical/value profiles use explicit container geometry; Value-only profiles can use content-derived geometry.
 - Editor preview and Runtime share the canonical state-profile projection and rendering semantics.
 - Missing telemetry must not reuse stale state data or silently choose the False profile.
+- Schema-20 Binary widgets migrate to schema 21 with `Component = null`; legacy DateTime state remains unavailable until configured. Migration and repeated parse/save preserve the selected Component.
 - Persisted schema, profile behavior, evaluation semantics, or value rendering changes require intentional compatibility analysis and deterministic regression coverage when reliably testable.
 
 For implementation source, see [PinkieSysMon on GitHub](https://github.com/Jim1537/PinkieSysMon).

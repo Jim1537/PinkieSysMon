@@ -187,7 +187,9 @@ internal static class Program
             ("Quantitative widget unit conversion", QuantitativeWidgetUnitConversion),
             ("Quantitative widget unit property visibility", QuantitativeWidgetUnitPropertyVisibility),
             ("Issue66 DateTime component projection, editor and cache", DateTimeComponentTests.ProjectionEditorAndCache),
-            ("Issue66 schema 19 to 20 and quantitative compatibility", DateTimeComponentTests.SchemaMigrationAndCompatibility),
+            ("Issue66 schema 19 migration and quantitative compatibility", DateTimeComponentTests.SchemaMigrationAndCompatibility),
+            ("Issue81 Binary DateTime evaluation and Editor component", Issue81BinaryDateTimeTests.EvaluationAndEditor),
+            ("Issue81 Binary DateTime schema 20 migration", Issue81BinaryDateTimeTests.SchemaMigration),
             ("Windows internet connectivity metric", WindowsInternetConnectivityMetric),
             ("Binary numeric truth semantics", BinaryNumericTruthSemantics),
             ("Binary setpoint semantics", BinarySetpointSemantics),
@@ -6112,7 +6114,7 @@ internal static class Program
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 13 dashboard must migrate Power presentation to the current schema.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Power migration must end at current schema 20.");
+            "Power migration must end at current schema 21.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Power widget is missing.");
@@ -6444,7 +6446,7 @@ internal static class Program
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 14 dashboard must migrate Media Player presentation to the current schema.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Media Player migration must end at current schema 20.");
+            "Media Player migration must end at current schema 21.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Media Player widget is missing.");
@@ -6804,7 +6806,7 @@ internal static class Program
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 15 dashboard must migrate Media System presentation to the current schema.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Media System migration must end at current schema 20.");
+            "Media System migration must end at current schema 21.");
 
         var widget = ((root["widgets"] as JsonArray)?[0] as JsonObject)
             ?? throw new InvalidOperationException("Migrated Media System widget is missing.");
@@ -6896,7 +6898,7 @@ internal static class Program
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 10 dashboard must report a migration to the current schema.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Schema 10 migration must end at current schema 20.");
+            "Schema 10 migration must end at current schema 21.");
 
         var widgets = root["widgets"] as JsonArray
             ?? throw new InvalidOperationException("Migrated dashboard widgets are missing.");
@@ -7073,7 +7075,7 @@ internal static class Program
             Assert(DashboardSchemaMigration.UpgradeToCurrent(legacy),
                 "Schema 11 dashboard must migrate to the canonical current schema after legacy primitive removal.");
             Assert(legacy["schemaVersion"]?.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-                "Legacy primitive removal chain must terminate at schema 20.");
+                "Legacy primitive removal chain must terminate at schema 21.");
             var migratedWidget = ((legacy["widgets"] as JsonArray)?[0] as JsonObject)
                 ?? throw new InvalidOperationException("Migrated legacy-property widget is missing.");
             Assert(!migratedWidget.ContainsKey("spacing") &&
@@ -8044,7 +8046,7 @@ internal static class Program
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
             "Schema 16 dashboard must migrate Canvas geometry and image layers to the current schema.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Canvas migration must end at current schema 20.");
+            "Canvas migration must end at current schema 21.");
 
         var canvas = root["canvas"] as JsonObject
             ?? throw new InvalidOperationException("Migrated Canvas is missing.");
@@ -8079,9 +8081,9 @@ internal static class Program
             """) as JsonObject ?? throw new InvalidOperationException("Could not create schema 17 Canvas migration document.");
 
         Assert(DashboardSchemaMigration.UpgradeToCurrent(root),
-            "Schema 17 dashboard must migrate raw Canvas paths through canonical schema 20.");
+            "Schema 17 dashboard must migrate raw Canvas paths through canonical schema 21.");
         Assert(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Schema 17 migration must end at current schema 20.");
+            "Schema 17 migration must end at current schema 21.");
 
         var canvas = root["canvas"] as JsonObject
             ?? throw new InvalidOperationException("Migrated Canvas is missing.");
@@ -11231,7 +11233,7 @@ internal static class Program
 
         AssertThrows<InvalidDataException>(
             () => DashboardJson.ParseCurrent(root.ToJsonString(), Path.Combine(Path.GetTempPath(), "dashboard.json")),
-            "Schema 20 current-schema deserialization must reject unknown widget fields.");
+            "Schema 21 current-schema deserialization must reject unknown widget fields.");
     }
 
     private static void CanonicalDashboardJsonRoundTrip()
@@ -11251,7 +11253,7 @@ internal static class Program
         var first = JsonNode.Parse(json)!.ToJsonString();
         var second = JsonNode.Parse(savedAgain)!.ToJsonString();
         Assert(first == second,
-            "Canonical schema-20 save -> parse -> save must be structurally idempotent for an unchanged dashboard.");
+            "Canonical schema-21 save -> parse -> save must be structurally idempotent for an unchanged dashboard.");
     }
 
     private static void PropertyModelSchema19MigrationIdempotence()
@@ -11298,9 +11300,9 @@ internal static class Program
         Assert(definition.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
                definition.Widgets.Single() is PinkieSysMon.DashboardModel.ValueWidgetDefinition value &&
                value.Metric == metric,
-            "Runtime dashboard loading must migrate schema 18 into the canonical schema-20 typed model before use.");
+            "Runtime dashboard loading must migrate schema 18 into the canonical schema-21 typed model before use.");
         Assert(DashboardMetricUsage.Collect(definition).SetEquals([metric]),
-            "Runtime metric discovery must consume the canonical schema-20 widget model.");
+            "Runtime metric discovery must consume the canonical schema-21 widget model.");
     }
 
     private static void CanonicalDashboardMetricUsageSemantics()
@@ -11367,8 +11369,8 @@ internal static class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 20,
-            "The executable current dashboard contract must be schema 20.");
+               MetricContract.DashboardSchemaVersion == 21,
+            "The executable current dashboard contract must be schema 21.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

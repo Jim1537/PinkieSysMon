@@ -274,6 +274,10 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
     [JsonPropertyName("metric")]
     public string? Metric { get; set; }
 
+    [JsonPropertyName("component")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Component { get; set; }
+
     [JsonPropertyName("unit")]
     public string? Unit { get; set; }
 
@@ -302,6 +306,7 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
     {
         base.Validate(dashboardBaseDirectory);
         RequireMetric(Metric);
+        global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"Binary widget '{Id}'");
         if (!global::PinkieSysMon.BinarySignalContract.SupportedEvaluationModes.Contains(EvaluationMode, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"Binary widget '{Id}' has invalid EvaluationMode '{EvaluationMode}'.");
         if (!global::PinkieSysMon.BinarySignalContract.SupportedTrueIfOperators.Contains(TrueIf, StringComparer.Ordinal))

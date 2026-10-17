@@ -138,7 +138,7 @@ internal static class DateTimeComponentTests
 
         Check(DashboardSchemaMigration.UpgradeToCurrent(previous) &&
               previous["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Schema 19 must migrate deterministically to schema 20.");
+            "Schema 19 must migrate deterministically through schema 20 to the current schema.");
         var firstMigration = previous.ToJsonString();
         Check(!DashboardSchemaMigration.UpgradeToCurrent(previous) &&
               previous.ToJsonString() == firstMigration,
@@ -150,7 +150,7 @@ internal static class DateTimeComponentTests
             "Old Gauge and Bar definitions must not acquire an invented DateTime component.");
         var saved = DashboardJson.Serialize(migrated, indented: false);
         var savedTwice = DashboardJson.Serialize(DashboardJson.ParseCurrent(saved, path), indented: false);
-        Check(saved == savedTwice, "Migrated schema 20 must be parse/save idempotent.");
+        Check(saved == savedTwice, "Migrated dashboards must be parse/save idempotent.");
 
         var invalid = JsonNode.Parse(original)!.AsObject();
         invalid["widgets"]![0]!["component"] = "hh:mm";
@@ -176,8 +176,8 @@ internal static class DateTimeComponentTests
             antialias: false, fonts);
         Check(context.TryGetMetricDouble(numeric, out var minutes) && minutes == 2d,
             "A dormant DateTime Component must not change an existing numeric unit conversion.");
-        Check(MetricContract.DashboardSchemaVersion == 20,
-            "Canonical dashboard schema ownership must advance to version 20.");
+        Check(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Canonical dashboard schema ownership must match the current migration version.");
     }
 
     private static void Verify(string component, double expected)

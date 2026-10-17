@@ -476,7 +476,8 @@ internal static class CanonicalPropertyViewBuilder
                 var setpoint = string.Equals(binary.EvaluationMode, BinarySignalContract.EvaluationModeSetpoint, StringComparison.OrdinalIgnoreCase);
                 MetricDescriptor? CurrentMetric() => MetricContract.GetDescriptor(binary.Metric);
                 var metric = CurrentMetric();
-                if (usesValue || setpoint)
+                var dateTime = metric?.ValueKind == MetricValueKind.DateTime;
+                if (usesValue || setpoint || dateTime)
                 {
                     var valueRows = new List<PropertyDescriptor>
                     {
@@ -501,7 +502,20 @@ internal static class CanonicalPropertyViewBuilder
                                 : NotApplicable("Metric"))
                     };
 
-                    if (metric?.ValueKind == MetricValueKind.DateTime && usesValue)
+                    if (dateTime)
+                    {
+                        valueRows.Add(new CanonicalPropertyDescriptor(
+                            nameof(C.BinaryWidgetDefinition.Component),
+                            "data.binary.datetime_component",
+                            "Component",
+                            binary,
+                            typeof(string),
+                            () => DateTimeComponentContract.GetLabel(binary.Component),
+                            value => binary.Component = DateTimeComponentContract.NormalizeOrThrow(Convert.ToString(value)),
+                            converter: ComponentConverter));
+                    }
+
+                    if (dateTime && usesValue)
                     {
                         valueRows.Add(DateTimeFormat(
                             binary,
