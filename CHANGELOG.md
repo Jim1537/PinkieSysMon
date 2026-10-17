@@ -9,7 +9,7 @@ Notable changes to PinkieSysMon, newest first.
 
 ## [2.46.239] - 2026-10-17 (development build)
 
-Major v2 development snapshot since the 1.20.0 test candidate, based on source commit [`dc6ba63`](https://github.com/Jim1537/PinkieSysMon/commit/dc6ba63b3152ee3f86ea5d372267a4f9938107ea). The version was reported for the built artifact; this entry does not imply publication of a GitHub Release.
+This [published development release](https://github.com/Jim1537/PinkieSysMon/releases/tag/2.46.239) records the major v2 snapshot since the 1.20.0 test candidate. Its release notes identify source commit [`dc6ba63`](https://github.com/Jim1537/PinkieSysMon/commit/dc6ba63b3152ee3f86ea5d372267a4f9938107ea). Later `main` changes belong under **Unreleased**.
 
 ### Added
 - **Architecture — independent Outputs:** Run multiple native Desktop panels and supported physical USB displays with separately assigned dashboards, stable Output IDs, refresh intervals, enablement, and lifecycles. A single dashboard can be shared by multiple Outputs ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)).

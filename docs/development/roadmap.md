@@ -2,7 +2,7 @@
 
 Pinkie's System Monitor evolved through a sequence of small development passes. This page summarizes the **accepted historical milestones** and links to **GitHub Issues** for follow-up work.
 
-**Historical review date: October 8, 2026.** Dates below describe documented engineering and acceptance, not necessarily releases or the creation dates of imported Issues. **Completed** applies only to the stated scope; source/regression acceptance is not a substitute for real-device testing. Individual task states and acceptance criteria belong to the [Issues tracker](https://github.com/Jim1537/PinkieSysMon/issues).
+**Historical review date: October 17, 2026.** Dates below describe documented engineering and acceptance, not necessarily releases or the creation dates of imported Issues. **Completed** applies only to the stated scope; source/regression acceptance is not a substitute for real-device testing. Individual task states and acceptance criteria belong to the [Issues tracker](https://github.com/Jim1537/PinkieSysMon/issues).
 
 ## Historical milestones
 
@@ -53,6 +53,12 @@ The major persisted-data milestone was **dashboard schema 19**: canonical typed 
 MkDocs Material documentation was published. Telemetry and widget reference material, hardware compatibility and device-integration notes were organized; general documentation became device-neutral. Historical closed defects and outstanding issues were migrated into GitHub Issues.
 
 **References:** [MkDocs migration (PR #1)](https://github.com/Jim1537/PinkieSysMon/pull/1), [Supported Devices and integration notes (PR #12)](https://github.com/Jim1537/PinkieSysMon/pull/12), [device-neutral documentation (PR #13)](https://github.com/Jim1537/PinkieSysMon/pull/13), [sidebar organization (PR #14)](https://github.com/Jim1537/PinkieSysMon/pull/14).
+
+### October 14–17, 2026 — Independent Outputs and v2 development release
+
+**Completed for the accepted software and bounded Windows integration scopes; exceptional physical-device testing remains outstanding.**
+
+The owner accepted independent Desktop and physical Output workflows on October 14 ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)); the related documentation expansion was completed separately ([#62](https://github.com/Jim1537/PinkieSysMon/issues/62)). On October 17, the [2.46.239 development snapshot](https://github.com/Jim1537/PinkieSysMon/releases/tag/2.46.239) was published. The accepted scope does not establish two-device physical operation or exhaustive USB fault/stress recovery; #58 retains the detailed acceptance boundaries. For the published feature inventory, see the release notes.
 
 ## Maintenance principle
 
