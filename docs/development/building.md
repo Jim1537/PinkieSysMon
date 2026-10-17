@@ -35,7 +35,6 @@ config/app.json                  Public, machine-neutral defaults
 tools/                           Local code-signing helpers
 builder.ps1                      Interactive menu and session diagnostic log
 build.ps1                        Noninteractive compilation, regression, deployment and Git executor
-pull-build.ps1                   Noninteractive pull/build/regression shortcut
 ```
 
 Build output is generated under `artifacts/` and is not tracked. Portable release ZIPs are generated under `release/`; that directory is also intentionally gitignored.
@@ -46,7 +45,7 @@ The authoritative public/private source boundary and exclusion inventory are mai
 
 Every build uses `vA.B.C`. `A` is the major explicitly chosen by the owner (currently `2`, in `Directory.Build.props`); `B` is the live total of closed GitHub Issues in this repository (excluding pull requests); `C` is the number of Git commits reachable from `main` HEAD, including documentation commits and merges. Before compilation, `build.ps1` queries the GitHub Issues search total and executes `git rev-list --count HEAD`. Builds from non-`main` or shallow history, or without a reliable live issue count, stop instead of manufacturing a version.
 
-The resulting `Version` and `InformationalVersion` are `A.B.C`; Windows `AssemblyVersion` and `FileVersion` must have four components, so they are `A.B.C.0`. The final zero is a Windows metadata field, **not** the build number. The same version is injected into Runtime, Editor and regression build, and published EXE/DLL file metadata are validated before signing. The portable archive is named `PinkieSysMon_A.B.C.zip` without a trailing `-0`. Direct project compilation without version resolution fails; the developer-facing entry point is `builder.ps1`, which invokes the noninteractive `build.ps1` executor.
+The resulting `Version` and `InformationalVersion` are `A.B.C`; Windows `AssemblyVersion` and `FileVersion` must have four components, so they are `A.B.C.0`. The final zero is a Windows metadata field, **not** the build number. The same version is injected into Runtime, Editor and regression build, and published EXE/DLL file metadata are validated before signing. The portable archive is named `PinkieSysMon_A.B.C.zip` without a trailing `-0`. Direct project compilation without version resolution fails; use the interactive `builder.ps1` or invoke the same noninteractive `build.ps1` executor with an explicit `-Action`.
 
 B can change on Issue closure/reopening even without a new commit, and reopening can decrease it. Each binary keeps the count observed at the beginning of its build; historic Issue milestone titles do not define the live version. A major change requires separate owner approval. Network access to GitHub is required to verify B; no stale fallback is allowed.
 
@@ -73,7 +72,7 @@ Each launch overwrites the root-level, ignored `builder.log` and records the int
 
 The build stores ignored `artifacts/build-state.json`; a successful regression run writes `artifacts/regression-state.json`. These records bind the current source HEAD and SHA-256 fingerprints of non-ignored build/release inputs to the compiled package. Changes to source inputs or packaged binaries, missing artifacts, or regressions that did not pass **for the same build** block local deployment. Rebuilding resets acceptance. The version assigned to an existing build is retained even if the live closed-Issue count later changes.
 
-`build.ps1` requires an explicit `-Action` and contains no interactive prompts or menus. Its supported actions are `Sync`, `BuildOnly`, `RegressionOnly`, `LocalOnly`, and `GitHubOnly`; the optional `-CommitMessage` supplies the message for a GitHub commit. `builder.ps1` owns user prompts. The retained noninteractive `.\pull-build.ps1` wrapper uses the same build executor, preserving outputs for later local publication.
+For noninteractive command-line operation, run `build.ps1` with one explicit `-Action`: `Sync`, `BuildOnly`, `RegressionOnly`, `LocalOnly`, or `GitHubOnly`. The optional `-CommitMessage` is supported with `GitHubOnly`; if local changes require a commit and the message is omitted, the executor generates a default. The script never displays a menu or requests input. `builder.ps1` owns all interactive prompts and calls the same executor for each selected action.
 
 ### GitHub synchronization
 
@@ -100,7 +99,7 @@ until synchronization has been resolved explicitly.
 
 Run the build and regression checks again after synchronizing updated source.
 
-For the typical **pull → build → regression checks → local publish** sequence, choose menu options **1, 2, 3, 4** in `.\builder.ps1`. The single compilation is reused for checks and local publishing. Menu option **5 — push** is separate: a commit changes Git HEAD, so any previously staged build must be rebuilt before another local publish. The legacy `.\pull-build.ps1` shortcut performs pull, build, and regressions without installing, committing, or pushing.
+For the typical **pull → build → regression checks → local publish** sequence, choose menu options **1, 2, 3, 4** in `.\builder.ps1`, or run the corresponding `build.ps1 -Action` commands in that order. Both entry points reuse a single compilation for checks and local publishing. Push is separate: a commit changes Git HEAD, so previously staged build artifacts must be rebuilt before a later local publish.
 
 
 ### Local code signing

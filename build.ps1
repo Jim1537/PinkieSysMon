@@ -969,7 +969,7 @@ function Get-PinkieSourceDigest {
     $rows = @("HEAD=$($head[0])")
     foreach ($entry in @($files | Sort-Object -Unique)) {
         $name = ([string]$entry).Replace('\', '/')
-        if ($name -notmatch '^(src/|tests/|tools/|assets/fonts/Roboto/|assets/icons/Lucide/|dashboards/Default/|config/app[.]json$|Directory[.]Build[.]props$|build[.]ps1$|builder[.]ps1$|pull-build[.]ps1$|global[.]json$|NuGet[.]Config$|[^/]+[.](?:sln|slnx|props|targets)$|LICENSE$|THIRD-PARTY-NOTICES[.]md$)') { continue }
+        if ($name -notmatch '^(src/|tests/|tools/|assets/fonts/Roboto/|assets/icons/Lucide/|dashboards/Default/|config/app[.]json$|Directory[.]Build[.]props$|build[.]ps1$|builder[.]ps1$|global[.]json$|NuGet[.]Config$|[^/]+[.](?:sln|slnx|props|targets)$|LICENSE$|THIRD-PARTY-NOTICES[.]md$)') { continue }
         $path = Join-Path $root $entry
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $rows += ('{0}:{1}' -f $name, (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash)
