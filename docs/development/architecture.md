@@ -165,6 +165,8 @@ The Runtime tray uses this root order, with a separator between each row group:
 | Read-only overall **Status**, then **Open Logs Folder** | Aggregate active/visible/connected counts and the existing local logs folder. |
 | **Exit** | Explicit Runtime shutdown. |
 
+A left-button double-click on the Runtime notification-area icon activates the same **Control Center** menu item, opening the Editor without changing any Output state. The menu remains available via right-click.
+
 Each configured Output appears once. Its parent remains accessible when disabled; Enabled is the only remaining activation control. Dashboard choices, Reload and Desktop Lock are disabled when saved enablement is off. Physical enabling additionally requires fresh identity/consent eligibility. The retired Outputs/Edit Output Dashboard/removal branches and per-target State/Visible rows are absent. Tray and IPC actions share telemetry-demand reconciliation and the existing selected-target configuration requests.
 
 `RuntimeTrayMenu` owns ordinary WinForms menu items. Root opening discovers saved dashboard choices and projects manager/session snapshots; passive inventory follows the [physical discovery contract](../outputs/physical_devices.md#passive-inventory-and-explicit-adoption). Replacement prepares new entries before adoption and disposes retired items while still owned, letting WinForms remove them and release their nested submenus; a projection failure cancels opening rather than displaying stale interactive entries. The existing status timer updates only aggregate status/notifications/tooltip, without dashboard discovery, USB probes or an additional timer.

@@ -11,13 +11,15 @@ internal sealed class RuntimeTrayMenu : IDisposable
 
     public ContextMenuStrip Menu { get; } = new();
     public ToolStripMenuItem Status { get; } = Information("Starting...");
+    public ToolStripMenuItem ControlCenter { get; }
 
     public RuntimeTrayMenu(Action openEditor, Action<RuntimeIpcCommand> execute,
         Action openLogs, Action<string, bool> setPhysicalEnabled)
     {
         _execute = execute;
         _setPhysicalEnabled = setPhysicalEnabled;
-        Menu.Items.Add(ActionItem("Control Center", openEditor));
+        ControlCenter = ActionItem("Control Center", openEditor);
+        Menu.Items.Add(ControlCenter);
         Menu.Items.Add(new ToolStripSeparator());
         Menu.Items.Add(_desktopHeading);
         Menu.Items.Add(new ToolStripSeparator());

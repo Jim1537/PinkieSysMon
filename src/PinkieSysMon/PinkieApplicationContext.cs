@@ -184,6 +184,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _trayIcon.Icon = _applicationIcon ?? SystemIcons.Application;
         _trayIcon.Text = "PinkieSysMon";
         _trayIcon.ContextMenuStrip = _trayMenu.Menu;
+        _trayIcon.MouseDoubleClick += (_, e) =>
+        {
+            if (!_exiting && e.Button == MouseButtons.Left)
+                _trayMenu.ControlCenter.PerformClick();
+        };
         _trayIcon.Visible = true;
     }
 

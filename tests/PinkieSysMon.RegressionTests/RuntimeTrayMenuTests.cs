@@ -21,17 +21,21 @@ internal static class RuntimeTrayMenuTests
               !Item(tray.Menu.Items, "Desktop").Enabled && !Item(tray.Menu.Items, "Desktop").HasDropDownItems &&
               !Item(tray.Menu.Items, "Physical Devices").Enabled && !Item(tray.Menu.Items, "Physical Devices").HasDropDownItems,
             "Each Output must occur once at the root under a non-clickable heading.");
+        Check(ReferenceEquals(tray.ControlCenter, tray.Menu.Items[0]),
+            "The native Control Center command must remain the first root item for tray double-click dispatch.");
+        tray.ControlCenter.PerformClick();
         Item(tray.Menu.Items, "Control Center").PerformClick();
         Item(tray.Menu.Items, "Reload All").PerformClick();
         Item(tray.Menu.Items, "Open Logs Folder").PerformClick();
         Item(tray.Menu.Items, "Exit").PerformClick();
-        Check(editor == 1 && logs == 1 && commands.Select(c => c.Kind).SequenceEqual(
+        Check(editor == 2 && logs == 1 && commands.Select(c => c.Kind).SequenceEqual(
                   new[] { RuntimeIpcCommandKind.StartOrReloadAll, RuntimeIpcCommandKind.Exit }) &&
               commands.All(c => c.TargetId is null) && !tray.Status.Enabled,
             "Fixed root actions must route once through their existing owners; overall status is read-only.");
         var status = tray.Status;
         tray.RefreshOutputs([], [], new HashSet<string>(), new Dictionary<string, int>());
-        Check(tray.Menu.Items.Cast<ToolStripItem>().All(i => i.Tag is null) &&
+        tray.ControlCenter.PerformClick();
+        Check(editor == 3 && tray.Menu.Items.Cast<ToolStripItem>().All(i => i.Tag is null) &&
               ReferenceEquals(status, tray.Status) && !status.IsDisposed,
             "An empty configured snapshot must retain fixed commands/headers/status without phantom Outputs.");
     }
