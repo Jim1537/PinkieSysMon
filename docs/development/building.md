@@ -34,7 +34,7 @@ dashboards/Default/              Public default dashboard
 config/app.json                  Public, machine-neutral defaults
 tools/                           Local code-signing helpers
 builder.ps1                      Interactive menu and session diagnostic log
-build.ps1                        Authoritative compilation, regression, deployment and Git entrypoint
+build.ps1                        Noninteractive compilation, regression, deployment and Git executor
 pull-build.ps1                   Noninteractive pull/build/regression shortcut
 ```
 
@@ -46,7 +46,7 @@ The authoritative public/private source boundary and exclusion inventory are mai
 
 Every build uses `vA.B.C`. `A` is the major explicitly chosen by the owner (currently `2`, in `Directory.Build.props`); `B` is the live total of closed GitHub Issues in this repository (excluding pull requests); `C` is the number of Git commits reachable from `main` HEAD, including documentation commits and merges. Before compilation, `build.ps1` queries the GitHub Issues search total and executes `git rev-list --count HEAD`. Builds from non-`main` or shallow history, or without a reliable live issue count, stop instead of manufacturing a version.
 
-The resulting `Version` and `InformationalVersion` are `A.B.C`; Windows `AssemblyVersion` and `FileVersion` must have four components, so they are `A.B.C.0`. The final zero is a Windows metadata field, **not** the build number. The same version is injected into Runtime, Editor and regression build, and published EXE/DLL file metadata are validated before signing. The portable archive is named `PinkieSysMon_A.B.C.zip` without a trailing `-0`. Direct project compilation without version resolution fails; the supported entry point is `build.ps1`.
+The resulting `Version` and `InformationalVersion` are `A.B.C`; Windows `AssemblyVersion` and `FileVersion` must have four components, so they are `A.B.C.0`. The final zero is a Windows metadata field, **not** the build number. The same version is injected into Runtime, Editor and regression build, and published EXE/DLL file metadata are validated before signing. The portable archive is named `PinkieSysMon_A.B.C.zip` without a trailing `-0`. Direct project compilation without version resolution fails; the developer-facing entry point is `builder.ps1`, which invokes the noninteractive `build.ps1` executor.
 
 B can change on Issue closure/reopening even without a new commit, and reopening can decrease it. Each binary keeps the count observed at the beginning of its build; historic Issue milestone titles do not define the live version. A major change requires separate owner approval. Network access to GitHub is required to verify B; no stale fallback is allowed.
 
@@ -73,7 +73,7 @@ Each launch overwrites the root-level, ignored `builder.log` and records the int
 
 The build stores ignored `artifacts/build-state.json`; a successful regression run writes `artifacts/regression-state.json`. These records bind the current source HEAD and SHA-256 fingerprints of non-ignored build/release inputs to the compiled package. Changes to source inputs or packaged binaries, missing artifacts, or regressions that did not pass **for the same build** block local deployment. Rebuilding resets acceptance. The version assigned to an existing build is retained even if the live closed-Issue count later changes.
 
-The original `.\build.ps1` entrypoint remains supported for the one-shot flow: build, run regressions, then choose **End**, **Publish local** or **Publish GitHub**. The noninteractive `.\pull-build.ps1` convenience wrapper is also retained, with its outputs preserved for later local publish in the menu.
+`build.ps1` requires an explicit `-Action` and contains no interactive prompts or menus. Its supported actions are `Sync`, `BuildOnly`, `RegressionOnly`, `LocalOnly`, and `GitHubOnly`; the optional `-CommitMessage` supplies the message for a GitHub commit. `builder.ps1` owns user prompts. The retained noninteractive `.\pull-build.ps1` wrapper uses the same build executor, preserving outputs for later local publication.
 
 ### GitHub synchronization
 

@@ -1,13 +1,22 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('Prompt', 'End', 'Local', 'GitHub', 'Sync', 'BuildOnly', 'RegressionOnly', 'LocalOnly', 'GitHubOnly')]
-    [string]$Action = 'Prompt',
+    [ValidateSet('Sync', 'BuildOnly', 'RegressionOnly', 'LocalOnly', 'GitHubOnly')]
+    [string]$Action,
 
-    [string]$LocalRoot = 'C:\PinkieSysMon'
+    [string]$LocalRoot = 'C:\PinkieSysMon',
+
+    [string]$CommitMessage
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+
+if ([string]::IsNullOrWhiteSpace($Action)) {
+    throw 'Specify an explicit -Action or use .\builder.ps1 for the interactive menu.'
+}
+if ($PSBoundParameters.ContainsKey('CommitMessage') -and $Action -ne 'GitHubOnly') {
+    throw '-CommitMessage is only accepted for -Action GitHubOnly.'
+}
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $runtimeProject = Join-Path $root 'src\PinkieSysMon\PinkieSysMon.csproj'
@@ -807,7 +816,7 @@ function Sync-GitHub {
         Write-Host ''
         Write-Host 'GITHUB SYNC: PASS'
         Write-Host "Fast-forwarded $branch by $($divergence.RemoteAhead) commit(s) from origin/$branch."
-        Write-Host 'Run .\build.ps1 before publishing the synchronized source.'
+        Write-Host 'Run .\builder.ps1: select 2 (build), then 3 (regression checks), before publishing.'
         return
     }
 
@@ -835,10 +844,10 @@ function Assert-GitHubRemoteCurrentForPublish {
     $divergence = Get-GitBranchDivergence -Branch $branch
     if ($divergence.RemoteAhead -gt 0) {
         if ($divergence.LocalAhead -gt 0) {
-            throw "GitHub publish blocked: local $branch and origin/$branch have diverged. Run .\build.ps1 -Action Sync after resolving local changes explicitly, then rebuild before publishing."
+            throw "GitHub publish blocked: local $branch and origin/$branch have diverged. Use .\builder.ps1 option 1 (pull) after resolving local changes, then rebuild before publishing."
         }
 
-        throw "GitHub publish blocked: origin/$branch is $($divergence.RemoteAhead) commit(s) ahead. Run .\build.ps1 -Action Sync, then rebuild before publishing."
+        throw "GitHub publish blocked: origin/$branch is $($divergence.RemoteAhead) commit(s) ahead. Use .\builder.ps1 option 1 (pull), then rebuild before publishing."
     }
 
     return $branch
@@ -880,6 +889,8 @@ function Assert-GitHubPublishReady {
 }
 
 function Publish-GitHub {
+    param([AllowEmptyString()][string]$CommitMessage)
+
     Assert-GitHubPublishReady
     $branch = Assert-GitHubRemoteCurrentForPublish
 
@@ -930,12 +941,10 @@ function Publish-GitHub {
         Write-Host 'Staged changes:'
         $staged | ForEach-Object { Write-Host "  $_" }
 
-        $defaultMessage = 'PinkieSysMon update ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
-        $message = Read-Host "Commit message [$defaultMessage]"
-        if ([string]::IsNullOrWhiteSpace($message)) {
-            $message = $defaultMessage
-        }
-
+        # Interactive commit-message input belongs to builder.ps1.
+        $message = if ([string]::IsNullOrWhiteSpace($CommitMessage)) {
+            'PinkieSysMon update ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
+        } else { $CommitMessage }
         Invoke-External git '-C' $root 'commit' '-m' $message
     }
 
@@ -1095,7 +1104,7 @@ if ($Action -eq 'Sync') {
 }
 
 if ($Action -eq 'GitHubOnly') {
-    try { Publish-GitHub }
+    try { Publish-GitHub -CommitMessage $CommitMessage }
     catch {
         Write-Host 'GITHUB PUSH: FAIL' -ForegroundColor Red
         Write-Host $_.Exception.Message -ForegroundColor Red
@@ -1131,6 +1140,10 @@ if ($Action -in @('RegressionOnly', 'LocalOnly')) {
         throw
     }
     return
+}
+
+if ($Action -ne 'BuildOnly') {
+    throw "Unsupported build action: $Action"
 }
 
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
@@ -1243,56 +1256,11 @@ try {
     Write-Host ''
     Write-Host 'Building regression runner...'
     Invoke-External dotnet 'build' $testsProject '-c' 'Release' '-o' $testsOut $resolvedVersionArgument
-    $buildRecord = Save-PinkieBuildState -Identity $buildIdentity -InitialSourceDigest $initialSourceDigest
+    Save-PinkieBuildState -Identity $buildIdentity -InitialSourceDigest $initialSourceDigest | Out-Null
     Write-Host ''
     Write-Host 'BUILD: PASS'
     Write-Host "Published package: $publishOut"
-    if ($Action -eq 'BuildOnly') {
-        Write-Host 'REGRESSION: NOT RUN (select 3 - regression checks).'
-        return
-    }
-    Invoke-PinkieExistingRegressions
-    Save-PinkieRegressionState -Record $buildRecord
-    Write-Host 'BUILD/REGRESSION: PASS'
-
-    if ($Action -eq 'Prompt') {
-        Write-Host ''
-        Write-Host '[1] End - clean generated artifacts and exit'
-        Write-Host '[2] Publish local - update C:\PinkieSysMon and build portable release ZIP, leave app stopped'
-        Write-Host '[3] Publish GitHub - clean artifacts, audit, commit and push'
-
-        do {
-            $choice = Read-Host 'Choose 1, 2 or 3'
-        } until ($choice -in @('1', '2', '3'))
-
-        switch ($choice) {
-            '1' { $Action = 'End' }
-            '2' { $Action = 'Local' }
-            '3' { $Action = 'GitHub' }
-        }
-    }
-
-    switch ($Action) {
-        'End' {
-            Remove-DevelopmentArtifacts
-            Write-Host ''
-            Write-Host 'END: generated artifacts cleaned; source tree unchanged.'
-        }
-        'Local' {
-            $preparedRelease = Prepare-PortableReleasePackage
-            Publish-Local
-            Commit-PortableReleasePackage -PreparedPackage $preparedRelease
-            Remove-DevelopmentArtifacts
-        }
-        'GitHub' {
-            # Git must see only source/public material, never generated build output.
-            Remove-DevelopmentArtifacts
-            Publish-GitHub
-        }
-        default {
-            throw "Unsupported action: $Action"
-        }
-    }
+    Write-Host 'REGRESSION: NOT RUN (select 3 - regression checks).'
 } catch {
     Write-Host ''
     Write-Host 'BUILD/PUBLISH: FAIL' -ForegroundColor Red

@@ -65,6 +65,7 @@ try {
         Write-Host ("=== {0}: START ({1}) ===" -f $label, $started.ToString('o'))
 
         try {
+            $pendingChanges = 0
             if (Get-Command git -ErrorAction SilentlyContinue) {
                 $branch = @(& git -C $root branch --show-current)
                 $head = @(& git -C $root rev-parse HEAD)
@@ -74,11 +75,22 @@ try {
                 }
                 $changes = @(& git -C $root status --short)
                 if ($LASTEXITCODE -eq 0) {
+                    $pendingChanges = $changes.Count
                     Write-Host "Git status entries: $($changes.Count)"
                     foreach ($change in $changes) { Write-Host "  $change" }
                 }
             }
-            & $buildScript -Action $action
+            $parameters = @{ Action = $action }
+            if ($action -eq 'GitHubOnly' -and $pendingChanges -gt 0) {
+                # Commit-message input is owned by this interactive wrapper.
+                $defaultMessage = 'PinkieSysMon update ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
+                $message = Read-Host "Commit message [$defaultMessage]"
+                if ([string]::IsNullOrWhiteSpace($message)) {
+                    $message = $defaultMessage
+                }
+                $parameters.CommitMessage = $message
+            }
+            & $buildScript @parameters
             if (-not $?) { throw "$label returned an unsuccessful status." }
             Write-Host ("=== {0}: PASS ({1}s) ===" -f $label, [int]((Get-Date) - $started).TotalSeconds) -ForegroundColor Green
         } catch {
