@@ -16,7 +16,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 
 ### Step 2. Create and configure the panel
 
-1. Choose **Edit → Settings… → Desktop**.
+1. Choose **Settings → Desktop**.
 2. Click **Create New**. The new panel is selected in the list on the left; select an existing entry instead to edit it.
 3. Set **Display name** and choose a saved **Dashboard**. The display name identifies the panel in menus; it does not rename the dashboard.
 4. Configure the selected panel's controls:
@@ -86,9 +86,9 @@ Two panels can use the same saved dashboard. Reload each panel that should recei
 
 ### Remove a panel
 
-In **Edit → Settings… → Desktop**, select the panel, click **Remove**, confirm **Yes**, then **OK**. Cancel leaves the saved configuration unchanged. Removal unloads that panel when applied; dashboard files and other Outputs remain.
+In **Settings → Desktop**, select the panel, click **Remove**, confirm **Yes**, then **OK**. Cancel leaves the saved configuration unchanged. Removal unloads that panel when applied; dashboard files and other Outputs remain.
 
-At least one **configured Output** must remain, counting Desktop and physical Outputs in the same Settings draft. This guard is independent of how many sessions are currently active. Create/adopt another Output before removing the final configured one.
+At least one **configured Output** must remain, counting the Desktop draft plus the saved physical Outputs. This guard is independent of how many sessions are currently active. Create/adopt another Output before removing the final configured one.
 
 ### Troubleshooting
 
@@ -118,7 +118,7 @@ The [panel creation procedure](#step-2-create-and-configure-the-panel) edits the
 
 `OutputTargetContract` rejects Desktop records with hardware bindings, `DeviceEnabled`, JPEG or USB settings. Fresh application defaults configure a Desktop Output rather than implicitly enabling hardware. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
 
-`DesktopSettingsModel` owns copied Desktop targets until OK. It preserves physical target objects, assigns a new stable ID on creation, renumbers Z-order on reorder/removal and uses the combined Device/Desktop draft count for the last-Output guard. `EditorSettingsDialog` binds only the selected draft. Validation and commit use the shared [Settings transaction](../development/architecture.md#settings-save-and-apply).
+`DesktopSettingsModel` owns copied Desktop targets until OK. It preserves physical target objects, assigns a new stable ID on creation, renumbers Z-order on reorder/removal and counts saved physical Outputs for the last-Output guard. `DesktopSettingsDialog` binds only its detached Desktop draft. Validation and commit use the shared [Settings transaction](../development/architecture.md#settings-save-and-apply).
 
 ### Session and native alpha presentation
 

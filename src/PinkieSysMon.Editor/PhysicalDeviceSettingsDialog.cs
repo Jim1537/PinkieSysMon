@@ -1,7 +1,61 @@
 namespace PinkieSysMon.Editor;
 
-internal sealed partial class EditorSettingsDialog
+internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 {
+    private readonly EditorSettingsHelp _help;
+    private readonly IReadOnlyList<string> _dashboardChoices;
+    private readonly int _desktopCount;
+
+    public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
+        Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
+        string? applicationRoot = null)
+    {
+        _help = new EditorSettingsHelp(applicationRoot);
+        _dashboardChoices = dashboards;
+        _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
+        _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
+        _discoverDevices = discoverDevices ?? DeviceDiscovery.EnumerateTrofeoDevices;
+        Text = "Physical Devices Settings";
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MinimizeBox = false;
+        MaximizeBox = false;
+        ShowInTaskbar = false;
+        ClientSize = new Size(900, 600);
+
+        Controls.Add(_settingsTabs);
+        Controls.Add(_discoveryNotice);
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(8), WrapContents = false
+        };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
+        buttons.Controls.Add(cancel);
+        buttons.Controls.Add(ok);
+        AcceptButton = ok;
+        CancelButton = cancel;
+        var notice = new Label
+        {
+            Dock = DockStyle.Bottom, Height = 54,
+            Padding = new Padding(12, 4, 12, 4),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Text = "Changes take effect after OK (Cancel discards them). " +
+                   "A responsive Runtime reloads saved device settings; otherwise they take effect on its next start."
+        };
+        Controls.Add(notice);
+        Controls.Add(buttons);
+        RefreshDeviceDiscovery();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            _help.Dispose();
+        base.Dispose(disposing);
+    }
+
     private readonly DeviceSettingsModel _devices;
     private readonly Func<IReadOnlyList<OutputDeviceDescriptor>> _discoverDevices;
     private readonly TabControl _settingsTabs = new() { Dock = DockStyle.Fill };
@@ -17,17 +71,12 @@ internal sealed partial class EditorSettingsDialog
 
     public void ApplyOutputChanges(AppConfig config)
     {
-        if (_desktops.Desktops.Count + _devices.ConfiguredCount == 0)
+        if (_desktopCount + _devices.ConfiguredCount == 0)
             throw new InvalidOperationException("At least one Output must remain configured.");
-        // Both detached models form one transaction; an intermediate draft can be empty.
         if (DevicesChanged)
             _devices.ValidateForApply(_discoverDevices());
-        _desktops.ApplyTo(config, allowEmptyDraft: true);
-        _devices.ApplyTo(config, allowEmptyDraft: true);
+        _devices.ApplyTo(config);
     }
-
-    private bool CanRemoveDesktop(OutputTargetConfig target) =>
-        _desktops.CanRemove(target) && _desktops.Desktops.Count + _devices.ConfiguredCount > 1;
 
     protected override void OnShown(EventArgs e)
     {
@@ -91,9 +140,8 @@ internal sealed partial class EditorSettingsDialog
                 _settingsTabs.TabPages.Add(page);
             }
             page.Text = $"Device #{index + 1}";
-            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktops.Desktops.Count));
+            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount));
         }
-        _removeDesktop.Enabled = _selectedDesktop is not null && CanRemoveDesktop(_selectedDesktop);
     }
 
     private void AddDevice(OutputTargetConfig target)
@@ -137,7 +185,7 @@ internal sealed partial class EditorSettingsDialog
 
     private void RemoveDevice(OutputTargetConfig target)
     {
-        if (!_devices.CanRemove(target, _desktops.Desktops.Count))
+        if (!_devices.CanRemove(target, _desktopCount))
             return;
         if (MessageBox.Show(this,
                 $"Remove Device Output '{target.Name}'?\n\n" +
@@ -145,7 +193,7 @@ internal sealed partial class EditorSettingsDialog
                 "Remove Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes)
             return;
-        _devices.Remove(target, _desktops.Desktops.Count);
+        _devices.Remove(target, _desktopCount);
         UpdateDevicePages();
     }
 

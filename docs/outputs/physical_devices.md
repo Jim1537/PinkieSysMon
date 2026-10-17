@@ -17,7 +17,7 @@ Adopting an Output creates an application configuration record. It does not crea
 
 ### Step 2. Find the Device tab
 
-Open **Edit → Settings…**. After **General** and **Desktop**, **Device #1**, **Device #2**, and subsequent tabs represent saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Type** and status.
+Open **Settings → Physical Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Type** and status.
 
 | Settings state | Meaning and available actions |
 | --- | --- |
@@ -58,7 +58,7 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 - In the Editor, choose **Output → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
-- Change assignment in **Settings → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
+- Change assignment in **Settings → Physical Devices → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
@@ -78,7 +78,7 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
 
-For removal, use **Control Center → Edit → Settings… → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the combined configured draft, including adopted additions/removals on other tabs; an unsaved unadopted candidate does not count.
+For removal, use **Control Center → Settings → Physical Devices → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
@@ -130,7 +130,7 @@ The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_D
 
 The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
 
-The two detached Settings models form one transaction: physical edits preserve Desktop targets, Desktop edits preserve physical targets, and the final combined configured set cannot be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray has no removal command; its Enabled control uses the selected physical transaction below.
+Desktop and Physical Devices now have independent dialogs and detached drafts. Each preserves the other kind's saved Outputs and rejects a final combined configured set that would be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray has no removal command; its Enabled control uses the selected physical transaction below.
 
 ### Tray Enabled transaction
 

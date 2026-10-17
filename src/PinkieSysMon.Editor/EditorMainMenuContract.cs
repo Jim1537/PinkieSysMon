@@ -5,6 +5,7 @@ internal static class EditorMainMenuContract
     public const string FileMenuText = "File";
     public const string EditMenuText = "Edit";
     public const string ToolsMenuText = "Tools";
+    public const string SettingsMenuText = "Settings";
     public const string OutputMenuText = "Output";
     public const string HelpMenuText = "Help";
 
@@ -13,6 +14,7 @@ internal static class EditorMainMenuContract
         ToolStripMenuItem fileMenu,
         ToolStripMenuItem editMenu,
         ToolStripMenuItem toolsMenu,
+        ToolStripMenuItem settingsMenu,
         ToolStripMenuItem helpMenu,
         ToolStripMenuItem outputMenu)
     {
@@ -20,12 +22,14 @@ internal static class EditorMainMenuContract
         ArgumentNullException.ThrowIfNull(fileMenu);
         ArgumentNullException.ThrowIfNull(editMenu);
         ArgumentNullException.ThrowIfNull(toolsMenu);
+        ArgumentNullException.ThrowIfNull(settingsMenu);
         ArgumentNullException.ThrowIfNull(helpMenu);
         ArgumentNullException.ThrowIfNull(outputMenu);
 
         menu.Items.Add(fileMenu);
         menu.Items.Add(editMenu);
         menu.Items.Add(toolsMenu);
+        menu.Items.Add(settingsMenu);
         menu.Items.Add(helpMenu);
 
         // Output remains right-aligned so the title-bar center keeps useful drag space.

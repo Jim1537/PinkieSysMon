@@ -1874,14 +1874,16 @@ internal static class Program
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
         var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
         var labels = menu.Items.Cast<ToolStripItem>().Select(item => item.Text).ToArray();
-        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Tools", "Help", "Output" }),
-            "Editor top-level menu collection must keep Help immediately after Tools and the Output menu at the right; the redundant Group menu must not return.");
-        Assert(helpMenu.Alignment == ToolStripItemAlignment.Left && outputMenu.Alignment == ToolStripItemAlignment.Right,
+        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Tools", "Settings", "Help", "Output" }),
+            "Settings must follow Tools, Help remains left, and Output remains right; the obsolete Group menu must not return.");
+        Assert(settingsMenu.Alignment == ToolStripItemAlignment.Left &&
+               helpMenu.Alignment == ToolStripItemAlignment.Left && outputMenu.Alignment == ToolStripItemAlignment.Right,
             "Help must participate in the left menu group while Output remains the right-aligned device-control menu.");
         Assert(!labels.Contains("Group", StringComparer.OrdinalIgnoreCase),
             "Editor top-level Group menu must remain removed.");
@@ -1958,10 +1960,11 @@ internal static class Program
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
         var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
         host.Controls.Add(menu);
         form.Controls.Add(host);
         form.MainMenuStrip = menu;
@@ -1980,10 +1983,10 @@ internal static class Program
         var passthrough = EditorWindowChromeContract.GetMenuPassthroughRegions(
             menu.Bounds,
             menu.GetInteractiveItemBounds());
-        Assert(passthrough.Length == 5,
+        Assert(passthrough.Length == 6,
             "Every visible top-level menu item must have an explicit non-client passthrough region.");
 
-        var leftGroupRight = new[] { fileMenu, editMenu, toolsMenu, helpMenu }.Max(item => menu.Left + item.Bounds.Right);
+        var leftGroupRight = new[] { fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu }.Max(item => menu.Left + item.Bounds.Right);
         var rightGroupLeft = menu.Left + outputMenu.Bounds.Left;
         if (rightGroupLeft - leftGroupRight > 8)
         {
@@ -2033,25 +2036,21 @@ internal static class Program
     {
         var config = new AppConfig();
         config.Runtime.IdleTimeoutMinutes = 17;
-        using var dialog = new EditorSettingsDialog(
+        using var dialog = new EditorGeneralSettingsDialog(
             startRuntimeWithWindows: true,
             systemProviderEnabled: true,
             libreHardwareMonitorProviderEnabled: false,
             icueProviderEnabled: true,
             toolbarIconSize: 48,
             themeMode: EditorThemeMode.Dark,
-            config: config,
-            dashboards: ["Default"],
-            discoverDevices: () => Array.Empty<OutputDeviceDescriptor>());
-        var tabs = dialog.Controls.OfType<TabControl>().Single();
-        Assert(tabs.TabPages.Count == 2 && tabs.TabPages[0].Text == "General" &&
-               tabs.TabPages[1].Text == "Desktop",
-            "General and Desktop must remain the only tabs when no physical devices are configured or discovered.");
+            config: config);
+        Assert(!dialog.Controls.OfType<TabControl>().Any(),
+            "Editor Settings must be a standalone non-tabbed dialog.");
         Assert(dialog.StartRuntimeWithWindows && dialog.SystemProviderEnabled &&
                !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
                dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
             "General Settings must preserve startup/provider/theme/icon values passed by their existing owners.");
-        var groups = tabs.TabPages[0].Controls.OfType<GroupBox>().ToArray();
+        var groups = dialog.Controls.OfType<Panel>().Single(panel => panel.Controls.OfType<GroupBox>().Any()).Controls.OfType<GroupBox>().ToArray();
         Assert(groups.Select(group => group.Text).ToHashSet()
                 .SetEquals(["Startup", "Runtime activity", "Metric providers", "Interface"]),
             "General tab must expose the Runtime idle setting but no legacy device binding or per-output settings.");
@@ -2064,7 +2063,7 @@ internal static class Program
         var generalNumericControls = groups.SelectMany(group => group.Controls.OfType<TableLayoutPanel>())
             .SelectMany(layout => layout.Controls.OfType<NumericUpDown>()).ToArray();
         Assert(generalNumericControls.Length == 1 && ReferenceEquals(generalNumericControls[0], idleTimeout) &&
-               !tabs.TabPages[0].Controls.OfType<NumericUpDown>().Any(),
+               !dialog.Controls.OfType<NumericUpDown>().Any(),
             "General tab must not expose physical USB/display quality or per-output refresh controls.");
     }
 
@@ -2145,21 +2144,22 @@ internal static class Program
         catch (InvalidOperationException) { rejected = true; }
         Assert(rejected, "Direct Remove calls must reject deletion of the last Output.");
 
-        using var dialog = new EditorSettingsDialog(
-            false, true, false, false, 32, EditorThemeMode.System,
-            new AppConfig(), ["Default"], () => Array.Empty<OutputDeviceDescriptor>());
-        var tabs = dialog.Controls.OfType<TabControl>().Single();
-        var desktopPage = tabs.TabPages.Cast<TabPage>().Single(t => t.Text == "Desktop");
+        using var dialog = new DesktopSettingsDialog(new AppConfig(), ["Default"]);
+        Assert(!dialog.Controls.OfType<TabControl>().Any(),
+            "Desktop Settings must be a standalone non-tabbed dialog.");
+        var desktopPage = dialog.Controls.OfType<Panel>().Single(panel => panel.Controls.OfType<TableLayoutPanel>().Any());
         Assert(desktopPage.Controls.OfType<TableLayoutPanel>().Single().ColumnCount == 2,
             "Desktop Settings must use a single two-column master/detail layout.");
         Assert(!dialog.DesktopChanged,
             "Opening Desktop Settings must not modify persisted configuration.");
+        Assert(dialog.AcceptButton is Button { DialogResult: DialogResult.OK } &&
+               dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
+            "Desktop Settings must own OK/Cancel instead of relying on the former shared Settings dialog.");
         Assert(dialog.Controls.OfType<Label>().Any(label =>
-                   label.Text == EditorSettingsDialog.ApplyTimingNotice &&
+                   label.Text == DesktopSettingsDialog.ApplyTimingNotice &&
                    label.Text.Contains("after OK", StringComparison.Ordinal) &&
-                   label.Text.Contains("next start", StringComparison.Ordinal) &&
-                   label.Text.Contains("restarting the Editor", StringComparison.Ordinal)),
-            "Settings must explain when its independent Runtime and Editor changes become effective.");
+                   label.Text.Contains("next start", StringComparison.Ordinal)),
+            "Desktop Settings must explain when saved Outputs take effect.");
         var desktopList = desktopPage.Controls.OfType<TableLayoutPanel>().Single()
             .Controls.OfType<TableLayoutPanel>().Single()
             .Controls.OfType<ListBox>().Single();
@@ -2336,18 +2336,20 @@ internal static class Program
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
         var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
 
         Assert(menu.Items.Cast<ToolStripItem>().All(item => !string.Equals(item.Text, "Group", StringComparison.OrdinalIgnoreCase)),
             "PASS 8 final audit must keep the redundant top-level Group menu removed.");
         Assert(fileMenu.Alignment == ToolStripItemAlignment.Left &&
                editMenu.Alignment == ToolStripItemAlignment.Left &&
                toolsMenu.Alignment == ToolStripItemAlignment.Left &&
+               settingsMenu.Alignment == ToolStripItemAlignment.Left &&
                helpMenu.Alignment == ToolStripItemAlignment.Left &&
                outputMenu.Alignment == ToolStripItemAlignment.Right,
-            "Final shell contract must keep File/Edit/Tools/Help left and Output right in the integrated top chrome.");
+            "Final shell contract must keep File/Edit/Tools/Settings/Help left and Output right in the integrated top chrome.");
     }
 
     private static AppConfig CreateMultiOutputConfig() => new()

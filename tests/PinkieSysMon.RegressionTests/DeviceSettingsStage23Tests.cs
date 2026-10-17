@@ -46,16 +46,20 @@ internal static class DeviceSettingsStage23Tests
         soleModel.Refresh([]);
         Check(!soleModel.CanRemove(soleModel.Entries.Single().Target, 0), "The last Output cannot be removed.");
         Throws(() => soleModel.Remove(soleModel.Entries.Single().Target, 0));
-        var desktopModel = new DesktopSettingsModel(new AppConfig(), () => reopened.ConfiguredCount);
-        Check(!desktopModel.CanRemove(desktopModel.Desktops.Single()), "A lone Desktop must remain protected.");
+        var desktopModel = new DesktopSettingsModel(config);
+        Check(!desktopModel.CanRemove(desktopModel.Desktops.Single()),
+            "A lone Desktop must remain protected before device adoption.");
         reopened.Add(reopened.Entries.Single().Target);
-        Check(desktopModel.CanRemove(desktopModel.Desktops.Single()),
-            "The last-Output guard must reflect devices added in the same detached Settings transaction.");
-        desktopModel.Remove(desktopModel.Desktops.Single());
-        desktopModel.ApplyTo(config, allowEmptyDraft: true);
-        reopened.ApplyTo(config, allowEmptyDraft: true);
+        reopened.ApplyTo(config);
+        Check(config.Outputs.Targets.Count == 2 && !config.Outputs.Targets[1].DeviceEnabled,
+            "Physical Devices OK must adopt only its device without mutating the existing Desktop.");
+        var nextDesktopDialog = new DesktopSettingsModel(config);
+        Check(nextDesktopDialog.CanRemove(nextDesktopDialog.Desktops.Single()),
+            "After a separately saved device adoption, the Desktop dialog can remove its final panel.");
+        nextDesktopDialog.Remove(nextDesktopDialog.Desktops.Single());
+        nextDesktopDialog.ApplyTo(config);
         Check(config.Outputs.Targets.Count == 1 && config.Outputs.Targets[0].Kind == OutputTargetContract.TrofeoKind,
-            "Replacing the lone Desktop with an explicitly adopted device must commit one nonempty combined draft.");
+            "Separate device and Desktop apply operations must retain one configured Output.");
     }
 
     public static void ConsentAndPersistence()
@@ -114,7 +118,7 @@ internal static class DeviceSettingsStage23Tests
         var config = new AppConfig();
         var physical = Target(device, "ui");
         config.Outputs.Targets.Add(physical);
-        using var dialog = new EditorSettingsDialog(false, true, false, false, 32, EditorThemeMode.System,
+        using var dialog = new PhysicalDeviceSettingsDialog(
             config, ["Default"], () =>
             {
                 calls++;
@@ -122,6 +126,9 @@ internal static class DeviceSettingsStage23Tests
                 return discovery;
             });
         var tabs = dialog.Controls.OfType<TabControl>().Single();
+        Check(dialog.AcceptButton is Button { DialogResult: DialogResult.OK } &&
+              dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
+            "Physical Devices Settings must own OK/Cancel independently.");
         var page = tabs.TabPages.Cast<TabPage>().Single(p => p.Text == "Device #1");
         var fields = page.Controls.Find("DeviceFields", true).Single();
         var remove = page.Controls.Find("RemoveDevice", true).Single();
@@ -142,7 +149,7 @@ internal static class DeviceSettingsStage23Tests
         Check(fields.Enabled && provider.Checked, "Reconnect must restore controls without resetting the staged provider setting.");
         discovery = [device, device with { DevicePath = "duplicate-ui" }];
         dialog.RefreshDeviceDiscovery();
-        Check(!fields.Enabled && remove.Enabled && tabs.TabPages.Count == 3,
+        Check(!fields.Enabled && remove.Enabled && tabs.TabPages.Count == 1,
             "Ambiguous hardware must not create a duplicate configured tab or permit editing.");
         fail = true;
         dialog.RefreshDeviceDiscovery();

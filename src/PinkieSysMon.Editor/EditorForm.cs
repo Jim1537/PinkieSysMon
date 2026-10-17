@@ -305,8 +305,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(_moveDownMenuItem);
         editMenu.DropDownItems.Add(_bringToFrontMenuItem);
         editMenu.DropDownItems.Add(_sendToBackMenuItem);
-        editMenu.DropDownItems.Add(new ToolStripSeparator());
-        editMenu.DropDownItems.Add(new ToolStripMenuItem("Settings...", null, async (_, _) => await ShowSettingsAsync()));
         editMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
@@ -339,6 +337,14 @@ internal sealed partial class EditorForm : PinkieEditorForm
         toolsMenu.DropDownItems.Add(_dashboardSnapshotMenuItem);
         toolsMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
+        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Editor", null,
+            async (_, _) => await ShowEditorSettingsAsync()));
+        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Desktop", null,
+            async (_, _) => await ShowOutputSettingsAsync(physical: false)));
+        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Physical Devices", null,
+            async (_, _) => await ShowOutputSettingsAsync(physical: true)));
+
         _screenMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
         RebuildScreenMenu();
         _screenMenu.DropDownOpening += (_, _) =>
@@ -351,7 +357,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
         helpMenu.DropDownItems.Add(new ToolStripMenuItem("About", null, (_, _) => ShowAbout()));
 
-        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, toolsMenu, helpMenu, _screenMenu);
+        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, _screenMenu);
         _mainMenuStrip.ApplyTheme(_shellTheme);
         MainMenuStrip = _mainMenuStrip;
 
@@ -650,7 +656,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    private async Task ShowSettingsAsync()
+    private async Task ShowEditorSettingsAsync()
     {
         bool startupCurrent;
         AppConfig runtimeConfig;
@@ -665,11 +671,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Could not read current settings.\n\n{ex.Message}", "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, $"Could not read current settings.\n\n{ex.Message}",
+                "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
-        using var dialog = new EditorSettingsDialog(
+        using var dialog = new EditorGeneralSettingsDialog(
             startupCurrent,
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System),
             MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor),
@@ -677,7 +684,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _toolbarIconSize,
             _themeMode,
             runtimeConfig,
-            DashboardCatalog.Discover(_root),
             applicationRoot: _root);
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -689,11 +695,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
         var idleChanged = dialog.RuntimeIdleTimeoutMinutes != runtimeConfig.Runtime.IdleTimeoutMinutes;
-        var desktopChanged = dialog.DesktopChanged;
-        var devicesChanged = dialog.DevicesChanged;
-        var outputsChanged = desktopChanged || devicesChanged;
-        var runtimeChanged = providersChanged || outputsChanged || idleChanged;
-        var runtimeReloaded = false;
+        var runtimeChanged = providersChanged || idleChanged;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -702,32 +704,17 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         try
         {
+            var runtimeReloaded = false;
             if (runtimeChanged)
             {
-                if (outputsChanged)
-                {
-                    dialog.ApplyOutputChanges(runtimeConfig);
-                    _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
-                }
                 runtimeConfig.Runtime.IdleTimeoutMinutes = dialog.RuntimeIdleTimeoutMinutes;
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
-                runtimeReloaded = await EditorSettingsPersistence.ApplyAsync(
-                    appConfigPath, runtimeConfig, originalConfigBytes, async () =>
-                    {
-                        var status = await RuntimeIpc.GetStatusAsync();
-                        return status.Success ? await RuntimeIpc.ReloadAsync() : null;
-                    });
-
-                // Keep the editor-side snapshot consistent with the file it just wrote.
+                runtimeReloaded = await ApplySettingsAndReloadRuntimeAsync(
+                    appConfigPath, runtimeConfig, originalConfigBytes);
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
                 _appConfig.Runtime = runtimeConfig.Runtime;
-                if (outputsChanged)
-                {
-                    _appConfig.Outputs = runtimeConfig.Outputs;
-                    SynchronizeScreenMenu();
-                }
             }
 
             if (startupChanged)
@@ -748,7 +735,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (runtimeChanged || startupChanged || themeChanged)
                 SaveEditorSettings();
 
-            if (providersChanged || outputsChanged)
+            if (providersChanged)
             {
                 RefreshPreviewTelemetry();
                 RenderPreview(force: true);
@@ -759,9 +746,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 var restart = MessageBox.Show(
                     $"Editor theme '{EditorThemeContract.Serialize(_themeMode)}' was saved.\n\n" +
                     "WinForms applies its color mode when UI controls are created. Restart the Editor now to apply the theme consistently?",
-                    "Editor Theme",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Information);
+                    "Editor Theme", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
                 if (restart == DialogResult.Yes)
                 {
                     RequestEditorRestartForTheme();
@@ -792,8 +777,92 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private async Task ShowOutputSettingsAsync(bool physical)
+    {
+        var appConfigPath = Path.Combine(_root, "config", "app.json");
+        AppConfig runtimeConfig;
+        byte[]? originalConfigBytes;
+        var caption = physical ? "Physical Devices Settings" : "Desktop Settings";
+
+        try
+        {
+            originalConfigBytes = File.Exists(appConfigPath) ? File.ReadAllBytes(appConfigPath) : null;
+            runtimeConfig = AppConfig.Load(appConfigPath, _log);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Could not read current settings.\n\n{ex.Message}",
+                caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        using Form dialog = physical
+            ? new PhysicalDeviceSettingsDialog(runtimeConfig, DashboardCatalog.Discover(_root),
+                applicationRoot: _root)
+            : new DesktopSettingsDialog(runtimeConfig, DashboardCatalog.Discover(_root),
+                applicationRoot: _root);
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        if (physical)
+        {
+            var deviceDialog = (PhysicalDeviceSettingsDialog)dialog;
+            if (!deviceDialog.DevicesChanged)
+                return;
+            try { deviceDialog.ApplyOutputChanges(runtimeConfig); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+        }
+        else
+        {
+            var desktopDialog = (DesktopSettingsDialog)dialog;
+            if (!desktopDialog.DesktopChanged)
+                return;
+            try { desktopDialog.ApplyOutputChanges(runtimeConfig); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+        }
+
+        try
+        {
+            _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
+            var runtimeReloaded = await ApplySettingsAndReloadRuntimeAsync(
+                appConfigPath, runtimeConfig, originalConfigBytes);
+            _appConfig.Outputs = runtimeConfig.Outputs;
+            SynchronizeScreenMenu();
+            RefreshPreviewTelemetry();
+            RenderPreview(force: true);
+            SaveEditorSettings();
+            SetStatus(runtimeReloaded
+                ? "Output settings saved and applied to the running Runtime."
+                : "Output settings saved. Runtime will read them on its next start.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private static async Task<bool> ApplySettingsAndReloadRuntimeAsync(
+        string configPath, AppConfig config, byte[]? originalBytes)
+    {
+        return await EditorSettingsPersistence.ApplyAsync(
+            configPath, config, originalBytes, async () =>
+            {
+                var status = await RuntimeIpc.GetStatusAsync();
+                return status.Success ? await RuntimeIpc.ReloadAsync() : null;
+            });
     }
 
     private void ShowAbout()
