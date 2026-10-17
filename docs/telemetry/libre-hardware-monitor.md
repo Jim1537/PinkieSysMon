@@ -56,9 +56,9 @@ Remote Web Server authentication must remain disabled.
 ---
 ### Step 4
 
-In **Edit → Settings… → General → Metric providers**, enable **LibreHardwareMonitor**.
+In **Edit → Editor settings → Metric providers**, enable **LibreHardwareMonitor**.
 
-Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
+Apply this provider choice with **OK** in [Editor settings](../development/architecture.md#settings-save-and-apply).
 
 !!! info
     When the provider is disabled, Pinkie's System Monitor does not poll Libre Hardware Monitor and does not include its metrics in the active telemetry schedule.

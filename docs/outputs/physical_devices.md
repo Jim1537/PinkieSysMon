@@ -39,7 +39,7 @@ Hardware that has never been detected and has no saved record creates no tab. Se
 
 Model-dependent controls belong to the selected adapter. The current adapter exposes **JPEG quality**, **USB retry (ms)**, **USB timeout (ms)** and **USB diagnostic journal**. Their [defaults, bounds, inheritance and transport effects](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remain in the integration reference. Retry delay and per-operation timeout are different settings. Journaling adds diagnostic disk I/O; it does not repair a USB fault.
 
-Hover over a control or its help icon for its effect and dependencies. These device settings belong to the selected Device tab, rather than General or Desktop.
+Hover over a control or its help icon for its effect and dependencies. These device settings belong to the selected Device tab, rather than Editor settings or Desktop.
 
 ### Step 4. Grant device-use consent and apply
 

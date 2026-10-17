@@ -9,7 +9,7 @@ The provider does not require any third-party software to be installed or config
 
 ### Step 1
 
-In **Edit → Settings… → General**, make sure **System** is enabled under **Metric providers**.
+In **Edit → Editor settings → Metric providers**, make sure **System** is enabled.
 
 !!! info
     The `System` provider is enabled by default and normally requires no additional setup.
@@ -17,7 +17,7 @@ In **Edit → Settings… → General**, make sure **System** is enabled under *
     It does not require any external applications, services, log directories, network ports, or other parameters.
 
 
-Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
+Apply this provider choice with **OK** in [Editor settings](../development/architecture.md#settings-save-and-apply).
 
 
 ### Done

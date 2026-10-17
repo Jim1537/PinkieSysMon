@@ -70,7 +70,7 @@ Desktop panels are configured not to appear as individual Windows taskbar button
 
 When Enabled is off, the panel name and Enabled remain reachable; Dashboard, Reload and Lock are unavailable. The shared [tray projection contract](../development/architecture.md#output-status-and-tray-control) owns frame availability and provider-independent observations.
 
-The Editor offers target **Reload** under **Output**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
+The Editor offers target **Reload** under **Outputs (toolbar icon)**, plus [**Reload All**](../development/architecture.md#reload-all-saved-configuration) and the existing global **Stop / Unload All Outputs** shutdown command. The linked common-settings contract owns aggregate reload and its enablement/recovery boundaries.
 
 For saved enablement, disabling the final Output, global shutdown and normal restart, see the [Runtime lifetime contract](../development/architecture.md#control-path-and-reconfiguration). Its [tray-control section](../development/architecture.md#output-status-and-tray-control) defines the storage and status projection.
 

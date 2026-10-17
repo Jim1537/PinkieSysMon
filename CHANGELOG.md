@@ -4,6 +4,9 @@ Notable changes to PinkieSysMon, newest first.
 
 ## [Unreleased]
 
+### Fixed
+- **Runtime tray:** Left-button double-click on the notification-area icon opens Control Center through its existing menu action ([#85](https://github.com/Jim1537/PinkieSysMon/issues/85)).
+
 ## [2.46.239] - 2026-10-17 (development build)
 
 Major v2 development snapshot since the 1.20.0 test candidate, based on source commit [`dc6ba63`](https://github.com/Jim1537/PinkieSysMon/commit/dc6ba63b3152ee3f86ea5d372267a4f9938107ea). The version was reported for the built artifact; this entry does not imply publication of a GitHub Release.

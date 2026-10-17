@@ -46,9 +46,9 @@ Let the system run for a couple of minutes, then verify that Sensor Logging CSV 
 
 ### Step 4
 
-In **Edit → Settings… → General → Metric providers**, enable **iCUE**.
+In **Edit → Editor settings → Metric providers**, enable **iCUE**.
 
-Apply this provider choice with **OK** in [Edit → Settings… → General](../development/architecture.md#settings-save-and-apply).
+Apply this provider choice with **OK** in [Editor settings](../development/architecture.md#settings-save-and-apply).
 
 !!! info
     When the provider is disabled, Pinkie's System Monitor does not poll the iCUE provider or process its metrics, avoiding unnecessary system load.
