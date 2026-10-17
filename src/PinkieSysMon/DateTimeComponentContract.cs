@@ -1,7 +1,7 @@
 namespace PinkieSysMon;
 
 /// <summary>
-/// Converts a DateTime reading into a finite scalar for quantitative widgets.
+/// Extracts the exact integer-valued civil calendar or clock component of a DateTime reading.
 /// Textual DateTime formatting remains the responsibility of MetricValueFormatter.
 /// </summary>
 internal static class DateTimeComponentContract
@@ -66,23 +66,19 @@ internal static class DateTimeComponentContract
             return false;
 
         var current = dateTime.Value;
-        var fractionOfDay = current.TimeOfDay.TotalDays;
-        var secondsOfMinute = current.Second +
-            (current.TimeOfDay.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond;
-
+        // One canonical discrete projection for Binary, Gauge, and Bar. Clock hands
+        // intentionally move in whole-component steps rather than interpolating time.
         value = component switch
         {
-            "year" => current.Year +
-                (current.DayOfYear - 1 + fractionOfDay) / (DateTime.IsLeapYear(current.Year) ? 366d : 365d),
-            "month" => current.Month +
-                (current.Day - 1 + fractionOfDay) / DateTime.DaysInMonth(current.Year, current.Month),
-            "dayOfMonth" => current.Day + fractionOfDay,
-            "dayOfYear" => current.DayOfYear + fractionOfDay,
-            "dayOfWeek" => ((int)current.DayOfWeek + 6) % 7 + 1 + fractionOfDay,
-            "hour24" => current.TimeOfDay.TotalHours,
-            "hour12" => current.TimeOfDay.TotalHours % 12d,
-            "minute" => current.Minute + secondsOfMinute / 60d,
-            "second" => secondsOfMinute,
+            "year" => current.Year,
+            "month" => current.Month,
+            "dayOfMonth" => current.Day,
+            "dayOfYear" => current.DayOfYear,
+            "dayOfWeek" => ((int)current.DayOfWeek + 6) % 7 + 1,
+            "hour24" => current.Hour,
+            "hour12" => current.Hour % 12 is 0 ? 12 : current.Hour % 12,
+            "minute" => current.Minute,
+            "second" => current.Second,
             _ => double.NaN
         };
         return double.IsFinite(value);

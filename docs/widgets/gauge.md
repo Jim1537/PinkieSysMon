@@ -39,7 +39,7 @@ Under `Value`:
 
 - `Source Unit` shows the unit supplied by the metric contract. It is read-only.
 - `Unit` selects a supported numeric conversion, when the metric has compatible units.
-- `Component` selects a numeric calendar/clock component when the metric is DateTime. For a clock needle, enable `Gauge → Needle → Enabled` and set the corresponding Min/Max range.
+- `Component` selects an integer-valued calendar/clock component when the metric is DateTime. For a clock needle, enable `Gauge → Needle → Enabled` and set the corresponding Min/Max range. The needle advances in discrete component steps, without interpolation. See the shared [Component](properties.md#component) contract.
 
 Under `Range`:
 

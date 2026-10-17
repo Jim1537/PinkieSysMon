@@ -153,22 +153,26 @@ Individual widgets retain their own geometry validation, source-specific meaning
     | Choice | JSON token | Scalar range and interpretation |
     | --- | --- | --- |
     | Select component | `null` | Unavailable until selected. |
-    | Year | `year` | Calendar year plus elapsed fraction of that year. |
-    | Month | `month` | 1–12 plus elapsed fraction of the month. |
-    | Day of month | `dayOfMonth` | 1–31 plus elapsed fraction of the day. |
-    | Day of year | `dayOfYear` | 1–365/366 plus elapsed fraction of the day. |
-    | Day of week (ISO) | `dayOfWeek` | Monday=1 through Sunday=7, plus elapsed fraction of the day. |
-    | Hour (24-hour) | `hour24` | 0 to less than 24, including minutes and seconds. |
-    | Hour (12-hour) | `hour12` | 0 to less than 12, including minutes and seconds. |
-    | Minute | `minute` | 0 to less than 60, including seconds. |
-    | Second | `second` | 0 to less than 60, including fractional seconds. |
+    | Year | `year` | Whole civil year, e.g., 2026. |
+    | Month | `month` | Integer 1–12; October is exactly 10 for the whole month. |
+    | Day of month | `dayOfMonth` | Integer 1–31. |
+    | Day of year | `dayOfYear` | Integer 1–365/366, including leap years. |
+    | Day of week (ISO) | `dayOfWeek` | Integer Monday=1 through Sunday=7. |
+    | Hour (24-hour) | `hour24` | Integer 0–23. |
+    | Hour (12-hour) | `hour12` | Integer 1–12; midnight and noon are 12. |
+    | Minute | `minute` | Integer 0–59. |
+    | Second | `second` | Integer 0–59; fractions of a second are discarded. |
 
     A DateTime/DateTimeOffset metric must select one numeric Component before
     Gauge or Bar can map it onto Min/Max, or Binary can evaluate its True/False state. DateTimeOffset uses local time,
-    consistent with textual DateTime formatting. For a complete clock dial,
-    use `Min=0`, `Max=12` for Hour (12-hour), or `Min=0`, `Max=60` for
-    Minute/Second. For Month use `Min=1`, `Max=13`; calendar periods have
-    variable lengths and no fixed universal maximum for Day of month/Day of year.
+    consistent with textual DateTime formatting. All components are discrete
+    civil-calendar/clock numbers: no fractional months, weekdays, years, hours,
+    minutes or seconds. Gauge and Bar advance by one step when the selected
+    component changes; they do not interpolate between calendar values.
+    For a clock dial, `Min=0`/`Max=12` can map Hour (12-hour)
+    (where 12 occupies the full-scale position), and `Min=0`/`Max=60`
+    maps Minute/Second. For Month use `Min=1`/`Max=12`;
+    Day of month and Day of year have variable calendar limits.
 
     This is a numeric projection, **not** the text [Format](properties.md#format)
     editor. Compound masks such as `hh:mm` are invalid and rejected. Existing
@@ -2122,6 +2126,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `>=`
     - `<=`
     - `=`
+    - `!=`
 
 
     Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](properties.md#evaluation-mode)=`Setpoint`.

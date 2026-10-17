@@ -14,20 +14,32 @@ internal static class DateTimeComponentTests
 
     public static void ProjectionEditorAndCache()
     {
-        var fraction = LeapDay.TimeOfDay.TotalDays;
-        Verify("year", 2024d + (59d + fraction) / 366d);
-        Verify("month", 2d + (28d + fraction) / 29d);
-        Verify("dayOfMonth", 29d + fraction);
-        Verify("dayOfYear", 60d + fraction);
-        Verify("dayOfWeek", 4d + fraction); // Thursday (ISO Monday = 1)
-        Verify("hour24", LeapDay.TimeOfDay.TotalHours);
-        Verify("hour12", LeapDay.TimeOfDay.TotalHours % 12d);
-        Verify("minute", 59d + 30.5d / 60d);
-        Verify("second", 30.5d);
+        Verify("year", 2024d);
+        Verify("month", 2d);
+        Verify("dayOfMonth", 29d);
+        Verify("dayOfYear", 60d);
+        Verify("dayOfWeek", 4d); // Thursday (ISO Monday = 1)
+        Verify("hour24", 23d);
+        Verify("hour12", 11d);
+        Verify("minute", 59d);
+        Verify("second", 30d);
+
+        Check(DateTimeComponentContract.TryProject(new DateTime(2026, 10, 17, 14, 45, 59, 999), "month", out var october) &&
+              october == 10d &&
+              DateTimeComponentContract.TryProject(new DateTime(2026, 10, 31, 23, 59, 59), "month", out var endOfOctober) &&
+              endOfOctober == 10d,
+            "Calendar month must remain the exact integer 10 for every instant of October.");
+        Check(DateTimeComponentContract.TryProject(new DateTime(2024, 1, 1, 0, 0, 0), "hour12", out var midnight) &&
+              midnight == 12d &&
+              DateTimeComponentContract.TryProject(new DateTime(2024, 1, 1, 12, 0, 0), "hour12", out var noon) &&
+              noon == 12d &&
+              DateTimeComponentContract.TryProject(new DateTime(2024, 1, 1, 13, 0, 0), "hour12", out var afternoon) &&
+              afternoon == 1d,
+            "12-hour clock must represent midnight and noon as 12, and 13:00 as 1.");
 
         var offset = new DateTimeOffset(LeapDay);
         Check(DateTimeComponentContract.TryProject(offset, "hour24", out var offsetHour) &&
-              Math.Abs(offsetHour - offset.LocalDateTime.TimeOfDay.TotalHours) < 1e-9,
+              offsetHour == offset.LocalDateTime.Hour,
             "DateTimeOffset values must project in local time, like textual DateTime formatting.");
         Check(!DateTimeComponentContract.TryProject("2024-02-29", "second", out _) &&
               !DateTimeComponentContract.TryProject(null, "second", out _) &&
@@ -41,7 +53,7 @@ internal static class DateTimeComponentTests
             "Day-of-year must respect leap years and calendar boundaries.");
         Check(DateTimeComponentContract.TryProject(new DateTime(2024, 3, 1), "month", out var march) &&
               march == 3d,
-            "Month progress must restart at the next calendar month.");
+            "Month component must equal its civil-calendar number at the month boundary.");
 
         var hour = new C.GaugeWidgetDefinition
         {
@@ -70,9 +82,9 @@ internal static class DateTimeComponentTests
         Check(context.TryGetMetricDouble(hour, out var hourValue) &&
               context.TryGetMetricDouble(minute, out var minuteValue) &&
               context.TryGetMetricDouble(second, out var secondValue) &&
-              Math.Abs(hourValue - LeapDay.TimeOfDay.TotalHours) < 1e-9 &&
-              Math.Abs(minuteValue - (59d + 30.5d / 60d)) < 1e-9 &&
-              Math.Abs(secondValue - 30.5d) < 1e-9,
+              hourValue == 23d &&
+              minuteValue == 59d &&
+              secondValue == 30d,
             "Shared metric snapshots must cache each DateTime component independently for Gauge and Bar.");
 
         hour.Component = null;

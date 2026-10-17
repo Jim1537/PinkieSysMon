@@ -22,7 +22,7 @@ internal static class Issue81BinaryDateTimeTests
             antialias: false, typefaces);
 
         CheckState(context, widget, BinarySignalContract.TrueKey,
-            "DateTime minute fractions must drive numeric Setpoint evaluation.");
+            "DateTime minute component must drive numeric Setpoint evaluation.");
         widget.TrueIf = BinarySignalContract.TrueIfLessThan;
         CheckState(context, widget, BinarySignalContract.FalseKey,
             "A valid false comparison must select False, not unavailable.");
@@ -33,6 +33,26 @@ internal static class Issue81BinaryDateTimeTests
         widget.Setpoint = "invalid";
         Check(!context.TryResolveBinaryVisualProfile(widget, out _),
             "An invalid DateTime reference must be unavailable, not False.");
+
+        widget.Component = "month";
+        widget.EvaluationMode = BinarySignalContract.EvaluationModeSetpoint;
+        widget.Setpoint = "10";
+        widget.TrueIf = BinarySignalContract.TrueIfGreaterThanOrEqual;
+        context.UpdateMetrics(new Dictionary<string, object?>
+        {
+            [SystemMetricContract.DateTime] = new DateTime(2026, 10, 17, 14, 45, 0)
+        });
+        CheckState(context, widget, BinarySignalContract.TrueKey,
+            "October month >= 10 must select True, independently of time within the month.");
+        widget.TrueIf = BinarySignalContract.TrueIfEqual;
+        CheckState(context, widget, BinarySignalContract.TrueKey,
+            "October month = 10 must select True using the exact discrete month.");
+        widget.TrueIf = BinarySignalContract.TrueIfNotEqual;
+        CheckState(context, widget, BinarySignalContract.FalseKey,
+            "October month != 10 must select False.");
+        widget.Setpoint = "11";
+        CheckState(context, widget, BinarySignalContract.TrueKey,
+            "October month != 11 must select True.");
 
         widget.EvaluationMode = BinarySignalContract.EvaluationModeAuto;
         widget.Component = "dayOfYear";
@@ -170,7 +190,7 @@ internal static class Issue81BinaryDateTimeTests
             Component = "minute",
             EvaluationMode = BinarySignalContract.EvaluationModeSetpoint,
             TrueIf = BinarySignalContract.TrueIfGreaterThan,
-            Setpoint = "59",
+            Setpoint = "58",
             Width = 96,
             Height = 96
         };

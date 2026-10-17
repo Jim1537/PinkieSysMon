@@ -80,7 +80,7 @@ Set the following properties:
 - `True If` — the comparison operator for a numeric metric.
 - `Setpoint` — the reference value.
 
-Supported numeric comparisons are `>`, `<`, `>=`, `<=`, and `=`.
+Supported numeric comparisons are `>`, `<`, `>=`, `<=`, `=`, and `!=`.
 
 For example, to indicate when a temperature is above 70 °C, select the temperature metric, choose Celsius as the evaluation unit when available, set `True If` to `>`, and enter `70` as `Setpoint`.
 
@@ -90,7 +90,7 @@ For example, to indicate when a temperature is above 70 °C, select the temperat
     A numeric `Setpoint` is entered as a number, without a unit symbol. For numeric metrics, the selected `Unit` determines the unit used in the comparison.
 
 
-For a DateTime metric (for example, `system.os.datetime`), select **Data → Value → Component** first. Choose Year, Month, Day of month/year/week (ISO), Hour (24-hour / 12-hour), Minute, or Second. Binary uses the continuous numeric projection defined by the same [Component](properties.md#component) contract as Gauge/Bar. For example, `Component = hour24`, `Mode = Setpoint`, `True If = >=`, `Setpoint = 18` means True from 18:00 until midnight and False earlier.
+For a DateTime metric (for example, `system.os.datetime`), select **Data → Value → Component** first. Choose Year, Month, Day of month/year/week (ISO), Hour (24-hour / 12-hour), Minute, or Second. Binary uses the exact integer-valued projection defined by the same [Component](properties.md#component) contract as Gauge/Bar. For example, `Component = hour24`, `Mode = Setpoint`, `True If = >=`, `Setpoint = 18` means True from 18:00 until midnight and False earlier.
 
 In `Auto`, a selected DateTime Component uses ordinary numeric truth semantics, so midnight with `hour24` evaluates False, while 01:00 evaluates True. Without an explicitly selected Component, evaluation is unavailable in either mode, not False. The numeric component is **independent of the text Format** used when a state displays the metric as Value.
 
@@ -168,6 +168,7 @@ These are property combinations, not prebuilt dashboard files.
 | Value-based warning | `Mode = Setpoint`; set True and False `Source Type = Value`; configure each state’s text color | Both states display the current metric reading with the appearance of the evaluated state. |
 | Different icons | Set True and False to `Icon` with different sources and opacity | Displays the icon associated with the current logical state. |
 | Evening indicator | `Metric = system.os.datetime`; `Component = hour24`; `Mode = Setpoint`; `True If = >=`; `Setpoint = 18` | True from 18:00 to midnight, False earlier; unavailable when time data or Component is missing. |
+| October indicator | `Metric = system.os.datetime`; `Component = month`; `Mode = Setpoint`; `True If = =`; `Setpoint = 10` | True throughout October because the month is exactly 10; false in other months. |
 
 ---
 ## Technical Information
@@ -251,7 +252,7 @@ Setpoint behavior depends on the actual runtime value type.
 | String | Ordinal, case-sensitive equality with the stored setpoint, except that `nil` and `undefined` remain unavailable. |
 | Numeric | Finite numeric comparison against a finite reference parsed using `InvariantCulture`. |
 
-The numeric operator is selected from `>`, `<`, `>=`, `<=`, and `=`. An unsupported numeric operator or an unparsable/non-finite numeric reference causes evaluation failure.
+The numeric operator is selected from `>`, `<`, `>=`, `<=`, `=`, and `!=`. An unsupported numeric operator or an unparsable/non-finite numeric reference causes evaluation failure.
 
 For Boolean and string values, `TrueIf` does not control evaluation. Their Setpoint behavior is equality-based.
 

@@ -15,6 +15,7 @@ internal static class BinarySignalContract
     public const string TrueIfGreaterThanOrEqual = ">=";
     public const string TrueIfLessThanOrEqual = "<=";
     public const string TrueIfEqual = "=";
+    public const string TrueIfNotEqual = "!=";
 
     public static readonly IReadOnlyList<string> SupportedEvaluationModes =
     [
@@ -28,7 +29,8 @@ internal static class BinarySignalContract
         TrueIfLessThan,
         TrueIfGreaterThanOrEqual,
         TrueIfLessThanOrEqual,
-        TrueIfEqual
+        TrueIfEqual,
+        TrueIfNotEqual
     ];
 
     public static bool TryResolve(
@@ -132,6 +134,9 @@ internal static class BinarySignalContract
                 return true;
             case TrueIfEqual:
                 state = numeric == reference;
+                return true;
+            case TrueIfNotEqual:
+                state = numeric != reference;
                 return true;
             default:
                 return false;

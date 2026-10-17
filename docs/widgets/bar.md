@@ -40,7 +40,7 @@ Open the `Data` tab:
 
 - `Value → Source Unit` shows the unit associated with the selected metric. It is read-only.
 - `Value → Unit` selects a compatible numeric display/conversion unit when the metric supports one.
-- `Value → Component` selects a numeric calendar/clock component when the metric is DateTime.
+- `Value → Component` selects an integer-valued calendar/clock component when the metric is DateTime. The bar changes in discrete component steps, without interpolation. See the shared [Component](properties.md#component) contract.
 - `Range → Min` sets the value corresponding to an empty bar.
 - `Range → Max` sets the value corresponding to a completely filled bar.
 
