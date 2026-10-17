@@ -4,21 +4,34 @@ Notable changes to PinkieSysMon, newest first.
 
 ## [Unreleased]
 
+## [2.46.239] - 2026-10-17 (development build)
+
+Major v2 development snapshot since the 1.20.0 test candidate, based on source commit [`dc6ba63`](https://github.com/Jim1537/PinkieSysMon/commit/dc6ba63b3152ee3f86ea5d372267a4f9938107ea). The version was reported for the built artifact; this entry does not imply publication of a GitHub Release.
+
 ### Added
-- Portable root single-file Launcher with a shared Editor About window, project documentation link, independent Control Center/Runtime/Both actions, and opt-in idempotent Desktop/Start Menu shortcut management ([Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52); native portable relocation and Windows build not yet verified for this change).
-- Independent, native Windows Desktop dashboard panels alongside explicitly enabled physical Trofeo outputs. Each Output has its own dashboard assignment, refresh interval, provider enablement, and lifecycle.
-- Per-pixel desktop transparency, drag-and-persisted placement, full-window Lock click-through, ordering, and multiple independently controlled panels.
-- General, Desktop and detected Device settings with context help, output-aware Editor Start/Reload, Runtime tray controls and command feedback.
-- Independent `system.output.<OutputId>.*` metrics, shared demand-driven telemetry, passive physical-device discovery and opt-in hardware ownership.
+- **Architecture — independent Outputs:** Run multiple native Desktop panels and supported physical USB displays with separately assigned dashboards, stable Output IDs, refresh intervals, enablement, and lifecycles. A single dashboard can be shared by multiple Outputs ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)).
+- **Desktop panels:** Per-pixel transparency, saved position and stacking order, drag-to-move, click-through Lock, and independent enable/disable controls; a hardware display is no longer required ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)).
+- **Telemetry and device ownership:** Deduplicated demand-driven telemetry across active dashboards, independent Output-specific status/performance metrics, passive device discovery, and explicit consent before controlling physical hardware ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)).
+- **Runtime inactivity control:** Optional Windows user-idle pause suspends telemetry collection and Desktop/physical frame generation, then resumes on activity, honoring the applicable Windows display-idle limit ([#60](https://github.com/Jim1537/PinkieSysMon/issues/60)).
+- **Portable Launcher:** A location-independent launcher for Control Center, Runtime, or both, with a shared About window and optional Desktop/Start Menu shortcuts ([#52](https://github.com/Jim1537/PinkieSysMon/issues/52), [#64](https://github.com/Jim1537/PinkieSysMon/issues/64), [#65](https://github.com/Jim1537/PinkieSysMon/issues/65)).
+- **Editor — cross-dashboard clipboard:** Copy and paste configured widgets between dashboards and concurrent Editor instances, including explicit handling of dashboard-local image assets ([#70](https://github.com/Jim1537/PinkieSysMon/issues/70)).
+- **Date/time widgets:** Calendar and clock components for Gauge, Bar, and Binary evaluation, including numeric comparisons in Binary ([#66](https://github.com/Jim1537/PinkieSysMon/issues/66), [#81](https://github.com/Jim1537/PinkieSysMon/issues/81)).
+- **Developer workflow:** Interactive `builder.ps1` with independent pull, build, regression, local publish, and push actions, reusable compiled artifacts, and a per-session `builder.log` ([#83](https://github.com/Jim1537/PinkieSysMon/issues/83)).
 
 ### Changed
-- Retired global display-specific `system.runtime.*` frame/USB counters without aliases; `system.runtime.version` remains application-wide. See [System telemetry](docs/telemetry/system.md#runtime-and-output-performance-metrics).
-- Portable release staging replaces the two root `.lnk` entry points with a single versioned Launcher EXE that follows the existing optional signing policy; three user shortcuts are created only on request. Existing private configuration and dashboard preservation is unchanged.
-- Windows build numbering and release packaging follow the verified [automatic version contract](docs/development/building.md#automatic-version-numbering).
+- **Editor interface:** Split Editor, Desktop, and Physical Devices settings into independent dialogs; moved Desktop and Devices into the main menu and Outputs to the toolbar. Output controls include contextual help and dashboard-aware Start/Reload actions ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58), [#82](https://github.com/Jim1537/PinkieSysMon/issues/82)).
+- **Runtime controls:** Reorganized the notification-area menu around Desktop and physical Outputs, with consistent Enabled controls, target-specific reloads, status, and action feedback ([#63](https://github.com/Jim1537/PinkieSysMon/issues/63)).
+- **Desktop window placement:** Use independent non-topmost Windows panels with best-effort placement near the back of normal windows, rather than Explorer-owned wallpaper windows. Permanent positioning behind every other window or desktop icon is **not guaranteed** ([#78](https://github.com/Jim1537/PinkieSysMon/issues/78)).
+- **Configuration and telemetry compatibility:** Replaced the former single-active-dashboard assumptions with per-Output configuration; retired display-specific `system.runtime.*` counters in favor of `system.output.<OutputId>.*`. Existing `system.runtime.version` remains application-wide ([#58](https://github.com/Jim1537/PinkieSysMon/issues/58)).
+- **Build versioning and packaging:** Introduced automatic `vA.B.C` numbering based on the approved major version, closed Issue count, and main-branch commit count. Build, regression, and local publishing now use one shared executor without mandatory double compilation ([#83](https://github.com/Jim1537/PinkieSysMon/issues/83)).
 
-### Validation and known limitations
-- Owner-reported Windows build/regressions **242/242 PASS**, local publish and portable ZIP creation at source `c76fdabcb55592cefeb36a16f0a4de5c4a45daa5` (build **v2.19.158**). Earlier owner-observed Desktop, physical-device and resource checks have their individual scopes; the new Launcher implementation at `85a7508e2e5cf4dc6fa02148690297cd64f03f15` **compiled, signed, passed 243/243 regressions, and produced a local/portable package** (owner log, build **v2.19.159**). The follow-up `Launcher.exe` filename refinement has **not** yet been built or runtime-tested. See [Issue #58](https://github.com/Jim1537/PinkieSysMon/issues/58) for dated acceptance and excluded hardware-risk scenarios.
-- Historically, the included portable root `.lnk` shortcuts failed after relocation; the new Launcher replacement still needs owner Windows relocation validation before closing [Issue #52](https://github.com/Jim1537/PinkieSysMon/issues/52). Other deferred interface polish is tracked in [Issue #61](https://github.com/Jim1537/PinkieSysMon/issues/61).
+### Removed
+- Bundled root `.lnk` launchers, redundant Runtime per-Output Stop/Unload state, the legacy interactive build menu, and the superseded `pull-build.ps1` wrapper ([#52](https://github.com/Jim1537/PinkieSysMon/issues/52), [#63](https://github.com/Jim1537/PinkieSysMon/issues/63), [#83](https://github.com/Jim1537/PinkieSysMon/issues/83)).
+
+### Fixed
+- **Editor history:** Property-panel edits now participate in dashboard Undo/Redo ([#80](https://github.com/Jim1537/PinkieSysMon/issues/80)).
+- **Desktop and Output reliability:** Addressed Win+D stacking recovery, taskbar visibility, first-frame telemetry refresh, and live Output-menu synchronization ([#78](https://github.com/Jim1537/PinkieSysMon/issues/78), [#69](https://github.com/Jim1537/PinkieSysMon/issues/69), [#72](https://github.com/Jim1537/PinkieSysMon/issues/72), [#73](https://github.com/Jim1537/PinkieSysMon/issues/73)).
+- **Other fixes:** Resolved assorted Editor property/dropdown/font, Desktop Settings selection, widget image-mode, launcher lifecycle, image rollback, and Output shutdown issues ([#32](https://github.com/Jim1537/PinkieSysMon/issues/32), [#67](https://github.com/Jim1537/PinkieSysMon/issues/67), [#68](https://github.com/Jim1537/PinkieSysMon/issues/68), [#75](https://github.com/Jim1537/PinkieSysMon/issues/75), [#76](https://github.com/Jim1537/PinkieSysMon/issues/76)).
 
 ## [1.20.0] - 2026-10-10 (test candidate)
 
