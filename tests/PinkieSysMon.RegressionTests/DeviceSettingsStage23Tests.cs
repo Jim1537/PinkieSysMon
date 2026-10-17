@@ -126,6 +126,8 @@ internal static class DeviceSettingsStage23Tests
                 return discovery;
             });
         var tabs = dialog.Controls.OfType<TabControl>().Single();
+        Check(dialog.Padding == new Padding(12),
+            "Physical Devices Settings must inset the dynamic device tabs from the window edges.");
         Check(dialog.AcceptButton is Button { DialogResult: DialogResult.OK } &&
               dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
             "Physical Devices Settings must own OK/Cancel independently.");

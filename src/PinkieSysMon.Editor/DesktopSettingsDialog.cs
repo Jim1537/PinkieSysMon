@@ -53,6 +53,7 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
         MaximizeBox = false;
         ShowInTaskbar = false;
         ClientSize = new Size(900, 600);
+        Padding = new Padding(12);
 
         Controls.Add(BuildDesktopPage());
         var buttons = new FlowLayoutPanel

@@ -50,6 +50,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         MaximizeBox = false;
         ShowInTaskbar = false;
         ClientSize = new Size(900, 600);
+        Padding = new Padding(12);
 
         _startRuntime.Checked = startRuntimeWithWindows;
         _runtimeIdleMinutes.Value = config.Runtime.IdleTimeoutMinutes;

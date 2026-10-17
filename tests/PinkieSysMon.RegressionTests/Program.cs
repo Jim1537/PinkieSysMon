@@ -2046,6 +2046,8 @@ internal static class Program
             config: config);
         Assert(!dialog.Controls.OfType<TabControl>().Any(),
             "Editor Settings must be a standalone non-tabbed dialog.");
+        Assert(dialog.Padding == new Padding(12),
+            "Editor Settings must keep its controls inset from the window edges.");
         Assert(dialog.StartRuntimeWithWindows && dialog.SystemProviderEnabled &&
                !dialog.LibreHardwareMonitorProviderEnabled && dialog.IcueProviderEnabled &&
                dialog.ToolbarIconSize == 48 && dialog.ThemeMode == EditorThemeMode.Dark,
@@ -2147,6 +2149,8 @@ internal static class Program
         using var dialog = new DesktopSettingsDialog(new AppConfig(), ["Default"]);
         Assert(!dialog.Controls.OfType<TabControl>().Any(),
             "Desktop Settings must be a standalone non-tabbed dialog.");
+        Assert(dialog.Padding == new Padding(12),
+            "Desktop Settings must keep its controls inset from the window edges.");
         var desktopPage = dialog.Controls.OfType<Panel>().Single(panel => panel.Controls.OfType<TableLayoutPanel>().Any());
         Assert(desktopPage.Controls.OfType<TableLayoutPanel>().Single().ColumnCount == 2,
             "Desktop Settings must use a single two-column master/detail layout.");

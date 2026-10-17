@@ -22,6 +22,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         MaximizeBox = false;
         ShowInTaskbar = false;
         ClientSize = new Size(900, 600);
+        Padding = new Padding(12);
 
         Controls.Add(_settingsTabs);
         Controls.Add(_discoveryNotice);
