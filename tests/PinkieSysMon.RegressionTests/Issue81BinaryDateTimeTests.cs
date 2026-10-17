@@ -120,6 +120,10 @@ internal static class Issue81BinaryDateTimeTests
     public static void SchemaMigration()
     {
         var widget = CreateWidget();
+        // This model-only fixture has no application-root icon library. Source-free
+        // icon profiles remain valid for JSON evaluation/migration coverage.
+        foreach (var profile in widget.Profiles.Values)
+            profile.Asset.Source = null;
         var definition = new C.DashboardDefinition
         {
             Widgets = [widget],
