@@ -4,35 +4,46 @@ internal static class EditorMainMenuContract
 {
     public const string FileMenuText = "File";
     public const string EditMenuText = "Edit";
+    public const string DesktopMenuText = "Desktop";
+    public const string DevicesMenuText = "Devices";
     public const string ToolsMenuText = "Tools";
-    public const string SettingsMenuText = "Settings";
-    public const string OutputMenuText = "Output";
     public const string HelpMenuText = "Help";
+    public const string EditorSettingsText = "Editor settings";
+
+    public static void AppendEditorSettings(ToolStripMenuItem editMenu, EventHandler click)
+    {
+        ArgumentNullException.ThrowIfNull(editMenu);
+        ArgumentNullException.ThrowIfNull(click);
+
+        editMenu.DropDownItems.Add(new ToolStripSeparator());
+        editMenu.DropDownItems.Add(new ToolStripMenuItem(EditorSettingsText, null, click));
+    }
 
     public static void Populate(
         MenuStrip menu,
         ToolStripMenuItem fileMenu,
         ToolStripMenuItem editMenu,
+        ToolStripMenuItem desktopMenu,
+        ToolStripMenuItem devicesMenu,
         ToolStripMenuItem toolsMenu,
-        ToolStripMenuItem settingsMenu,
-        ToolStripMenuItem helpMenu,
-        ToolStripMenuItem outputMenu)
+        ToolStripMenuItem helpMenu)
     {
         ArgumentNullException.ThrowIfNull(menu);
         ArgumentNullException.ThrowIfNull(fileMenu);
         ArgumentNullException.ThrowIfNull(editMenu);
+        ArgumentNullException.ThrowIfNull(desktopMenu);
+        ArgumentNullException.ThrowIfNull(devicesMenu);
         ArgumentNullException.ThrowIfNull(toolsMenu);
-        ArgumentNullException.ThrowIfNull(settingsMenu);
         ArgumentNullException.ThrowIfNull(helpMenu);
-        ArgumentNullException.ThrowIfNull(outputMenu);
 
         menu.Items.Add(fileMenu);
         menu.Items.Add(editMenu);
+        menu.Items.Add(desktopMenu);
+        menu.Items.Add(devicesMenu);
         menu.Items.Add(toolsMenu);
-        menu.Items.Add(settingsMenu);
         menu.Items.Add(helpMenu);
 
-        // Output remains right-aligned so the title-bar center keeps useful drag space.
-        menu.Items.Add(outputMenu);
+        // Help occupies the former Output menu's right-aligned title-bar position.
+        helpMenu.Alignment = ToolStripItemAlignment.Right;
     }
 }

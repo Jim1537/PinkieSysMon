@@ -26,6 +26,7 @@ internal sealed partial class EditorForm
     private static readonly string[] ToolbarZoom100Icons = ["focus", "crosshair", "scan"];
     private static readonly string[] ToolbarFitHeightIcons = ["move-vertical", "maximize-2", "maximize"];
     private static readonly string[] ToolbarGridIcons = ["grid-3x3", "grid-2x2", "grid"];
+    private static readonly string[] ToolbarOutputsIcons = ["monitor"];
 
     private readonly List<Image> _toolbarImages = [];
     private ToolStrip _toolbar = null!;
@@ -125,6 +126,21 @@ internal sealed partial class EditorForm
         PopulateGridSizeMenu(_toolbarGridButton.DropDownItems);
         _toolbarGridButton.DropDownOpening += (_, _) => UpdateGridSizeMenuChecks(_toolbarGridButton.DropDownItems);
         _toolbar.Items.Add(_toolbarGridButton);
+
+        // Output control stays pinned to the right and retains the existing menu commands.
+        _screenMenu = CreateToolbarDropDownButton("Outputs", ToolbarOutputsIcons);
+        _screenMenu.Name = "OutputsToolbarButton";
+        _screenMenu.ShowDropDownArrow = false;
+        _screenMenu.Alignment = ToolStripItemAlignment.Right;
+        _screenMenu.Overflow = ToolStripItemOverflow.Never;
+        RebuildScreenMenu();
+        _screenMenu.DropDownOpening += (_, _) =>
+        {
+            RefreshScreenTargetsFromConfiguration();
+            UpdateCommandStates();
+            _ = RefreshRuntimeStatusAsync();
+        };
+        _toolbar.Items.Add(_screenMenu);
 
         _toolbar.ContextMenuStrip = BuildToolbarContextMenu();
         return _toolbar;
@@ -449,6 +465,7 @@ internal sealed partial class EditorForm
             replacements.Add((_toolbarZoom100Button, CreateLucideToolbarImage(size, ToolbarZoom100Icons)));
             replacements.Add((_toolbarFitHeightButton, CreateLucideToolbarImage(size, ToolbarFitHeightIcons)));
             replacements.Add((_toolbarGridButton, CreateLucideToolbarImage(size, ToolbarGridIcons)));
+            replacements.Add((_screenMenu, CreateLucideToolbarImage(size, ToolbarOutputsIcons)));
             propertyTabReplacements = CreatePropertyTabIconReplacements(size);
         }
         catch

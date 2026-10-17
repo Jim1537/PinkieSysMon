@@ -48,7 +48,7 @@ The [Properties by Tab](widgets/properties-by-tab.md) and [Property Dictionary](
 
 The visual Editor supports widget placement, resizing, grouping, contextual property editing, metric selection, and live previews. Dashboards are saved separately from the application binaries.
 
-In **Edit → Settings**, hover over the question-mark icon beside a parameter for a short explanation of its effect and dependencies. General, Desktop and Device settings include these hints; the same help is available over their controls.
+Use **Edit → Editor settings**, **Desktop**, or **Devices** in the Editor main menu. Each opens its own settings dialog; only Devices retains dynamic Device #N tabs. Hover over a control or its question-mark icon for help. The **Outputs** icon at the right end of the toolbar opens the existing Output control menu.
 
 <p align="center">
   <a href="images/PinkeySysMon_editor.png">
@@ -62,7 +62,7 @@ Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack an
 
 Use the [Physical Devices guide](outputs/physical_devices.md) for supported hardware discovery, adoption, Device Settings and output management.
 
-For the shared Runtime/Editor document boundary, telemetry demand and control path, see [Application Architecture](development/architecture.md). The optional global idle timeout is configured in **Edit → Settings → General → Runtime activity**; see [Global Windows user-idle pause](development/architecture.md#global-windows-user-idle-pause) for its Windows display-timeout limit and resume behavior.
+For the shared Runtime/Editor document boundary, telemetry demand and control path, see [Application Architecture](development/architecture.md). The optional global idle timeout is configured in **Edit → Editor settings → Runtime activity**; see [Global Windows user-idle pause](development/architecture.md#global-windows-user-idle-pause) for its Windows display-timeout limit and resume behavior.
 
 ## System Requirements
 

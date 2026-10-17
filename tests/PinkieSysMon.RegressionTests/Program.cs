@@ -1873,19 +1873,31 @@ internal static class Program
         using var menu = new MenuStrip();
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
+        var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
+        var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
-        var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
         var labels = menu.Items.Cast<ToolStripItem>().Select(item => item.Text).ToArray();
-        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Tools", "Settings", "Help", "Output" }),
-            "Settings must follow Tools, Help remains left, and Output remains right; the obsolete Group menu must not return.");
-        Assert(settingsMenu.Alignment == ToolStripItemAlignment.Left &&
-               helpMenu.Alignment == ToolStripItemAlignment.Left && outputMenu.Alignment == ToolStripItemAlignment.Right,
-            "Help must participate in the left menu group while Output remains the right-aligned device-control menu.");
-        Assert(!labels.Contains("Group", StringComparer.OrdinalIgnoreCase),
+        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Desktop", "Devices", "Tools", "Help" }),
+            "The main menu must expose direct Desktop/Devices commands before Tools, without Settings or Outputs.");
+        Assert(desktopMenu.Alignment == ToolStripItemAlignment.Left &&
+               devicesMenu.Alignment == ToolStripItemAlignment.Left &&
+               toolsMenu.Alignment == ToolStripItemAlignment.Left &&
+               helpMenu.Alignment == ToolStripItemAlignment.Right,
+            "Help must occupy the right-aligned title-bar position; all other menus remain left.");
+        editMenu.DropDownItems.Add(new ToolStripMenuItem("Send to Back"));
+        var editorInvoked = false;
+        EditorMainMenuContract.AppendEditorSettings(editMenu, (_, _) => editorInvoked = true);
+        Assert(editMenu.DropDownItems[^2] is ToolStripSeparator &&
+               editMenu.DropDownItems[^1] is ToolStripMenuItem { Text: EditorMainMenuContract.EditorSettingsText },
+            "Editor settings must be the last Edit command, immediately after a separator.");
+        ((ToolStripMenuItem)editMenu.DropDownItems[^1]).PerformClick();
+        Assert(editorInvoked, "The relocated Editor settings command must invoke its handler.");
+        Assert(!labels.Contains("Settings", StringComparer.OrdinalIgnoreCase) &&
+               !labels.Contains("Output", StringComparer.OrdinalIgnoreCase) &&
+               !labels.Contains("Group", StringComparer.OrdinalIgnoreCase),
             "Editor top-level Group menu must remain removed.");
 
         var fields = typeof(EditorForm)
@@ -1900,6 +1912,10 @@ internal static class Program
                !fields.Contains("_groupBringToFrontMenuItem") &&
                !fields.Contains("_groupSendToBackMenuItem"),
             "Obsolete top-level Group-menu wiring must be removed rather than merely hidden or disabled.");
+        var outputButtonField = typeof(EditorForm).GetField("_screenMenu",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert(outputButtonField?.FieldType == typeof(ToolStripDropDownButton),
+            "Outputs must be a toolbar dropdown button, not a title-bar menu item.");
         Assert(fields.Contains("_groupSelectedMenuItem") &&
                fields.Contains("_ungroupSelectedMenuItem") &&
                fields.Contains("_treeGroupSelectedMenuItem") &&
@@ -1959,12 +1975,12 @@ internal static class Program
         using var menu = new EditorTitleBarMenuStrip();
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
+        var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
+        var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
-        var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
         host.Controls.Add(menu);
         form.Controls.Add(host);
         form.MainMenuStrip = menu;
@@ -1983,11 +1999,14 @@ internal static class Program
         var passthrough = EditorWindowChromeContract.GetMenuPassthroughRegions(
             menu.Bounds,
             menu.GetInteractiveItemBounds());
+        Assert(helpMenu.Alignment == ToolStripItemAlignment.Right,
+            "The Help menu must occupy the former right-aligned Output title-bar position.");
         Assert(passthrough.Length == 6,
             "Every visible top-level menu item must have an explicit non-client passthrough region.");
 
-        var leftGroupRight = new[] { fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu }.Max(item => menu.Left + item.Bounds.Right);
-        var rightGroupLeft = menu.Left + outputMenu.Bounds.Left;
+        var leftGroupRight = new[] { fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu }
+            .Max(item => menu.Left + item.Bounds.Right);
+        var rightGroupLeft = menu.Left + helpMenu.Bounds.Left;
         if (rightGroupLeft - leftGroupRight > 8)
         {
             var dragPoint = new Point(
@@ -2339,21 +2358,21 @@ internal static class Program
         using var menu = new MenuStrip();
         var fileMenu = new ToolStripMenuItem(EditorMainMenuContract.FileMenuText);
         var editMenu = new ToolStripMenuItem(EditorMainMenuContract.EditMenuText);
+        var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
+        var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
-        var outputMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, outputMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
 
         Assert(menu.Items.Cast<ToolStripItem>().All(item => !string.Equals(item.Text, "Group", StringComparison.OrdinalIgnoreCase)),
             "PASS 8 final audit must keep the redundant top-level Group menu removed.");
         Assert(fileMenu.Alignment == ToolStripItemAlignment.Left &&
                editMenu.Alignment == ToolStripItemAlignment.Left &&
+               desktopMenu.Alignment == ToolStripItemAlignment.Left &&
+               devicesMenu.Alignment == ToolStripItemAlignment.Left &&
                toolsMenu.Alignment == ToolStripItemAlignment.Left &&
-               settingsMenu.Alignment == ToolStripItemAlignment.Left &&
-               helpMenu.Alignment == ToolStripItemAlignment.Left &&
-               outputMenu.Alignment == ToolStripItemAlignment.Right,
-            "Final shell contract must keep File/Edit/Tools/Settings/Help left and Output right in the integrated top chrome.");
+               helpMenu.Alignment == ToolStripItemAlignment.Right,
+            "Final shell contract must keep File/Edit/Desktop/Devices/Tools left and Help right.");
     }
 
     private static AppConfig CreateMultiOutputConfig() => new()

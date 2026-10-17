@@ -50,7 +50,7 @@ internal sealed partial class EditorForm
     private ToolStripMenuItem _treeGroupSelectedMenuItem = null!;
     private ToolStripMenuItem _treeUngroupSelectedMenuItem = null!;
 
-    private ToolStripMenuItem _screenMenu = null!;
+    private ToolStripDropDownButton _screenMenu = null!;
     private ToolStripMenuItem _screenStartReloadAllMenuItem = null!;
     private ToolStripMenuItem _screenStopAllMenuItem = null!;
     private readonly Dictionary<string, ScreenTargetMenuItems> _screenTargetMenuItems = new(StringComparer.OrdinalIgnoreCase);

@@ -17,7 +17,7 @@ Adopting an Output creates an application configuration record. It does not crea
 
 ### Step 2. Find the Device tab
 
-Open **Settings → Physical Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Type** and status.
+Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Type** and status.
 
 | Settings state | Meaning and available actions |
 | --- | --- |
@@ -58,7 +58,7 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 - In the Editor, choose **Output → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
-- Change assignment in **Settings → Physical Devices → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
+- Change assignment in **Devices → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
@@ -78,7 +78,7 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
 
-For removal, use **Control Center → Settings → Physical Devices → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
+For removal, use **Control Center → Devices → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 

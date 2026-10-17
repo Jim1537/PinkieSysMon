@@ -16,7 +16,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 
 ### Step 2. Create and configure the panel
 
-1. Choose **Settings → Desktop**.
+1. Choose **Desktop**.
 2. Click **Create New**. The new panel is selected in the list on the left; select an existing entry instead to edit it.
 3. Set **Display name** and choose a saved **Dashboard**. The display name identifies the panel in menus; it does not rename the dashboard.
 4. Configure the selected panel's controls:
@@ -49,7 +49,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
 3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
 
-For overlapping panels, drag their **list entries in Settings → Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls stacking among the **owned** Desktop panels; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order. Panels are ordinary non-topmost top-level windows, not Explorer children. Runtime puts them near the back when they appear, reload, resume, or complete an unlocked drag, but it cannot guarantee they will always remain behind every other application's window. Desktop icons are not guaranteed to stay above the panels.
+For overlapping panels, drag their **list entries in Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls stacking among the **owned** Desktop panels; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order. Panels are ordinary non-topmost top-level windows, not Explorer children. Runtime puts them near the back when they appear, reload, resume, or complete an unlocked drag, but it cannot guarantee they will always remain behind every other application's window. Desktop icons are not guaranteed to stay above the panels.
 
 If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
 
@@ -86,7 +86,7 @@ Two panels can use the same saved dashboard. Reload each panel that should recei
 
 ### Remove a panel
 
-In **Settings → Desktop**, select the panel, click **Remove**, confirm **Yes**, then **OK**. Cancel leaves the saved configuration unchanged. Removal unloads that panel when applied; dashboard files and other Outputs remain.
+In **Desktop**, select the panel, click **Remove**, confirm **Yes**, then **OK**. Cancel leaves the saved configuration unchanged. Removal unloads that panel when applied; dashboard files and other Outputs remain.
 
 At least one **configured Output** must remain, counting the Desktop draft plus the saved physical Outputs. This guard is independent of how many sessions are currently active. Create/adopt another Output before removing the final configured one.
 

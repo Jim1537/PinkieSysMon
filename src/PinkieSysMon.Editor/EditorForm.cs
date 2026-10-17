@@ -305,6 +305,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(_moveDownMenuItem);
         editMenu.DropDownItems.Add(_bringToFrontMenuItem);
         editMenu.DropDownItems.Add(_sendToBackMenuItem);
+        EditorMainMenuContract.AppendEditorSettings(editMenu, async (_, _) => await ShowEditorSettingsAsync());
         editMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
@@ -337,27 +338,15 @@ internal sealed partial class EditorForm : PinkieEditorForm
         toolsMenu.DropDownItems.Add(_dashboardSnapshotMenuItem);
         toolsMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
-        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
-        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Editor", null,
-            async (_, _) => await ShowEditorSettingsAsync()));
-        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Desktop", null,
-            async (_, _) => await ShowOutputSettingsAsync(physical: false)));
-        settingsMenu.DropDownItems.Add(new ToolStripMenuItem("Physical Devices", null,
-            async (_, _) => await ShowOutputSettingsAsync(physical: true)));
-
-        _screenMenu = new ToolStripMenuItem(EditorMainMenuContract.OutputMenuText) { Alignment = ToolStripItemAlignment.Right };
-        RebuildScreenMenu();
-        _screenMenu.DropDownOpening += (_, _) =>
-        {
-            RefreshScreenTargetsFromConfiguration();
-            UpdateCommandStates();
-            _ = RefreshRuntimeStatusAsync();
-        };
+        var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText, null,
+            async (_, _) => await ShowOutputSettingsAsync(physical: false));
+        var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText, null,
+            async (_, _) => await ShowOutputSettingsAsync(physical: true));
 
         var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
         helpMenu.DropDownItems.Add(new ToolStripMenuItem("About", null, (_, _) => ShowAbout()));
 
-        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, toolsMenu, settingsMenu, helpMenu, _screenMenu);
+        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
         _mainMenuStrip.ApplyTheme(_shellTheme);
         MainMenuStrip = _mainMenuStrip;
 
