@@ -37,12 +37,45 @@ function Invoke-External {
         [string[]]$Arguments
     )
 
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    # Windows PowerShell 5.1 does not reliably transcribe native console output.
+    # Route both streams through Write-Host so the active transcript sees each
+    # line, without buffering a potentially large build or regression log.
+    # Do not echo arbitrary arguments (e.g. private Git commit messages).
+    $label = $FilePath
+    if ($FilePath -eq 'git' -and $Arguments.Count -ge 3 -and $Arguments[0] -eq '-C') {
+        $label = "git $($Arguments[2])"
+    } elseif ($FilePath -eq 'dotnet' -and $Arguments.Count -ge 1) {
+        if ($Arguments[0] -like '*.dll') {
+            $label = 'dotnet regression runner'
+        } else {
+            $label = "dotnet $($Arguments[0])"
+        }
+    }
+    Write-Host "External command: $label"
+
+    # Redirected native stderr under ErrorActionPreference=Stop may prematurely
+    # abort Windows PowerShell 5.1 even when the process exits successfully.
+    # Use the real native exit code to decide success or failure.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $FilePath @Arguments 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                Write-Host ([string]$_.Exception.Message) -ForegroundColor Red
+            } else {
+                Write-Host ([string]$_)
+            }
+        }
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    Write-Host "External exit code: $exitCode"
+    if ($exitCode -ne 0) {
+        throw "Command failed with exit code ${exitCode}: $label"
     }
 }
-
 function Remove-DevelopmentArtifacts {
     Write-Host ''
     Write-Host 'Cleaning development build artifacts...'
@@ -883,9 +916,11 @@ function Publish-GitHub {
         }
     }
 
-    & git -C $root diff --cached --check
-    if ($LASTEXITCODE -ne 0) {
-        throw 'GitHub publish blocked: git diff --cached --check reported errors.'
+    # Route staged-diff errors through the native diagnostic capture as well.
+    try {
+        Invoke-External git '-C' $root 'diff' '--cached' '--check'
+    } catch {
+        throw "GitHub publish blocked: git diff --cached --check reported errors. $($_.Exception.Message)"
     }
 
     if ($staged.Count -eq 0) {
