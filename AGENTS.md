@@ -95,7 +95,7 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 ## Code workflow and release gates
 
 - Prefer focused, descriptive and verified **direct commits to `main`**. Use a branch/PR only if direct `main` work is objectively impossible, and record the reason. Do not default to replacement ZIP archives; use one only on explicit request or for an agreed offline handoff.
-- The authoritative Windows build and regression entrypoint is [`build.ps1`](build.ps1). A green documentation job does **not** validate Runtime, Editor, providers or device behavior.
+- The **primary Windows developer-facing entry point** is [`builder.ps1`](builder.ps1). Use its interactive workflow for Git synchronization, build, regression checks, local publishing, and GitHub publishing. [`build.ps1`](build.ps1) remains the authoritative underlying executor invoked by `builder.ps1` and the retained noninteractive `pull-build.ps1`; it is not the preferred interactive entry point and must not be removed without a separately approved implementation change. Preserve the distinct build/regression/publish gates and reuse of compiled artifacts. A green documentation job does **not** validate Runtime, Editor, providers or device behavior.
 - Do not declare a change accepted until applicable implementation and regression conditions have been met. When a contract changes, update its one canonical page **in the same coherent direct-to-`main` change**. Documentation publication retains its verification and any explicit owner-approval requirements.
 
 
