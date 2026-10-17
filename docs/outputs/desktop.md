@@ -39,7 +39,7 @@ Settings controls stage changes until **OK**, which validates and saves the pane
 
 - If Runtime is running and responds to IPC, changed Output settings are applied through a configuration reload.
 - If Runtime cannot be reached, settings are saved for its next start; Settings does not launch it. Check the Editor's status message rather than assuming the panel is already visible.
-- Use **Output → &lt;panel name&gt; → Reload** in the Editor to load saved edits into an enabled panel. This can launch an absent Runtime normally, starting all saved enabled Outputs. A disabled panel must first be enabled in Settings or the Runtime tray.
+- Use **Outputs (toolbar icon) → &lt;panel name&gt; → Reload** in the Editor to load saved edits into an enabled panel. This can launch an absent Runtime normally, starting all saved enabled Outputs. A disabled panel must first be enabled in Settings or the Runtime tray.
 
 The shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply) describes concurrent-change rejection and failed-apply recovery. The Editor preview is independent of the live panel.
 

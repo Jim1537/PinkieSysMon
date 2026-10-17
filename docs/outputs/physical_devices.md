@@ -56,7 +56,7 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 ### Reload and choose the dashboard
 
-- In the Editor, choose **Output → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
+- In the Editor, choose **Outputs (toolbar icon) → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
 - Change assignment in **Devices → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
