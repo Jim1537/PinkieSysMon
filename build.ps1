@@ -1,6 +1,6 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateSet('Prompt', 'End', 'Local', 'GitHub', 'Sync')]
+    [ValidateSet('Prompt', 'End', 'Local', 'GitHub', 'Sync', 'BuildOnly', 'RegressionOnly', 'LocalOnly', 'GitHubOnly')]
     [string]$Action = 'Prompt',
 
     [string]$LocalRoot = 'C:\PinkieSysMon'
@@ -25,6 +25,8 @@ $releaseStageAppRoot = Join-Path $releaseStageRoot 'PinkieSysMon'
 $releaseTempZip = Join-Path $artifactsRoot 'portable-release.zip'
 $buildPropsPath = Join-Path $root 'Directory.Build.props'
 $signingTools = Join-Path $root 'tools\PinkieCodeSigning.ps1'
+$buildStatePath = Join-Path $artifactsRoot 'build-state.json'
+$regressionStatePath = Join-Path $artifactsRoot 'regression-state.json'
 
 function Invoke-External {
     param(
@@ -911,6 +913,139 @@ function Publish-GitHub {
     Write-Host 'GITHUB PUBLISH: PASS'
 }
 
+
+# Reuse is allowed only while HEAD, nonignored build/release inputs and all
+# published binaries remain identical to the recorded build.
+function Get-PinkieSourceDigest {
+    Assert-GitRepositoryReady
+    $head = @(& git -C $root rev-parse HEAD)
+    if ($LASTEXITCODE -ne 0 -or $head.Count -ne 1) { throw 'Cannot identify source commit.' }
+    $files = @(& git -C $root -c core.quotepath=false ls-files --cached --others --exclude-standard)
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inventory source files.' }
+    $rows = @("HEAD=$($head[0])")
+    foreach ($entry in @($files | Sort-Object -Unique)) {
+        $name = ([string]$entry).Replace('\', '/')
+        if ($name -notmatch '^(src/|tests/|tools/|assets/fonts/Roboto/|assets/icons/Lucide/|dashboards/Default/|config/app[.]json$|Directory[.]Build[.]props$|build[.]ps1$|builder[.]ps1$|pull-build[.]ps1$|global[.]json$|NuGet[.]Config$|[^/]+[.](?:sln|slnx|props|targets)$|LICENSE$|THIRD-PARTY-NOTICES[.]md$)') { continue }
+        $path = Join-Path $root $entry
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $rows += ('{0}:{1}' -f $name, (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash)
+        } else {
+            $rows += ('{0}:MISSING' -f $name)
+        }
+    }
+    return (Get-PinkieStringDigest -Content ($rows -join [Environment]::NewLine))
+}
+
+function Get-PinkieStringDigest {
+    param([Parameter(Mandatory = $true)][string]$Content)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Content)))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha.Dispose() }
+}
+
+function Get-PinkieOutputDigest {
+    Assert-PublishPackage
+    $testDll = Join-Path $testsOut 'PinkieSysMon.RegressionTests.dll'
+    $needed = @($launcherExe, $testDll)
+    $rows = @()
+    $files = @(Get-ChildItem -LiteralPath $publishOut -Recurse -File -Force | Sort-Object FullName)
+    if ($files.Count -eq 0) { throw 'Compiled publish folder is empty.' }
+    foreach ($file in $files) {
+        $relative = $file.FullName.Substring($publishOut.Length).TrimStart('\', '/')
+        $rows += ('publish/{0}:{1}' -f $relative, (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)
+    }
+    foreach ($path in $needed) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Compiled file is missing: $path" }
+        $rows += ('{0}:{1}' -f (Split-Path -Leaf $path), (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash)
+    }
+    return (Get-PinkieStringDigest -Content ($rows -join [Environment]::NewLine))
+}
+
+function Save-PinkieBuildState {
+    param($Identity, [string]$InitialSourceDigest)
+    if ((Get-PinkieSourceDigest) -ne $InitialSourceDigest) {
+        throw 'Source changed during compilation; rebuild required.'
+    }
+    $record = [PSCustomObject]@{
+        Version = $Identity.Version
+        Commits = $Identity.Commits
+        ClosedIssues = $Identity.ClosedIssues
+        SourceDigest = $InitialSourceDigest
+        OutputDigest = (Get-PinkieOutputDigest)
+    }
+    $record | ConvertTo-Json | Set-Content -LiteralPath $buildStatePath -Encoding UTF8
+    Write-Host "Reusable build recorded: v$($record.Version); source=$($record.SourceDigest); output=$($record.OutputDigest)"
+    return $record
+}
+
+function Assert-PinkieReuse {
+    if (-not (Test-Path -LiteralPath $buildStatePath -PathType Leaf)) {
+        throw 'No previous reusable build; select 2 - build.'
+    }
+    try { $record = Get-Content -LiteralPath $buildStatePath -Raw | ConvertFrom-Json }
+    catch { throw "Cannot read build state: $($_.Exception.Message)" }
+    if ([string]::IsNullOrWhiteSpace([string]$record.Version) -or
+        [string]::IsNullOrWhiteSpace([string]$record.SourceDigest) -or
+        [string]::IsNullOrWhiteSpace([string]$record.OutputDigest)) {
+        throw 'Incomplete build state; rebuild required.'
+    }
+    if ((Get-PinkieSourceDigest) -ne [string]$record.SourceDigest) {
+        throw 'Git HEAD or build/release input changed; rebuild required.'
+    }
+    Assert-PinkiePublishedVersion -ExpectedVersion ([string]$record.Version)
+    $v = (Get-Item -LiteralPath $launcherExe).VersionInfo
+    $observed = "$($v.FileMajorPart).$($v.FileMinorPart).$($v.FileBuildPart).$($v.FilePrivatePart)"
+    if ($observed -ne "$($record.Version).0") { throw "Launcher version mismatch: $observed" }
+    if ((Get-PinkieOutputDigest) -ne [string]$record.OutputDigest) {
+        throw 'Published binaries changed or are missing; rebuild required.'
+    }
+    Write-Host "Reusable build valid: v$($record.Version); source=$($record.SourceDigest); output=$($record.OutputDigest)"
+    return $record
+}
+
+function Invoke-PinkieExistingRegressions {
+    $dll = Join-Path $testsOut 'PinkieSysMon.RegressionTests.dll'
+    if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { throw "Missing regression runner: $dll" }
+    Get-ChildItem -LiteralPath $publishOut -Force | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $testsOut -Recurse -Force
+    }
+    Write-Host ''
+    Write-Host 'Running regression checks (no compilation)...'
+    Invoke-External dotnet $dll
+    Assert-PublishPackage
+}
+
+function Save-PinkieRegressionState {
+    param($Record)
+    $verified = Assert-PinkieReuse
+    if ([string]$verified.OutputDigest -ne [string]$Record.OutputDigest -or
+        [string]$verified.SourceDigest -ne [string]$Record.SourceDigest) {
+        throw 'Build changed during regression run; acceptance refused.'
+    }
+    [PSCustomObject]@{
+        Version = $verified.Version
+        SourceDigest = $verified.SourceDigest
+        OutputDigest = $verified.OutputDigest
+    } | ConvertTo-Json | Set-Content -LiteralPath $regressionStatePath -Encoding UTF8
+    Write-Host "Regression acceptance recorded for v$($verified.Version)."
+}
+
+function Assert-PinkieRegressionState {
+    param($Record)
+    if (-not (Test-Path -LiteralPath $regressionStatePath -PathType Leaf)) {
+        throw 'Local publish blocked: select 3 - regression checks first.'
+    }
+    try { $checked = Get-Content -LiteralPath $regressionStatePath -Raw | ConvertFrom-Json }
+    catch { throw "Regression state invalid: $($_.Exception.Message)" }
+    if ([string]$checked.Version -ne [string]$Record.Version -or
+        [string]$checked.SourceDigest -ne [string]$Record.SourceDigest -or
+        [string]$checked.OutputDigest -ne [string]$Record.OutputDigest) {
+        throw 'Local publish blocked: regression pass is from a different build.'
+    }
+    Write-Host "Regression gate: PASS for v$($Record.Version)."
+}
+
 if ($Action -eq 'Sync') {
     try {
         Sync-GitHub
@@ -921,6 +1056,45 @@ if ($Action -eq 'Sync') {
         throw
     }
 
+    return
+}
+
+if ($Action -eq 'GitHubOnly') {
+    try { Publish-GitHub }
+    catch {
+        Write-Host 'GITHUB PUSH: FAIL' -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        throw
+    }
+    return
+}
+
+if ($Action -in @('RegressionOnly', 'LocalOnly')) {
+    try {
+        if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+            throw '.NET SDK not available.'
+        }
+        $reuse = Assert-PinkieReuse
+        $buildIdentity = [PSCustomObject]@{
+            Version = [string]$reuse.Version
+            Commits = [int]$reuse.Commits
+        }
+        if ($Action -eq 'RegressionOnly') {
+            Remove-Item -LiteralPath $regressionStatePath -Force -ErrorAction SilentlyContinue
+            Invoke-PinkieExistingRegressions
+            Save-PinkieRegressionState -Record $reuse
+        } else {
+            Assert-PinkieRegressionState -Record $reuse
+            $preparedRelease = Prepare-PortableReleasePackage
+            Publish-Local
+            Commit-PortableReleasePackage -PreparedPackage $preparedRelease
+            Write-Host 'Reusable artifacts retained after local publish.'
+        }
+    } catch {
+        Write-Host "$($Action.ToUpperInvariant()): FAIL" -ForegroundColor Red
+        Write-Host $_.Exception.Message -ForegroundColor Red
+        throw
+    }
     return
 }
 
@@ -940,6 +1114,7 @@ foreach ($project in @($runtimeProject, $editorProject, $launcherProject, $tests
 }
 
 $buildIdentity = Get-PinkieBuildIdentity
+$initialSourceDigest = Get-PinkieSourceDigest
 $resolvedVersionArgument = "-p:PinkieResolvedVersion=$($buildIdentity.Version)"
 $version = & dotnet --version
 Write-Host ".NET SDK: $version"
@@ -1031,29 +1206,19 @@ try {
     }
 
     Write-Host ''
-    Write-Host 'Building regression checks...'
+    Write-Host 'Building regression runner...'
     Invoke-External dotnet 'build' $testsProject '-c' 'Release' '-o' $testsOut $resolvedVersionArgument
-
-    $testsDll = Join-Path $testsOut 'PinkieSysMon.RegressionTests.dll'
-    if (-not (Test-Path -LiteralPath $testsDll -PathType Leaf)) {
-        throw "Regression test assembly was not produced: $testsDll"
-    }
-
-    # Regression checks load the exact published Runtime/Editor assemblies and
-    # app-local native dependencies beside the test host.
-    Get-ChildItem -LiteralPath $publishOut -Force | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $testsOut -Recurse -Force
-    }
-
+    $buildRecord = Save-PinkieBuildState -Identity $buildIdentity -InitialSourceDigest $initialSourceDigest
     Write-Host ''
-    Write-Host 'Running regression checks...'
-    Invoke-External dotnet $testsDll
-
-    Assert-PublishPackage
-
-    Write-Host ''
-    Write-Host 'BUILD/REGRESSION: PASS'
+    Write-Host 'BUILD: PASS'
     Write-Host "Published package: $publishOut"
+    if ($Action -eq 'BuildOnly') {
+        Write-Host 'REGRESSION: NOT RUN (select 3 - regression checks).'
+        return
+    }
+    Invoke-PinkieExistingRegressions
+    Save-PinkieRegressionState -Record $buildRecord
+    Write-Host 'BUILD/REGRESSION: PASS'
 
     if ($Action -eq 'Prompt') {
         Write-Host ''

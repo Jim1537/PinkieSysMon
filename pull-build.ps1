@@ -1,6 +1,7 @@
-# Pull the current branch safely, then build and run regressions.
+# Legacy noninteractive convenience workflow: pull, build, run regressions.
 # Run from VS Code with "Run PowerShell File"; no arguments are required.
 # This script never commits, pushes, installs, or starts PinkieSysMon.
+# Generated output is retained and can be installed later from builder.ps1.
 
 [CmdletBinding()]
 param()
@@ -28,9 +29,13 @@ try {
     Write-Host ''
     Write-Host "Source commit: $($head[0])"
     Write-Host '=== 2/2: Build Runtime + Editor and run regressions ==='
-    & $buildScript -Action End
+    & $buildScript -Action BuildOnly
     if (-not $?) {
-        throw 'Build or regression checks failed.'
+        throw 'Build failed; regression checks were not started.'
+    }
+    & $buildScript -Action RegressionOnly
+    if (-not $?) {
+        throw 'Regression checks failed.'
     }
 
     Write-Host ''

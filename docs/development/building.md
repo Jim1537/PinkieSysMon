@@ -33,7 +33,9 @@ src/PinkieSysMon/PinkieSysMon.ico  Project application icon
 dashboards/Default/              Public default dashboard
 config/app.json                  Public, machine-neutral defaults
 tools/                           Local code-signing helpers
-build.ps1                        Build, regression, local deploy, Git publish workflow
+builder.ps1                      Interactive menu and session diagnostic log
+build.ps1                        Authoritative compilation, regression, deployment and Git entrypoint
+pull-build.ps1                   Noninteractive pull/build/regression shortcut
 ```
 
 Build output is generated under `artifacts/` and is not tracked. Portable release ZIPs are generated under `release/`; that directory is also intentionally gitignored.
@@ -50,23 +52,28 @@ B can change on Issue closure/reopening even without a new commit, and reopening
 
 ## Build and regression
 
-From PowerShell in the repository root:
+From PowerShell in the repository root, run:
 
 ```powershell
-.\build.ps1
+.\builder.ps1
 ```
 
-The script:
+The interactive menu appears **before** any work begins. All actions return to the menu after completion or failure:
 
-1. cleans generated development artifacts;
-2. publishes Runtime and Editor as self-contained `win-x64` applications;
-3. applies local Authenticode signing when a configured signing certificate is available;
-4. builds the regression checks;
-5. runs the deterministic regression suite;
-6. after a successful build, offers to end, publish to the local portable installation, or publish the Git repository.
+| Selection | Action | Behavior |
+| --- | --- | --- |
+| **1 — pull** | Fetch + fast-forward | Updates local Git source safely, without compilation or installation. |
+| **2 — build** | Compile + stage | Resolves the live `vA.B.C`, publishes Runtime/Editor/Launcher, builds the regression runner, and retains the compiled files under `artifacts/`. Tests are **not executed** in this step. |
+| **3 — regression checks** | Run tests | Executes already-built tests against the exact published binaries without compiling; records a successful acceptance for the current build. |
+| **4 — local publish** | Install + package | Requires a build with matching successful regressions. Updates `C:\PinkieSysMon` and prepares a portable release ZIP using existing artifacts, without recompilation. |
+| **5 — push** | Commit + push | Audits staged/public material, commits local changes, and pushes to GitHub; does not compile. |
+| **0 — exit** | Finish | Ends the session without deleting reusable build artifacts. |
 
-The generated application package is staged under `artifacts\publish` during the build. Choosing **End** removes generated artifacts before exit.
+Each launch overwrites the root-level, ignored `builder.log` and records the full interactive session using PowerShell transcription: operation boundaries, time and duration, branch and commit, Git status, build version and its Issue/commit counts, tool diagnostics and exit statuses, signing results, regressions, and failures. The diagnostic log may contain local paths and other personal workstation information; inspect it before sharing. The script does not intentionally print credentials.
 
+The build stores ignored `artifacts/build-state.json`; a successful regression run writes `artifacts/regression-state.json`. These records bind the current source HEAD and SHA-256 fingerprints of non-ignored build/release inputs to the compiled package. Changes to source inputs or packaged binaries, missing artifacts, or regressions that did not pass **for the same build** block local deployment. Rebuilding resets acceptance. The version assigned to an existing build is retained even if the live closed-Issue count later changes.
+
+The original `.\build.ps1` entrypoint remains supported for the one-shot flow: build, run regressions, then choose **End**, **Publish local** or **Publish GitHub**. The noninteractive `.\pull-build.ps1` convenience wrapper is also retained, with its outputs preserved for later local publish in the menu.
 
 ### GitHub synchronization
 
@@ -93,7 +100,7 @@ until synchronization has been resolved explicitly.
 
 Run the build and regression checks again after synchronizing updated source.
 
-For the usual **sync → build → regressions** workflow, run `.\pull-build.ps1` from a clean working tree on the intended branch. This convenience wrapper uses fast-forward-only synchronization followed by `build.ps1 -Action End`: it **does not install, start, commit, or push** PinkieSysMon. It stops if synchronization or the Windows build/regression suite fails. For an explicitly requested local installation or portable release, run `.\build.ps1` separately and choose **Publish local** after successful tests.
+For the typical **pull → build → regression checks → local publish** sequence, choose menu options **1, 2, 3, 4** in `.\builder.ps1`. The single compilation is reused for checks and local publishing. Menu option **5 — push** is separate: a commit changes Git HEAD, so any previously staged build must be rebuilt before another local publish. The legacy `.\pull-build.ps1` shortcut performs pull, build, and regressions without installing, committing, or pushing.
 
 
 ### Local code signing
