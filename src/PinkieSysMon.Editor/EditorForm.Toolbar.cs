@@ -130,6 +130,7 @@ internal sealed partial class EditorForm
         // Output control stays pinned to the right and retains the existing menu commands.
         _screenMenu = CreateToolbarDropDownButton("Outputs", ToolbarOutputsIcons);
         _screenMenu.Name = "OutputsToolbarButton";
+        ApplyOutputsToolbarRightInset(_screenMenu);
         _screenMenu.ShowDropDownArrow = false;
         _screenMenu.Alignment = ToolStripItemAlignment.Right;
         _screenMenu.Overflow = ToolStripItemOverflow.Never;
@@ -144,6 +145,15 @@ internal sealed partial class EditorForm
 
         _toolbar.ContextMenuStrip = BuildToolbarContextMenu();
         return _toolbar;
+    }
+
+    // Preserve the ToolStripDropDownButton's vertical alignment while leaving
+    // a small, deliberate gap between the right-aligned Outputs icon and window edge.
+    internal static void ApplyOutputsToolbarRightInset(ToolStripDropDownButton outputs)
+    {
+        ArgumentNullException.ThrowIfNull(outputs);
+        var margin = outputs.Margin;
+        outputs.Margin = new Padding(margin.Left, margin.Top, 12, margin.Bottom);
     }
 
     private ContextMenuStrip BuildToolbarContextMenu()

@@ -159,6 +159,7 @@ internal static class Program
             ("Runtime normal startup and unsupported arguments", RuntimeOutputStartupPolicy),
             ("Output menu device command model", ScreenMenuDeviceCommandModel),
             ("Editor main-menu Group cleanup", EditorMainMenuGroupCleanup),
+            ("Editor Outputs toolbar right inset", EditorOutputsToolbarRightInset),
             ("Editor native title-bar layout contract", EditorWindowChromeHitTestContract),
             ("Editor title-bar native ownership contract", EditorTitleBarCaptionVisualExclusion),
             ("Editor title-bar menu integration", EditorTitleBarMenuIntegration),
@@ -1925,6 +1926,31 @@ internal static class Program
             "Removing the duplicate Group menu must preserve grouping commands in Edit, Layers context menu, and toolbar surfaces.");
     }
 
+
+    private static void EditorOutputsToolbarRightInset()
+    {
+        using var form = new Form { ClientSize = new Size(600, 100) };
+        using var toolbar = new ToolStrip { Dock = DockStyle.Top, GripStyle = ToolStripGripStyle.Hidden };
+        var outputs = new ToolStripDropDownButton("Outputs")
+        {
+            Alignment = ToolStripItemAlignment.Right
+        };
+        var originalMargin = outputs.Margin;
+        EditorForm.ApplyOutputsToolbarRightInset(outputs);
+        toolbar.Items.Add(outputs);
+        form.Controls.Add(toolbar);
+        form.PerformLayout();
+        toolbar.PerformLayout();
+
+        Assert(outputs.Margin.Right == 12 &&
+               outputs.Margin.Left == originalMargin.Left &&
+               outputs.Margin.Top == originalMargin.Top &&
+               outputs.Margin.Bottom == originalMargin.Bottom,
+            "Outputs toolbar inset must add 12 px on the right without changing vertical or left spacing.");
+        Assert(outputs.Alignment == ToolStripItemAlignment.Right &&
+               toolbar.ClientRectangle.Right - outputs.Bounds.Right >= 12,
+            "Outputs must remain right aligned while leaving a visible gap from the toolbar edge.");
+    }
 
     private static void EditorWindowChromeHitTestContract()
     {
