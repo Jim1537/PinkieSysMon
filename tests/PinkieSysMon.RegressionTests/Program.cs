@@ -17,8 +17,10 @@ internal static class Program
     private const string FixtureOutputFps = "system.output.desktop-1.fps";
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
+            return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
             ("Issue70 empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
@@ -65,6 +67,10 @@ internal static class Program
             ("Issue71 TURZX transport disposal drains command", Issue71TransportTests.TransportDisposalDrainsCommand),
             ("Issue71 TURZX pending native success", Issue71TransportTests.PendingNativeSuccess),
             ("Issue71 TURZX commands remain serialized", Issue71TransportTests.CommandsRemainSerialized),
+            ("Issue71 TURZX passive diagnostic explicit admission", TurzxPassiveDiagnosticTests.ExplicitAdmission),
+            ("Issue71 TURZX passive diagnostic exact metadata and privacy", TurzxPassiveDiagnosticTests.ExactMetadataAndPrivateOutput),
+            ("Issue71 TURZX passive diagnostic missing and ambiguous interfaces", TurzxPassiveDiagnosticTests.MissingAmbiguousAndRemoved),
+            ("Issue71 TURZX passive diagnostic sanitized errors", TurzxPassiveDiagnosticTests.ErrorsDoNotLeakPrivateMessages),
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Issue77 catalog and exact USB devnode parsing", Issue77UsbDiscoveryTests.CatalogAndExactParsing),
             ("Issue77 passive catalog capture without unrelated reads", Issue77UsbDiscoveryTests.PassiveCatalogCapture),

@@ -16,6 +16,19 @@ Case aliases of one interface are deduplicated. Different interfaces on one devn
 
 Microsoft documents [hardware-key access](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/opening-a-device-s-hardware-key), [WinUSB interface registration](https://learn.microsoft.com/en-us/windows-hardware/drivers/usbcon/winusb-installation) and [devnode-scoped interface enumeration](https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_get_device_interface_listw). These API contracts do not prove a particular device's installed registration or firmware behavior.
 
+### Manual native discovery checkpoint
+
+After a current [Windows build and regression run](../building.md#build-and-regression), invoke the already-built regression runner from the repository root:
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-passive-check |
+    Tee-Object .\artifacts\turzx-passive-check.log
+```
+
+This explicit mode runs the actual passive discovery and exact binding selection once, using existing Windows metadata. It prints the Runtime assembly version and aggregate devnode/class/interface counts, without raw paths, instance IDs, binding hashes or exception messages. It opens no USB transport, sends no command and reads/writes no application configuration. Exit 0 requires exactly one usable, correlated interface; exit 1 reports an incomplete/failed scan; exit 2 rejects unsupported arguments or a non-Windows host. Missing registration, removal and multiple interfaces do not select a fallback device.
+
+Without arguments, the runner executes deterministic regressions and does not invoke this native checkpoint. `PASSIVE DISCOVERY: PASS` establishes only the observed metadata/binding result; the transport, image, brightness and Runtime gates remain separate. Retain both `builder.log` and this diagnostic log before another run overwrites either. The [Issue stage reports](https://github.com/Jim1537/PinkieSysMon/issues/71) own exact revisions and observed results.
+
 ## Application configuration
 
 A prepared TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.
