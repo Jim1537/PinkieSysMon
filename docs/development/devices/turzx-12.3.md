@@ -62,6 +62,15 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
     Tee-Object .\artifacts\turzx-png-sync.log
 ```
 
+The corresponding `jpeg-sync` action applies the same single-empty-read gate before one JPEG command. Its pattern has a **burgundy background** and **TURZX JPEG SYNC** label. The encoded format, command ID and image-response classification are unchanged from `jpeg`; physical JPEG compatibility still requires its own observation.
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check jpeg-sync --consent YES |
+    Tee-Object .\artifacts\turzx-jpeg-sync.log
+```
+
+`brightness-sync <0..100>` uses that same gate before one explicit brightness command, without an image or automatic restoration. It retains the existing brightness conversion and empty/unacknowledged result. It is available only for a separately planned checkpoint; do not chain it after an image test. All controlled variants stop before the selected command on any nonempty/invalid post-sync read or read failure, and dispose after their one command without further reads/retries.
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Exchange completed with the current response policy, or the explicit sync follow-up observation was recorded; neither proves physical effect or reply correlation. |

@@ -23,17 +23,18 @@ internal static class TurzxTransportDiagnostic
         var consentOption = args.Length >= 3 && args[^2] == "--consent";
         var actionArgs = consentOption ? args[..^2] : args;
         var percent = -1;
-        var image = actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg" or "png-sync");
-        var sync = actionArgs.Length == 2 && (actionArgs[1] is "sync" or "png-sync");
-        var brightness = actionArgs.Length == 3 && actionArgs[1] == "brightness" &&
+        var image = actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg" or "png-sync" or "jpeg-sync");
+        var brightness = actionArgs.Length == 3 && (actionArgs[1] is "brightness" or "brightness-sync") &&
             int.TryParse(actionArgs[2], NumberStyles.None, CultureInfo.InvariantCulture, out percent) && percent is >= 0 and <= 100;
+        var sync = actionArgs.Length == 2 && (actionArgs[1] is "sync" or "png-sync" or "jpeg-sync") ||
+            brightness && actionArgs[1] == "brightness-sync";
         if (!image && !brightness && !sync)
         {
-            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync --consent YES OR --turzx-transport-check brightness <0..100> --consent YES.");
+            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
             return 2;
         }
         write($"TURZX TRANSPORT CHECK - Runtime v{RuntimeVersion.Current}");
-        write(sync && !image ? "This sends sync and performs one follow-up read. No image or brightness command."
+        write(sync && !image && !brightness ? "This sends sync and performs one follow-up read. No image or brightness command."
             : image ? $"This replaces the TURZX picture with a synthetic {actionArgs[1].ToUpperInvariant()} test pattern."
             : $"This changes TURZX hardware brightness to {percent}% (without a firmware-save command).");
         write("One exact TURZX only; no application configuration write or Runtime adoption. Hardware use requires explicit --consent YES.");
@@ -57,7 +58,7 @@ internal static class TurzxTransportDiagnostic
             // Encode before opening: an image/encoder failure must not leave a
             // partly initialized device transaction or require any USB retry.
             stage = "encode";
-            var format = actionArgs[1] == "jpeg" ? TurzxImageFormat.Jpeg : TurzxImageFormat.Png;
+            var format = actionArgs[1] is "jpeg" or "jpeg-sync" ? TurzxImageFormat.Jpeg : TurzxImageFormat.Png;
             var payload = image ? (encode ?? (codec => CreatePattern(codec, sync)))(format) : null;
             if (payload is not null)
             {
@@ -91,13 +92,13 @@ internal static class TurzxTransportDiagnostic
                 write($"Post-sync response bytes: {received}.");
                 write($"Post-sync full status-marker shape: {(received == buffer.Length && (buffer[1] == 0xC8 || buffer[8] == 0xC8) ? "YES" : "NO")}.");
                 write("SYNC REPLY CHECK: OBSERVATION RECORDED (not a correlated ACK, proof of an empty device queue or permission for another command).");
-                if (!image) return 0;
+                if (!image && !brightness) return 0;
                 if (received != 0)
                 {
-                    write("TRANSPORT CHECK: INCOMPLETE (PNG checkpoint expected one successful empty post-sync read; no image command sent).");
+                    write("TRANSPORT CHECK: INCOMPLETE (command checkpoint expected one successful empty post-sync read; no selected command sent).");
                     return 1;
                 }
-                write("Explicit PNG checkpoint: send one frame after the observed empty read; no further drain or retry.");
+                write("Explicit command checkpoint: send one selected command after the observed empty read; no further drain or retry.");
             }
             stage = image ? "image" : "brightness";
             var result = image ? transport.SendImage(format, payload!) : transport.SetBrightnessPercent(percent);
@@ -136,7 +137,10 @@ internal static class TurzxTransportDiagnostic
         using var surface = SKSurface.Create(new SKImageInfo(720, 1920, SKColorType.Bgra8888, alpha))
             ?? throw new InvalidOperationException("Synthetic TURZX surface could not be allocated.");
         var canvas = surface.Canvas;
-        canvas.Clear(afterSyncRead ? new SKColor(8, 32, 96) : new SKColor(17, 22, 32));
+        var background = afterSyncRead
+            ? (format == TurzxImageFormat.Png ? new SKColor(8, 32, 96) : new SKColor(96, 8, 32))
+            : new SKColor(17, 22, 32);
+        canvas.Clear(background);
         // Same clockwise transport correction as the recovered independent PNG probe.
         canvas.Translate(720, 0); canvas.RotateDegrees(90);
         using var paint = new SKPaint { IsAntialias = true };
@@ -148,7 +152,7 @@ internal static class TurzxTransportDiagnostic
         { paint.Color = color; canvas.DrawRect(x, y, 200, 200, paint); }
         paint.Color = SKColors.White;
         using var font = new SKFont(SKTypeface.Default, 84);
-        canvas.DrawText(afterSyncRead ? "TURZX PNG SYNC" : $"TURZX {format.ToString().ToUpperInvariant()}", 450, 310, SKTextAlign.Left, font, paint);
+        canvas.DrawText($"TURZX {format.ToString().ToUpperInvariant()}{(afterSyncRead ? " SYNC" : "")}", 450, 310, SKTextAlign.Left, font, paint);
         paint.StrokeWidth = 20;
         canvas.DrawLine(550, 460, 1370, 460, paint);
         canvas.DrawLine(1370, 460, 1270, 380, paint);
