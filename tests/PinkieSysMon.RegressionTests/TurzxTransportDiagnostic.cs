@@ -60,6 +60,8 @@ internal static class TurzxTransportDiagnostic
             {
                 _ = TurzxWireProtocol.Image(format, payload, 0);
                 write($"Encoded {format}: {payload.Length} bytes; transport raster 720x1920.");
+                if (format == TurzxImageFormat.Png && payload.Length >= 33 && payload.AsSpan(12, 4).SequenceEqual("IHDR"u8))
+                    write($"PNG IHDR: depth {payload[24]}; color type {payload[25]}; interlace {payload[28]}.");
             }
             stage = "open/sync";
             using var transport = (open ?? (selected => TurzxTransport.TryOpen(selected, 3000, default)))(target);
@@ -94,7 +96,10 @@ internal static class TurzxTransportDiagnostic
     internal static byte[] CreatePattern(TurzxImageFormat format)
     {
         if (format is not (TurzxImageFormat.Png or TurzxImageFormat.Jpeg)) throw new ArgumentOutOfRangeException(nameof(format));
-        using var surface = SKSurface.Create(new SKImageInfo(720, 1920, SKColorType.Bgra8888, SKAlphaType.Opaque))
+        // Preserve an RGBA PNG even though every pattern pixel is opaque.
+        // Opaque surface metadata lets Skia omit alpha and encode RGB instead.
+        var alpha = format == TurzxImageFormat.Png ? SKAlphaType.Premul : SKAlphaType.Opaque;
+        using var surface = SKSurface.Create(new SKImageInfo(720, 1920, SKColorType.Bgra8888, alpha))
             ?? throw new InvalidOperationException("Synthetic TURZX surface could not be allocated.");
         var canvas = surface.Canvas;
         canvas.Clear(new SKColor(17, 22, 32));

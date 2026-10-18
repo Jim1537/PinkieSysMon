@@ -42,6 +42,8 @@ This replaces the selected TURZX's picture with a synthetic pattern. Hardware us
 
 Each invocation opens/synchronizes once, executes **one** selected command, then disposes the transport. `png` and `jpeg` generate the matching encoded 720×1920 raster with the recovered clockwise correction. The expected physical landscape has red top-left, green top-right, blue bottom-right and yellow bottom-left corners, an upright codec label and a right-pointing arrow. A recognized response establishes an exchange result, not a visible/correct image; report those observations separately.
 
+The diagnostic PNG uses 8-bit, noninterlaced RGBA (PNG color type 6), with alpha 255 for every pixel and its own opaque background. Its alpha-capable render surface retains the fourth channel during encoding; declaring that surface opaque would let Skia emit RGB instead. The log prints the actual IHDR depth, color type and interlace before USB open. Software decoding/profile checks do not establish firmware compatibility; physical image acceptance remains separate.
+
 The same mode accepts `jpeg`, or `brightness <0..100>` for a separately planned brightness checkpoint. Brightness changes hardware and is not automatically restored; there is no save/reset command or automatic later frame. A successful empty brightness read produces `UNACKNOWLEDGED` and no subsequent command; it is not a positive ACK or proof of physical effect. Do not chain further tests after an unexplained result.
 
 | Exit | Meaning |

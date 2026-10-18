@@ -75,8 +75,26 @@ internal static class TurzxTransportDiagnosticTests
             var bytes = TurzxTransportDiagnostic.CreatePattern(format);
             Check(bytes.Length <= TurzxWireProtocol.MaximumImageBytes, "The synthetic encoded pattern must fit the transport policy.");
             _ = TurzxWireProtocol.Image(format, bytes, 0);
+            if (format == TurzxImageFormat.Png)
+                Check(bytes.Length >= 33 && bytes.AsSpan(12, 4).SequenceEqual("IHDR"u8) &&
+                    bytes[24] == 8 && bytes[25] == 6 && bytes[26] == 0 && bytes[27] == 0 && bytes[28] == 0,
+                    "The PNG checkpoint must retain 8-bit noninterlaced RGBA, not silently encode opaque RGB.");
             using var bitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Diagnostic pattern could not be decoded.");
             Check(bitmap.Width == 720 && bitmap.Height == 1920, "Synthetic test transport geometry must be portrait without rewriting a dashboard.");
+            if (format == TurzxImageFormat.Png)
+            {
+                Check(bitmap.Pixels.All(pixel => pixel.Alpha == 255), "RGBA transport storage must not introduce transparent pattern pixels.");
+                Check(bitmap.GetPixel(360, 1800) == new SKColor(17, 22, 32), "The PNG must contain its own opaque background.");
+                var output = new List<string>();
+                var io = new FakeConnection(false);
+                Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], output.Add,
+                    () => [Device], _ =>
+                    {
+                        var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    }, _ => bytes) == 0 && io.Disposed &&
+                    output.Contains("PNG IHDR: depth 8; color type 6; interlace 0."),
+                    "The checkpoint must report the actual encoded PNG profile before its one-command exchange.");
+            }
             var red = bitmap.GetPixel(700, 20); var green = bitmap.GetPixel(700, 1900);
             var blue = bitmap.GetPixel(20, 1900); var yellow = bitmap.GetPixel(20, 20);
             Check(red.Red > 200 && red.Green < 80 && red.Blue < 80 && green.Green > 200 && green.Red < 80 && green.Blue < 80 &&
