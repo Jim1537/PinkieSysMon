@@ -16,7 +16,8 @@ internal static class TurzxTransportDiagnostic
         Func<OutputTargetConfig, TurzxTransport?>? open = null,
         Func<TurzxImageFormat, byte[]>? encode = null,
         Func<byte[], int>? followUpRead = null,
-        Action? betweenImages = null)
+        Action? betweenImages = null,
+        Func<OutputDeviceDescriptor, int, ITurzxUsbConnection>? openCaptureConnection = null)
     {
         if (args.Length == 0 || args[0] != Argument) return null;
         // Explicit argument consent works even when stdout is piped to a log;
@@ -24,22 +25,24 @@ internal static class TurzxTransportDiagnostic
         var consentOption = args.Length >= 3 && args[^2] == "--consent";
         var actionArgs = consentOption ? args[..^2] : args;
         var percent = -1;
+        var syncCapture = actionArgs.Length == 2 && actionArgs[1] == "sync-capture";
         var stream = actionArgs.Length == 2 && actionArgs[1] == "jpeg-stream";
         var pairReads = actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair-read";
         var pair = stream || pairReads || actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair";
         var image = pair || actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg" or "png-sync" or "jpeg-sync");
         var brightness = actionArgs.Length == 3 && (actionArgs[1] is "brightness" or "brightness-sync") &&
             int.TryParse(actionArgs[2], NumberStyles.None, CultureInfo.InvariantCulture, out percent) && percent is >= 0 and <= 100;
-        var sync = pair || actionArgs.Length == 2 && (actionArgs[1] is "sync" or "png-sync" or "jpeg-sync") ||
+        var sync = syncCapture || pair || actionArgs.Length == 2 && (actionArgs[1] is "sync" or "png-sync" or "jpeg-sync") ||
             brightness && actionArgs[1] == "brightness-sync";
         if (!image && !brightness && !sync)
         {
-            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync|jpeg-pair|jpeg-pair-read|jpeg-stream --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
+            write("Usage: --turzx-transport-check png|jpeg|sync|sync-capture|png-sync|jpeg-sync|jpeg-pair|jpeg-pair-read|jpeg-stream --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
             return 2;
         }
         write($"TURZX TRANSPORT CHECK - Runtime v{RuntimeVersion.Current}");
         write($"Invocation: {Guid.NewGuid():N}; UTC {DateTimeOffset.UtcNow:O}; action {actionArgs[1]}.");
-        write(pair ? "This sends two distinct JPEG frames on one connection, with one initial sync and no automatic retry."
+        write(syncCapture ? "PRIVATE reply capture: one sync write and one primary read only. No follow-up, image, brightness, reset or retry. Keep this raw-reply log private."
+            : pair ? "This sends two distinct JPEG frames on one connection, with one initial sync and no automatic retry."
             : sync && !image && !brightness ? "This sends sync and performs one follow-up read. No image or brightness command."
             : image ? $"This replaces the TURZX picture with a synthetic {actionArgs[1].ToUpperInvariant()} test pattern."
             : $"This changes TURZX hardware brightness to {percent}% (without a firmware-save command).");
@@ -104,16 +107,22 @@ internal static class TurzxTransportDiagnostic
             TurzxTransport? OpenSelected(OutputTargetConfig selected)
             {
                 if (stream) return TurzxTransport.TryOpen(selected, 3000, default);
-                return TurzxTransport.TryOpen(selected, 3000, default, TurzxDeviceDiscovery.Capture, (device, timeout) =>
+                return TurzxTransport.TryOpen(selected, 3000, default, capture ?? TurzxDeviceDiscovery.Capture, (device, timeout) =>
                 {
-                    var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeout);
-                    try { return probeConnection = new TurzxUsbConnection(native, timeout); }
-                    catch { native.Dispose(); throw; }
+                    if (syncCapture)
+                        return new SyncCaptureConnection((openCaptureConnection ?? OpenNativeConnection)(device, timeout), write);
+                    return probeConnection = OpenNativeConnection(device, timeout);
                 }, replyMode: TurzxReplyMode.PrimaryOnly);
             }
-            using var transport = (open ?? OpenSelected)(target);
+            // Capture must observe the real TryOpen/sync path, not a pre-opened test transport.
+            using var transport = syncCapture ? OpenSelected(target) : (open ?? OpenSelected)(target);
             if (transport is null) { write("TRANSPORT CHECK: INCOMPLETE (binding disappeared; no alternate selected)."); return 1; }
             write("Open / sync: completed with the transport's recognized response policy.");
+            if (syncCapture)
+            {
+                write("SYNC CAPTURE: PRIMARY RECOGNIZED (observation only; no follow-up or frame sent).");
+                return 0;
+            }
             if (stream)
             {
                 if (transport.ReplyMode != TurzxReplyMode.JpegStream)
@@ -180,6 +189,39 @@ internal static class TurzxTransportDiagnostic
         }
         finally { write(pair ? "No automatic retry, third frame, additional sync or firmware-save/reset command. Transport lifetime ends with this invocation."
             : "No automatic retry, subsequent frame or firmware-save/reset command. Transport lifetime ends with this invocation."); }
+    }
+
+    private static ITurzxUsbConnection OpenNativeConnection(OutputDeviceDescriptor device, int timeoutMs)
+    {
+        var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeoutMs);
+        try { return new TurzxUsbConnection(native, timeoutMs); }
+        catch { native.Dispose(); throw; }
+    }
+
+    // Developer-only observer. Production transport validation and I/O are unchanged.
+    private sealed class SyncCaptureConnection(ITurzxUsbConnection inner, Action<string> write) : ITurzxUsbConnection
+    {
+        private bool _written;
+        private bool _read;
+        public int Write(byte[] packet, CancellationToken token)
+        {
+            if (_written || packet.Length != TurzxWireProtocol.HeaderLength)
+                throw new InvalidOperationException("Sync capture allows one control write only.");
+            _written = true;
+            return inner.Write(packet, token);
+        }
+        public int Read(byte[] buffer, CancellationToken token)
+        {
+            if (!_written || _read || buffer.Length != TurzxWireProtocol.HeaderLength)
+                throw new InvalidOperationException("Sync capture allows one bounded primary read only.");
+            _read = true;
+            var received = inner.Read(buffer, token);
+            write($"Primary response bytes: {received}.");
+            if (received >= 0 && received <= buffer.Length)
+                write($"PRIVATE primary response hex: {Convert.ToHexString(buffer.AsSpan(0, received))}");
+            return received;
+        }
+        public void Dispose() => inner.Dispose();
     }
 
     internal static byte[] CreatePattern(TurzxImageFormat format) => CreatePattern(format, false);

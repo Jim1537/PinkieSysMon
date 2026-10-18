@@ -113,6 +113,21 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
 
 Capture and inspect one bounded result before the next action. Preserve the current `builder.log`, per-action diagnostic log and the owner's physical observation before another run; source is retained in Git. This developer-only checkpoint does not enable TURZX in Devices or change the production session/consent contract.
 
+### Private initial-sync reply capture
+
+For an unexplained short initial response, the separately planned **sync-capture** action records the actual primary bytes before the unchanged strict classifier runs:
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check sync-capture --consent YES |
+    Tee-Object .\artifacts\turzx-sync-capture.log
+"Process exit code: $LASTEXITCODE" |
+    Tee-Object .\artifacts\turzx-sync-capture.log -Append
+```
+
+Use a current Windows build/regression and close Runtime and all other TURZX controllers first. Follow the owning Issue's current device-state precondition; do not reconnect or reset the device merely to make this capture succeed. One exact binding is captured and revalidated before one native open, one normal sync write and one primary read of at most **512 bytes** with the existing **3000 ms** transfer timeout. No follow-up read, drain, image, brightness, sync retry, pipe reset or firmware-save command follows, including after a recognized primary. Native disposal retains terminal-completion ownership. Sync itself may have firmware side effects; this is an explicitly consented active observation.
+
+The log includes the invocation/version, actual count and precisely those returned bytes in hexadecimal, with no added binding/path metadata. **Keep the raw-reply log private; do not paste its contents into public Issues.** A failed transfer supplies no fabricated bytes or arbitrary exception text. Exit 1 for a short/unrecognized reply is a useful captured result, not a reason to retry. Exit 0 means only that the primary passed existing validation, not that JPEG output or recovery works. Preserve the Builder/capture logs and stop after this one invocation.
+
 ## Application configuration
 
 A TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.

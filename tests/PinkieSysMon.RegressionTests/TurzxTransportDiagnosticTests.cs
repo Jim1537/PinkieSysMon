@@ -43,6 +43,103 @@ internal static class TurzxTransportDiagnosticTests
         Check(captures == 0 && opens == 0, "Declined hardware use cannot discover/open a transport.");
     }
 
+    public static void SyncCapturePreservesExactReplyAndSingleExchange()
+    {
+        foreach (var length in new[] { 0, 12, 24, 41, 512, -1, 513 })
+        {
+            var io = new CaptureConnection { ReportedLength = length };
+            var output = new List<string>(); var opens = 0; var captures = 0;
+            var device = CaptureDevice();
+            var result = TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync-capture", "--consent", "YES"], output.Add,
+                () => { captures++; return [device]; },
+                _ => throw new InvalidOperationException("Capture cannot bypass production sync."),
+                _ => throw new InvalidOperationException("Capture cannot encode an image."),
+                _ => throw new InvalidOperationException("Capture cannot read a follow-up."),
+                openCaptureConnection: (selected, timeout) =>
+                {
+                    opens++;
+                    Check(selected == device && timeout == 3000, "Capture must use the exact revalidated descriptor and existing timeout.");
+                    return io;
+                });
+            Check(result == (length == 512 ? 0 : 1) && opens == 1 && captures == 2 && io.Writes == 1 && io.Reads == 1 && io.Disposed,
+                "Sync capture must use actual TryOpen/strict sync with one read/write and dispose, including short/invalid replies.");
+            var text = string.Join('\n', output);
+            Check(!text.Contains(device.DeviceId) && !text.Contains(device.DevicePath), "Capture metadata must not add device bindings/paths.");
+            if (length is >= 0 and <= 512)
+                Check(output.Single(line => line.StartsWith("PRIVATE primary response hex:", StringComparison.Ordinal)) ==
+                    "PRIVATE primary response hex: " + Convert.ToHexString(io.Reply.AsSpan(0, length)),
+                    "Capture must retain precisely the bytes returned, excluding stale buffer tails, even before strict validation fails.");
+            else
+                Check(!output.Any(line => line.StartsWith("PRIVATE primary response hex:", StringComparison.Ordinal)),
+                    "Invalid native lengths must not index or fabricate raw reply bytes.");
+            Check(output.Any(line => line.Contains("Keep this raw-reply log private.", StringComparison.Ordinal)),
+                "Explicit raw capture must identify the log's private evidence boundary.");
+        }
+    }
+
+    public static void SyncCaptureAdmissionAndFailureLifetime()
+    {
+        var captures = 0; var opens = 0;
+        foreach (var args in new[]
+        {
+            new[] { TurzxTransportDiagnostic.Argument, "sync-capture" },
+            new[] { TurzxTransportDiagnostic.Argument, "sync-capture", "--consent", "NO" },
+            new[] { TurzxTransportDiagnostic.Argument, "sync-capture", "extra", "--consent", "YES" }
+        })
+            Check(TurzxTransportDiagnostic.TryRun(args, _ => { }, () => { captures++; return [CaptureDevice()]; },
+                openCaptureConnection: (_, _) => { opens++; return new CaptureConnection(); }) == 2,
+                "Capture must require exact arguments and explicit consent before discovery or native open.");
+        Check(captures == 0 && opens == 0, "Declined/invalid capture cannot perform discovery or acquisition.");
+        foreach (var devices in new IReadOnlyList<OutputDeviceDescriptor>[] { [], [CaptureDevice(), CaptureDevice()], [Device] })
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync-capture", "--consent", "YES"], _ => { },
+                () => devices, openCaptureConnection: (_, _) => { opens++; return new CaptureConnection(); }) == 1 && opens == 0,
+                "Missing/ambiguous or invalid exact binding must fail before capture opens native I/O.");
+        foreach (var failure in new Exception[] { new TimeoutException("PRIVATE timeout"), new OperationCanceledException("PRIVATE cancel"),
+            new System.ComponentModel.Win32Exception(31, "PRIVATE native failure"), new IOException("PRIVATE I/O failure") })
+        {
+            var io = new CaptureConnection { ReadFailure = failure }; var output = new List<string>();
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync-capture", "--consent", "YES"], output.Add,
+                () => [CaptureDevice()], openCaptureConnection: (_, _) => io) == 1 && io.Writes == 1 && io.Reads == 1 && io.Disposed,
+                "A failed capture read must close ownership without another read/write or retry.");
+            Check(!output.Any(line => line.StartsWith("PRIVATE primary response hex:", StringComparison.Ordinal)) &&
+                !string.Join('\n', output).Contains(failure.Message),
+                "A failed transfer supplies no fabricated reply or arbitrary exception text.");
+        }
+        var shortWrite = new CaptureConnection { ShortWrite = true };
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync-capture", "--consent", "YES"], _ => { },
+            () => [CaptureDevice()], openCaptureConnection: (_, _) => shortWrite) == 1 &&
+            shortWrite.Writes == 1 && shortWrite.Reads == 0 && shortWrite.Disposed,
+            "A short sync write must stop before the primary read.");
+    }
+
+    private static OutputDeviceDescriptor CaptureDevice()
+    {
+        const string path = @"\\?\usb#vid_1cbe&pid_0123#SYNTHETIC-CAPTURE#{9374A242-8D16-42BB-A6C4-3BAA15E51317}";
+        return new(TurzxDeviceDiscovery.CreateStableDeviceId(path), "turzx", "Synthetic", path);
+    }
+
+    private sealed class CaptureConnection : ITurzxUsbConnection
+    {
+        public byte[] Reply { get; } = Enumerable.Range(0, 512).Select(i => (byte)i).ToArray();
+        public int ReportedLength { get; init; } = 512;
+        public Exception? ReadFailure { get; init; }
+        public bool ShortWrite { get; init; }
+        public int Writes, Reads;
+        public bool Disposed;
+        public int Write(byte[] packet, CancellationToken token)
+        { Writes++; return packet.Length - (ShortWrite ? 1 : 0); }
+        public int Read(byte[] buffer, CancellationToken token)
+        {
+            Reads++;
+            if (ReadFailure is not null) throw ReadFailure;
+            Reply[1] = 0xC8;
+            Array.Fill(buffer, (byte)0xDD);
+            Reply.AsSpan(0, Math.Clamp(ReportedLength, 0, 512)).CopyTo(buffer);
+            return ReportedLength;
+        }
+        public void Dispose() => Disposed = true;
+    }
+
     public static void OneCommandAndEmptyBrightness()
     {
         foreach (var action in new[] { "png", "jpeg", "brightness" })

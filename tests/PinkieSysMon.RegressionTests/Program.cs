@@ -27,6 +27,8 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue71 sync capture exact bytes and single exchange", TurzxTransportDiagnosticTests.SyncCapturePreservesExactReplyAndSingleExchange),
+            ("Issue71 sync capture admission and failure lifetime", TurzxTransportDiagnosticTests.SyncCaptureAdmissionAndFailureLifetime),
             ("Issue71 recovery complete metadata before removal", Issue71ModelTests.RecoveryMetadataCannotInventRemoval),
             ("Issue71 recovery exact reattachment after send/open failure", Issue71RecoveryTests.ReattachmentRecoversSendAndOpenFailure),
             ("Issue71 recovery trustworthy absence and exact return", Issue71RecoveryTests.RecoveryRequiresTrustworthyAbsenceAndExactReturn),
