@@ -40,7 +40,7 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
 
 This replaces the selected TURZX's picture with a synthetic pattern. Hardware use requires the explicit `--consent YES` argument; absent consent or any other value declines before discovery or USB open. Argument consent also works when output is piped to the log, without depending on interactive stdin. The mode captures one exact candidate and the production open path revalidates that saved-in-memory binding before sync. It does not load or save application configuration, adopt a Runtime Output, alter a dashboard or select an alternate unit. A missing/multiple candidate, encoding/open/sync/send error stops the test without automatic retry.
 
-Each image/brightness invocation opens/synchronizes once, executes **one** selected command, then disposes the transport. `png` and `jpeg` generate the matching encoded 720×1920 raster with the recovered clockwise correction. The expected physical landscape has red top-left, green top-right, blue bottom-right and yellow bottom-left corners, an upright codec label and a right-pointing arrow. A recognized response establishes an exchange result, not a visible/correct image; report those observations separately.
+The single-command image/brightness modes open/synchronize once, execute **one** selected command, then dispose the transport; the explicit `jpeg-pair` experiment below is the two-frame exception. `png` and `jpeg` generate the matching encoded 720×1920 raster with the recovered clockwise correction. The expected physical landscape has red top-left, green top-right, blue bottom-right and yellow bottom-left corners, an upright codec label and a right-pointing arrow. A recognized response establishes an exchange result, not a visible/correct image; report those observations separately. Each invocation prints a random run ID, UTC timestamp and validated action to distinguish separate attempts without device identifiers.
 
 The diagnostic PNG uses 8-bit, noninterlaced RGBA (PNG color type 6), with alpha 255 for every pixel and its own opaque background. Its alpha-capable render surface retains the fourth channel during encoding; declaring that surface opaque would let Skia emit RGB instead. The log prints the actual IHDR depth, color type and interlace before USB open. Software decoding/profile checks do not establish firmware compatibility; physical image acceptance remains separate.
 
@@ -69,7 +69,18 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
     Tee-Object .\artifacts\turzx-jpeg-sync.log
 ```
 
-`brightness-sync <0..100>` uses that same gate before one explicit brightness command, without an image or automatic restoration. It retains the existing brightness conversion and empty/unacknowledged result. It is available only for a separately planned checkpoint; do not chain it after an image test. All controlled variants stop before the selected command on any nonempty/invalid post-sync read or read failure, and dispose after their one command without further reads/retries.
+`brightness-sync <0..100>` uses that same gate before one explicit brightness command, without an image or automatic restoration. It retains the existing brightness conversion and empty/unacknowledged result. It is available only for a separately planned checkpoint; do not chain it after an image test. These single-command controlled variants stop before the selected command on any nonempty/invalid post-sync read or read failure, and dispose after their one command without further reads/retries.
+
+The separately planned `jpeg-pair` experiment tests two **different JPEG frames on one open connection**, rather than reopening/resynchronizing between invocations. Both payloads are encoded and validated before USB open. One initial sync, the normal settling delay and the same successful-empty-read gate precede frame A. Its image reply must pass the unchanged strict classifier before a two-second observation pause and frame B. The pause helps identify the pictures; it is not a measured firmware timing requirement. There is no additional sync, post-image read/drain, resend, codec switch, brightness command or third frame. Any failed write/reply or interrupted pause stops the sequence and disposes the connection.
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check jpeg-pair --consent YES |
+    Tee-Object .\artifacts\turzx-jpeg-pair.log
+"Process exit code: $LASTEXITCODE" |
+    Tee-Object .\artifacts\turzx-jpeg-pair.log -Append
+```
+
+Frame A has an **orange background / TURZX JPEG PAIR A**; frame B has a **teal background / TURZX JPEG PAIR B**. Both retain the established corners and arrow. Record whether A appeared and whether B replaced it, including a retained earlier picture or partial sequence. `PAIR CHECK: EXCHANGES COMPLETE` reports two classified exchanges, never two displayed frames. This experiment can investigate a failure inside a continuous connection; it does not prove why a previous reopened invocation failed, eliminate firmware-state differences, or establish sustained Runtime operation. Follow the owning Issue's current preconditions; preserve this attempt's log and observation before any further hardware action.
 
 | Exit | Meaning |
 | --- | --- |

@@ -76,6 +76,7 @@ internal static class Program
             ("Issue71 TURZX transport diagnostic explicit consent", TurzxTransportDiagnosticTests.ExplicitConsentAndArguments),
             ("Issue71 TURZX transport diagnostic one command and empty brightness", TurzxTransportDiagnosticTests.OneCommandAndEmptyBrightness),
             ("Issue71 TURZX transport diagnostic failure isolation", TurzxTransportDiagnosticTests.FailuresStopBeforeFurtherIo),
+            ("Issue71 TURZX two JPEG frames on one connection", TurzxTransportDiagnosticTests.JpegPairSequenceAndFailures),
             ("Issue71 TURZX synthetic codecs, geometry and corners", TurzxTransportDiagnosticTests.SyntheticCodecGeometryAndCorners),
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Issue77 catalog and exact USB devnode parsing", Issue77UsbDiscoveryTests.CatalogAndExactParsing),

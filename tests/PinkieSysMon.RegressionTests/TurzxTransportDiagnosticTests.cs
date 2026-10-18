@@ -18,6 +18,7 @@ internal static class TurzxTransportDiagnosticTests
             new[] { TurzxTransportDiagnostic.Argument, "brightness", "101" }, new[] { TurzxTransportDiagnostic.Argument, "brightness", "-1" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness", "1.5" },
             new[] { TurzxTransportDiagnostic.Argument, "jpeg-sync", "extra" },
+            new[] { TurzxTransportDiagnostic.Argument, "jpeg-pair", "extra" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync", "101" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync", "-1" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync" } })
@@ -30,6 +31,7 @@ internal static class TurzxTransportDiagnosticTests
         Check(Run([TurzxTransportDiagnostic.Argument, "png-sync"]) == 2,
             "PNG after a sync read requires its own explicit invocation and consent.");
         Check(Run([TurzxTransportDiagnostic.Argument, "jpeg-sync"]) == 2 &&
+            Run([TurzxTransportDiagnostic.Argument, "jpeg-pair"]) == 2 &&
             Run([TurzxTransportDiagnostic.Argument, "brightness-sync", "25"]) == 2,
             "JPEG and brightness after a sync read cannot bypass consent.");
         foreach (var answer in new[] { "", "yes", "NO" })
@@ -130,7 +132,7 @@ internal static class TurzxTransportDiagnosticTests
             "A failed image response must dispose without another command.");
         Check(output.Contains("Protocol response: command 102; 0 bytes; unrecognized."),
             "Known protocol failures retain only numeric command/length context, never arbitrary exception text.");
-        foreach (var action in new[] { "sync", "png-sync", "jpeg-sync", "brightness-sync" })
+        foreach (var action in new[] { "sync", "png-sync", "jpeg-sync", "jpeg-pair", "brightness-sync" })
         foreach (var failure in new Exception[] { new TimeoutException("PRIVATE timeout"), new OperationCanceledException("PRIVATE cancel"),
             new System.ComponentModel.Win32Exception(31, "PRIVATE native failure"), new IOException("PRIVATE failure") })
         {
@@ -146,7 +148,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(output.Any(line => line.Contains("ERROR at sync-follow-up")) && !string.Join('\n', output).Contains("PRIVATE"),
                 "Post-sync failure stage must be distinguishable without exposing arbitrary native messages.");
         }
-        foreach (var action in new[] { "png-sync", "jpeg-sync", "brightness-sync" })
+        foreach (var action in new[] { "png-sync", "jpeg-sync", "jpeg-pair", "brightness-sync" })
         foreach (var received in new[] { -1, 7, 512, 513 })
         {
             var io = new FakeConnection(false); var probes = 0;
@@ -160,6 +162,72 @@ internal static class TurzxTransportDiagnosticTests
                 _ => { probes++; return received; }) == 1 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
                 "Any nonempty or invalid post-sync read must stop before the selected command, without another probe.");
         }
+    }
+
+    public static void JpegPairSequenceAndFailures()
+    {
+        var io = new FakeConnection(false); var output = new List<string>();
+        var opens = 0; var probes = 0; var pauses = 0;
+        var args = new[] { TurzxTransportDiagnostic.Argument, "jpeg-pair", "--consent", "YES" };
+        Check(TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], _ =>
+        {
+            opens++; var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+        }, followUpRead: _ => { probes++; Check(io.Writes == 1 && io.Reads == 1, "The pair must use one initial post-sync read."); return 0; },
+        betweenImages: () => { pauses++; Check(io.Writes == 2 && io.Reads == 2, "The observation pause follows only the first completed JPEG exchange."); }) == 0 &&
+            opens == 1 && probes == 1 && pauses == 1 && io.Writes == 3 && io.Reads == 3 && io.Disposed,
+            "The pair must use one connection/sync, two different JPEGs and existing response reads, without reopening or a third frame.");
+        var header = output.Single(line => line.StartsWith("Invocation: ", StringComparison.Ordinal)).Split(';');
+        Check(Guid.TryParseExact(header[0][12..], "N", out _) &&
+            DateTimeOffset.TryParse(header[1].Trim()[4..], System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out _) && header[2].Trim() == "action jpeg-pair.",
+            "Each invocation must identify its random run ID, UTC timestamp and selected action without device identity.");
+        Check(output.Contains("Frame A: orange background / TURZX JPEG PAIR A.") &&
+            output.Contains("Frame B: teal background / TURZX JPEG PAIR B.") &&
+            output.Any(line => line.StartsWith("PAIR CHECK: EXCHANGES COMPLETE", StringComparison.Ordinal)),
+            "Pair logs must distinguish the two planned frames without asserting physical display success.");
+        Check(!io.Packets[1].AsSpan(512).SequenceEqual(io.Packets[2].AsSpan(512)), "The pair must not resend one identical image.");
+        for (var frame = 0; frame < 2; frame++)
+        {
+            using var bitmap = SKBitmap.Decode(io.Packets[frame + 1][512..]) ?? throw new InvalidOperationException("Pair JPEG must decode.");
+            var color = bitmap.GetPixel(360, 1800); var expected = frame == 0 ? new SKColor(104, 48, 8) : new SKColor(8, 80, 80);
+            Check(bitmap.Width == 720 && bitmap.Height == 1920 && bitmap.Pixels.All(p => p.Alpha == 255) &&
+                Math.Abs(color.Red - expected.Red) <= 3 && Math.Abs(color.Green - expected.Green) <= 3 && Math.Abs(color.Blue - expected.Blue) <= 3,
+                "Each pair JPEG must retain its distinct opaque background and transport geometry.");
+        }
+        foreach (var command in new[] { 2, 3 })
+        foreach (var failure in new[] { "empty", "read", "write", "short" })
+        {
+            var failed = new FakeConnection(false)
+            {
+                EmptyAtRead = failure == "empty" ? command : -1,
+                FailureAtRead = failure == "read" ? command : -1,
+                FailureAtWrite = failure == "write" ? command : -1,
+                ShortAtWrite = failure == "short" ? command : -1
+            };
+            output.Clear(); var delays = 0;
+            Check(TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], _ =>
+            {
+                var transport = new TurzxTransport(failed, () => 0, _ => { }); transport.Synchronize(); return transport;
+            }, _ => [255, 216, 255, 255, 217], _ => 0, () => delays++) == 1 && failed.Disposed &&
+                failed.Writes == command && failed.Reads == command - (failure is "write" or "short" ? 1 : 0) && delays == command - 2,
+                "An empty or failed pair reply, failed write or short write must stop exactly at that frame without retry.");
+            Check(output.Any(line => line.Contains($"ERROR at image-{(command == 2 ? "A" : "B")}", StringComparison.Ordinal)) &&
+                !output.Any(line => line.StartsWith("PAIR CHECK: EXCHANGES COMPLETE", StringComparison.Ordinal)) &&
+                !string.Join('\n', output).Contains("PRIVATE", StringComparison.Ordinal),
+                "Failed pair logs must identify the frame and retain sanitized failure reporting.");
+        }
+        var encoded = 0; var opened = 0;
+        Check(TurzxTransportDiagnostic.TryRun(args, _ => { }, () => [Device], _ => { opened++; return null; },
+            _ => ++encoded == 1 ? [255, 216, 255, 255, 217] : Png) == 1 && encoded == 2 && opened == 0,
+            "Both pair payloads must be encoded and validated before any USB open.");
+        var paused = new FakeConnection(false); output.Clear();
+        Check(TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], _ =>
+        {
+            var transport = new TurzxTransport(paused, () => 0, _ => { }); transport.Synchronize(); return transport;
+        }, _ => [255, 216, 255, 255, 217], _ => 0, () => throw new OperationCanceledException("PRIVATE cancellation")) == 1 &&
+            paused.Writes == 2 && paused.Reads == 2 && paused.Disposed &&
+            output.Any(line => line.Contains("ERROR at pair-observation-delay", StringComparison.Ordinal)),
+            "An interrupted observation pause must dispose before sending frame B.");
     }
 
     public static void SyntheticCodecGeometryAndCorners()
@@ -201,8 +269,20 @@ internal static class TurzxTransportDiagnosticTests
     private sealed class FakeConnection(bool emptyBrightness) : ITurzxUsbConnection
     {
         public int Writes, Reads; public bool Disposed; public byte[]? LastPacket;
-        public int Write(byte[] packet, CancellationToken token) { Writes++; LastPacket = packet; return packet.Length; }
-        public int Read(byte[] buffer, CancellationToken token) { Reads++; if (emptyBrightness && Reads == 2) return 0; buffer[1] = 0xC8; return 512; }
+        public int EmptyAtRead = -1, FailureAtRead = -1, FailureAtWrite = -1, ShortAtWrite = -1;
+        public readonly List<byte[]> Packets = [];
+        public int Write(byte[] packet, CancellationToken token)
+        {
+            Writes++; LastPacket = packet; Packets.Add(packet);
+            if (Writes == FailureAtWrite) throw new IOException("PRIVATE write failure");
+            return packet.Length - (Writes == ShortAtWrite ? 1 : 0);
+        }
+        public int Read(byte[] buffer, CancellationToken token)
+        {
+            Reads++; if (Reads == FailureAtRead) throw new TimeoutException("PRIVATE read failure");
+            if (emptyBrightness && Reads == 2 || Reads == EmptyAtRead) return 0;
+            buffer[1] = 0xC8; return 512;
+        }
         public void Dispose() => Disposed = true;
     }
 }
