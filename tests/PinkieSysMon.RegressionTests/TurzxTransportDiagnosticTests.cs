@@ -20,6 +20,7 @@ internal static class TurzxTransportDiagnosticTests
             new[] { TurzxTransportDiagnostic.Argument, "jpeg-sync", "extra" },
             new[] { TurzxTransportDiagnostic.Argument, "jpeg-pair", "extra" },
             new[] { TurzxTransportDiagnostic.Argument, "jpeg-pair-read", "extra" },
+            new[] { TurzxTransportDiagnostic.Argument, "jpeg-stream", "extra" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync", "101" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync", "-1" },
             new[] { TurzxTransportDiagnostic.Argument, "brightness-sync" } })
@@ -34,6 +35,7 @@ internal static class TurzxTransportDiagnosticTests
         Check(Run([TurzxTransportDiagnostic.Argument, "jpeg-sync"]) == 2 &&
             Run([TurzxTransportDiagnostic.Argument, "jpeg-pair"]) == 2 &&
             Run([TurzxTransportDiagnostic.Argument, "jpeg-pair-read"]) == 2 &&
+            Run([TurzxTransportDiagnostic.Argument, "jpeg-stream"]) == 2 &&
             Run([TurzxTransportDiagnostic.Argument, "brightness-sync", "25"]) == 2,
             "JPEG and brightness after a sync read cannot bypass consent.");
         foreach (var answer in new[] { "", "yes", "NO" })
@@ -51,7 +53,7 @@ internal static class TurzxTransportDiagnosticTests
             var result = TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], target =>
             {
                 Check(target.DeviceEnabled && target.Kind == "turzx" && target.DeviceId == Device.DeviceId, "Consent must create only the exact in-memory enabled test target.");
-                var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
             }, format => format == TurzxImageFormat.Png ? Png : [255, 216, 255, 255, 217]);
             Check(result == (action == "brightness" ? 3 : 0) && io.Writes == 2 && io.Reads == 2 && io.Disposed,
                 "Each invocation must synchronize, execute exactly one command and dispose, including an unacknowledged brightness result.");
@@ -64,7 +66,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync", "--consent", "YES"], output.Add,
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, _ => throw new InvalidOperationException("Sync must not encode an image."), buffer =>
                 {
                     probes++; Check(buffer.Length == 512, "The one post-sync read must be bounded."); buffer[1] = 0xC8; return received;
@@ -80,7 +82,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, action, "--consent", "YES"], _ => { },
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, followUpRead: _ =>
                 {
                     probes++; Check(io.Writes == 1 && io.Reads == 1, "The extra read must precede the image command."); return 0;
@@ -103,7 +105,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "brightness-sync", percent, "--consent", "YES"], _ => { },
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, _ => throw new InvalidOperationException("Brightness must not encode an image."), _ =>
                 {
                     probes++; Check(io.Writes == 1, "Post-sync read must precede brightness."); return 0;
@@ -129,7 +131,7 @@ internal static class TurzxTransportDiagnosticTests
         output.Clear();
         Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], output.Add, () => [Device], _ =>
         {
-            var transport = new TurzxTransport(failed, () => 0, _ => { }); transport.Synchronize(); return transport;
+            var transport = new TurzxTransport(failed, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
         }, _ => Png) == 1 && failed.Disposed && failed.Writes == 2 && failed.Reads == 2,
             "A failed image response must dispose without another command.");
         Check(output.Contains("Protocol response: command 102; 0 bytes; unrecognized."),
@@ -144,7 +146,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun(args, output.Add,
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, followUpRead: _ => { probes++; throw failure; }) == 1 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
                 "A failed extra read must dispose without another read/write or any image/brightness command.");
             Check(output.Any(line => line.Contains("ERROR at sync-follow-up")) && !string.Join('\n', output).Contains("PRIVATE"),
@@ -159,7 +161,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun(args, _ => { },
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, format => format == TurzxImageFormat.Png ? Png : [255, 216, 255, 255, 217],
                 _ => { probes++; return received; }) == 1 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
                 "Any nonempty or invalid post-sync read must stop before the selected command, without another probe.");
@@ -173,7 +175,7 @@ internal static class TurzxTransportDiagnosticTests
         var args = new[] { TurzxTransportDiagnostic.Argument, "jpeg-pair", "--consent", "YES" };
         Check(TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], _ =>
         {
-            opens++; var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+            opens++; var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
         }, followUpRead: _ => { probes++; Check(io.Writes == 1 && io.Reads == 1, "The pair must use one initial post-sync read."); return 0; },
         betweenImages: () => { pauses++; Check(io.Writes == 2 && io.Reads == 2, "The observation pause follows only the first completed JPEG exchange."); }) == 0 &&
             opens == 1 && probes == 1 && pauses == 1 && io.Writes == 3 && io.Reads == 3 && io.Disposed,
@@ -210,7 +212,7 @@ internal static class TurzxTransportDiagnosticTests
             output.Clear(); var delays = 0;
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, action, "--consent", "YES"], output.Add, () => [Device], _ =>
             {
-                var transport = new TurzxTransport(failed, () => 0, _ => { }); transport.Synchronize(); return transport;
+                var transport = new TurzxTransport(failed, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
             }, _ => [255, 216, 255, 255, 217], _ => 0, () => delays++) == 1 && failed.Disposed &&
                 failed.Writes == command && failed.Reads == command - (failure is "write" or "short" ? 1 : 0) && delays == command - 2,
                 "An empty or failed pair reply, failed write or short write must stop exactly at that frame without retry.");
@@ -226,7 +228,7 @@ internal static class TurzxTransportDiagnosticTests
         var paused = new FakeConnection(false); output.Clear();
         Check(TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], _ =>
         {
-            var transport = new TurzxTransport(paused, () => 0, _ => { }); transport.Synchronize(); return transport;
+            var transport = new TurzxTransport(paused, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
         }, _ => [255, 216, 255, 255, 217], _ => 0, () => throw new OperationCanceledException("PRIVATE cancellation")) == 1 &&
             paused.Writes == 2 && paused.Reads == 2 && paused.Disposed &&
             output.Any(line => line.Contains("ERROR at pair-observation-delay", StringComparison.Ordinal)),
@@ -243,7 +245,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, action, "--consent", "YES"], output.Add,
                 () => [Device], _ =>
                 {
-                    opens++; var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    opens++; var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, _ => [255, 216, 255, 255, 217], buffer => io.Read(buffer, default), () => { }) == (action == "jpeg-pair" ? 1 : 0) &&
                 opens == 1 && io.Writes == 3 && io.Reads == (action == "jpeg-pair" ? 4 : 6) && io.Disposed &&
                 io.Pending == (action == "jpeg-pair" ? 2 : 0),
@@ -261,7 +263,7 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "jpeg-pair-read", "--consent", "YES"], output.Add,
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, _ => [255, 216, 255, 255, 217], buffer => { probes++; buffer[1] = 0xC8; return probes == boundary ? count : 0; },
                 () => pauses++) == 1 && io.Disposed && io.Writes == boundary && io.Reads == boundary &&
                 probes == boundary && pauses == boundary - 2 && !output.Any(line => line.StartsWith("PAIR CHECK: EXCHANGES COMPLETE", StringComparison.Ordinal)),
@@ -277,13 +279,50 @@ internal static class TurzxTransportDiagnosticTests
             Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "jpeg-pair-read", "--consent", "YES"], output.Add,
                 () => [Device], _ =>
                 {
-                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                    var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                 }, _ => [255, 216, 255, 255, 217], _ => { probes++; if (probes == boundary) throw failure; return 0; }, () => { }) == 1 &&
                 io.Disposed && io.Writes == boundary && io.Reads == boundary && probes == boundary &&
                 output.Any(line => line.Contains($"ERROR at image-{(boundary == 2 ? "A" : "B")}-follow-up", StringComparison.Ordinal)) &&
                 !string.Join('\n', output).Contains("PRIVATE", StringComparison.Ordinal),
                 "A post-image read error must preserve its phase and dispose without another command/read or leaking native text.");
         }
+    }
+
+    public static void JpegStreamUsesTransport()
+    {
+        var io = new PairedReplyConnection(); var output = new List<string>(); var opens = 0; var pauses = 0;
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "jpeg-stream", "--consent", "YES"], output.Add,
+            () => [Device], _ =>
+            {
+                opens++;
+                var transport = new TurzxTransport(io, () => 0, _ => { });
+                transport.Synchronize();
+                return transport;
+            }, _ => [255, 216, 255, 255, 217], _ => throw new InvalidOperationException("The diagnostic must not add a raw read."),
+            () => { pauses++; Check(io.Writes == 2 && io.Reads == 4, "The transport must complete A's follow-up before the observation pause."); }) == 0 &&
+            opens == 1 && pauses == 1 && io.Writes == 3 && io.Reads == 6 && io.Pending == 0 && io.Disposed,
+            "The JPEG stream checkpoint must exercise the default transport without diagnostic-owned reads or another sync.");
+        Check(output.Contains("Transport post-image-A response bytes: 0.") && output.Contains("Transport post-image-B response bytes: 0."),
+            "Stream logs must report actual transport completion counts for each image.");
+        var failed = new PairedReplyConnection { ReportedReadCount = index => index == 4 ? 512 : null };
+        output.Clear();
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "jpeg-stream", "--consent", "YES"], output.Add,
+            () => [Device], _ =>
+            {
+                var transport = new TurzxTransport(failed, () => 0, _ => { });
+                transport.Synchronize(); return transport;
+            }, _ => [255, 216, 255, 255, 217], _ => throw new InvalidOperationException("PRIVATE extra read"),
+            () => throw new InvalidOperationException("PRIVATE pause")) == 1 && failed.Writes == 2 && failed.Reads == 4 && failed.Disposed &&
+            output.Contains("Protocol follow-up: command 101; 512 bytes; expected empty.") && !string.Join('\n', output).Contains("PRIVATE"),
+            "A stream follow-up failure must stop before B and retain only safe numeric protocol context.");
+        var legacy = new FakeConnection(false);
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "jpeg-stream", "--consent", "YES"], _ => { },
+            () => [Device], _ =>
+            {
+                var transport = new TurzxTransport(legacy, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly);
+                transport.Synchronize(); return transport;
+            }, _ => [255, 216, 255, 255, 217]) == 1 && legacy.Writes == 1 && legacy.Reads == 1 && legacy.Disposed,
+            "A legacy primary-only transport cannot masquerade as a verified stream checkpoint.");
     }
 
     public static void SyntheticCodecGeometryAndCorners()
@@ -308,7 +347,7 @@ internal static class TurzxTransportDiagnosticTests
                 Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], output.Add,
                     () => [Device], _ =>
                     {
-                        var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                        var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
                     }, _ => bytes) == 0 && io.Disposed &&
                     output.Contains("PNG IHDR: depth 8; color type 6; interlace 0."),
                     "The checkpoint must report the actual encoded PNG profile before its one-command exchange.");
@@ -328,13 +367,14 @@ internal static class TurzxTransportDiagnosticTests
         public int Writes, Reads;
         public bool Disposed;
         public int Pending => _pending.Count;
+        public Func<int, int?>? ReportedReadCount { get; init; }
         public int Write(byte[] packet, CancellationToken token)
         {
             Writes++; var reply = new byte[512]; reply[1] = 0xC8;
             _pending.Enqueue(reply); _pending.Enqueue([]); return packet.Length;
         }
         public int Read(byte[] buffer, CancellationToken token)
-        { Reads++; var reply = _pending.Dequeue(); reply.CopyTo(buffer, 0); return reply.Length; }
+        { Reads++; var reply = _pending.Dequeue(); reply.CopyTo(buffer, 0); return ReportedReadCount?.Invoke(Reads) ?? reply.Length; }
         public void Dispose() => Disposed = true;
     }
     private sealed class FakeConnection(bool emptyBrightness) : ITurzxUsbConnection

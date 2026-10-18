@@ -5,7 +5,8 @@ namespace PinkieSysMon;
 
 internal enum TurzxImageFormat : byte { Jpeg = 101, Png = 102 }
 internal enum TurzxReplyKind { StatusMarker, Empty }
-internal readonly record struct TurzxCommandCompletion(byte Command, int ResponseBytes, TurzxReplyKind Reply);
+internal readonly record struct TurzxCommandCompletion(byte Command, int ResponseBytes, TurzxReplyKind Reply,
+    int? FollowUpResponseBytes = null);
 
 // Fresh implementation of public interoperability facts, not upstream code.
 // Research provenance and physical evidence limits: docs/development/devices/turzx-12.3.md.

@@ -24,8 +24,9 @@ internal static class TurzxTransportDiagnostic
         var consentOption = args.Length >= 3 && args[^2] == "--consent";
         var actionArgs = consentOption ? args[..^2] : args;
         var percent = -1;
+        var stream = actionArgs.Length == 2 && actionArgs[1] == "jpeg-stream";
         var pairReads = actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair-read";
-        var pair = pairReads || actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair";
+        var pair = stream || pairReads || actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair";
         var image = pair || actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg" or "png-sync" or "jpeg-sync");
         var brightness = actionArgs.Length == 3 && (actionArgs[1] is "brightness" or "brightness-sync") &&
             int.TryParse(actionArgs[2], NumberStyles.None, CultureInfo.InvariantCulture, out percent) && percent is >= 0 and <= 100;
@@ -33,7 +34,7 @@ internal static class TurzxTransportDiagnostic
             brightness && actionArgs[1] == "brightness-sync";
         if (!image && !brightness && !sync)
         {
-            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync|jpeg-pair|jpeg-pair-read --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
+            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync|jpeg-pair|jpeg-pair-read|jpeg-stream --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
             return 2;
         }
         write($"TURZX TRANSPORT CHECK - Runtime v{RuntimeVersion.Current}");
@@ -102,18 +103,24 @@ internal static class TurzxTransportDiagnostic
             }
             TurzxTransport? OpenSelected(OutputTargetConfig selected)
             {
-                if (!sync) return TurzxTransport.TryOpen(selected, 3000, default);
+                if (stream) return TurzxTransport.TryOpen(selected, 3000, default);
                 return TurzxTransport.TryOpen(selected, 3000, default, TurzxDeviceDiscovery.Capture, (device, timeout) =>
                 {
                     var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeout);
                     try { return probeConnection = new TurzxUsbConnection(native, timeout); }
                     catch { native.Dispose(); throw; }
-                });
+                }, replyMode: TurzxReplyMode.PrimaryOnly);
             }
             using var transport = (open ?? OpenSelected)(target);
             if (transport is null) { write("TRANSPORT CHECK: INCOMPLETE (binding disappeared; no alternate selected)."); return 1; }
             write("Open / sync: completed with the transport's recognized response policy.");
-            if (sync)
+            if (stream)
+            {
+                if (transport.ReplyMode != TurzxReplyMode.JpegStream)
+                    throw new InvalidOperationException("JPEG stream checkpoint requires transport-owned reply boundaries.");
+                write("JPEG stream policy: transport owns one full primary reply and one successful empty follow-up per sync/JPEG; no diagnostic probe reads.");
+            }
+            if (sync && !stream)
             {
                 var received = ReadFollowUp("sync-follow-up", "Post-sync");
                 write("SYNC REPLY CHECK: OBSERVATION RECORDED (not a correlated ACK, proof of an empty device queue or permission for another command).");
@@ -131,6 +138,7 @@ internal static class TurzxTransportDiagnostic
             if (pair) write("Frame A: orange background / TURZX JPEG PAIR A.");
             var result = image ? transport.SendImage(format, payload!) : transport.SetBrightnessPercent(percent);
             write($"Command {result.Command}: {result.Reply}; response bytes: {result.ResponseBytes}.");
+            if (stream) write($"Transport post-image-A response bytes: {result.FollowUpResponseBytes}.");
             if (result.Reply == TurzxReplyKind.Empty)
             {
                 write("TRANSPORT CHECK: UNACKNOWLEDGED (write completed, successful empty read; no further command). Physical effect requires observation.");
@@ -146,6 +154,7 @@ internal static class TurzxTransportDiagnostic
                 write("Frame B: teal background / TURZX JPEG PAIR B.");
                 var second = transport.SendImage(format, secondPayload!);
                 write($"Command {second.Command}: {second.Reply}; response bytes: {second.ResponseBytes}.");
+                if (stream) write($"Transport post-image-B response bytes: {second.FollowUpResponseBytes}.");
                 if (pairReads && !ObserveFrameBoundary("B")) return 1;
                 write("PAIR CHECK: EXCHANGES COMPLETE (observe both distinct frames; not proof of displayed images or correlated replies).");
             }
@@ -162,6 +171,11 @@ internal static class TurzxTransportDiagnostic
                 RegexOptions.CultureInvariant);
             if (error is InvalidDataException && reply.Success)
                 write($"Protocol response: command {reply.Groups[1].Value}; {reply.Groups[2].Value} bytes; unrecognized.");
+            var followUp = Regex.Match(error.Message,
+                @"^TURZX command (10|101) returned a nonempty follow-up response \(([0-9]+) bytes\)\.$",
+                RegexOptions.CultureInvariant);
+            if (error is InvalidDataException && followUp.Success)
+                write($"Protocol follow-up: command {followUp.Groups[1].Value}; {followUp.Groups[2].Value} bytes; expected empty.");
             return 1;
         }
         finally { write(pair ? "No automatic retry, third frame, additional sync or firmware-save/reset command. Transport lifetime ends with this invocation."

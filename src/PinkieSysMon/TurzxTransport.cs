@@ -6,6 +6,8 @@ internal interface ITurzxUsbConnection : IDisposable
     int Read(byte[] buffer, CancellationToken cancellationToken);
 }
 
+internal enum TurzxReplyMode { JpegStream, PrimaryOnly }
+
 // One serialized command/response boundary. Not connected to Runtime/adoption.
 internal sealed class TurzxTransport : IDisposable
 {
@@ -18,10 +20,14 @@ internal sealed class TurzxTransport : IDisposable
     private bool _synchronized;
     private bool _faulted;
     private int _closing;
+    public TurzxReplyMode ReplyMode { get; }
 
     internal TurzxTransport(ITurzxUsbConnection connection, Func<uint>? milliseconds = null,
-        Action<CancellationToken>? syncDelay = null)
+        Action<CancellationToken>? syncDelay = null, TurzxReplyMode replyMode = TurzxReplyMode.JpegStream)
     {
+        if (replyMode is not (TurzxReplyMode.JpegStream or TurzxReplyMode.PrimaryOnly))
+            throw new ArgumentOutOfRangeException(nameof(replyMode));
+        ReplyMode = replyMode;
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _milliseconds = milliseconds ?? (() => (uint)DateTime.Now.TimeOfDay.TotalMilliseconds);
         _syncDelay = syncDelay ?? (token => { if (token.WaitHandle.WaitOne(200)) token.ThrowIfCancellationRequested(); });
@@ -40,9 +46,11 @@ internal sealed class TurzxTransport : IDisposable
     internal static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token,
         Func<IReadOnlyList<OutputDeviceDescriptor>> discover,
         Func<OutputDeviceDescriptor, int, ITurzxUsbConnection> open,
-        Action<CancellationToken>? syncDelay = null)
+        Action<CancellationToken>? syncDelay = null, TurzxReplyMode replyMode = TurzxReplyMode.JpegStream)
     {
         ArgumentNullException.ThrowIfNull(target);
+        if (replyMode is not (TurzxReplyMode.JpegStream or TurzxReplyMode.PrimaryOnly))
+            throw new ArgumentOutOfRangeException(nameof(replyMode));
         token.ThrowIfCancellationRequested();
         if (!target.DeviceEnabled || !string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
@@ -63,7 +71,7 @@ internal sealed class TurzxTransport : IDisposable
         TurzxTransport? transport = null;
         try
         {
-            transport = new TurzxTransport(connection, syncDelay: syncDelay);
+            transport = new TurzxTransport(connection, syncDelay: syncDelay, replyMode: replyMode);
             transport.Synchronize(token);
             return transport;
         }
@@ -80,6 +88,7 @@ internal sealed class TurzxTransport : IDisposable
         var result = Exchange(10, TurzxWireProtocol.Sync(_milliseconds()), linked);
         _syncDelay(linked);
         linked.ThrowIfCancellationRequested();
+        if (ReplyMode == TurzxReplyMode.JpegStream) result = CompleteReplyBoundary(result, linked);
         _synchronized = true;
         return result;
     });
@@ -89,12 +98,21 @@ internal sealed class TurzxTransport : IDisposable
     {
         // Validate before admission: malformed caller input must not poison a
         // healthy connection or emit any native write.
+        if (ReplyMode == TurzxReplyMode.JpegStream && format != TurzxImageFormat.Jpeg)
+            throw new NotSupportedException("The verified TURZX stream supports JPEG only; use the explicit diagnostic for other codecs.");
         var packet = TurzxWireProtocol.Image(format, image, _milliseconds());
-        return Execute(token, linked => { RequireSynchronized(); return Exchange((byte)format, packet, linked); });
+        return Execute(token, linked =>
+        {
+            RequireSynchronized();
+            var result = Exchange((byte)format, packet, linked);
+            return ReplyMode == TurzxReplyMode.JpegStream ? CompleteReplyBoundary(result, linked) : result;
+        });
     }
 
     public TurzxCommandCompletion SetBrightnessPercent(int percent, CancellationToken token = default)
     {
+        if (ReplyMode == TurzxReplyMode.JpegStream)
+            throw new NotSupportedException("Brightness sequencing is not verified for the TURZX JPEG stream.");
         var value = TurzxOutputConfig.ToControllerBrightness(percent);
         return Execute(token, linked =>
         {
@@ -105,6 +123,20 @@ internal sealed class TurzxTransport : IDisposable
             if (result.Reply == TurzxReplyKind.Empty) _faulted = true;
             return result;
         });
+    }
+
+    private TurzxCommandCompletion CompleteReplyBoundary(TurzxCommandCompletion primary, CancellationToken token)
+    {
+        // One observed empty completion, not a retry/read-until-empty loop. Keep
+        // the command lock and native owner through this second read as well.
+        token.ThrowIfCancellationRequested();
+        var received = _connection.Read(_response, token);
+        if (received < 0 || received > _response.Length)
+            throw new IOException("TURZX follow-up read returned an invalid length.");
+        token.ThrowIfCancellationRequested();
+        if (received != 0)
+            throw new InvalidDataException($"TURZX command {primary.Command} returned a nonempty follow-up response ({received} bytes).");
+        return primary with { FollowUpResponseBytes = received };
     }
 
     private void RequireSynchronized()

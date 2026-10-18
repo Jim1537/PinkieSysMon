@@ -71,7 +71,7 @@ internal static class Issue71TransportTests
     {
         var usb = new FakeConnection(Reply(), Reply(), []);
         var delayCalls = 0;
-        using var transport = new TurzxTransport(usb, () => Timestamp, _ => delayCalls++);
+        using var transport = new TurzxTransport(usb, () => Timestamp, _ => delayCalls++, TurzxReplyMode.PrimaryOnly);
         transport.Synchronize();
         transport.SendImage(TurzxImageFormat.Png, Png);
         var result = transport.SetBrightnessPercent(100);
@@ -144,7 +144,7 @@ internal static class Issue71TransportTests
         var device = new OutputDeviceDescriptor(TurzxDeviceDiscovery.CreateStableDeviceId(path), "turzx", "Synthetic", path);
         var target = new OutputTargetConfig { Id = "turzx-test", Name = "Synthetic", Kind = "turzx", Transport = "turzx", DeviceId = device.DeviceId, DeviceEnabled = true };
         var opens = 0;
-        ITurzxUsbConnection Open(OutputDeviceDescriptor selected, int timeout) { opens++; Check(selected == device && timeout == 3000, "Only the exact selected device and effective timeout reach open."); return new FakeConnection(Reply()); }
+        ITurzxUsbConnection Open(OutputDeviceDescriptor selected, int timeout) { opens++; Check(selected == device && timeout == 3000, "Only the exact selected device and effective timeout reach open."); return new FakeConnection(Reply(), []); }
         using (var transport = TurzxTransport.TryOpen(target, 3000, default, () => [device], Open, _ => { })) Check(transport is not null && opens == 1, "Exact binding must synchronize before returning an open transport.");
         Check(TurzxTransport.TryOpen(target, 3000, default, () => [], Open) is null && opens == 1, "Missing binding returns no transport without opening.");
         Throws<OutputDeviceResolutionException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device, device], Open));
@@ -157,6 +157,13 @@ internal static class Issue71TransportTests
         var failed = new FakeConnection(Array.Empty<byte>());
         Throws<InvalidDataException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], (_, _) => failed));
         Check(opens == 1 && failed.Disposed, "Wrong/ambiguous/disabled bindings never open; failed sync releases the acquired connection.");
+        var boundaryFailed = new FakeConnection(Reply(), Reply());
+        Throws<InvalidDataException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], (_, _) => boundaryFailed, _ => { }));
+        Check(boundaryFailed.Disposed && boundaryFailed.Writes.Count == 1 && boundaryFailed.Reads == 2,
+            "A failed sync follow-up must close the acquired native owner before any image is admitted.");
+        Throws<ArgumentOutOfRangeException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], Open,
+            replyMode: (TurzxReplyMode)7));
+        Check(opens == 1, "Invalid reply policy must fail before USB acquisition.");
     }
 
     public static void NativeCompletionAndErrors()
@@ -251,7 +258,7 @@ internal static class Issue71TransportTests
     {
         var native = new FakeNative { Pending = true, BlockCompletion = true };
         var connection = new TurzxUsbConnection(native, 3000);
-        using var transport = new TurzxTransport(connection, () => Timestamp, _ => { });
+        using var transport = new TurzxTransport(connection, () => Timestamp, _ => { }, TurzxReplyMode.PrimaryOnly);
         var sync = Task.Run(() => Capture(() => transport.Synchronize()));
         Await(native.Submitted);
         var dispose = Task.Run(transport.Dispose);
@@ -290,7 +297,137 @@ internal static class Issue71TransportTests
             "Serialized commands resume in order after the admitted response boundary.");
     }
 
-    private static TurzxTransport New(FakeConnection usb) => new(usb, () => Timestamp, _ => { });
+    public static void JpegStreamOwnsReplyBoundaries()
+    {
+        using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), []);
+        var delays = 0;
+        using var transport = new TurzxTransport(usb, () => Timestamp, _ =>
+        {
+            delays++;
+            Check(usb.Reads == 1, "Sync settles after its primary reply and before its one follow-up.");
+        });
+        Check(transport.ReplyMode == TurzxReplyMode.JpegStream &&
+            transport.Synchronize() == new TurzxCommandCompletion(10, 512, TurzxReplyKind.StatusMarker, 0),
+            "The default stream must finish sync's primary and successful empty follow-up before returning.");
+        Throws<NotSupportedException>(() => transport.SendImage(TurzxImageFormat.Png, Png));
+        Throws<NotSupportedException>(() => transport.SetBrightnessPercent(50));
+        Throws<InvalidDataException>(() => transport.SendImage(TurzxImageFormat.Jpeg, Png));
+        Check(usb.Writes.Count == 1 && usb.Reads == 2, "Unverified codecs/brightness and malformed JPEG must not issue I/O or poison the stream.");
+        for (var frame = 0; frame < 2; frame++)
+            Check(transport.SendImage(TurzxImageFormat.Jpeg, Jpeg) == new TurzxCommandCompletion(101, 512, TurzxReplyKind.StatusMarker, 0),
+                "Each JPEG must complete its own full primary reply and single empty follow-up.");
+        Check(delays == 1 && usb.Writes.Count == 3 && usb.Reads == 6,
+            "Sync and two frames require exactly three writes and six reads, without another sync or retry.");
+        Throws<ArgumentOutOfRangeException>(() => new TurzxTransport(usb, replyMode: (TurzxReplyMode)7));
+    }
+
+    public static void JpegStreamRejectsUncertainBoundaries()
+    {
+        for (var phase = 0; phase < 3; phase++)
+        {
+            foreach (var count in new[] { -1, 1, 7, 512, 513 })
+            {
+                using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), [])
+                {
+                    ReportedReadCount = (index, actual) => index == phase * 2 + 1 ? count : actual
+                };
+                using var transport = new TurzxTransport(usb, () => Timestamp, _ => { });
+                var error = Capture(() =>
+                {
+                    transport.Synchronize();
+                    transport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+                    transport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+                });
+                Check(count is < 0 or > 512 ? error is IOException : error is InvalidDataException,
+                    "Invalid lengths and nonempty follow-ups remain distinct failures.");
+                Throws<InvalidOperationException>(() => transport.SendImage(TurzxImageFormat.Jpeg, Jpeg));
+                Check(usb.Writes.Count == phase + 1 && usb.Reads == (phase + 1) * 2,
+                    "An uncertain sync/A/B boundary must stop before the next command without another read or resend.");
+            }
+            foreach (var failure in new Exception[] { new TimeoutException(), new Win32Exception(1167), new OperationCanceledException(), new IOException() })
+            {
+                using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), []);
+                usb.BeforeRead = (index, _) => { if (index == phase * 2 + 1) throw failure; };
+                using var transport = new TurzxTransport(usb, () => Timestamp, _ => { });
+                Check(ReferenceEquals(Capture(() =>
+                {
+                    transport.Synchronize();
+                    transport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+                    transport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+                }), failure), "Follow-up timeout, disconnect, cancellation and I/O error must retain their identity.");
+                Throws<InvalidOperationException>(() => transport.SendImage(TurzxImageFormat.Jpeg, Jpeg));
+                Check(usb.Writes.Count == phase + 1 && usb.Reads == (phase + 1) * 2,
+                    "A failed follow-up must fault the stream without admitting another command.");
+            }
+            using var primaryUsb = new FakeConnection(Reply(), [], Reply(), [], Reply(), [])
+            {
+                ReportedReadCount = (index, actual) => index == phase * 2 ? 0 : actual
+            };
+            using var primaryTransport = new TurzxTransport(primaryUsb, () => Timestamp, _ => { });
+            Throws<InvalidDataException>(() =>
+            {
+                primaryTransport.Synchronize();
+                primaryTransport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+                primaryTransport.SendImage(TurzxImageFormat.Jpeg, Jpeg);
+            });
+            Check(primaryUsb.Writes.Count == phase + 1 && primaryUsb.Reads == phase * 2 + 1,
+                "An empty primary reply must still fail before a follow-up; no empty-skipping is permitted.");
+        }
+    }
+
+    public static void JpegStreamSerializesFollowUp()
+    {
+        using var entered = new ManualResetEvent(false);
+        using var release = new ManualResetEvent(false);
+        using var secondStarted = new ManualResetEvent(false);
+        using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), []);
+        using var transport = new TurzxTransport(usb, () => Timestamp, _ => { });
+        transport.Synchronize();
+        usb.BeforeRead = (index, _) => { if (index == 3) { entered.Set(); Await(release); } };
+        var first = Task.Run(() => transport.SendImage(TurzxImageFormat.Jpeg, Jpeg));
+        Await(entered);
+        var second = Task.Run(() => { secondStarted.Set(); return transport.SendImage(TurzxImageFormat.Jpeg, Jpeg); });
+        Await(secondStarted);
+        try { Check(!second.Wait(100) && usb.Writes.Count == 2, "A later frame cannot write while the previous follow-up is in progress."); }
+        finally { release.Set(); }
+        Check(first.Wait(5000) && second.Wait(5000) && usb.Writes.Count == 3 && usb.Reads == 6,
+            "The next frame resumes only after the complete primary/follow-up boundary.");
+    }
+
+    public static void JpegStreamFollowUpNativeLifetime()
+    {
+        using var followUpSubmitted = new ManualResetEvent(false);
+        var native = new FakeNative();
+        native.BeforeSubmit = (read, index) =>
+        {
+            if (read) Marshal.WriteByte(native.Buffer, 1, 0xC8);
+            if (index == 3)
+            {
+                native.Pending = true;
+                native.BlockCompletion = true;
+                native.Completing.Reset();
+                followUpSubmitted.Set();
+            }
+        };
+        var connection = new TurzxUsbConnection(native, 3000);
+        using var transport = new TurzxTransport(connection, () => Timestamp, _ => { });
+        var sync = Task.Run(() => Capture(() => transport.Synchronize()));
+        Await(followUpSubmitted);
+        var disposal = Task.Run(transport.Dispose);
+        Await(native.Completing);
+        try
+        {
+            Check(native.Submissions == 3 && native.Cancellations == 1 && !native.Disposed && !sync.IsCompleted && !disposal.IsCompleted,
+                "Shutdown during sync's follow-up must cancel and retain native ownership through terminal draining.");
+            Check(Marshal.PtrToStructure<TurzxNativeOverlapped>(native.Overlapped).EventHandle != IntPtr.Zero &&
+                Marshal.ReadByte(native.Buffer, 1) == 0xC8, "Follow-up buffer, event and OVERLAPPED must remain alive until terminal completion.");
+        }
+        finally { native.Terminal.Set(); }
+        Check(sync.Wait(5000) && disposal.Wait(5000) && sync.Result is OperationCanceledException && native.Disposed && native.Completions == 3,
+            "A canceled follow-up drains exactly once before connection release and admits no frame.");
+    }
+
+    private static TurzxTransport New(FakeConnection usb) => new(usb, () => Timestamp, _ => { }, TurzxReplyMode.PrimaryOnly);
     private static byte[] Reply() { var bytes = new byte[512]; bytes[1] = 0xC8; return bytes; }
     private static void Digest(ReadOnlySpan<byte> bytes, string expected) => Check(Convert.ToHexString(SHA256.HashData(bytes)) == expected, "Encoded header must match an independent full-packet fixture.");
     private static void Await(WaitHandle signal) => Check(signal.WaitOne(5000), "Timed out waiting for a deterministic test boundary.");
@@ -307,8 +444,9 @@ internal static class Issue71TransportTests
         public Exception? WriteFailure { get; init; }
         public Exception? ReadFailure { get; init; }
         public Action<int, CancellationToken>? BeforeRead { get; set; }
+        public Func<int, int, int>? ReportedReadCount { get; init; }
         public int Write(byte[] packet, CancellationToken token) { token.ThrowIfCancellationRequested(); Writes.Add(packet.ToArray()); if (WriteFailure is not null) throw WriteFailure; return packet.Length - (ShortWrite ? 1 : 0); }
-        public int Read(byte[] buffer, CancellationToken token) { token.ThrowIfCancellationRequested(); var index = Reads++; BeforeRead?.Invoke(index, token); if (ReadFailure is not null) throw ReadFailure; var reply = replies[index]; reply.CopyTo(buffer, 0); return reply.Length; }
+        public int Read(byte[] buffer, CancellationToken token) { token.ThrowIfCancellationRequested(); var index = Reads++; BeforeRead?.Invoke(index, token); if (ReadFailure is not null) throw ReadFailure; var reply = replies[index]; reply.CopyTo(buffer, 0); return ReportedReadCount?.Invoke(index, reply.Length) ?? reply.Length; }
         public void Dispose() => Disposed = true;
     }
 
@@ -318,11 +456,14 @@ internal static class Issue71TransportTests
         public uint Bytes = 512;
         public int SubmitError, CompletionError, Submissions, Completions, Cancellations;
         public byte LastPipe;
+        public Action<bool, int>? BeforeSubmit;
         public IntPtr Buffer, Overlapped;
         public readonly ManualResetEvent Submitted = new(false), Completing = new(false), Terminal = new(false);
         public bool Submit(bool read, byte pipe, IntPtr buffer, uint length, IntPtr overlapped, out int error)
         {
-            Submissions++; LastPipe = pipe; Buffer = buffer; Overlapped = overlapped; error = Pending ? 997 : SubmitError;
+            Submissions++; LastPipe = pipe; Buffer = buffer; Overlapped = overlapped;
+            BeforeSubmit?.Invoke(read, Submissions);
+            error = Pending ? 997 : SubmitError;
             if (SignalCompletion)
             {
                 using var completion = new EventWaitHandle(false, EventResetMode.ManualReset);

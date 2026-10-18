@@ -31,7 +31,7 @@ Without arguments, the runner executes deterministic regressions and does not in
 
 ### Manual transport checkpoint
 
-After a current Windows build/regression, an explicit active mode can test the actual C# transport independently of Runtime adoption. Start with the known PNG reference path; keep other TURZX control applications closed:
+After a current Windows build/regression, an explicit active mode can test the actual C# transport independently of Runtime adoption. Follow the owning Issue's current single checkpoint and keep other TURZX control applications closed. The historical PNG reference invocation is:
 
 ```powershell
 dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check png --consent YES |
@@ -39,6 +39,8 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
 ```
 
 This replaces the selected TURZX's picture with a synthetic pattern. Hardware use requires the explicit `--consent YES` argument; absent consent or any other value declines before discovery or USB open. Argument consent also works when output is piped to the log, without depending on interactive stdin. The mode captures one exact candidate and the production open path revalidates that saved-in-memory binding before sync. It does not load or save application configuration, adopt a Runtime Output, alter a dashboard or select an alternate unit. A missing/multiple candidate, encoding/open/sync/send error stops the test without automatic retry.
+
+Historical modes explicitly use the internal `PrimaryOnly` reply policy; their read/write sequence remains available for comparison with prior logs. They do not select the default JPEG-stream policy described [below](#reply-and-failure-boundaries).
 
 The single-command image/brightness modes open/synchronize once, execute **one** selected command, then dispose the transport; the explicit `jpeg-pair` variants below are the two-frame exception. `png` and `jpeg` generate the matching encoded 720×1920 raster with the recovered clockwise correction. The expected physical landscape has red top-left, green top-right, blue bottom-right and yellow bottom-left corners, an upright codec label and a right-pointing arrow. A recognized response establishes an exchange result, not a visible/correct image; report those observations separately. Each invocation prints a random run ID, UTC timestamp and validated action to distinguish separate attempts without device identifiers.
 
@@ -93,6 +95,15 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
 
 This explicitly probes a possible response boundary after each command; it is not a read-until-empty loop or a production flush policy. There are at most three additional reads in the complete invocation: after sync, A and B. These observations neither prove a bus ZLP/empty queue nor correlate generic markers to commands. Native ownership/disposal and the original `jpeg-pair` behavior are retained. Actual firmware behavior and physical results belong in the owning Issue's dated reports.
 
+The `jpeg-stream` action sends the same A/B pair through the **default transport-owned reply policy**, with no diagnostic-owned follow-up reads. It reports the actual primary and follow-up counts returned by each completed image operation. Consent, exact binding, pre-encoding of both images, observation pause and disposal rules remain the same. This compares transport ownership with the earlier `jpeg-pair-read` experiment; it is still a bounded developer checkpoint, not a Runtime dashboard or a sustained-stream test.
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check jpeg-stream --consent YES |
+    Tee-Object .\artifacts\turzx-jpeg-stream.log
+"Process exit code: $LASTEXITCODE" |
+    Tee-Object .\artifacts\turzx-jpeg-stream.log -Append
+```
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Exchange completed with the current response policy, or the explicit sync follow-up observation was recorded; neither proves physical effect or reply correlation. |
@@ -141,12 +152,16 @@ The caller owns encoding and the 720×1920 transport raster. This layer neither 
 
 ### Reply and failure boundaries
 
-One command write and one read of up to 512 bytes execute under a serialized command lock. A short write fails before reading. There are no automatic resends, extra sync attempts or read retries. Native errors, timeout and cancellation propagate separately from successful zero-byte reads. A failed admitted command makes this transport unusable; dispose it before any further work. There is no automatic reopen or brightness replay in this layer.
+The default `JpegStream` mode implements the observed sync/JPEG sequence on one connection. Sync requires its strict primary reply, the existing cancellation-aware 200 ms settling delay, then **exactly one successful empty follow-up read**. Each JPEG requires its strict primary reply followed by the same single-empty-read boundary. Both reads execute under the command lock using the existing buffer, timeout and native owner. `TurzxCommandCompletion` reports the primary count/reply and a separate nullable `FollowUpResponseBytes`; zero records a completed empty follow-up, while null means none was performed.
+
+A nonempty/invalid follow-up or read error faults the transport before another command; there is no read-until-empty loop, retry, third read, extra sync, automatic reopen or brightness replay. An empty primary sync/JPEG reply still fails. The follow-up is an observed completion policy, not proof of a bus ZLP, command correlation or an empty device queue. Native timeout/cancellation/error results never become successful empty completions.
+
+`JpegStream` rejects PNG and brightness **before I/O**, because their sequencing into this stream has not been physically established. The explicitly selected internal `PrimaryOnly` mode retains one write/primary-read per command for the historical codec/brightness diagnostics; those modes own any separately planned extra probe. They do not establish a production brightness-to-frame policy. A short write fails before any read, and a failed admitted command in either mode forbids reuse.
 
 | Completed read | Result and allowed continuation |
 | --- | --- |
-| Exactly 512 bytes with `C8` at offset 1 or 8 | `StatusMarker`, identifying the researched response shape only. It does not prove command correlation, physical effect or a displayed frame. |
-| Zero bytes for brightness only | Return `Empty`, meaning write completed and read returned zero, **without a positive ACK**. Forbid subsequent commands on this transport because a delayed reply could be misattributed. |
+| Exactly 512 primary bytes with `C8` at offset 1 or 8 | `StatusMarker`, identifying the researched response shape only. The default stream also requires its separate empty follow-up before returning completion. Neither proves physical effect or a displayed frame. |
+| Zero primary bytes for brightness in `PrimaryOnly` | Return `Empty`, meaning write completed and read returned zero, **without a positive ACK**. Forbid subsequent commands on this transport because a delayed reply could be misattributed. |
 | Empty sync/image reply, short/oversize reply, or unrecognized full reply | Explicit protocol failure; no further command or automatic resend. A prior response buffer's remaining bytes cannot supply a marker. |
 
 The empty-brightness rule preserves the historically observed physical effect without turning every empty read into success. Safe brightness-to-image sequencing and delayed replies remain physical acceptance questions. Closing this connection alone does not prove device-side queues are empty or authorize blindly replaying a state-changing command.
@@ -157,7 +172,7 @@ The empty-brightness rule preserves the historically observed physical effect wi
 
 Dispose cancels admission/in-flight work and waits for that ownership boundary before closing native handles. Ordinary open/initialization calls must return before cancellation can be observed and their resources released. A faulty driver can prevent completion: neither timeout nor Dispose promises forced bounded cleanup. No buffer, event or handle is freed merely because the application deadline elapsed.
 
-`Issue71TransportTests` checks independent packet fixtures, format/size bounds, strict reply policy, exact acquisition and failed-sync cleanup, error identity, pending completion, cancellation failure, deadlines and concurrent disposal using synthetic I/O. These tests do not execute the real Windows backend or establish this unit's native discovery, command responses, brightness sequencing, image orientation or integrated Runtime behavior.
+`Issue71TransportTests` covers both the default JPEG stream and explicitly selected primary-only diagnostic policy, including full primary/follow-up sequencing, rejection/faulting, command serialization and native cancellation during a pending follow-up. It also checks independent packet fixtures, format/size bounds, strict reply policy, exact acquisition and failed-sync cleanup, error identity, pending completion, cancellation failure, deadlines and concurrent disposal using synthetic I/O. These tests do not execute the real Windows backend or establish this unit's native discovery, command responses, brightness sequencing, image orientation or integrated Runtime behavior.
 
 ## Integration boundaries
 
