@@ -126,6 +126,21 @@ Runtime captures inventory at startup and successful configuration reload and re
 
 The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates, removed bindings and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Add explicitly adopts a disabled candidate; a confirmed enabled transition also adopts it. A removed binding is suppressed within the dialog, while reopening can offer it as a new unsaved candidate.
 
+### Passive USB family recognition
+
+The maintainer API `UsbDisplayDiscovery.Capture()` recognizes researched display families independently of their installed WinUSB, HID or mass-storage driver. [UsbDisplayCatalog.cs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/UsbDisplayCatalog.cs) is the single implementation list of exact product pairs, generic family names and pinned evidence references. Recognition does not establish an exact model, firmware, native geometry or protocol compatibility; the [supported-model inventory](../supported-devices.md) remains separate.
+
+The [discovery implementation](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/UsbDisplayDiscovery.cs) reads present USB devnodes through [cached Windows PnP metadata](https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_get_device_id_listw). Only matching products receive per-node driver, setup-class, problem-code and function-parent lookups. It opens no device, requests no USB descriptors, installs no driver and sends no commands. There is no timer or background service.
+
+| Observation boundary | Behavior |
+| --- | --- |
+| Errors and bounds | List size and termination are checked; buffer-growth races retry at most three size/list pairs. A CM list/lookup failure is an unavailable scan, not a successful empty result. A node removed during lookup is omitted; missing driver/class/parent metadata remains an explicit gap. |
+| Grouping | Case aliases are deduplicated. Function devnodes join an observed matching non-function parent only through the actual PnP relation. Equal product pairs or similar instance tokens do not merge separate units. Conflicting copies of one devnode are ambiguous. |
+| Identity and privacy | A namespaced SHA-256 observation key correlates one devnode/group within snapshots. It is not a hardware serial, persisted Output binding or automatic rebind mechanism. Observations expose no raw instance IDs or interface paths. |
+| Eligibility | Recognition results contain no transport key or openable path and create no Output configuration, provider or session. A driver/setup class or zero problem code is metadata, not proof that a display can be used. |
+
+The existing Settings, inventory, consent and transport callers still use the supported adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). The recognition API does not yet add Device tabs or expand enablement. Its [deterministic tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/Issue77UsbDiscoveryTests.cs) use metadata fakes; native Windows discovery and physical compatibility require separate observations.
+
 ### Draft validation and application
 
 The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
