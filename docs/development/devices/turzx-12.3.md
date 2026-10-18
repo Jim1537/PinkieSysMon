@@ -1,6 +1,6 @@
 # TURZX 12.3-inch — Integration Contract
 
-This reference owns the TURZX-specific identity and application configuration contract. **Runtime transport and image output are not integrated yet.** The device remains an informational, unsupported family in Devices; [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
+This reference owns the TURZX-specific identity, configuration and standalone transport contract. **The transport is not connected to Runtime sessions, rendering or Settings adoption yet.** The device remains an informational, unsupported family in Devices; [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
 
 ## Passive interface discovery
 
@@ -28,9 +28,50 @@ The optional `Turzx` object belongs only to this adapter; Desktop and Trofeo rej
 | Controller conversion | `floor(percent * 102 / 100)`, with exact endpoints 0 and 102. This pure conversion sends no command. |
 | Settings ownership | Detached target copies retain independent TURZX options through save/clone operations. Discovery does not dirty or save a draft. |
 | Transport gate | Only the Trofeo transport is currently integrated. Saving an enabled TURZX record fails; preparing a physical enable also rejects it before consent or session creation. Prepared TURZX candidates cannot be adopted or edited. |
-| Other adapter options | Refresh/JPEG/USB values use existing physical configuration normalization, but no TURZX encoder, USB session, diagnostic journal or brightness command currently consumes them. They do not establish supported capabilities. |
+| Other adapter options | Refresh/JPEG/USB values use existing physical configuration normalization. The standalone transport accepts an explicit transfer timeout, but no Runtime TURZX session/encoder or diagnostic journal consumes these saved options yet. They do not establish supported capabilities. |
 
 A future adapter must apply an explicit saved brightness on its own worker at open/reconnect or after a committed settings change. A `null` setting must send no brightness command. Neither draft editing nor discovery may change the hardware. Firmware persistence, restart and pixel dimming are outside this contract.
+
+## Standalone transport
+
+`TurzxTransport.TryOpen` requires an explicitly enabled TURZX target, resolves only its exact binding through passive discovery, verifies the selected path/product/hash, and returns no transport when that binding is absent. Duplicate/ambiguous bindings fail before open. This internal acquisition API does not bypass the application's pending-adapter or consent gates; no production caller currently invokes it.
+
+`WindowsTurzxNativeIo` owns the file and WinUSB interface. It accepts the initial interface 0 / alternate setting 0 with bulk OUT `01` and IN `81`, verifies their descriptors and nonzero packet sizes, and sets a finite pipe-transfer timeout of at least 500 ms. Other interfaces/endpoints are not tried. It retains WinUSB's default non-RAW I/O policy: [WinUSB splits larger writes internally](https://learn.microsoft.com/en-us/windows/win32/api/winusb/nf-winusb-winusb_writepipe), while the adapter submits one combined control/image buffer and checks the complete byte count. It does not append arbitrary packets, flush replies or reset stalled endpoints.
+
+### Framing and commands
+
+The independent C# implementation follows public interoperability facts from [the pinned protocol reference](https://github.com/mathoudebine/turing-smart-screen-python/blob/2b33ab4f00a096916dd6a1174441a53a7ec33b03/library/lcd/lcd_comm_turing_usb.py). That GPL-3.0-or-later implementation is research evidence, not an imported dependency or copied source. The fixed public DES wire-format material in `TurzxWireProtocol` is an interoperability constant, not an authentication credential or protection for application secrets.
+
+| Wire field / command | Adapter contract |
+| --- | --- |
+| Control packet | 500-byte zero-initialized command body, zero-padded to 504 for DES-CBC without additional padding; 504 ciphertext bytes, six reserved zero bytes, then `A1 1A`, total 512 bytes. |
+| Plaintext fields | Command at 0; `1A 6D` at 2–3; local milliseconds since midnight as uint32 little-endian at 4–7. |
+| Sync `10` | Required before image/brightness commands. After its recognized response, one cancellation-aware 200 ms settling delay follows the recovered probe sequence. This is an adapter policy, not a measured minimum for every firmware. |
+| JPEG `101` / PNG `102` | uint32 big-endian encoded-image length at 8–11; encoded bytes immediately follow the control packet. The caller must provide the matching format signature. This check is not full image decoding or geometry validation. |
+| Brightness `14` | Controller value at byte 8; percent conversion uses the [configuration policy above](#application-configuration). No implicit brightness command on open. |
+| Payload bound | Encoded image limited to 1,048,576 bytes, following the recovered probe/upstream software bound. It is not a measured firmware capacity. No implicit downscaling, codec switch or quality reduction. |
+
+The caller owns encoding and the 720×1920 transport raster. This layer neither rotates the dashboard nor proves JPEG/PNG display compatibility. Application geometry, renderer selection and physical corner/orientation acceptance remain pending.
+
+### Reply and failure boundaries
+
+One command write and one read of up to 512 bytes execute under a serialized command lock. A short write fails before reading. There are no automatic resends, extra sync attempts or read retries. Native errors, timeout and cancellation propagate separately from successful zero-byte reads. A failed admitted command makes this transport unusable; dispose it before any further work. There is no automatic reopen or brightness replay in this layer.
+
+| Completed read | Result and allowed continuation |
+| --- | --- |
+| Exactly 512 bytes with `C8` at offset 1 or 8 | `StatusMarker`, identifying the researched response shape only. It does not prove command correlation, physical effect or a displayed frame. |
+| Zero bytes for brightness only | Return `Empty`, meaning write completed and read returned zero, **without a positive ACK**. Forbid subsequent commands on this transport because a delayed reply could be misattributed. |
+| Empty sync/image reply, short/oversize reply, or unrecognized full reply | Explicit protocol failure; no further command or automatic resend. A prior response buffer's remaining bytes cannot supply a marker. |
+
+The empty-brightness rule preserves the historically observed physical effect without turning every empty read into success. Safe brightness-to-image sequencing and delayed replies remain physical acceptance questions. Closing this connection alone does not prove device-side queues are empty or authorize blindly replaying a state-changing command.
+
+### Cancellation and native ownership
+
+`TurzxUsbConnection` serializes native operations and owns the pinned transfer buffer, manual-reset event and x64 `OVERLAPPED`. Each operation has both the native pipe timeout and a managed deadline. Caller cancellation, deadline or concurrent Dispose can request cancellation of the exact operation. [Cancellation is a request, not completion](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex): even if that request fails, the code waits for the terminal native result through [WinUsb_GetOverlappedResult](https://learn.microsoft.com/en-us/windows/win32/api/winusb/nf-winusb-winusb_getoverlappedresult) before releasing or reusing memory. Successful empty completion stays distinct from timeout, disconnect and cancellation.
+
+Dispose cancels admission/in-flight work and waits for that ownership boundary before closing native handles. Ordinary open/initialization calls must return before cancellation can be observed and their resources released. A faulty driver can prevent completion: neither timeout nor Dispose promises forced bounded cleanup. No buffer, event or handle is freed merely because the application deadline elapsed.
+
+`Issue71TransportTests` checks independent packet fixtures, format/size bounds, strict reply policy, exact acquisition and failed-sync cleanup, error identity, pending completion, cancellation failure, deadlines and concurrent disposal using synthetic I/O. These tests do not execute the real Windows backend or establish this unit's native discovery, command responses, brightness sequencing, image orientation or integrated Runtime behavior.
 
 ## Integration boundaries
 

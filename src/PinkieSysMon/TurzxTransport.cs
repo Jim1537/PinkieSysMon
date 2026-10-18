@@ -1,0 +1,150 @@
+namespace PinkieSysMon;
+
+internal interface ITurzxUsbConnection : IDisposable
+{
+    int Write(byte[] packet, CancellationToken cancellationToken);
+    int Read(byte[] buffer, CancellationToken cancellationToken);
+}
+
+// One serialized command/response boundary. Not connected to Runtime/adoption.
+internal sealed class TurzxTransport : IDisposable
+{
+    private readonly object _gate = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly ITurzxUsbConnection _connection;
+    private readonly Func<uint> _milliseconds;
+    private readonly Action<CancellationToken> _syncDelay;
+    private readonly byte[] _response = new byte[TurzxWireProtocol.HeaderLength];
+    private bool _synchronized;
+    private bool _faulted;
+    private int _closing;
+
+    internal TurzxTransport(ITurzxUsbConnection connection, Func<uint>? milliseconds = null,
+        Action<CancellationToken>? syncDelay = null)
+    {
+        _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _milliseconds = milliseconds ?? (() => (uint)DateTime.Now.TimeOfDay.TotalMilliseconds);
+        _syncDelay = syncDelay ?? (token => { if (token.WaitHandle.WaitOne(200)) token.ThrowIfCancellationRequested(); });
+    }
+
+    public static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token) =>
+        TryOpen(target, timeoutMs, token, TurzxDeviceDiscovery.Capture, OpenConnection);
+
+    private static ITurzxUsbConnection OpenConnection(OutputDeviceDescriptor device, int timeoutMs)
+    {
+        var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeoutMs);
+        try { return new TurzxUsbConnection(native, timeoutMs); }
+        catch { native.Dispose(); throw; }
+    }
+
+    internal static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token,
+        Func<IReadOnlyList<OutputDeviceDescriptor>> discover,
+        Func<OutputDeviceDescriptor, int, ITurzxUsbConnection> open,
+        Action<CancellationToken>? syncDelay = null)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        token.ThrowIfCancellationRequested();
+        if (!target.DeviceEnabled || !string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only an explicitly enabled TURZX target can acquire this transport.");
+        TurzxUsbConnection.ValidateTimeout(timeoutMs);
+        var resolution = OutputDeviceSelection.Resolve(target, discover());
+        if (resolution.Status == OutputDeviceResolutionStatus.Missing) return null;
+        if (resolution.Status != OutputDeviceResolutionStatus.Found || resolution.Device is null)
+            throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
+        var device = resolution.Device;
+        var parts = device.DevicePath.Split('#');
+        if (parts.Length != 4 || !Guid.TryParse(parts[3], out var deviceClass) ||
+            !TurzxDeviceDiscovery.IsExactInterface(device.DevicePath, deviceClass) ||
+            !device.DeviceId.Equals(TurzxDeviceDiscovery.CreateStableDeviceId(device.DevicePath), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("TURZX interface descriptor does not match its exact binding.");
+        token.ThrowIfCancellationRequested();
+        var connection = open(device, timeoutMs);
+        TurzxTransport? transport = null;
+        try
+        {
+            transport = new TurzxTransport(connection, syncDelay: syncDelay);
+            transport.Synchronize(token);
+            return transport;
+        }
+        catch
+        {
+            if (transport is null) connection.Dispose(); else transport.Dispose();
+            throw;
+        }
+    }
+
+    public TurzxCommandCompletion Synchronize(CancellationToken token = default) => Execute(token, linked =>
+    {
+        if (_synchronized) throw new InvalidOperationException("TURZX is already synchronized.");
+        var result = Exchange(10, TurzxWireProtocol.Sync(_milliseconds()), linked);
+        _syncDelay(linked);
+        linked.ThrowIfCancellationRequested();
+        _synchronized = true;
+        return result;
+    });
+
+    public TurzxCommandCompletion SendImage(TurzxImageFormat format, ReadOnlySpan<byte> image,
+        CancellationToken token = default)
+    {
+        // Validate before admission: malformed caller input must not poison a
+        // healthy connection or emit any native write.
+        var packet = TurzxWireProtocol.Image(format, image, _milliseconds());
+        return Execute(token, linked => { RequireSynchronized(); return Exchange((byte)format, packet, linked); });
+    }
+
+    public TurzxCommandCompletion SetBrightnessPercent(int percent, CancellationToken token = default)
+    {
+        var value = TurzxOutputConfig.ToControllerBrightness(percent);
+        return Execute(token, linked =>
+        {
+            RequireSynchronized();
+            var result = Exchange(14, TurzxWireProtocol.Brightness(value, _milliseconds()), linked);
+            // No positive ACK, and a delayed reply cannot safely be assigned to
+            // a subsequent frame. Return the actual result and forbid reuse.
+            if (result.Reply == TurzxReplyKind.Empty) _faulted = true;
+            return result;
+        });
+    }
+
+    private void RequireSynchronized()
+    {
+        if (!_synchronized) throw new InvalidOperationException("TURZX must synchronize before another command.");
+    }
+
+    private TurzxCommandCompletion Execute(CancellationToken token, Func<CancellationToken, TurzxCommandCompletion> command)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_closing != 0, this);
+            if (_faulted) throw new InvalidOperationException("TURZX reply boundary is unavailable; dispose this transport before continuing.");
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _shutdown.Token);
+            linked.Token.ThrowIfCancellationRequested();
+            try { return command(linked.Token); }
+            catch { _faulted = true; throw; }
+        }
+    }
+
+    private TurzxCommandCompletion Exchange(byte command, byte[] packet, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var written = _connection.Write(packet, token);
+        if (written != packet.Length) throw new IOException($"TURZX short USB write: {written}/{packet.Length} bytes.");
+        token.ThrowIfCancellationRequested();
+        var received = _connection.Read(_response, token);
+        if (received < 0 || received > _response.Length) throw new IOException("TURZX USB read returned an invalid length.");
+        token.ThrowIfCancellationRequested();
+        return TurzxWireProtocol.Interpret(command, _response.AsSpan(0, received));
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _closing, 1) != 0) return;
+        _shutdown.Cancel();
+        lock (_gate)
+        {
+            try { _connection.Dispose(); }
+            finally { _shutdown.Dispose(); }
+        }
+    }
+}
