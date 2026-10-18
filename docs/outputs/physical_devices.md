@@ -91,12 +91,15 @@ For saved enablement, disabling the final Output, global shutdown and normal res
 | Observation | Check or next action |
 | --- | --- |
 | No Device tab | Verify model/interface support and physical connection. Never-detected absent hardware has no placeholder tab. |
+| Unsupported family, or a display outside the recognition catalog | Follow the owning integration Issue shown on its tab, or [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Detection does not permit trying a different adapter. |
 | Connected in Settings, but no display output | Check Enabled in Settings, Runtime's target state and Reload result, then the saved assignment. Passive detection does not acquire the transport. |
 | **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Automatic retry does not establish that recovery succeeded. |
 | Ambiguous identity or a changed interface path | Resolve the actual binding using the [adapter's selection/identity rules](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection). No first-match fallback or automatic rebinding is performed. |
 | Disconnected controls cannot be edited | Reconnect that device to edit; use the tray to disable an already-enabled absent device, or Remove if appropriate. |
 | Missing/corrupt dashboard | Correct the saved document or assignment and retry. Runtime reports the affected Output rather than substituting another dashboard. |
 | Stale Settings draft or apply/recovery failure | Follow the [shared transaction's recovery result](../development/architecture.md#settings-save-and-apply); reopen current settings and inspect Runtime status before retrying. |
+
+For a support request, include the commercial model, screen dimensions, USB VID:PID, whether Windows sees it, its Windows device name/driver status or interface class when available, a vendor software/protocol link, and expected versus observed behavior. Do not publish serial numbers, Windows instance/interface paths, private logs, dashboards or secrets. No firmware probe or diagnostic export is required.
 
 The current adapter's [native completion limits](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits) still apply to a stalled USB operation. Documentation, a passive presence match or a green software build does not prove physical recovery. Tested configurations belong to [Compatibility & Testing](../compatibility.md).
 
