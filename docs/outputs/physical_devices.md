@@ -26,8 +26,10 @@ Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, a
 | **Disconnected** | Saved values remain visible, but settings and Add are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Add are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Add are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
+| **Recognized**, **Unsupported / protocol not available** | A researched USB display family has no integrated adapter. Its tab shows the generic family and non-secret USB VID:PID, with no Add, Enabled or adapter options. |
+| **No matching usable Trofeo interface was confirmed** | Windows recognizes the LY family, but an exact supported-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
 
-Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport. See the [inventory mechanism](#passive-inventory-and-explicit-adoption).
+Unrelated USB products are excluded. Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport. See the [inventory mechanism](#passive-inventory-and-explicit-adoption).
 
 ### Step 3. Configure and adopt the Output
 
@@ -120,7 +122,7 @@ Provider descriptors and unavailable values are defined by the [Output metric ow
 
 ### Passive inventory and explicit adoption
 
-`DeviceDiscovery` uses Windows Configuration Manager/PnP metadata without opening a WinUSB transport. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities, duplicate discovered bindings and duplicated verified fingerprints fail closed. A changed path is not rebound merely because an optional fingerprint matches.
+`DeviceDiscovery` uses Windows Configuration Manager/PnP metadata without opening a WinUSB transport. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities and discovered physical-identity claims fail closed. A changed path is not rebound merely because an optional fingerprint matches.
 
 Runtime captures inventory at startup and successful configuration reload and refreshes it when the Runtime tray root menu is opened. Tray enablement has a [separate validation sequence](#tray-enabled-transaction). Runtime retains the menu snapshot in memory, with no periodic scan or live Runtime hotplug subscription. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
 
@@ -128,7 +130,7 @@ The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_D
 
 ### Passive USB family recognition
 
-The maintainer API `UsbDisplayDiscovery.Capture()` recognizes researched display families independently of their installed WinUSB, HID or mass-storage driver. [UsbDisplayCatalog.cs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/UsbDisplayCatalog.cs) is the single implementation list of exact product pairs, generic family names and pinned evidence references. Recognition does not establish an exact model, firmware, native geometry or protocol compatibility; the [supported-model inventory](../supported-devices.md) remains separate.
+The Devices dialog uses `UsbDisplayDiscovery.Capture()` to recognize researched display families independently of their installed WinUSB, HID or mass-storage driver. [UsbDisplayCatalog.cs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/UsbDisplayCatalog.cs) is the single implementation list of exact product pairs, generic family names, candidate handlers, integration Issue references and pinned research evidence. Recognition does not establish an exact model, firmware, native geometry or protocol compatibility; the [supported-model inventory](../supported-devices.md) remains separate.
 
 The [discovery implementation](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/UsbDisplayDiscovery.cs) reads present USB devnodes through [cached Windows PnP metadata](https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_get_device_id_listw). Only matching products receive per-node driver, setup-class, problem-code and function-parent lookups. It opens no device, requests no USB descriptors, installs no driver and sends no commands. There is no timer or background service.
 
@@ -137,9 +139,11 @@ The [discovery implementation](https://github.com/Jim1537/PinkieSysMon/blob/main
 | Errors and bounds | List size and termination are checked; buffer-growth races retry at most three size/list pairs. A CM list/lookup failure is an unavailable scan, not a successful empty result. A node removed during lookup is omitted; missing driver/class/parent metadata remains an explicit gap. |
 | Grouping | Case aliases are deduplicated. Function devnodes join an observed matching non-function parent only through the actual PnP relation. Equal product pairs or similar instance tokens do not merge separate units. Conflicting copies of one devnode are ambiguous. |
 | Identity and privacy | A namespaced SHA-256 observation key correlates one devnode/group within snapshots. It is not a hardware serial, persisted Output binding or automatic rebind mechanism. Observations expose no raw instance IDs or interface paths. |
-| Eligibility | Recognition results contain no transport key or openable path and create no Output configuration, provider or session. A driver/setup class or zero problem code is metadata, not proof that a display can be used. |
+| Eligibility | Recognition results have no openable path and create no Output configuration, provider or session. A catalog candidate handler, driver/setup class or zero problem code does not authorize transport dispatch. Only the existing adapter's independent interface discovery can supply a usable descriptor. |
 
-The existing Settings, inventory, consent and transport callers still use the supported adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). The recognition API does not yet add Device tabs or expand enablement. Its [deterministic tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/Issue77UsbDiscoveryTests.cs) use metadata fakes; native Windows discovery and physical compatibility require separate observations.
+`UsbDisplayReconciliation` suppresses an informational duplicate only when exactly one independently discovered supported interface maps to an observed devnode/member and the identities are unambiguous. Equal USB products or serial text cannot establish this match. `RecognizedDeviceSettingsModel` retains informational tabs and their Disconnected/Discovery unavailable states only while the dialog is open; it has no configuration or consent API. The two discovery paths fail independently, so a family-scan failure cannot disable otherwise valid supported-interface settings.
+
+Supported-device Settings, consent, Runtime inventory and transport dispatch retain the adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). Recognition expands visibility, not hardware enablement. The TURZX informational entry points to [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71); it supplies no geometry, encoding, brightness or USB defaults. Deterministic tests exercise metadata fakes, reconciliation and detached drafts; native Windows discovery, visual behavior and physical compatibility require separate observations.
 
 ### Draft validation and application
 

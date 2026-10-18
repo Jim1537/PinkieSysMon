@@ -29,7 +29,12 @@ internal enum UsbDisplayObservationStatus
 internal sealed record UsbDisplayObservation(string ObservationId, UsbDisplayFamily Family,
     UsbDisplayObservationStatus Status, int NodeCount,
     IReadOnlyList<string> DriverServices, IReadOnlyList<Guid> SetupClasses,
-    IReadOnlyList<uint> ProblemCodes);
+    IReadOnlyList<uint> ProblemCodes)
+{
+    // Exact devnode membership for snapshot reconciliation only. These hashes
+    // carry no promise of stability across a topology change or Windows restart.
+    public IReadOnlyList<string> NodeKeys { get; init; } = [];
+}
 
 // The only native seam exposes Windows' existing PnP metadata. There is no
 // method for opening a device, requesting descriptors, or sending commands.
@@ -132,11 +137,15 @@ internal static class UsbDisplayDiscovery
                 Array.AsReadOnly(members.Select(node => node.DriverService).OfType<string>()
                     .Select(value => value.ToUpperInvariant()).Distinct().Order().ToArray()),
                 Array.AsReadOnly(members.Select(node => node.SetupClass).OfType<Guid>().Distinct().Order().ToArray()),
-                Array.AsReadOnly(members.Select(node => node.ProblemCode).OfType<uint>().Distinct().Order().ToArray()));
+                Array.AsReadOnly(members.Select(node => node.ProblemCode).OfType<uint>().Distinct().Order().ToArray()))
+            {
+                NodeKeys = Array.AsReadOnly(members.Select(node => CreateObservationId(node.InstanceId))
+                    .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray())
+            };
         }).OrderBy(observation => observation.ObservationId, StringComparer.Ordinal).ToArray();
     }
 
-    private static string CreateObservationId(string instanceId) => "usb-pnp:" +
+    internal static string CreateObservationId(string instanceId) => "usb-pnp:" +
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(instanceId.ToUpperInvariant()))).ToLowerInvariant();
 
     internal static IReadOnlyList<string> ParseMultiSz(char[] buffer)

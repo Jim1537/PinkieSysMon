@@ -30,10 +30,11 @@ The exact behavior described on this page remains the behavior of PinkieSysMon's
 
 - **Target model:** Thermalright Trofeo Vision 9.16; **native resolution:** 1920 × 480; **connection:** USB / WinUSB.
 - **Windows device-interface class GUID:** `DEE824EF-729B-4A0E-9C14-B7117D33A817`.
-- **USB VID/PID token in the interface path:** `vid_0416&pid_5408`.
+- **Interface eligibility:** the exact USB interface form `\\?\usb#vid_0416&pid_5408#<instance>#{GUID}` with the class GUID above. Substring products, other classes and composite-function paths are not promoted into this adapter by the broader recognition catalog.
 - **Configured transport key:** `trofeo` (in `Outputs.Targets[].Transport`).
 - **Device identity:** `DeviceDiscovery.CreateStableDeviceId` trims and uppercases the enumerated interface path, computes its SHA-256 digest, and prefixes the hexadecimal digest with `trofeo:`. This is **derived from the Windows interface path**, not a verified manufacturer serial number; do not assume it remains unchanged if the interface path changes.
 - **Passive serial observation (Stage 16):** The owner's physical device has a nonzero `iSerialNumber` pointing to a non-empty USB string descriptor. During interface enumeration, `PassiveTrofeoIdentity` can derive an **optional, non-persisted SHA-256 fingerprint** of the USB instance token only when a present Configuration Manager devnode exists and `CM_DEVCAP_UNIQUEID` is set. The probe reads PnP registry metadata without `CreateFile`, `WinUsb_Initialize` or vendor traffic. If the path is unrecognized, PnP lookup or uniqueness checks fail, no physical fingerprint is asserted. Duplicated verified physical fingerprints fail closed. **This does not change existing `trofeo:` path-derived `DeviceId` bindings, auto-migrate `app.json`, or prove device-vendor serial uniqueness across actual hardware.**
+- **Exact devnode correlation:** `PassiveUsbInterfaceIdentity` reads `DEVPKEY_Device_InstanceId` with `CM_Get_Device_Interface_PropertyW`, checks the property type and bounded UTF-16 value, and exposes only a namespaced SHA-256 `PnpNodeKey`. This is a non-persisted snapshot key, not a verified serial or a stability promise across Windows/topology changes. Missing metadata leaves the existing path binding intact; repeated nonempty node keys across interfaces fail closed alongside duplicated serial claims.
 
 The common [physical Output guide](../../outputs/physical_devices.md#passive-inventory-and-explicit-adoption) owns passive inventory, explicit adoption, Device Settings, tray enable/remove and persistence. Hardware identification above remains adapter-specific; an observed fingerprint does not automatically replace a saved path binding.
 
@@ -45,7 +46,7 @@ Device tab states, adoption/consent, independent Enabled/Provider Enabled contro
 
 ## Opening the transport and handshake
 
-1. Enumerate present device interfaces through Windows Configuration Manager, filter for the above VID/PID, deduplicate interface paths and form descriptors.
+1. Enumerate present device interfaces through Windows Configuration Manager, require the exact interface eligibility above, deduplicate interface paths and form descriptors. Revalidate the selected binding through `OutputDeviceSelection.Resolve` before opening it; a passive family observation is never a transport input.
 2. Open the selected device path using `CreateFileW`: `GENERIC_READ | GENERIC_WRITE`, shared read/write, `OPEN_EXISTING`, and `FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED`. The integrated Stage 4B transport submits WinUSB reads/writes with a native `OVERLAPPED` pointer and waits for actual completion before reusing or freeing its buffers, event, or native state.
 3. Call `WinUsb_Initialize`, then apply `PIPE_TRANSFER_TIMEOUT` to the two currently used pipes: **OUT `0x09`** and **IN `0x81`**.
 4. Send a **2,048-byte** zero-initialized handshake request to OUT with bytes `[0]=0x02`, `[1]=0xFF`, and `[8]=0x01`.

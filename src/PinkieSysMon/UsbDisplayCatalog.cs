@@ -9,7 +9,14 @@ internal readonly record struct UsbProductId(ushort VendorId, ushort ProductId)
 
 // Recognition metadata, never an authorization to use an adapter. Published
 // family names do not identify an exact model, firmware, geometry or USB class.
-internal sealed record UsbDisplayFamily(UsbProductId Product, string Name, string EvidenceUrl);
+internal sealed record UsbDisplayFamily(UsbProductId Product, string Name, string EvidenceUrl)
+{
+    // A candidate handler still requires its own present interface discovery,
+    // exact binding, consent and runtime validation. A USB product match alone
+    // never authorizes dispatch, supplies geometry, or creates an Output.
+    public string? CandidateTransport { get; init; }
+    public int? IntegrationIssue { get; init; }
+}
 
 internal static class UsbDisplayCatalog
 {
@@ -22,7 +29,8 @@ internal static class UsbDisplayCatalog
     // are distinct families; 0416:8001 LED/segment controllers are excluded.
     public static IReadOnlyList<UsbDisplayFamily> Families { get; } = Array.AsReadOnly(new[]
     {
-        Family(0x0416, 0x5408, "Thermalright LY display family", ThermalrightEvidence),
+        Family(0x0416, 0x5408, "Thermalright LY display family", ThermalrightEvidence,
+            OutputTargetContract.TrofeoTransport),
         Family(0x0416, 0x5409, "Thermalright LY1 display family", ThermalrightEvidence),
         Family(0x0416, 0x5302, "Thermalright Type 2 display family", ThermalrightEvidence),
         Family(0x0418, 0x5303, "ALi Type 3 display family", ThermalrightEvidence),
@@ -31,7 +39,7 @@ internal static class UsbDisplayCatalog
         Family(0x0402, 0x3922, "Thermalright SCSI display family", ThermalrightEvidence),
         Family(0x87CD, 0x70DB, "Thermalright SCSI display family", ThermalrightEvidence),
         Family(0x87AD, 0x70DB, "Thermalright bulk display family", ThermalrightEvidence),
-        Family(0x1CBE, 0x0123, "Turing/TURZX 12.3-inch family", TuringEvidence),
+        Family(0x1CBE, 0x0123, "Turing/TURZX 12.3-inch family", TuringEvidence, integrationIssue: 71),
         Family(0x1CBE, 0x0028, "Turing 2.8-inch family", TuringEvidence),
         Family(0x1CBE, 0x0046, "Turing 4.6-inch family", TuringEvidence),
         Family(0x1CBE, 0x0050, "Turing 5.2-inch family", TuringEvidence),
@@ -45,8 +53,10 @@ internal static class UsbDisplayCatalog
 
     public static UsbDisplayFamily? Find(UsbProductId product) => ByProduct.GetValueOrDefault(product);
 
-    private static UsbDisplayFamily Family(ushort vid, ushort pid, string name, string evidence) =>
-        new(new UsbProductId(vid, pid), name, evidence);
+    private static UsbDisplayFamily Family(ushort vid, ushort pid, string name, string evidence,
+        string? candidateTransport = null, int? integrationIssue = null) =>
+        new(new UsbProductId(vid, pid), name, evidence)
+        { CandidateTransport = candidateTransport, IntegrationIssue = integrationIssue };
 
     // Parse only an actual USB devnode instance ID, not an interface path,
     // description, substring, generic HID ID, or USBSTOR disk name. Function

@@ -8,13 +8,18 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
-        string? applicationRoot = null)
+        string? applicationRoot = null,
+        Func<IReadOnlyList<UsbDisplayObservation>>? discoverRecognizedDevices = null)
     {
         _help = new EditorSettingsHelp(applicationRoot);
         _dashboardChoices = dashboards;
         _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
         _discoverDevices = discoverDevices ?? DeviceDiscovery.EnumerateTrofeoDevices;
+        // Existing injected discovery callers stay fully native-free. Production
+        // uses the independent, metadata-only USB family scan.
+        _discoverRecognizedDevices = discoverRecognizedDevices ??
+            (discoverDevices is null ? UsbDisplayDiscovery.Capture : () => []);
         Text = "Physical Devices Settings";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -59,6 +64,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     private readonly DeviceSettingsModel _devices;
     private readonly Func<IReadOnlyList<OutputDeviceDescriptor>> _discoverDevices;
+    private readonly Func<IReadOnlyList<UsbDisplayObservation>> _discoverRecognizedDevices;
+    private readonly RecognizedDeviceSettingsModel _recognizedDevices = new();
     private readonly TabControl _settingsTabs = new() { Dock = DockStyle.Fill };
     private readonly Label _discoveryNotice = new()
     {
@@ -66,6 +73,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         Text = "Physical device discovery is unavailable. Reopen Settings or reconnect the device to retry."
     };
     private readonly Dictionary<string, DeviceSettingsPage> _devicePages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, RecognizedDeviceSettingsPage> _recognizedPages = new(StringComparer.Ordinal);
     private bool _refreshingDevices;
 
     public bool DevicesChanged => _devices.IsDirty;
@@ -102,16 +110,25 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         _refreshingDevices = true;
         try
         {
+            IReadOnlyList<OutputDeviceDescriptor> supported = [];
+            var unavailable = false;
             try
             {
-                _devices.Refresh(_discoverDevices());
-                _discoveryNotice.Visible = false;
+                supported = _discoverDevices();
+                _devices.Refresh(supported);
             }
             catch (Exception ex) when (ex is InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
             {
                 _devices.DiscoveryUnavailable();
-                _discoveryNotice.Visible = true;
+                unavailable = true;
             }
+            try { _recognizedDevices.Refresh(_discoverRecognizedDevices(), supported); }
+            catch (Exception ex) when (ex is InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
+            {
+                _recognizedDevices.DiscoveryUnavailable();
+                unavailable = true;
+            }
+            _discoveryNotice.Visible = unavailable;
             UpdateDevicePages();
         }
         finally { _refreshingDevices = false; }
@@ -140,9 +157,32 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
             }
-            page.Text = $"Device #{index + 1}";
             page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount));
         }
+        var recognized = _recognizedDevices.Entries;
+        var recognizedIds = recognized.Select(e => e.Observation.ObservationId).ToHashSet(StringComparer.Ordinal);
+        foreach (var id in _recognizedPages.Keys.Where(id => !recognizedIds.Contains(id)).ToArray())
+        {
+            var page = _recognizedPages[id];
+            _settingsTabs.TabPages.Remove(page);
+            page.Dispose();
+            _recognizedPages.Remove(id);
+        }
+        foreach (var entry in recognized)
+        {
+            var id = entry.Observation.ObservationId;
+            if (!_recognizedPages.TryGetValue(id, out var page))
+            {
+                page = new RecognizedDeviceSettingsPage();
+                _recognizedPages.Add(id, page);
+                _settingsTabs.TabPages.Add(page);
+            }
+            page.UpdateState(entry);
+        }
+        // Retain existing pages and selection through PnP refreshes. Number the
+        // actual tab order, including informational pages and later arrivals.
+        for (var index = 0; index < _settingsTabs.TabPages.Count; index++)
+            _settingsTabs.TabPages[index].Text = $"Device #{index + 1}";
     }
 
     private void AddDevice(OutputTargetConfig target)
@@ -254,7 +294,11 @@ internal sealed class DeviceSettingsPage : TabPage
         var name = new TextBox { Text = target.Name, Name = "DeviceName", Dock = DockStyle.Fill };
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
         Row("Display name", name, EditorSettingsHelp.DisplayName);
-        Row("Type", new Label { Text = "Thermalright Trofeo Vision 9.16", AutoSize = true }, EditorSettingsHelp.DeviceType);
+        Row("Type", new Label { Text = "Trofeo Vision 9.16 adapter (LY)", AutoSize = true }, EditorSettingsHelp.DeviceType);
+        var family = UsbDisplayCatalog.Families.Single(f => f.CandidateTransport == OutputTargetContract.TrofeoTransport);
+        Row("USB product / transport", new Label { Text = $"{family.Product} / Trofeo (LY)", AutoSize = true },
+            "The Trofeo adapter uses its own native geometry, JPEG encoding and USB settings. " +
+            "Other recognized USB families cannot use this adapter.");
         var dashboard = new ComboBox { Name = "DeviceDashboard", Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList };
         dashboard.Items.AddRange(dashboards.Cast<object>().ToArray());

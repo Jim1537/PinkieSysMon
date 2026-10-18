@@ -14,6 +14,10 @@ internal sealed record OutputDeviceDescriptor(
     // persisted interface-path DeviceId without an explicit migration.
     public string? PhysicalFingerprint { get; init; }
 
+    // Hash of the interface's exact devnode ID. Snapshot correlation only;
+    // never serialized into OutputTargetConfig or used for automatic rebinding.
+    public string? PnpNodeKey { get; init; }
+
     public string ShortId
     {
         get
@@ -74,12 +78,7 @@ internal static class OutputDeviceSelection
 
         // One claimed physical serial on two interfaces is ambiguous regardless
         // of whether the legacy per-path ID uniquely matches one of them.
-        var duplicatePhysicalIds = candidates
-            .Where(device => !string.IsNullOrWhiteSpace(device.PhysicalFingerprint))
-            .GroupBy(device => device.PhysicalFingerprint!, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var ambiguousDeviceIds = FindAmbiguousDeviceIds(candidates);
 
         if (!string.IsNullOrWhiteSpace(target.DeviceId))
         {
@@ -97,8 +96,7 @@ internal static class OutputDeviceSelection
                     OutputDeviceResolutionStatus.Missing,
                     null,
                     $"Configured output device for target '{target.Name}' is not present."),
-                1 when matches[0].PhysicalFingerprint is { } fingerprint &&
-                       duplicatePhysicalIds.Contains(fingerprint) =>
+                1 when ambiguousDeviceIds.Contains(matches[0].DeviceId) =>
                     new OutputDeviceResolution(
                         OutputDeviceResolutionStatus.Ambiguous,
                         null,
@@ -124,6 +122,21 @@ internal static class OutputDeviceSelection
                 $"Multiple compatible output devices are present for target '{target.Name}'. Select an explicit device in Settings.")
         };
     }
+
+    // A repeated serial claim or exact devnode cannot authorize choosing one
+    // of several interfaces. Sharing only a product/model is never a collision.
+    internal static IReadOnlySet<string> FindAmbiguousDeviceIds(
+        IReadOnlyList<OutputDeviceDescriptor> candidates)
+    {
+        IEnumerable<OutputDeviceDescriptor> Duplicates(Func<OutputDeviceDescriptor, string?> key) =>
+            candidates.Where(device => !string.IsNullOrWhiteSpace(key(device)))
+                .GroupBy(key, StringComparer.OrdinalIgnoreCase)
+                .Where(group => group.Count() > 1).SelectMany(group => group);
+        return Duplicates(device => device.DeviceId)
+            .Concat(Duplicates(device => device.PhysicalFingerprint))
+            .Concat(Duplicates(device => device.PnpNodeKey))
+            .Select(device => device.DeviceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
 }
 
 internal static class DeviceDiscovery
@@ -133,7 +146,6 @@ internal static class DeviceDiscovery
 
     private const uint PresentOnly = 0x00000000;
     private const uint CrSuccess = 0x00000000;
-    private const string TrofeoVidPidToken = "vid_0416&pid_5408";
 
     public static IReadOnlyList<OutputDeviceDescriptor> EnumerateTrofeoDevices()
     {
@@ -167,7 +179,8 @@ internal static class DeviceDiscovery
                 return CreateTrofeoDescriptors(ParseMultiSz(buffer))
                     .Select(device => device with
                     {
-                        PhysicalFingerprint = PassiveTrofeoIdentity.TryReadFingerprint(device.DevicePath)
+                        PhysicalFingerprint = PassiveTrofeoIdentity.TryReadFingerprint(device.DevicePath),
+                        PnpNodeKey = PassiveUsbInterfaceIdentity.TryReadTrofeoNodeKey(device.DevicePath)
                     })
                     .ToArray();
             }
@@ -185,8 +198,9 @@ internal static class DeviceDiscovery
         ArgumentNullException.ThrowIfNull(interfacePaths);
 
         return interfacePaths
-            .Where(path => !string.IsNullOrWhiteSpace(path) &&
-                           path.Contains(TrofeoVidPidToken, StringComparison.OrdinalIgnoreCase))
+            // Keep the existing adapter's exact product/interface contract.
+            // A catalog match or a VID/PID substring cannot enter this list.
+            .Where(path => PassiveTrofeoIdentity.TryParseInstanceId(path, out _, out _))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => new OutputDeviceDescriptor(
                 CreateStableDeviceId(path),

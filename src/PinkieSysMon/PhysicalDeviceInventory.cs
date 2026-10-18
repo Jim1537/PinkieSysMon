@@ -69,17 +69,7 @@ internal static class PhysicalDeviceInventory
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var duplicateDeviceIds = candidates
-            .GroupBy(device => device.DeviceId, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var duplicateFingerprints = candidates
-            .Where(device => !string.IsNullOrWhiteSpace(device.PhysicalFingerprint))
-            .GroupBy(device => device.PhysicalFingerprint!, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Count() > 1)
-            .Select(group => group.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var ambiguousDeviceIds = OutputDeviceSelection.FindAmbiguousDeviceIds(candidates);
 
         var assignedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var entries = new List<PhysicalDeviceInventoryEntry>();
@@ -120,12 +110,8 @@ internal static class PhysicalDeviceInventory
             var conflictsWithConfiguredTarget = targets.Any(target =>
                 !string.IsNullOrWhiteSpace(target.DeviceId) &&
                 target.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase));
-            var duplicateFingerprint = device.PhysicalFingerprint is { } fingerprint &&
-                duplicateFingerprints.Contains(fingerprint);
-
             var status = conflictsWithConfiguredTarget ||
-                         duplicateDeviceIds.Contains(device.DeviceId) ||
-                         duplicateFingerprint
+                         ambiguousDeviceIds.Contains(device.DeviceId)
                 ? PhysicalDeviceInventoryStatus.Ambiguous
                 : PhysicalDeviceInventoryStatus.Unconfigured;
 
