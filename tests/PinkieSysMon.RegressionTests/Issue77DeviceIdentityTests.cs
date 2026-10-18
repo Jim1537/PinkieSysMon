@@ -90,10 +90,10 @@ internal static class Issue77DeviceIdentityTests
 
     public static void RecognitionAndDispatchContract()
     {
-        Check(UsbDisplayCatalog.Families.Count(f => f.CandidateTransport is not null) == 1 &&
+        Check(UsbDisplayCatalog.Families.Count(f => f.CandidateTransport is not null) == 2 &&
               UsbDisplayCatalog.Find(new UsbProductId(0x0416, 0x5408))!.CandidateTransport == OutputTargetContract.TrofeoTransport &&
-              UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123)) is { CandidateTransport: null, IntegrationIssue: 71 },
-            "Only the existing LY adapter is integrated; TURZX remains owned by Issue 71.");
+              UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123)) is { CandidateTransport: OutputTargetContract.TurzxTransport, IntegrationIssue: 71 },
+            "Only the reviewed LY and TURZX adapters are eligible; TURZX integration remains owned by Issue 71.");
         var path = Device("SYNTHETIC-A").DevicePath;
         Check(DeviceDiscovery.CreateTrofeoDescriptors([path, path.ToUpperInvariant(),
                 path.Replace("5408", "54080"), path.Replace("5408", "5409"),

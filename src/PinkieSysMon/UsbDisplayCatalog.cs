@@ -39,7 +39,7 @@ internal static class UsbDisplayCatalog
         Family(0x0402, 0x3922, "Thermalright SCSI display family", ThermalrightEvidence),
         Family(0x87CD, 0x70DB, "Thermalright SCSI display family", ThermalrightEvidence),
         Family(0x87AD, 0x70DB, "Thermalright bulk display family", ThermalrightEvidence),
-        Family(0x1CBE, 0x0123, "Turing/TURZX 12.3-inch family", TuringEvidence, integrationIssue: 71),
+        Family(0x1CBE, 0x0123, "Turing/TURZX 12.3-inch family", TuringEvidence, OutputTargetContract.TurzxTransport, integrationIssue: 71),
         Family(0x1CBE, 0x0028, "Turing 2.8-inch family", TuringEvidence),
         Family(0x1CBE, 0x0046, "Turing 4.6-inch family", TuringEvidence),
         Family(0x1CBE, 0x0050, "Turing 5.2-inch family", TuringEvidence),

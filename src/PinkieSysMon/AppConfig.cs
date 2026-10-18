@@ -170,7 +170,8 @@ internal static class OutputTargetContract
 
     // A known configuration/identity is not an installed Runtime transport.
     public static bool HasIntegratedTransport(string? transport) =>
-        string.Equals(transport, TrofeoTransport, StringComparison.OrdinalIgnoreCase);
+        string.Equals(transport, TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(transport, TurzxTransport, StringComparison.OrdinalIgnoreCase);
     public const string DefaultTargetId = "screen-1";
     public const string DefaultTargetName = "Thermalright Trofeo Vision 9.16";
 
@@ -314,6 +315,11 @@ internal static class OutputTargetContract
                 TransferTimeoutMs = defaults.TransferTimeoutMs,
                 DiagnosticJournalEnabled = defaults.DiagnosticJournalEnabled
             };
+            if (turzx && target.DeviceEnabled)
+            {
+                try { TurzxOutputConfig.ValidateFrameOptions(target.Turzx!.BrightnessPercent, target.Usb.DiagnosticJournalEnabled); }
+                catch (NotSupportedException error) { throw new InvalidDataException($"Output '{target.Id}': {error.Message}", error); }
+            }
             if (target.Usb.RetryIntervalMs < 500 || target.Usb.TransferTimeoutMs < 500)
                 throw new InvalidDataException($"Output target '{target.Id}' USB intervals must be at least 500 ms.");
         }

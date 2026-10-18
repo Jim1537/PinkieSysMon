@@ -15,7 +15,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         _dashboardChoices = dashboards;
         _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
-        _discoverDevices = discoverDevices ?? DeviceDiscovery.EnumerateTrofeoDevices;
+        _discoverDevices = discoverDevices ?? PhysicalDeviceDiscovery.Capture;
         // Existing injected discovery callers stay fully native-free. Production
         // uses the independent, metadata-only USB family scan.
         _discoverRecognizedDevices = discoverRecognizedDevices ??
@@ -83,7 +83,13 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         if (_desktopCount + _devices.ConfiguredCount == 0)
             throw new InvalidOperationException("At least one Output must remain configured.");
         if (DevicesChanged)
-            _devices.ValidateForApply(_discoverDevices());
+        {
+            try { _devices.ValidateForApply(_discoverDevices()); }
+            catch (PhysicalDeviceDiscoveryException error)
+            {
+                _devices.ValidateForApply(error.Devices, error.UnavailableTransports);
+            }
+        }
         _devices.ApplyTo(config);
     }
 
@@ -116,6 +122,12 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             {
                 supported = _discoverDevices();
                 _devices.Refresh(supported);
+            }
+            catch (PhysicalDeviceDiscoveryException error)
+            {
+                supported = error.Devices;
+                _devices.Refresh(supported, error.UnavailableTransports);
+                unavailable = true;
             }
             catch (Exception ex) when (ex is InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
             {
@@ -204,6 +216,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             var confirmed = false;
             if (enabled)
             {
+                if (target.Kind == OutputTargetContract.TurzxKind)
+                    TurzxOutputConfig.ValidateFrameOptions(target.Turzx?.BrightnessPercent, target.Usb?.DiagnosticJournalEnabled == true);
                 if (!_devices.CanEnable(target))
                     throw new InvalidOperationException("This device needs an explicit, unambiguous connected identity before it can be enabled.");
                 confirmed = MessageBox.Show(this,
@@ -295,13 +309,13 @@ internal sealed class DeviceSettingsPage : TabPage
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
         Row("Display name", name, EditorSettingsHelp.DisplayName);
         var isTurzx = target.Kind == OutputTargetContract.TurzxKind;
-        Row("Type", new Label { Text = isTurzx ? "TURZX 12.3-inch (integration pending)" :
+        Row("Type", new Label { Text = isTurzx ? "TURZX 12.3-inch" :
             "Trofeo Vision 9.16 adapter (LY)", AutoSize = true }, EditorSettingsHelp.DeviceType);
         var family = isTurzx ? UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123))! :
             UsbDisplayCatalog.Families.Single(f => f.CandidateTransport == OutputTargetContract.TrofeoTransport);
         Row("USB product / transport", new Label { Text = isTurzx ? $"{family.Product} / turzx" :
             $"{family.Product} / Trofeo (LY)", AutoSize = true },
-            isTurzx ? "TURZX transport is not integrated. This saved record cannot be enabled." :
+            isTurzx ? "TURZX uses its own JPEG transport and physical geometry. Current device brightness is preserved." :
             "The Trofeo adapter uses its own native geometry, JPEG encoding and USB settings. " +
             "Other recognized USB families cannot use this adapter.");
         var dashboard = new ComboBox { Name = "DeviceDashboard", Dock = DockStyle.Fill,
@@ -333,13 +347,40 @@ internal sealed class DeviceSettingsPage : TabPage
             value => target.JpegQuality = value), EditorSettingsHelp.JpegQuality);
         var usb = target.Usb ?? throw new InvalidOperationException("Physical Output USB settings are missing.");
         Row("USB retry (ms)", Number("DeviceRetry", usb.RetryIntervalMs, 500, int.MaxValue,
-            value => usb.RetryIntervalMs = value), EditorSettingsHelp.UsbRetry);
+            value => usb.RetryIntervalMs = value), isTurzx
+                ? "Interval for checking a missing exact binding. A failed TURZX open/exchange stops this session until Enabled is turned off and on again."
+                : EditorSettingsHelp.UsbRetry);
         Row("USB timeout (ms)", Number("DeviceTimeout", usb.TransferTimeoutMs, 500, int.MaxValue,
             value => usb.TransferTimeoutMs = value), EditorSettingsHelp.UsbTimeout);
-        var journal = new CheckBox { Text = "USB diagnostic journal", Name = "DeviceJournal",
-            Checked = usb.DiagnosticJournalEnabled, AutoSize = true };
-        journal.CheckedChanged += (_, _) => Change(() => usb.DiagnosticJournalEnabled = journal.Checked);
-        Row("USB diagnostics", journal, EditorSettingsHelp.UsbJournal);
+        if (isTurzx)
+        {
+            Control brightness = new Label { Name = "DeviceKeepBrightness", Text = "Device setting (unchanged)", AutoSize = true };
+            if (target.Turzx?.BrightnessPercent is not null)
+            {
+                var clear = new Button { Name = "DeviceKeepBrightness", Text = "Use current device setting", AutoSize = true };
+                clear.Click += (_, _) => Change(() =>
+                {
+                    target.Turzx ??= new(); target.Turzx.BrightnessPercent = null; clear.Enabled = false;
+                });
+                brightness = clear;
+            }
+            Row("Brightness", brightness, "Brightness adjustment is not yet available. Current device brightness is preserved. A previously saved percentage can be cleared without sending a brightness command.");
+            Control diagnostics = new Label { Name = "DeviceNoJournal", Text = "Application log", AutoSize = true };
+            if (usb.DiagnosticJournalEnabled)
+            {
+                var clear = new Button { Name = "DeviceNoJournal", Text = "Use application log only", AutoSize = true };
+                clear.Click += (_, _) => Change(() => { usb.DiagnosticJournalEnabled = false; clear.Enabled = false; });
+                diagnostics = clear;
+            }
+            Row("USB diagnostics", diagnostics, "Detailed TURZX USB journaling is not yet available. A previously saved option can be cleared. Runtime lifecycle and errors remain in the application log.");
+        }
+        else
+        {
+            var journal = new CheckBox { Text = "USB diagnostic journal", Name = "DeviceJournal",
+                Checked = usb.DiagnosticJournalEnabled, AutoSize = true };
+            journal.CheckedChanged += (_, _) => Change(() => usb.DiagnosticJournalEnabled = journal.Checked);
+            Row("USB diagnostics", journal, EditorSettingsHelp.UsbJournal);
+        }
 
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(12, 4, 12, 4) };
         buttons.Controls.Add(_add);

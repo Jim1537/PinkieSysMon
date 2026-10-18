@@ -31,7 +31,7 @@ internal sealed class RecognizedDeviceSettingsPage : TabPage
             }
         };
         var support = observation.Family.CandidateTransport is not null
-            ? "No matching usable Trofeo interface was confirmed. Control is unavailable."
+            ? $"No matching usable {(observation.Family.CandidateTransport == OutputTargetContract.TrofeoTransport ? "Trofeo" : "TURZX")} interface was confirmed. Control is unavailable."
             : "Unsupported / protocol not available in PinkieSysMon.";
         var next = observation.Family.IntegrationIssue is { } issue
             ? $"Transport integration is tracked in Issue #{issue}."

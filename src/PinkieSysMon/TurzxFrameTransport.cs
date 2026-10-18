@@ -26,13 +26,8 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
         return transport is null ? null : new TurzxFrameTransport(transport, token);
     }
 
-    internal static void ValidateOptions(OutputTargetConfig target, bool journalEnabled)
-    {
-        if (target.Turzx?.BrightnessPercent is not null)
-            throw new NotSupportedException("TURZX brightness-to-frame sequencing is not verified; preserve current brightness (null) for this image path.");
-        if (journalEnabled)
-            throw new NotSupportedException("The detailed TURZX USB journal is not implemented; disable that option for this image path.");
-    }
+    internal static void ValidateOptions(OutputTargetConfig target, bool journalEnabled) =>
+        TurzxOutputConfig.ValidateFrameOptions(target.Turzx?.BrightnessPercent, journalEnabled);
 
     public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics) =>
         _transport.SendImage(TurzxImageFormat.Jpeg, jpeg, _ioToken);

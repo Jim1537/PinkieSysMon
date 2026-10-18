@@ -134,6 +134,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 $"knownDisconnected={snapshot.Count(e => e.IsPersisted && e.Status == PhysicalDeviceInventoryStatus.Disconnected)}; " +
                 $"newCandidates={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Unconfigured)}; " +
                 $"ambiguous={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.Ambiguous)}; " +
+                $"discoveryUnavailable={snapshot.Count(e => e.Status == PhysicalDeviceInventoryStatus.DiscoveryUnavailable)}; " +
                 $"serialFingerprints={snapshot.Count(e => e.DiscoveredDevice?.PhysicalFingerprint is not null)}.");
             return true;
         }
@@ -163,7 +164,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2);
                 return consent == DialogResult.Yes;
-            }, DeviceDiscovery.EnumerateTrofeoDevices);
+            }, () => PhysicalDeviceDiscovery.CaptureTransport(
+                _config.Outputs.Targets.Single(target => target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase)).Transport));
             if (apply is null || _exiting) return;
 
             // Consent remains above this path. This internal feedback kind has no IPC verb.

@@ -1,10 +1,10 @@
 # TURZX 12.3-inch — Integration Contract
 
-This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path is prepared through `TurzxFrameTransport` and the bounded checkpoint below. **Normal saved Runtime sessions and Settings adoption remain gated pending integration acceptance.** The device remains an informational, unsupported family in Devices; [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
+This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path uses `TurzxFrameTransport`. Exact passive interface discovery supplies a normal Device candidate; explicit adoption/consent permits a saved Runtime session. **Ordinary Settings/Runtime integration is implemented but awaits its separate Windows/device acceptance.** [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
 
 ## Passive interface discovery
 
-`TurzxDeviceDiscovery` prepares exact descriptors for USB product `1CBE:0123` using Windows metadata only. Its capture API is not yet used by Settings adoption or Runtime discovery. It requires:
+`TurzxDeviceDiscovery` prepares exact descriptors for USB product `1CBE:0123` using Windows metadata only. The shared physical discovery combines it with the independent Trofeo scanner for Settings and Runtime inventory. It requires:
 
 - A present, non-composite-function USB devnode with complete metadata, the `WinUSB` service and no reported device problem. Unevidenced composite function layouts are excluded.
 - Application interface GUIDs read from that devnode's existing hardware registry key through `CM_Open_DevNode_Key`, with query-only access and `OpenExisting`. Both documented `DeviceInterfaceGUIDs` (multi-string) and `DeviceInterfaceGUID` (string) registrations are supported; neither is created or changed.
@@ -115,7 +115,7 @@ Capture and inspect one bounded result before the next action. Preserve the curr
 
 ## Application configuration
 
-A prepared TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.
+A TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.
 
 The optional `Turzx` object belongs only to this adapter; Desktop and Trofeo reject it. Validation creates it for a TURZX record if absent. Existing Desktop/Trofeo records omit the new object and retain their previous normalization and settings. No dashboard schema migration is involved. Older application binaries cannot read a TURZX kind; preserve the earlier local configuration before downgrading after deliberate adoption.
 
@@ -124,14 +124,14 @@ The optional `Turzx` object belongs only to this adapter; Desktop and Trofeo rej
 | `Turzx.BrightnessPercent` | Nullable integer. `null` preserves the device's current brightness; `0..100` stores an explicitly selected application percentage. No factory/default brightness is inferred. |
 | Controller conversion | `floor(percent * 102 / 100)`, with exact endpoints 0 and 102. This pure conversion sends no command. |
 | Settings ownership | Detached target copies retain independent TURZX options through save/clone operations. Discovery does not dirty or save a draft. |
-| Transport gate | Only the Trofeo transport is currently integrated. Saving an enabled TURZX record fails; preparing a physical enable also rejects it before consent or session creation. Prepared TURZX candidates cannot be adopted or edited. |
-| Other adapter options | Refresh/JPEG/USB values use existing physical configuration normalization. The standalone transport accepts an explicit transfer timeout, but no Runtime TURZX session/encoder or diagnostic journal consumes these saved options yet. They do not establish supported capabilities. |
+| Admission | Exact connected candidates can be edited/adopted through the common detached Settings draft. Enabled remains opt-in with fresh binding checks and default-No consent. Enabled records require `BrightnessPercent = null` and detailed USB journaling disabled; unsupported saved options fail validation before acquisition. |
+| Other adapter options | Refresh/JPEG/USB values use existing physical normalization and are consumed by the common frame worker and this transport. New TURZX candidates explicitly disable detailed USB journaling instead of inheriting that unsupported option from global Trofeo defaults. Settings can clear previously saved unsupported brightness/journal values, without a hardware command. |
 
-A future adapter must apply an explicit saved brightness on its own worker at open/reconnect or after a committed settings change. A `null` setting must send no brightness command. Neither draft editing nor discovery may change the hardware. Firmware persistence, restart and pixel dimming are outside this contract.
+A future brightness integration must apply an explicit saved brightness on its own worker at open/reconnect or after a committed settings change. A `null` setting must send no brightness command. Neither draft editing nor discovery may change the hardware. Firmware persistence, restart and pixel dimming are outside this contract.
 
 ## Standalone transport
 
-`TurzxTransport.TryOpen` requires an explicitly enabled TURZX target, resolves only its exact binding through passive discovery, verifies the selected path/product/hash, and returns no transport when that binding is absent. Duplicate/ambiguous bindings fail before open. This internal acquisition API does not bypass the application's pending-adapter or consent gates; no production caller currently invokes it.
+`TurzxTransport.TryOpen` requires an explicitly enabled TURZX target, resolves only its exact binding through passive discovery, verifies the selected path/product/hash, and returns no transport when that binding is absent. Duplicate/ambiguous bindings fail before open. The common frame adapter invokes it only for an explicitly enabled target; discovery, preview and Provider Enabled do not grant hardware use.
 
 `WindowsTurzxNativeIo` owns the file and WinUSB interface. It accepts the initial interface 0 / alternate setting 0 with bulk OUT `01` and IN `81`, verifies their descriptors and nonzero packet sizes, and sets a finite pipe-transfer timeout of at least 500 ms. Other interfaces/endpoints are not tried. It retains WinUSB's default non-RAW I/O policy: [WinUSB splits larger writes internally](https://learn.microsoft.com/en-us/windows/win32/api/winusb/nf-winusb-winusb_writepipe), while the adapter submits one combined control/image buffer and checks the complete byte count. It does not append arbitrary packets, flush replies or reset stalled endpoints.
 
@@ -174,6 +174,14 @@ Dispose cancels admission/in-flight work and waits for that ownership boundary b
 
 `Issue71TransportTests` covers both the default JPEG stream and explicitly selected primary-only diagnostic policy, including full primary/follow-up sequencing, rejection/faulting, command serialization and native cancellation during a pending follow-up. It also checks independent packet fixtures, format/size bounds, strict reply policy, exact acquisition and failed-sync cleanup, error identity, pending completion, cancellation failure, deadlines and concurrent disposal using synthetic I/O. These tests do not execute the real Windows backend or establish this unit's native discovery, command responses, brightness sequencing, image orientation or integrated Runtime behavior.
 
+## Runtime sessions and recovery
+
+`OutputSessionManager` routes a matching `turzx` kind/transport to the common physical `FramePump`. The assigned canonical document, telemetry demand/publication, idle/suspend, selected reload, global lifetime and consented Enabled controls retain the [common architecture](../architecture.md#output-status-and-tray-control). There is no fixed frame budget in normal Runtime operation. The bounded developer checkpoint below remains a separate tool.
+
+A missing exact binding returns no connection and can be checked again at the configured retry interval without a native exchange. A failed TURZX open/handshake or admitted frame exchange puts that session in **ERROR**, retires any acquired transport through terminal completion, and blocks automatic reopen. Ordinary reconfiguration, Reload, idle wake or suspend/resume does not clear that failure. After preserving the error, a deliberate **Enabled off → on** or full Runtime stop/start creates a new session and permits a new attempt. A new attempt is not proof of recovery and does not reset firmware/USB state. Trofeo retains its existing retry behavior.
+
+Brightness adjustment and detailed TURZX USB journaling remain unavailable. `null` brightness preserves the current hardware setting; common lifecycle/errors still use the application log. These limits are enforced in configuration validation, worker preparation and adapter acquisition, including when a caller bypasses file loading. No PNG switching, brightness replay, quality reduction, firmware save or automatic USB reset is added.
+
 ## Shared-worker live-dashboard checkpoint
 
 After a current [Windows build and regression run](../building.md#build-and-regression), close other applications controlling this TURZX device and run the already-built runner **once from the repository root**:
@@ -191,12 +199,12 @@ Asset/font resolution and a bounded JPEG preflight precede discovery. Exactly on
 
 Expected owner observation: the public Default panel replaces the previous test, its title is readable, seconds advance in place, and the complete 1920×480 composition appears between black horizontal bars on the 1920×720 physical screen. After roughly ten seconds the worker stops and the last picture remains. `FRAMES COMPLETE` requires 20 completed exchanges and at least two different consecutive encoded payloads; it does **not** prove physical animation, correct orientation or ongoing Runtime readiness. Preserve both `artifacts/turzx-runtime-check.log` and `artifacts/turzx-runtime-worker.log`, alongside the build log. The worker log may contain local paths/errors and is private evidence. On failure or a retained/incorrect picture, preserve the result and stop before another attempt or USB reconnect.
 
-`TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. Shared worker lifecycle/error logging remains available. Ordinary Settings adoption, brightness sequencing, automatic recovery and full telemetry/output coordination belong to subsequent integration stages.
+`TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. Shared worker lifecycle/error logging remains available. Normal Settings/Runtime sessions follow the contract above; brightness sequencing, automatic post-error recovery and final integration acceptance remain subsequent work.
 
 `Issue71RuntimeTests` exercises legacy raster parity across all canvas orientations, clockwise wire mapping, real renderer fitting/alpha isolation and payload bounds, adapter/consent admission, bounded worker transmission and no-reopen failure behavior using synthetic USB. It distinguishes changing dashboard payloads from identical completed frames. These regressions do not execute Windows discovery/native I/O or establish physical acceptance.
 
 ## Integration boundaries
 
-`OutputTargetContract.IsPhysicalKind` classifies the two physical record kinds; `HasIntegratedTransport` separately controls actual availability. The shared inventory, detached Settings model, metric identity and control/status projections accept the new record type without routing it to Trofeo. The default session factory explicitly rejects adapters that have not been integrated. A descriptor, known kind or registry match does not authorize hardware use.
+`OutputTargetContract.IsPhysicalKind` classifies the two physical record kinds; `HasIntegratedTransport` admits the Trofeo and TURZX adapters. Inventory, detached Settings, metric identity and control/status projections retain the selected adapter and stable Output identity. The default factory rejects mismatched kind/transport pairs before constructing a worker; a descriptor, known kind or registry match does not authorize hardware use.
 
 The existing canonical renderer, application transactions, global lifetime and idle policy remain with [Architecture](../architecture.md). Shared adoption, consent, removal and recovery remain with [Physical Devices](../../outputs/physical_devices.md). No production dashboard or private configuration is changed by this preparation.

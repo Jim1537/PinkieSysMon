@@ -8,10 +8,10 @@ For Windows panels without display hardware, use [Desktop](desktop.md). A config
 
 ### Step 1. Prepare the device and dashboard
 
-1. Check the [supported model](../supported-devices.md) and its linked integration reference. PinkieSysMon currently provides one physical adapter; this common workflow does not promise support for arbitrary USB displays or future adapters.
+1. Check the [supported model](../supported-devices.md) and its linked integration reference. Adapter availability and acceptance differ by model; this common workflow does not promise support for arbitrary USB displays or future adapters.
 2. Connect the supported hardware through its required Windows interface. PinkieSysMon's current direct USB output is separate from Windows extended/mirrored monitors.
 3. Close vendor display-control software and other applications that could control the same hardware before enabling PinkieSysMon output.
-4. In the Dashboard Editor, open or create and **save** the desired dashboard. Configure its Canvas and widgets using the [widget/property guides](../README.md#available-widgets) and the device's [geometry requirements](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration).
+4. In the Dashboard Editor, open or create and **save** the desired dashboard. Configure its Canvas and widgets using the [widget/property guides](../README.md#available-widgets) and the model's geometry requirements linked from the supported-device inventory.
 
 Adopting an Output creates an application configuration record. It does not create hardware, author a dashboard or install a generic display driver.
 
@@ -27,7 +27,7 @@ Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, a
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Add are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Add are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
 | **Recognized**, **Unsupported / protocol not available** | A researched USB display family has no integrated adapter. Its tab shows the generic family and non-secret USB VID:PID, with no Add, Enabled or adapter options. |
-| **No matching usable Trofeo interface was confirmed** | Windows recognizes the LY family, but an exact supported-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
+| **No matching usable … interface was confirmed** | Windows recognizes an adapter family, but an exact supported-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
 
 Unrelated USB products are excluded. Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport. See the [inventory mechanism](#passive-inventory-and-explicit-adoption).
 
@@ -39,7 +39,7 @@ Unrelated USB products are excluded. Hardware that has never been detected and h
 4. Choose **Provider Enabled** if dashboards should use this Output's status/performance metrics. Its [metric contract](../telemetry/system.md#runtime-and-output-performance-metrics) is independent of hardware enablement and the global System provider.
 5. For a **Not configured** candidate, click **Add Device** to include it in the Settings draft **without enabling hardware**. Changing fields alone does not adopt an unsaved candidate.
 
-Model-dependent controls belong to the selected adapter. The current adapter exposes **JPEG quality**, **USB retry (ms)**, **USB timeout (ms)** and **USB diagnostic journal**. Their [defaults, bounds, inheritance and transport effects](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) remain in the integration reference. Retry delay and per-operation timeout are different settings. Journaling adds diagnostic disk I/O; it does not repair a USB fault.
+Model-dependent controls belong to the selected adapter. See [Trofeo settings](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) or [TURZX settings and capability limits](../development/devices/turzx-12.3.md#application-configuration) for JPEG/USB options, inheritance and supported hardware controls. Retry delay and per-operation timeout are different settings. A diagnostic journal adds disk I/O; it does not repair a USB fault.
 
 Hover over a control or its help icon for its effect and dependencies. These device settings belong to the selected Device tab, rather than Editor settings or Desktop.
 
@@ -75,7 +75,7 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 | Operation | Effect |
 | --- | --- |
 | Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The configured device's tray **Enabled** switch also offers disabling. |
-| Physically disconnect | Leave the saved Output configured. An enabled session can wait/retry for its configured binding; disconnecting does not revoke saved enablement or remove its record. |
+| Physically disconnect | Leave the saved Output configured. An enabled session follows its adapter's binding/recovery policy; disconnecting does not revoke saved enablement or remove its record. |
 | **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
@@ -93,8 +93,8 @@ For saved enablement, disabling the final Output, global shutdown and normal res
 | No Device tab | Verify model/interface support and physical connection. Never-detected absent hardware has no placeholder tab. |
 | Unsupported family, or a display outside the recognition catalog | Follow the owning integration Issue shown on its tab, or [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Detection does not permit trying a different adapter. |
 | Connected in Settings, but no display output | Check Enabled in Settings, Runtime's target state and Reload result, then the saved assignment. Passive detection does not acquire the transport. |
-| **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Automatic retry does not establish that recovery succeeded. |
-| Ambiguous identity or a changed interface path | Resolve the actual binding using the [adapter's selection/identity rules](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection). No first-match fallback or automatic rebinding is performed. |
+| **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Follow the selected adapter's recovery policy; a new attempt does not establish that recovery succeeded. |
+| Ambiguous identity or a changed interface path | Resolve the actual binding using the selected adapter's identity rules linked from [Supported Devices](../supported-devices.md). No first-match fallback or automatic rebinding is performed. |
 | Disconnected controls cannot be edited | Reconnect that device to edit; use the tray to disable an already-enabled absent device, or Remove if appropriate. |
 | Missing/corrupt dashboard | Correct the saved document or assignment and retry. Runtime reports the affected Output rather than substituting another dashboard. |
 | Stale Settings draft or apply/recovery failure | Follow the [shared transaction's recovery result](../development/architecture.md#settings-save-and-apply); reopen current settings and inspect Runtime status before retrying. |
@@ -113,19 +113,19 @@ The current adapter's [native completion limits](../development/devices/trofeo-v
 | Passive inventory and explicit candidate adoption | Windows interface discovery and hardware identity derivation |
 | Detached editing, validation, removal and session coordination | Open/handshake, encoding, framing, ACK and native I/O lifetime |
 
-`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Only Trofeo currently has an integrated transport; the [TURZX preparation contract](../development/devices/turzx-12.3.md) accepts disabled records but blocks adoption and hardware enablement. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived binding/fingerprint rules and legacy selection fallback remain with [Trofeo Device Integration](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection).
+`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Only Trofeo currently has an integrated transport; the [TURZX preparation contract](../development/devices/turzx-12.3.md) accepts disabled records but blocks adoption and hardware enablement. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings/fingerprints and any legacy selection fallback remain with the model-specific references in [Supported Devices](../supported-devices.md).
 
 ### Configuration and identity
 
 Physical Outputs use local `Outputs.Targets` records. Their `Id` identifies the application Output; `Name` is its label; `DeviceId` identifies the adapter's hardware binding. Neither the display name nor Settings tab number is a substitute for either identity. A hardware path/fingerprint observation is not the Output metric identity.
 
-`Dashboard`, `RefreshIntervalMs` and `ProviderEnabled` belong to each Output. Physical records additionally own explicit `DeviceEnabled`, `Transport`, `DeviceId` and the current adapter's `JpegQuality`/`Usb` overrides; they must not contain Desktop configuration. `OutputTargetContract` rejects invalid or duplicate identities/bindings. The adapter owns its [normalization, default/inherited values and bounds](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration).
+`Dashboard`, `RefreshIntervalMs` and `ProviderEnabled` belong to each Output. Physical records additionally own explicit `DeviceEnabled`, `Transport`, `DeviceId` and the current adapter's `JpegQuality`/`Usb` overrides; they must not contain Desktop configuration. `OutputTargetContract` rejects invalid or duplicate identities/bindings. The selected adapter owns normalization, inherited values, bounds and capability limits; use its integration reference from Supported Devices.
 
 Provider descriptors and unavailable values are defined by the [Output metric owner](../telemetry/system.md#runtime-and-output-performance-metrics). The shared [application/dashboard persistence boundary](../development/architecture.md#persistence-and-schema-boundary) prevents Output edits from becoming dashboard-schema changes.
 
 ### Passive inventory and explicit adoption
 
-`DeviceDiscovery` uses Windows Configuration Manager/PnP metadata without opening a WinUSB transport. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities and discovered physical-identity claims fail closed. A changed path is not rebound merely because an optional fingerprint matches.
+`PhysicalDeviceDiscovery` combines independent Trofeo/TURZX Windows metadata scans without opening a WinUSB transport. A partial failure carries healthy descriptors and explicitly unavailable transport families. Settings revokes stale editable presence only for failed families; Runtime inventory marks their configured records Discovery unavailable. The other family remains usable. Tray enablement captures only the selected adapter's interfaces. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities and discovered physical-identity claims fail closed. A changed path is not rebound merely because an optional fingerprint matches.
 
 Runtime captures inventory at startup and successful configuration reload and refreshes it when the Runtime tray root menu is opened. Tray enablement has a [separate validation sequence](#tray-enabled-transaction). Runtime retains the menu snapshot in memory, with no periodic scan or live Runtime hotplug subscription. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
 
@@ -146,7 +146,7 @@ The [discovery implementation](https://github.com/Jim1537/PinkieSysMon/blob/main
 
 `UsbDisplayReconciliation` suppresses an informational duplicate only when exactly one independently discovered supported interface maps to an observed devnode/member and the identities are unambiguous. Equal USB products or serial text cannot establish this match. `RecognizedDeviceSettingsModel` retains informational tabs and their Disconnected/Discovery unavailable states only while the dialog is open; it has no configuration or consent API. The two discovery paths fail independently, so a family-scan failure cannot disable otherwise valid supported-interface settings.
 
-Supported-device Settings, consent, Runtime inventory and transport dispatch retain the adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). Recognition expands visibility, not hardware enablement. The TURZX informational entry points to [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71); it supplies no geometry, encoding, brightness or USB defaults. Deterministic tests exercise metadata fakes, reconciliation and detached drafts; native Windows discovery, visual behavior and physical compatibility require separate observations.
+Supported-device Settings, consent, Runtime inventory and transport dispatch retain the adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). Recognition expands visibility, not hardware enablement. A TURZX recognition-only entry points to [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) when no exact usable interface is confirmed; a proven matching interface instead receives the normal Device tab. Recognition supplies no geometry, encoding, brightness or USB defaults. Deterministic tests exercise metadata fakes, reconciliation and detached drafts; native Windows discovery, visual behavior and physical compatibility require separate observations.
 
 ### Draft validation and application
 
@@ -171,13 +171,13 @@ The prepared callback rejects a changed Runtime configuration or selected record
 
 `OutputSessionManager` owns the active-session set and isolates each Output's loaded dashboard and renderer. Saved Enabled and a running global Runtime lifetime are required before a physical session can start. Disabling the Output disposes its session without a separate manual stop flag. Current physical sessions use a dedicated `FramePump` worker; that worker owns the device transport. A disabled/unavailable state does not authorize another device, replace a sibling's document or clear a sibling's metrics.
 
-Transport retry, stale-generation rejection, cancellation, buffer lifetime and diagnostics are specified by the [adapter lifecycle contract](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits). Shared enablement, reload, global shutdown, status, IPC and notification behavior belongs to [Architecture](../development/architecture.md#output-status-and-tray-control). A configured, passively present, active or transport-connected device represents a different observation at each boundary; none alone proves a displayed frame.
+Transport retry/recovery, cancellation, buffer lifetime and diagnostics are specified by the [Trofeo lifecycle](../development/devices/trofeo-vision-9.16.md#connection-lifetime-and-evidence-limits) and [TURZX lifecycle](../development/devices/turzx-12.3.md#runtime-sessions-and-recovery). Shared enablement, reload, global shutdown, status, IPC and notification behavior belongs to [Architecture](../development/architecture.md#output-status-and-tray-control). A configured, passively present, active or transport-connected device represents a different observation at each boundary; none alone proves a displayed frame.
 
 ### Implementation and regression references
 
 | Contract | Sources and existing checks |
 | --- | --- |
-| Discovery and inventory | [DeviceDiscovery](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DeviceDiscovery.cs), [PhysicalDeviceInventory](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PhysicalDeviceInventory.cs) |
+| Discovery and inventory | [PhysicalDeviceDiscovery](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PhysicalDeviceDiscovery.cs), [PhysicalDeviceInventory](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PhysicalDeviceInventory.cs) |
 | Settings and consent | [DeviceSettingsModel](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/DeviceSettingsModel.cs), [Device Settings UI](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/PhysicalDeviceSettingsDialog.cs), [discovery/adoption/consent/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DeviceSettingsStage23Tests.cs) |
 | Configuration and assignment | [AppConfig/OutputTargetContract](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/AppConfig.cs), [configuration tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputConfigurationModelTests.cs), [assignment isolation tests](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/OutputDashboardOwnershipTests.cs) |
 | Live session/control | [OutputSessionManager](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs), [Runtime tray/application](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/PinkieApplicationContext.cs), [target-control checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/RuntimeConfigurationStage24Tests.cs), [Editor workflow checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/EditorOutputStartStage25Tests.cs) |

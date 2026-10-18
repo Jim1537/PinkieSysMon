@@ -52,7 +52,7 @@ internal static class Issue71ModelTests
             var saved = File.ReadAllBytes(path);
             foreach (var mutate in new Action<AppConfig>[]
             {
-                c => c.Outputs.Targets[1].DeviceEnabled = true,
+                c => { c.Outputs.Targets[1].DeviceEnabled = true; c.Outputs.Targets[1].Turzx!.BrightnessPercent = 10; },
                 c => c.Outputs.Targets[1].DeviceId = "",
                 c => c.Outputs.Targets[1].DeviceId = "trofeo:" + new string('b', 64),
                 c => c.Outputs.Targets[1].Transport = "trofeo",
@@ -105,8 +105,8 @@ internal static class Issue71ModelTests
             found.Any(d => d.DeviceId == TurzxDeviceDiscovery.CreateStableDeviceId(PathFor("A"))),
             "Interface case and trimming must not change a TURZX binding.");
         Check(!found.Any(d => d.DeviceId.Contains("SYNTHETIC")) &&
-            UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product) is { CandidateTransport: null, IntegrationIssue: 71 },
-            "Metadata and identity preparation must not promote the recognition catalog or publish instance tokens.");
+            UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product) is { CandidateTransport: OutputTargetContract.TurzxTransport, IntegrationIssue: 71 },
+            "Catalog eligibility must retain the reviewed TURZX adapter without publishing instance tokens.");
         api.Paths = id => [PathFor(Token(id)), PathFor(Token(id)).ToUpperInvariant(), PathFor(Token(id), ClassB),
             PathFor(Token(id)).Replace("pid_0123", "pid_01230"), PathFor(Token(id)).Replace("pid_0123", "pid_0088")];
         Check(TurzxDeviceDiscovery.Capture(api).Count == 2,
@@ -168,9 +168,9 @@ internal static class Issue71ModelTests
             "Duplicate physical-node claims must fail closed even with one exact interface ID.");
         var entries = PhysicalDeviceInventory.Build([target], devices);
         Check(entries.Count == 2 && entries.Single(e => e.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected &&
-            !entries.Single(e => e.IsPersisted).CanEditSettings &&
-            !PhysicalDeviceInventory.CanOfferEnable(entries.Single(e => e.IsPersisted)),
-            "Passive TURZX presence/candidates must not authorize the not-yet-integrated transport.");
+            entries.Single(e => e.IsPersisted).CanEditSettings &&
+            PhysicalDeviceInventory.CanOfferEnable(entries.Single(e => e.IsPersisted)) && !target.DeviceEnabled,
+            "An exact passive TURZX binding offers settings/consent without enabling hardware.");
         var retained = PhysicalDeviceInventory.Build([target], []).Single();
         Check(retained.Status == PhysicalDeviceInventoryStatus.Disconnected && target.Dashboard == "TurzxBoard" && !target.DeviceEnabled,
             "Missing hardware retains its assignment and saved disabled state.");
@@ -185,7 +185,7 @@ internal static class Issue71ModelTests
             "Two registered interfaces on one unit must remain ambiguous rather than selecting the first.");
     }
 
-    public static void DetachedDraftAndPendingAdapter()
+    public static void DetachedDraftAndAdapterOptions()
     {
         var device = Device("A");
         var target = Target(device);
@@ -197,10 +197,10 @@ internal static class Issue71ModelTests
         var model = new DeviceSettingsModel(config, "Default");
         model.Refresh([old, device]);
         var draft = model.Entries.Single(e => e.Target.Id == target.Id);
-        Check(!draft.CanEdit && !model.CanEnable(draft.Target) && !model.IsDirty &&
+        Check(draft.CanEdit && !model.CanEnable(draft.Target) && !model.IsDirty &&
             !ReferenceEquals(draft.Target.Turzx, target.Turzx) && draft.Target.Turzx!.BrightnessPercent == 61,
-            "The pending adapter retains an independent draft without adoption, dirtying or enablement.");
-        Throws<InvalidOperationException>(() => model.SetEnabled(draft.Target, true, true));
+            "A saved unsupported option remains independent and cannot be silently enabled.");
+        Check(!model.SetEnabled(draft.Target, true, true), "Unsupported brightness cannot be enabled.");
         var existing = model.Entries.Single(e => e.Target.Id == "old");
         existing.Target.Name = "Renamed old device";
         model.MarkChanged(existing.Target);
@@ -210,9 +210,11 @@ internal static class Issue71ModelTests
             "Saving a sibling's editable settings must preserve the pending model's complete options.");
         var candidate = new DeviceSettingsModel(new AppConfig(), "Default");
         candidate.Refresh([device]);
-        Throws<InvalidOperationException>(() => candidate.Add(candidate.Entries.Single().Target));
-        Check(!candidate.IsDirty && candidate.ConfiguredCount == 0,
-            "Discovery of a prepared interface must not make an unintegrated candidate adoptable.");
+        Check(!candidate.IsDirty && candidate.ConfiguredCount == 0 && candidate.Entries.Single().CanEdit,
+            "Passive discovery offers an editable candidate without automatically adopting it.");
+        candidate.Add(candidate.Entries.Single().Target);
+        Check(candidate.IsDirty && candidate.ConfiguredCount == 1 && !candidate.Entries.Single().Target.DeviceEnabled,
+            "Explicit adoption saves only a disabled draft until consent is granted.");
     }
 
     public static void RegisteredClassDecoding()

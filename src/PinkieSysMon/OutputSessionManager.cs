@@ -19,24 +19,28 @@ internal sealed class OutputSessionManager : IDisposable
 
     // Legacy regression-fixture constructor. Production uses per-Output definitions.
     public OutputSessionManager(AppConfig config, CanonicalDashboardDefinition dashboard,
-        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null)
+        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
+        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
         : this(config, config.Outputs.Targets.ToDictionary(t => t.Id, _ => dashboard,
-              StringComparer.OrdinalIgnoreCase), metrics, log, factory) { }
+              StringComparer.OrdinalIgnoreCase), metrics, log, factory, physicalTransportFactory) { }
 
     public OutputSessionManager(AppConfig config,
         IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards,
-        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null)
+        MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
+        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _boards = ValidateBoards(config, boards);
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
-        _factory = factory ?? (static (app, target, board, store, logger) =>
+        _factory = factory ?? ((app, target, board, store, logger) =>
             target.Kind switch
             {
                 OutputTargetContract.DesktopKind => new DesktopOutputSession(app, target, board, store, logger),
                 OutputTargetContract.TrofeoKind when target.Transport == OutputTargetContract.TrofeoTransport =>
-                    new FramePump(app, target, board, store, logger),
+                    new FramePump(app, target, board, store, logger, physicalTransportFactory),
+                OutputTargetContract.TurzxKind when target.Transport == OutputTargetContract.TurzxTransport =>
+                    new FramePump(app, target, board, store, logger, physicalTransportFactory),
                 _ => throw new InvalidOperationException("The selected Output adapter is not integrated.")
             });
     }

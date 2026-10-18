@@ -21,6 +21,7 @@ internal sealed class DeviceSettingsModel
     private readonly AppConfig _defaults;
     private IReadOnlyList<OutputDeviceDescriptor> _discovered = [];
     private bool _discoveryAvailable;
+    private IReadOnlySet<string> _unavailableTransports = new HashSet<string>();
 
     public DeviceSettingsModel(AppConfig config, string defaultDashboard)
     {
@@ -39,12 +40,13 @@ internal sealed class DeviceSettingsModel
         .Build(_targets.Concat(_candidates).ToArray(), _discovered)
         .Where(e => e.ConfiguredTarget is not null)
         .Select(e => new DeviceSettingsEntry(e.ConfiguredTarget!,
-            _discoveryAvailable ? e.Status : null, _targets.Contains(e.ConfiguredTarget!)))
+            _discoveryAvailable && !_unavailableTransports.Contains(e.ConfiguredTarget!.Transport) ? e.Status : null, _targets.Contains(e.ConfiguredTarget!)))
         .ToArray();
 
-    public void Refresh(IReadOnlyList<OutputDeviceDescriptor> discovered)
+    public void Refresh(IReadOnlyList<OutputDeviceDescriptor> discovered, IReadOnlySet<string>? unavailableTransports = null)
     {
         _discovered = discovered;
+        _unavailableTransports = unavailableTransports ?? new HashSet<string>();
         _discoveryAvailable = true;
         foreach (var entry in PhysicalDeviceInventory.Build(_targets, discovered))
         {
@@ -64,7 +66,9 @@ internal sealed class DeviceSettingsModel
                 Dashboard = _defaultDashboard,
                 RefreshIntervalMs = _defaults.Display.RefreshIntervalMs,
                 JpegQuality = _defaults.Renderer.JpegQuality,
-                Usb = CopyUsb(_defaults.Usb),
+                Usb = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
+                    ? new UsbConfig { RetryIntervalMs = _defaults.Usb.RetryIntervalMs, TransferTimeoutMs = _defaults.Usb.TransferTimeoutMs }
+                    : CopyUsb(_defaults.Usb),
                 Turzx = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
                     ? new TurzxOutputConfig() : null
             });
@@ -94,6 +98,11 @@ internal sealed class DeviceSettingsModel
         var entry = Entries.SingleOrDefault(e => ReferenceEquals(e.Target, target));
         if (entry?.CanEdit != true || string.IsNullOrWhiteSpace(target.DeviceId))
             return false;
+        if (target.Kind == OutputTargetContract.TurzxKind)
+        {
+            try { TurzxOutputConfig.ValidateFrameOptions(target.Turzx?.BrightnessPercent, (target.Usb ?? _defaults.Usb).DiagnosticJournalEnabled); }
+            catch (NotSupportedException) { return false; }
+        }
         var resolved = OutputDeviceSelection.Resolve(target, _discovered);
         return resolved.Status == OutputDeviceResolutionStatus.Found &&
                resolved.Device!.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase);
@@ -132,9 +141,9 @@ internal sealed class DeviceSettingsModel
     }
 
     // Recheck discovery just before persistence; consent cannot survive identity loss.
-    public void ValidateForApply(IReadOnlyList<OutputDeviceDescriptor> discovered)
+    public void ValidateForApply(IReadOnlyList<OutputDeviceDescriptor> discovered, IReadOnlySet<string>? unavailableTransports = null)
     {
-        Refresh(discovered);
+        Refresh(discovered, unavailableTransports);
         foreach (var target in _targets.Where(t => t.DeviceEnabled))
         {
             if (_initialEnabledBindings.TryGetValue(target.Id, out var binding) &&

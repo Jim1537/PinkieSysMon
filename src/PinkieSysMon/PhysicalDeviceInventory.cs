@@ -8,7 +8,8 @@ internal enum PhysicalDeviceInventoryStatus
     Connected,
     Disconnected,
     Ambiguous,
-    Unconfigured
+    Unconfigured,
+    DiscoveryUnavailable
 }
 
 internal sealed record PhysicalDeviceInventoryEntry(
@@ -38,7 +39,7 @@ internal static class PhysicalDeviceInventory
     // The overload with a fake discoverer keeps native I/O out of regressions.
     public static IReadOnlyList<PhysicalDeviceInventoryEntry> CaptureCurrent(
         IReadOnlyList<OutputTargetConfig> configuredTargets) =>
-        Capture(configuredTargets, DeviceDiscovery.EnumerateTrofeoDevices);
+        Capture(configuredTargets, PhysicalDeviceDiscovery.Capture);
 
     internal static IReadOnlyList<PhysicalDeviceInventoryEntry> Capture(
         IReadOnlyList<OutputTargetConfig> configuredTargets,
@@ -46,7 +47,14 @@ internal static class PhysicalDeviceInventory
     {
         ArgumentNullException.ThrowIfNull(configuredTargets);
         ArgumentNullException.ThrowIfNull(discover);
-        return Build(configuredTargets, discover());
+        try { return Build(configuredTargets, discover()); }
+        catch (PhysicalDeviceDiscoveryException error)
+        {
+            return Build(configuredTargets, error.Devices).Select(entry =>
+                entry.ConfiguredTarget is { } target && error.UnavailableTransports.Contains(target.Transport)
+                    ? entry with { Status = PhysicalDeviceInventoryStatus.DiscoveryUnavailable, DiscoveredDevice = null }
+                    : entry).ToArray();
+        }
     }
 
     public static IReadOnlyList<PhysicalDeviceInventoryEntry> Build(

@@ -17,8 +17,8 @@ internal static class TurzxDeviceDiscovery
     internal static readonly UsbProductId Product = new(0x1CBE, 0x0123);
     internal const string ModelName = "TURZX 12.3-inch";
 
-    // Not connected to Settings adoption or Runtime dispatch until the adapter
-    // is integrated. A usable interface is not proof of protocol compatibility.
+    // Shared inventory/Settings consume these exact passive bindings. Presence
+    // alone never grants consent or opens a frame transport.
     public static IReadOnlyList<OutputDeviceDescriptor> Capture() => Capture(new WindowsTurzxInterfaceDiscoveryApi());
 
     internal static IReadOnlyList<OutputDeviceDescriptor> Capture(ITurzxInterfaceDiscoveryApi api)

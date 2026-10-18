@@ -25,6 +25,7 @@ internal sealed class FramePump : IOutputSession
     private CancellationTokenSource _transportIoCancellation;
     private long _nextUsbAttemptAtMs;
     private long _connectionGeneration;
+    private bool _transportFaulted;
     private bool _transportRetirePending;
     private string _transportRetireReason = "Output lifecycle changed.";
     private string _transportRetireState = "WAITING";
@@ -59,6 +60,8 @@ internal sealed class FramePump : IOutputSession
         ArgumentNullException.ThrowIfNull(dashboard);
 
         if (maximumFrames is < 1) throw new ArgumentOutOfRangeException(nameof(maximumFrames));
+        if (target.Transport == OutputTargetContract.TurzxTransport)
+            TurzxFrameTransport.ValidateOptions(target, (target.Usb ?? config.Usb).DiagnosticJournalEnabled);
         _maximumFrames = maximumFrames;
         _config = config;
         _target = target;
@@ -478,7 +481,7 @@ internal sealed class FramePump : IOutputSession
             if (_display is not null)
                 return _display;
 
-            if (Environment.TickCount64 < _nextUsbAttemptAtMs)
+            if (_transportFaulted || Environment.TickCount64 < _nextUsbAttemptAtMs)
                 return null;
 
             target = _target;
@@ -535,6 +538,7 @@ internal sealed class FramePump : IOutputSession
                 if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked("ERROR");
+                    _transportFaulted = target.Transport == OutputTargetContract.TurzxTransport;
                     Volatile.Write(ref _isConnected, false);
                     _nextUsbAttemptAtMs = Environment.TickCount64 + retryMs;
                 }
@@ -667,7 +671,8 @@ internal sealed class FramePump : IOutputSession
                         _lastFps = 0;
                         if (!_transportRetirePending && !_suspended)
                         {
-                            SetUsbStateLocked("WAITING");
+                            _transportFaulted = _target.Transport == OutputTargetContract.TurzxTransport;
+                            SetUsbStateLocked(_transportFaulted ? "ERROR" : "WAITING");
                             _nextUsbAttemptAtMs = Environment.TickCount64 + (_target.Usb ?? _config.Usb).RetryIntervalMs;
                         }
                     }
@@ -742,6 +747,7 @@ internal sealed class FramePump : IOutputSession
 
     private void SetUsbStateLocked(string state)
     {
+        if (_transportFaulted && state == "WAITING") state = "ERROR";
         if (_usbState.Equals(state, StringComparison.Ordinal))
             return;
 
