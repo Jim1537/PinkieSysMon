@@ -40,7 +40,7 @@ internal sealed class EditorSettings
         }
     }
 
-    // Keep the opened snapshot readable while another Editor atomically replaces
+    // Keep the opened snapshot readable while another Editor replaces
     // the path. In-place writes remain excluded; readers never see a partial save.
     internal static StreamReader OpenSnapshotReader(string path) =>
         new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete));
@@ -95,11 +95,18 @@ internal sealed class EditorSettings
             try
             {
                 File.WriteAllText(temp, json);
-                File.Move(temp, fullPath, overwrite: true);
+                // Windows MoveFileEx can reject an open destination even when
+                // its readers share delete access. ReplaceFile supports that case.
+                if (File.Exists(fullPath))
+                    File.Replace(temp, fullPath, destinationBackupFileName: null);
+                else
+                    File.Move(temp, fullPath);
             }
             finally
             {
-                if (File.Exists(temp))
+                // ReplaceFile can fail after removing the destination. Preserve
+                // the prepared settings for recovery if the destination is absent.
+                if (File.Exists(fullPath) && File.Exists(temp))
                     File.Delete(temp);
             }
         }
