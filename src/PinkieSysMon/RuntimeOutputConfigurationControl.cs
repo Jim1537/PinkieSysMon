@@ -76,8 +76,10 @@ internal sealed class RuntimeOutputConfigurationControl(
         var target = previous.Outputs.Targets.SingleOrDefault(t =>
             t.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"Output '{targetId}' is not configured.");
-        if (target.Kind != OutputTargetContract.TrofeoKind || target.DeviceEnabled == enabled)
+        if (!OutputTargetContract.IsPhysicalKind(target.Kind) || target.DeviceEnabled == enabled)
             throw new InvalidOperationException("The physical Output or its enablement changed. Reopen the tray menu.");
+        if (enabled && !OutputTargetContract.HasIntegratedTransport(target.Transport))
+            throw new InvalidOperationException("This device transport is not integrated; enabling is unavailable.");
         var selectedJson = JsonSerializer.Serialize(target);
         var selected = CloneTarget(target);
         var replacement = CloneTarget(selected);

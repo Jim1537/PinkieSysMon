@@ -72,7 +72,7 @@ internal static class RuntimeConfigurationValidator
     {
         var assignments = LoadAssignments(config, applicationRoot);
         var target = config.Outputs.Targets.FirstOrDefault(t =>
-            t.Kind == OutputTargetContract.TrofeoKind && t.DeviceEnabled)
+            OutputTargetContract.IsPhysicalKind(t.Kind) && t.DeviceEnabled)
             ?? config.Outputs.Targets[0];
         return (target.Dashboard!, assignments[target.Id]);
     }

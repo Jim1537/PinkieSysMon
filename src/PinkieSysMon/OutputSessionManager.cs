@@ -96,9 +96,13 @@ internal sealed class OutputSessionManager : IDisposable
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _factory = factory ?? (static (app, target, board, store, logger) =>
-            target.Kind == OutputTargetContract.DesktopKind
-                ? new DesktopOutputSession(app, target, board, store, logger)
-                : new FramePump(app, target, board, store, logger));
+            target.Kind switch
+            {
+                OutputTargetContract.DesktopKind => new DesktopOutputSession(app, target, board, store, logger),
+                OutputTargetContract.TrofeoKind when target.Transport == OutputTargetContract.TrofeoTransport =>
+                    new FramePump(app, target, board, store, logger),
+                _ => throw new InvalidOperationException("The selected Output adapter is not integrated.")
+            });
     }
 
     private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
@@ -418,7 +422,7 @@ internal sealed class OutputSessionManager : IDisposable
                     if (!OutputTargetContract.IsEnabled(replacement))
                         throw new InvalidOperationException("Output enablement changed on disk. Apply configuration before reloading this Output.");
                 }
-                if ((allowPhysicalEnablement && previousTarget.Kind != OutputTargetContract.TrofeoKind) ||
+                if ((allowPhysicalEnablement && !OutputTargetContract.IsPhysicalKind(previousTarget.Kind)) ||
                     !OutputTargetContract.ConnectionEquals(previousTarget, replacement) ||
                     (!allowPhysicalEnablement && previousTarget.DeviceEnabled != replacement.DeviceEnabled) ||
                     (!requireEnabledLifetime && previousTarget.ProviderEnabled != replacement.ProviderEnabled))

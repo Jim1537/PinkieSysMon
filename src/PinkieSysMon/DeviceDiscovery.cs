@@ -64,7 +64,11 @@ internal static class OutputDeviceSelection
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(discoveredDevices);
 
-        if (!target.Transport.Equals(OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase))
+        var matchesModel = string.Equals(target.Kind, OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(target.Transport, OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase);
+        if (!matchesModel)
         {
             return new OutputDeviceResolution(
                 OutputDeviceResolutionStatus.UnsupportedTransport,
@@ -109,6 +113,11 @@ internal static class OutputDeviceSelection
             };
         }
 
+        // New adapters require an explicit binding even with one attached device.
+        // The unbound fallback remains a legacy Trofeo compatibility rule only.
+        if (target.Kind.Equals(OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase))
+            return new(OutputDeviceResolutionStatus.Missing, null,
+                "TURZX requires an explicit physical device binding.");
         return candidates.Length switch
         {
             0 => new OutputDeviceResolution(

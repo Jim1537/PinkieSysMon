@@ -54,8 +54,14 @@ internal static class UsbDisplayDiscovery
     public static IReadOnlyList<UsbDisplayObservation> Capture() => Capture(new WindowsUsbPnpDiscoveryApi());
 
     internal static IReadOnlyList<UsbDisplayObservation> Capture(IUsbPnpDiscoveryApi api)
+        => BuildObservations(CaptureNodes(api, product => UsbDisplayCatalog.Find(product) is not null));
+
+    // Shared bounded metadata capture; callers select products before per-node reads.
+    internal static IReadOnlyList<UsbPnpNode> CaptureNodes(IUsbPnpDiscoveryApi api,
+        Func<UsbProductId, bool> include)
     {
         ArgumentNullException.ThrowIfNull(api);
+        ArgumentNullException.ThrowIfNull(include);
         // A changing device list is retried, but API errors are not empty scans.
         // Use no timer, global subscription, device handle or speculative I/O.
         for (var attempt = 0; attempt < 3; attempt++)
@@ -73,7 +79,7 @@ internal static class UsbDisplayDiscovery
             foreach (var id in ParseMultiSz(buffer).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 if (!UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) ||
-                    UsbDisplayCatalog.Find(product) is null)
+                    !include(product))
                     continue;
                 // A device removed after enumeration is absent, not an available
                 // transport. Only matching families incur per-node metadata reads.
@@ -84,7 +90,7 @@ internal static class UsbDisplayDiscovery
                     nodes.Add(node);
                 }
             }
-            return BuildObservations(nodes);
+            return nodes;
         }
         throw new InvalidOperationException("USB PnP discovery did not produce a stable list.");
     }

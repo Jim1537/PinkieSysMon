@@ -176,7 +176,7 @@ internal sealed class RuntimeCommandFeedback(
         RuntimeIpcCommandKind.StopAll => !output.IsActive,
         RuntimeIpcCommandKind.AssignDashboard => !string.IsNullOrWhiteSpace(command.Dashboard) &&
             string.Equals(output.Dashboard, command.Dashboard.Trim(), StringComparison.OrdinalIgnoreCase),
-        RuntimeIpcCommandKind.SetPhysicalDeviceEnabled => output.Kind == OutputTargetContract.TrofeoKind &&
+        RuntimeIpcCommandKind.SetPhysicalDeviceEnabled => OutputTargetContract.IsPhysicalKind(output.Kind) &&
             command.Value is not null && output.DeviceEnabled == command.Value && output.OutputEnabled == command.Value &&
             (command.Value == true || !output.IsActive),
         RuntimeIpcCommandKind.SetDesktopBoardEnabled => output.Kind == OutputTargetContract.DesktopKind &&
@@ -195,7 +195,7 @@ internal sealed class RuntimeCommandFeedback(
         (!output.IsConnected || (output.Kind switch
         {
             OutputTargetContract.DesktopKind => output.IsVisible != true || !output.UsbState.Equals("DISPLAYING", StringComparison.OrdinalIgnoreCase),
-            OutputTargetContract.TrofeoKind => !output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
+            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => !output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
             _ => true
         }));
 
@@ -204,14 +204,14 @@ internal sealed class RuntimeCommandFeedback(
         (output.Kind switch
         {
             OutputTargetContract.DesktopKind => $"Lock={output.Lock?.ToString() ?? "unknown"}, ",
-            OutputTargetContract.TrofeoKind => string.Empty,
+            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => string.Empty,
             _ => "Output kind unknown, "
         }) +
         $"state {output.UsbState}, " + (output.IsActive
             ? output.Kind switch
             {
                 OutputTargetContract.DesktopKind => output.IsVisible == true ? "panel visible" : "panel visibility not confirmed",
-                OutputTargetContract.TrofeoKind => output.IsConnected ? "transport connected; frame delivery not verified" : "transport not connected",
+                OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => output.IsConnected ? "transport connected; frame delivery not verified" : "transport not connected",
                 _ => "presentation type not confirmed"
             }
             : "session inactive");

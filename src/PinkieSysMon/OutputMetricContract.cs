@@ -46,7 +46,7 @@ internal static class OutputMetricContract
     public static MetricDescriptor[] DescriptorsFor(OutputTargetConfig target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        var fields = target.Kind == OutputTargetContract.TrofeoKind
+        var fields = OutputTargetContract.IsPhysicalKind(target.Kind)
             ? Common.Concat(Physical) : Common.AsEnumerable();
         return fields.Select(field => new MetricDescriptor(
             Id(target.Id, field.Suffix), field.Kind, field.Unit)).ToArray();

@@ -76,7 +76,7 @@ internal static class EditorOutputStartWorkflow
                 if (output.OutputEnabled != true)
                     return Failed($"Output '{output.TargetName}' is disabled. Turn on Enabled for this Output in Settings first.", completed);
                 if (string.IsNullOrWhiteSpace(output.Dashboard) ||
-                    output.Kind is not (OutputTargetContract.DesktopKind or OutputTargetContract.TrofeoKind))
+                    output.Kind != OutputTargetContract.DesktopKind && !OutputTargetContract.IsPhysicalKind(output.Kind))
                     return Failed($"Runtime does not report the assignment/type for '{output.TargetName}'. Update Runtime first.", completed);
                 var differs = !editorDashboard.Equals(output.Dashboard, StringComparison.OrdinalIgnoreCase);
                 var choice = differs ? actions.ChooseDashboard(output) : OutputDashboardChoice.KeepAssignedDashboard;

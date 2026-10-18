@@ -294,9 +294,14 @@ internal sealed class DeviceSettingsPage : TabPage
         var name = new TextBox { Text = target.Name, Name = "DeviceName", Dock = DockStyle.Fill };
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
         Row("Display name", name, EditorSettingsHelp.DisplayName);
-        Row("Type", new Label { Text = "Trofeo Vision 9.16 adapter (LY)", AutoSize = true }, EditorSettingsHelp.DeviceType);
-        var family = UsbDisplayCatalog.Families.Single(f => f.CandidateTransport == OutputTargetContract.TrofeoTransport);
-        Row("USB product / transport", new Label { Text = $"{family.Product} / Trofeo (LY)", AutoSize = true },
+        var isTurzx = target.Kind == OutputTargetContract.TurzxKind;
+        Row("Type", new Label { Text = isTurzx ? "TURZX 12.3-inch (integration pending)" :
+            "Trofeo Vision 9.16 adapter (LY)", AutoSize = true }, EditorSettingsHelp.DeviceType);
+        var family = isTurzx ? UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123))! :
+            UsbDisplayCatalog.Families.Single(f => f.CandidateTransport == OutputTargetContract.TrofeoTransport);
+        Row("USB product / transport", new Label { Text = isTurzx ? $"{family.Product} / turzx" :
+            $"{family.Product} / Trofeo (LY)", AutoSize = true },
+            isTurzx ? "TURZX transport is not integrated. This saved record cannot be enabled." :
             "The Trofeo adapter uses its own native geometry, JPEG encoding and USB settings. " +
             "Other recognized USB families cannot use this adapter.");
         var dashboard = new ComboBox { Name = "DeviceDashboard", Dock = DockStyle.Fill,
@@ -359,6 +364,8 @@ internal sealed class DeviceSettingsPage : TabPage
     {
         var status = entry.Status switch
         {
+            PhysicalDeviceInventoryStatus.Connected when !OutputTargetContract.HasIntegratedTransport(entry.Target.Transport) =>
+                "Unsupported / protocol not available",
             PhysicalDeviceInventoryStatus.Connected => "Connected",
             PhysicalDeviceInventoryStatus.Disconnected => "Disconnected",
             PhysicalDeviceInventoryStatus.Ambiguous => "Ambiguous identity — controls unavailable",

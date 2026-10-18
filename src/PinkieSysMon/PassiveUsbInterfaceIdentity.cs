@@ -13,6 +13,14 @@ internal static class PassiveUsbInterfaceIdentity
 
     internal static string? TryReadTrofeoNodeKey(string interfacePath)
     {
+        var id = TryReadInstanceId(interfacePath);
+        return id is not null && UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) &&
+               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.TrofeoTransport
+            ? UsbDisplayDiscovery.CreateObservationId(id) : null;
+    }
+
+    internal static string? TryReadInstanceId(string interfacePath)
+    {
         try
         {
             // MAX_DEVICE_ID_LEN includes the terminator. A fixed bounded buffer
@@ -23,7 +31,7 @@ internal static class PassiveUsbInterfaceIdentity
             var result = CM_Get_Device_Interface_PropertyW(interfacePath, ref key,
                 out var type, buffer, ref length, 0);
             return result == UsbDisplayDiscovery.Success
-                ? DecodeTrofeoNodeKey(type, buffer, length) : null;
+                ? DecodeInstanceId(type, buffer, length) : null;
         }
         catch (DllNotFoundException) { return null; }
         catch (EntryPointNotFoundException) { return null; }
@@ -31,14 +39,20 @@ internal static class PassiveUsbInterfaceIdentity
 
     internal static string? DecodeTrofeoNodeKey(uint type, byte[] buffer, uint length)
     {
+        var id = DecodeInstanceId(type, buffer, length);
+        return id is not null && UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) &&
+               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.TrofeoTransport
+            ? UsbDisplayDiscovery.CreateObservationId(id) : null;
+    }
+
+    private static string? DecodeInstanceId(uint type, byte[] buffer, uint length)
+    {
         if (type != DevPropTypeString || length is < 2 or > 400 ||
             length > buffer.Length || length % 2 != 0 ||
             buffer[length - 1] != 0 || buffer[length - 2] != 0)
             return null;
         var id = Encoding.Unicode.GetString(buffer, 0, checked((int)length - 2));
-        return UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) &&
-               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.TrofeoTransport
-            ? UsbDisplayDiscovery.CreateObservationId(id) : null;
+        return UsbDisplayCatalog.TryParseInstanceId(id, out _, out _) ? id : null;
     }
 
     [StructLayout(LayoutKind.Sequential)]

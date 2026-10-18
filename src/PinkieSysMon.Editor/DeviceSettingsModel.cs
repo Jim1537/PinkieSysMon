@@ -5,7 +5,8 @@ internal sealed record DeviceSettingsEntry(
     PhysicalDeviceInventoryStatus? Status,
     bool IsConfigured)
 {
-    public bool CanEdit => Status == PhysicalDeviceInventoryStatus.Connected;
+    public bool CanEdit => Status == PhysicalDeviceInventoryStatus.Connected &&
+        OutputTargetContract.HasIntegratedTransport(Target.Transport);
 }
 
 // A detached physical-output draft. Discovery never saves or opens a device.
@@ -26,7 +27,7 @@ internal sealed class DeviceSettingsModel
         _defaults = config;
         _defaultDashboard = defaultDashboard;
         _targets = config.Outputs.Targets
-            .Where(t => t.Kind == OutputTargetContract.TrofeoKind).Select(Copy).ToList();
+            .Where(t => OutputTargetContract.IsPhysicalKind(t.Kind)).Select(Copy).ToList();
         _initialEnabledBindings = _targets.Where(t => t.DeviceEnabled)
             .ToDictionary(t => t.Id, t => t.DeviceId, StringComparer.OrdinalIgnoreCase);
     }
@@ -56,13 +57,16 @@ internal sealed class DeviceSettingsModel
             {
                 Id = "screen-" + Guid.NewGuid().ToString("N"),
                 Name = device.DisplayName,
-                Kind = OutputTargetContract.TrofeoKind,
+                Kind = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
+                    ? OutputTargetContract.TurzxKind : OutputTargetContract.TrofeoKind,
                 Transport = device.Transport,
                 DeviceId = device.DeviceId,
                 Dashboard = _defaultDashboard,
                 RefreshIntervalMs = _defaults.Display.RefreshIntervalMs,
                 JpegQuality = _defaults.Renderer.JpegQuality,
-                Usb = CopyUsb(_defaults.Usb)
+                Usb = CopyUsb(_defaults.Usb),
+                Turzx = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
+                    ? new TurzxOutputConfig() : null
             });
         }
     }
@@ -151,7 +155,7 @@ internal sealed class DeviceSettingsModel
         var updated = new List<OutputTargetConfig>();
         foreach (var target in config.Outputs.Targets)
         {
-            if (target.Kind != OutputTargetContract.TrofeoKind)
+            if (!OutputTargetContract.IsPhysicalKind(target.Kind))
                 updated.Add(target);
             else if (byId.Remove(target.Id, out var replacement))
                 updated.Add(Copy(replacement));
@@ -182,6 +186,8 @@ internal sealed class DeviceSettingsModel
         RefreshIntervalMs = source.RefreshIntervalMs ?? _defaults.Display.RefreshIntervalMs,
         ProviderEnabled = source.ProviderEnabled, DeviceEnabled = source.DeviceEnabled,
         JpegQuality = source.JpegQuality ?? _defaults.Renderer.JpegQuality,
-        Usb = CopyUsb(source.Usb ?? _defaults.Usb)
+        Usb = CopyUsb(source.Usb ?? _defaults.Usb),
+        Turzx = source.Turzx is null ? null : new TurzxOutputConfig
+        { BrightnessPercent = source.Turzx.BrightnessPercent }
     };
 }

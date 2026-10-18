@@ -504,7 +504,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 dashboards = [];
             }
             var quality = _config.Outputs.Targets
-                .Where(target => target.Kind == OutputTargetContract.TrofeoKind)
+                .Where(target => OutputTargetContract.IsPhysicalKind(target.Kind) &&
+                    OutputTargetContract.HasIntegratedTransport(target.Transport))
                 .ToDictionary(target => target.Id,
                     target => target.JpegQuality ?? _config.Renderer.JpegQuality,
                     StringComparer.OrdinalIgnoreCase);

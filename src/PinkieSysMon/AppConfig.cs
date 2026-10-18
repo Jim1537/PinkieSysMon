@@ -142,6 +142,8 @@ internal sealed class OutputTargetConfig
     public int? JpegQuality { get; set; }
     public UsbConfig? Usb { get; set; }
     public DesktopOutputConfig? Desktop { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TurzxOutputConfig? Turzx { get; set; }
 }
 
 internal sealed class DesktopOutputConfig
@@ -157,8 +159,18 @@ internal static class OutputTargetContract
 {
     public const string TrofeoKind = "trofeo";
     public const string DesktopKind = "desktop";
+    public const string TurzxKind = "turzx";
     public const string TrofeoTransport = "trofeo";
     public const string DesktopTransport = "desktop";
+    public const string TurzxTransport = "turzx";
+
+    public static bool IsPhysicalKind(string? kind) =>
+        string.Equals(kind, TrofeoKind, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(kind, TurzxKind, StringComparison.OrdinalIgnoreCase);
+
+    // A known configuration/identity is not an installed Runtime transport.
+    public static bool HasIntegratedTransport(string? transport) =>
+        string.Equals(transport, TrofeoTransport, StringComparison.OrdinalIgnoreCase);
     public const string DefaultTargetId = "screen-1";
     public const string DefaultTargetName = "Thermalright Trofeo Vision 9.16";
 
@@ -197,7 +209,7 @@ internal static class OutputTargetContract
         return target.Kind switch
         {
             DesktopKind => target.Desktop?.BoardEnabled == true,
-            TrofeoKind => target.DeviceEnabled,
+            TrofeoKind or TurzxKind => target.DeviceEnabled,
             _ => false
         };
     }
@@ -214,7 +226,7 @@ internal static class OutputTargetContract
             throw new InvalidDataException("Outputs.Targets must contain at least one target.");
 
         var physicalCount = targets.Count(t =>
-            t is not null && string.Equals(t.Kind, TrofeoKind, StringComparison.OrdinalIgnoreCase));
+            t is not null && IsPhysicalKind(t.Kind));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var explicitBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -235,7 +247,7 @@ internal static class OutputTargetContract
                 throw new InvalidDataException($"Duplicate output target Id '{target.Id}'.");
             if (target.Name.Length == 0)
                 throw new InvalidDataException($"Output target '{target.Id}' Name must not be empty.");
-            if (target.Kind is not (TrofeoKind or DesktopKind))
+            if (target.Kind is not (TrofeoKind or TurzxKind or DesktopKind))
                 throw new InvalidDataException($"Unsupported output Kind '{target.Kind}'.");
 
             target.Dashboard ??= legacyDashboard;
@@ -253,7 +265,7 @@ internal static class OutputTargetContract
                 if (target.Transport is not (TrofeoTransport or DesktopTransport))
                     throw new InvalidDataException($"Desktop output '{target.Id}' has unsupported transport '{target.Transport}'.");
                 if (target.DeviceId.Length != 0 || target.DeviceEnabled ||
-                    target.JpegQuality is not null || target.Usb is not null)
+                    target.JpegQuality is not null || target.Usb is not null || target.Turzx is not null)
                     throw new InvalidDataException($"Desktop output '{target.Id}' must not own device/USB/JPEG configuration.");
 
                 target.Transport = DesktopTransport;
@@ -261,16 +273,26 @@ internal static class OutputTargetContract
                 continue;
             }
 
-            if (target.Transport != TrofeoTransport)
-                throw new InvalidDataException($"Output target '{target.Id}' uses unsupported transport '{target.Transport}'.");
-            if (target.Desktop is not null)
-                throw new InvalidDataException($"Trofeo output '{target.Id}' must not contain Desktop settings.");
-            if (target.DeviceId.Length > 0 &&
-                (target.DeviceId.Length != 71 ||
-                 !target.DeviceId.StartsWith("trofeo:", StringComparison.OrdinalIgnoreCase) ||
-                 !target.DeviceId.AsSpan(7).ToString().All(Uri.IsHexDigit)))
-                throw new InvalidDataException(
-                    $"Output target '{target.Id}' has an invalid Trofeo DeviceId (expected trofeo: followed by 64 hex digits).");
+            var turzx = target.Kind == TurzxKind;
+            var expectedTransport = turzx ? TurzxTransport : TrofeoTransport;
+            if (target.Transport != expectedTransport)
+                throw new InvalidDataException($"Output target '{target.Id}' uses a mismatched transport '{target.Transport}'.");
+            if (target.Desktop is not null || (!turzx && target.Turzx is not null))
+                throw new InvalidDataException($"Output target '{target.Id}' contains options for another adapter.");
+            var identityPrefix = expectedTransport + ":";
+            if ((turzx || target.DeviceId.Length > 0) &&
+                (target.DeviceId.Length != identityPrefix.Length + 64 ||
+                 !target.DeviceId.StartsWith(identityPrefix, StringComparison.OrdinalIgnoreCase) ||
+                 !target.DeviceId.AsSpan(identityPrefix.Length).ToString().All(Uri.IsHexDigit)))
+                throw new InvalidDataException($"Output target '{target.Id}' has an invalid {expectedTransport} DeviceId.");
+            if (turzx)
+            {
+                target.Turzx ??= new TurzxOutputConfig();
+                if (target.Turzx.BrightnessPercent is < 0 or > 100)
+                    throw new InvalidDataException($"Output target '{target.Id}' BrightnessPercent must be null or 0..100.");
+            }
+            if (target.DeviceEnabled && !HasIntegratedTransport(target.Transport))
+                throw new InvalidDataException($"Output target '{target.Id}' cannot be enabled: its transport is not integrated.");
 
             if (physicalCount > 1 && target.DeviceId.Length == 0)
                 throw new InvalidDataException(

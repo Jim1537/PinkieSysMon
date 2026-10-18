@@ -17,7 +17,8 @@ internal sealed record PhysicalDeviceInventoryEntry(
     PhysicalDeviceInventoryStatus Status)
 {
     public bool IsPersisted => ConfiguredTarget is not null;
-    public bool CanEditSettings => IsPersisted && Status == PhysicalDeviceInventoryStatus.Connected;
+    public bool CanEditSettings => IsPersisted && Status == PhysicalDeviceInventoryStatus.Connected &&
+        OutputTargetContract.HasIntegratedTransport(ConfiguredTarget!.Transport);
     public bool CanRemove => IsPersisted;
 }
 
@@ -28,6 +29,7 @@ internal static class PhysicalDeviceInventory
     internal static bool CanOfferEnable(PhysicalDeviceInventoryEntry? entry) =>
         entry?.Status == PhysicalDeviceInventoryStatus.Connected &&
         entry.ConfiguredTarget is { DeviceEnabled: false } target &&
+        OutputTargetContract.HasIntegratedTransport(target.Transport) &&
         entry.DiscoveredDevice is { } device &&
         !string.IsNullOrWhiteSpace(target.DeviceId) &&
         target.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase);
@@ -55,12 +57,11 @@ internal static class PhysicalDeviceInventory
         ArgumentNullException.ThrowIfNull(discoveredDevices);
 
         var targets = configuredTargets
-            .Where(target => target.Kind.Equals(
-                OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase))
+            .Where(target => OutputTargetContract.IsPhysicalKind(target.Kind))
             .ToArray();
         var candidates = discoveredDevices
-            .Where(device => device.Transport.Equals(
-                OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase))
+            .Where(device => device.Transport.Equals(OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
+                device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         var duplicateConfiguredIds = targets

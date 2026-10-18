@@ -167,7 +167,7 @@ internal sealed partial class EditorForm
         {
             // Pure illustrative snapshot; never infer live device state.
             var id = output.Id;
-            var isPhysical = output.Kind == OutputTargetContract.TrofeoKind;
+            var isPhysical = OutputTargetContract.IsPhysicalKind(output.Kind);
             var isBoardActive = OutputTargetContract.IsEnabled(output);
             AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Status),
                 isPhysical ? (output.DeviceEnabled ? "EDITOR" : "DISABLED") : "DESKTOP_PENDING");

@@ -47,7 +47,7 @@ internal sealed class RuntimeTrayMenu : IDisposable
                 var group = output.Kind switch
                 {
                     OutputTargetContract.DesktopKind => desktops,
-                    OutputTargetContract.TrofeoKind => physical,
+                    OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => physical,
                     _ => throw new InvalidOperationException("Unsupported Output kind in tray snapshot.")
                 };
                 group.Add(BuildOutput(output, dashboards, enableablePhysicalIds.Contains(output.TargetId),

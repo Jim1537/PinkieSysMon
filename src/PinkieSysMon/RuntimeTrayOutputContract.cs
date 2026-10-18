@@ -13,7 +13,7 @@ internal static class RuntimeTrayOutputContract
         {
             OutputTargetContract.DesktopKind => output.IsVisible == true &&
                 output.UsbState.Equals("DISPLAYING", StringComparison.OrdinalIgnoreCase),
-            OutputTargetContract.TrofeoKind => output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
+            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
         if (!output.OutputEnabled || !output.IsActive || !output.IsConnected || !ready || output.SentFrames <= 0)
@@ -21,7 +21,7 @@ internal static class RuntimeTrayOutputContract
         return (output.SentFrames.ToString(CultureInfo.InvariantCulture),
             double.IsFinite(output.LastFrameMs) && output.LastFrameMs >= 0
                 ? output.LastFrameMs.ToString("F1", CultureInfo.InvariantCulture) : "N/A",
-            output.Kind == OutputTargetContract.TrofeoKind && output.LastJpegBytes > 0
+            OutputTargetContract.IsPhysicalKind(output.Kind) && output.LastJpegBytes > 0
                 ? (output.LastJpegBytes / 1024.0).ToString("F1", CultureInfo.InvariantCulture) : "N/A");
     }
 
@@ -29,7 +29,7 @@ internal static class RuntimeTrayOutputContract
     {
         var outputs = status.Outputs;
         var visible = outputs.Count(o => o.Kind == OutputTargetContract.DesktopKind && o.IsVisible == true);
-        var connectedDevices = outputs.Count(o => o.Kind == OutputTargetContract.TrofeoKind && o.IsConnected);
+        var connectedDevices = outputs.Count(o => OutputTargetContract.IsPhysicalKind(o.Kind) && o.IsConnected);
         return $"{outputs.Length} configured · {outputs.Count(o => o.IsActive)} active · " +
             $"{visible} Desktop visible · {connectedDevices} devices connected";
     }

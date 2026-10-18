@@ -113,7 +113,7 @@ The current adapter's [native completion limits](../development/devices/trofeo-v
 | Passive inventory and explicit candidate adoption | Windows interface discovery and hardware identity derivation |
 | Detached editing, validation, removal and session coordination | Open/handshake, encoding, framing, ACK and native I/O lifetime |
 
-`DeviceSettingsModel` and `PhysicalDeviceInventory` currently operate on `Kind = trofeo`; the common workflow is implemented through this adapter, not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived binding/fingerprint rules and legacy selection fallback remain with [Trofeo Device Integration](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection).
+`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Only Trofeo currently has an integrated transport; the [TURZX preparation contract](../development/devices/turzx-12.3.md) accepts disabled records but blocks adoption and hardware enablement. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived binding/fingerprint rules and legacy selection fallback remain with [Trofeo Device Integration](../development/devices/trofeo-vision-9.16.md#hardware-identification-and-output-selection).
 
 ### Configuration and identity
 
