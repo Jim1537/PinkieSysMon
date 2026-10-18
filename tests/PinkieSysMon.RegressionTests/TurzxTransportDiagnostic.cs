@@ -24,7 +24,8 @@ internal static class TurzxTransportDiagnostic
         var consentOption = args.Length >= 3 && args[^2] == "--consent";
         var actionArgs = consentOption ? args[..^2] : args;
         var percent = -1;
-        var pair = actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair";
+        var pairReads = actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair-read";
+        var pair = pairReads || actionArgs.Length == 2 && actionArgs[1] == "jpeg-pair";
         var image = pair || actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg" or "png-sync" or "jpeg-sync");
         var brightness = actionArgs.Length == 3 && (actionArgs[1] is "brightness" or "brightness-sync") &&
             int.TryParse(actionArgs[2], NumberStyles.None, CultureInfo.InvariantCulture, out percent) && percent is >= 0 and <= 100;
@@ -32,7 +33,7 @@ internal static class TurzxTransportDiagnostic
             brightness && actionArgs[1] == "brightness-sync";
         if (!image && !brightness && !sync)
         {
-            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync|jpeg-pair --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
+            write("Usage: --turzx-transport-check png|jpeg|sync|png-sync|jpeg-sync|jpeg-pair|jpeg-pair-read --consent YES OR --turzx-transport-check brightness|brightness-sync <0..100> --consent YES.");
             return 2;
         }
         write($"TURZX TRANSPORT CHECK - Runtime v{RuntimeVersion.Current}");
@@ -80,6 +81,25 @@ internal static class TurzxTransportDiagnostic
             }
             stage = "open/sync";
             ITurzxUsbConnection? probeConnection = null;
+            int ReadFollowUp(string phase, string label)
+            {
+                stage = phase;
+                write($"{label} probe: one additional read, up to 512 bytes, using the existing 3000 ms transfer timeout; no write during this probe.");
+                var buffer = new byte[TurzxWireProtocol.HeaderLength];
+                var received = followUpRead is not null ? followUpRead(buffer) : probeConnection!.Read(buffer, default);
+                if (received < 0 || received > buffer.Length) throw new IOException("TURZX probe read returned an invalid length.");
+                write($"{label} response bytes: {received}.");
+                write($"{label} full status-marker shape: {(received == buffer.Length && (buffer[1] == 0xC8 || buffer[8] == 0xC8) ? "YES" : "NO")}.");
+                return received;
+            }
+            bool ObserveFrameBoundary(string frame)
+            {
+                var received = ReadFollowUp($"image-{frame}-follow-up", $"Post-image-{frame}");
+                write("FRAME REPLY CHECK: OBSERVATION RECORDED (not a correlated ACK or proof of an empty device queue).");
+                if (received == 0) return true;
+                write("TRANSPORT CHECK: INCOMPLETE (expected one successful empty post-image read; no further command).");
+                return false;
+            }
             TurzxTransport? OpenSelected(OutputTargetConfig selected)
             {
                 if (!sync) return TurzxTransport.TryOpen(selected, 3000, default);
@@ -95,13 +115,7 @@ internal static class TurzxTransportDiagnostic
             write("Open / sync: completed with the transport's recognized response policy.");
             if (sync)
             {
-                stage = "sync-follow-up";
-                write("Post-sync probe: one additional read, up to 512 bytes, using the existing 3000 ms transfer timeout; no write during this probe.");
-                var buffer = new byte[TurzxWireProtocol.HeaderLength];
-                var received = followUpRead is not null ? followUpRead(buffer) : probeConnection!.Read(buffer, default);
-                if (received < 0 || received > buffer.Length) throw new IOException("TURZX probe read returned an invalid length.");
-                write($"Post-sync response bytes: {received}.");
-                write($"Post-sync full status-marker shape: {(received == buffer.Length && (buffer[1] == 0xC8 || buffer[8] == 0xC8) ? "YES" : "NO")}.");
+                var received = ReadFollowUp("sync-follow-up", "Post-sync");
                 write("SYNC REPLY CHECK: OBSERVATION RECORDED (not a correlated ACK, proof of an empty device queue or permission for another command).");
                 if (!image && !brightness) return 0;
                 if (received != 0)
@@ -109,7 +123,8 @@ internal static class TurzxTransportDiagnostic
                     write("TRANSPORT CHECK: INCOMPLETE (command checkpoint expected one successful empty post-sync read; no selected command sent).");
                     return 1;
                 }
-                write(pair ? "Explicit pair checkpoint: two distinct JPEG frames, one connection; no additional sync, drain or retry."
+                write(pairReads ? "Explicit pair-read checkpoint: one additional read after each recognized JPEG reply; no read loop, extra sync or retry."
+                    : pair ? "Explicit pair checkpoint: two distinct JPEG frames, one connection; no additional sync, drain or retry."
                     : "Explicit command checkpoint: send one selected command after the observed empty read; no further drain or retry.");
             }
             stage = pair ? "image-A" : image ? "image" : "brightness";
@@ -123,6 +138,7 @@ internal static class TurzxTransportDiagnostic
             }
             if (pair)
             {
+                if (pairReads && !ObserveFrameBoundary("A")) return 1;
                 stage = "pair-observation-delay";
                 write("Observation pause: 2000 ms before frame B; not a firmware timing guarantee.");
                 (betweenImages ?? (() => Thread.Sleep(2000)))();
@@ -130,6 +146,7 @@ internal static class TurzxTransportDiagnostic
                 write("Frame B: teal background / TURZX JPEG PAIR B.");
                 var second = transport.SendImage(format, secondPayload!);
                 write($"Command {second.Command}: {second.Reply}; response bytes: {second.ResponseBytes}.");
+                if (pairReads && !ObserveFrameBoundary("B")) return 1;
                 write("PAIR CHECK: EXCHANGES COMPLETE (observe both distinct frames; not proof of displayed images or correlated replies).");
             }
             write("TRANSPORT CHECK: EXCHANGE COMPLETE (physical effect / image orientation require owner observation).");
