@@ -20,6 +20,9 @@ internal static class TurzxTransportDiagnosticTests
             Check(Run([.. args, "--consent", "YES"]) == 2, "Invalid actions/arguments must be rejected before capture.");
         Check(captures == 0 && opens == 0, "Invalid admission must have no hardware side effects.");
         Check(Run([TurzxTransportDiagnostic.Argument, "png"]) == 2, "Consent defaults to declined.");
+        Check(Run([TurzxTransportDiagnostic.Argument, "sync"]) == 2 &&
+            Run([TurzxTransportDiagnostic.Argument, "sync", "extra", "--consent", "YES"]) == 2,
+            "Sync probing requires exact arguments and the same explicit hardware consent.");
         foreach (var answer in new[] { "", "yes", "NO" })
             Check(Run([TurzxTransportDiagnostic.Argument, "png", "--consent", answer]) == 2, "Only explicit uppercase YES authorizes hardware.");
         Check(captures == 0 && opens == 0, "Declined hardware use cannot discover/open a transport.");
@@ -41,6 +44,22 @@ internal static class TurzxTransportDiagnosticTests
                 "Each invocation must synchronize, execute exactly one command and dispose, including an unacknowledged brightness result.");
             var text = string.Join('\n', output);
             Check(!text.Contains("PRIVATE-PATH") && !text.Contains(Device.DeviceId), "Active diagnostic output cannot expose private bindings/paths.");
+        }
+        foreach (var received in new[] { 0, 7, 512 })
+        {
+            var io = new FakeConnection(false); var output = new List<string>(); var probes = 0;
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync", "--consent", "YES"], output.Add,
+                () => [Device], _ =>
+                {
+                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                }, _ => throw new InvalidOperationException("Sync must not encode an image."), buffer =>
+                {
+                    probes++; Check(buffer.Length == 512, "The one post-sync read must be bounded."); buffer[1] = 0xC8; return received;
+                }) == 0 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
+                "Sync probing must send only sync, perform exactly one extra read and dispose, with no selected image/brightness command.");
+            Check(output.Contains($"Post-sync response bytes: {received}.") &&
+                output.Contains($"Post-sync full status-marker shape: {(received == 512 ? "YES" : "NO")}."),
+                "Empty/short/full probe observations must be reported separately without turning a short marker into a full response.");
         }
     }
 
@@ -66,6 +85,19 @@ internal static class TurzxTransportDiagnosticTests
             "A failed image response must dispose without another command.");
         Check(output.Contains("Protocol response: command 102; 0 bytes; unrecognized."),
             "Known protocol failures retain only numeric command/length context, never arbitrary exception text.");
+        foreach (var failure in new Exception[] { new TimeoutException("PRIVATE timeout"), new OperationCanceledException("PRIVATE cancel"),
+            new System.ComponentModel.Win32Exception(31, "PRIVATE native failure"), new IOException("PRIVATE failure") })
+        {
+            var io = new FakeConnection(false); var probes = 0; output.Clear();
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync", "--consent", "YES"], output.Add,
+                () => [Device], _ =>
+                {
+                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                }, followUpRead: _ => { probes++; throw failure; }) == 1 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
+                "A failed extra read must dispose without another read/write or any image/brightness command.");
+            Check(output.Any(line => line.Contains("ERROR at sync-follow-up")) && !string.Join('\n', output).Contains("PRIVATE"),
+                "Post-sync failure stage must be distinguishable without exposing arbitrary native messages.");
+        }
     }
 
     public static void SyntheticCodecGeometryAndCorners()

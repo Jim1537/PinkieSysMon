@@ -14,7 +14,8 @@ internal static class TurzxTransportDiagnostic
     public static int? TryRun(string[] args, Action<string> write,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? capture = null,
         Func<OutputTargetConfig, TurzxTransport?>? open = null,
-        Func<TurzxImageFormat, byte[]>? encode = null)
+        Func<TurzxImageFormat, byte[]>? encode = null,
+        Func<byte[], int>? followUpRead = null)
     {
         if (args.Length == 0 || args[0] != Argument) return null;
         // Explicit argument consent works even when stdout is piped to a log;
@@ -23,15 +24,17 @@ internal static class TurzxTransportDiagnostic
         var actionArgs = consentOption ? args[..^2] : args;
         var percent = -1;
         var image = actionArgs.Length == 2 && (actionArgs[1] is "png" or "jpeg");
+        var sync = actionArgs.Length == 2 && actionArgs[1] == "sync";
         var brightness = actionArgs.Length == 3 && actionArgs[1] == "brightness" &&
             int.TryParse(actionArgs[2], NumberStyles.None, CultureInfo.InvariantCulture, out percent) && percent is >= 0 and <= 100;
-        if (!image && !brightness)
+        if (!image && !brightness && !sync)
         {
-            write("Usage: --turzx-transport-check png|jpeg --consent YES OR --turzx-transport-check brightness <0..100> --consent YES.");
+            write("Usage: --turzx-transport-check png|jpeg|sync --consent YES OR --turzx-transport-check brightness <0..100> --consent YES.");
             return 2;
         }
         write($"TURZX TRANSPORT CHECK - Runtime v{RuntimeVersion.Current}");
-        write(image ? $"This replaces the TURZX picture with a synthetic {actionArgs[1].ToUpperInvariant()} test pattern."
+        write(sync ? "This sends sync and performs one follow-up read. No image or brightness command."
+            : image ? $"This replaces the TURZX picture with a synthetic {actionArgs[1].ToUpperInvariant()} test pattern."
             : $"This changes TURZX hardware brightness to {percent}% (without a firmware-save command).");
         write("One exact TURZX only; no application configuration write or Runtime adoption. Hardware use requires explicit --consent YES.");
         if (capture is null && !OperatingSystem.IsWindows())
@@ -64,9 +67,32 @@ internal static class TurzxTransportDiagnostic
                     write($"PNG IHDR: depth {payload[24]}; color type {payload[25]}; interlace {payload[28]}.");
             }
             stage = "open/sync";
-            using var transport = (open ?? (selected => TurzxTransport.TryOpen(selected, 3000, default)))(target);
+            ITurzxUsbConnection? probeConnection = null;
+            TurzxTransport? OpenSelected(OutputTargetConfig selected)
+            {
+                if (!sync) return TurzxTransport.TryOpen(selected, 3000, default);
+                return TurzxTransport.TryOpen(selected, 3000, default, TurzxDeviceDiscovery.Capture, (device, timeout) =>
+                {
+                    var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeout);
+                    try { return probeConnection = new TurzxUsbConnection(native, timeout); }
+                    catch { native.Dispose(); throw; }
+                });
+            }
+            using var transport = (open ?? OpenSelected)(target);
             if (transport is null) { write("TRANSPORT CHECK: INCOMPLETE (binding disappeared; no alternate selected)."); return 1; }
             write("Open / sync: completed with the transport's recognized response policy.");
+            if (sync)
+            {
+                stage = "sync-follow-up";
+                write("Post-sync probe: one additional read, up to 512 bytes, using the existing 3000 ms transfer timeout; no further write.");
+                var buffer = new byte[TurzxWireProtocol.HeaderLength];
+                var received = followUpRead is not null ? followUpRead(buffer) : probeConnection!.Read(buffer, default);
+                if (received < 0 || received > buffer.Length) throw new IOException("TURZX probe read returned an invalid length.");
+                write($"Post-sync response bytes: {received}.");
+                write($"Post-sync full status-marker shape: {(received == buffer.Length && (buffer[1] == 0xC8 || buffer[8] == 0xC8) ? "YES" : "NO")}.");
+                write("SYNC REPLY CHECK: OBSERVATION RECORDED (not a correlated ACK, proof of an empty device queue or permission for another command).");
+                return 0;
+            }
             stage = image ? "image" : "brightness";
             var result = image ? transport.SendImage(format, payload!) : transport.SetBrightnessPercent(percent);
             write($"Command {result.Command}: {result.Reply}; response bytes: {result.ResponseBytes}.");
