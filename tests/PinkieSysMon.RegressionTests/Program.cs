@@ -27,6 +27,7 @@ internal static class Program
         {
             ("Issue70 empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
             ("Issue70 shared Editor settings concurrent merge", Issue70ConcurrentEditorSettingsTests.MergesDashboardViews),
+            ("Issue70 Editor save with an open settings snapshot", Issue70ConcurrentEditorSettingsTests.SaveWithOpenSnapshot),
             ("Issue70 widget clipboard package version and payload", Issue70ClipboardTests.PackageRoundTrip),
             ("Issue70 nested widget paste plan and Save/reopen", Issue70PastePlannerTests.TransfersNestedGroups),
             ("Issue70 malformed group paste isolation", Issue70PastePlannerTests.RejectsMalformedMappingsWithoutMutation),

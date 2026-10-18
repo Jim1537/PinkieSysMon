@@ -120,7 +120,7 @@ These files have different owners and must not be conflated:
 | --- | --- |
 | `dashboards/<name>/dashboard.json` | Portable canonical canvas and widget model consumed by both processes. |
 | `dashboards/<name>/.editor.json` | Editor-specific group/layer hierarchy sidecar; it is **not** the canonical widget schema. |
-| `config/editor.json` | Local Editor theme, toolbar icon size and per-dashboard view preferences; no physical Output settings. Two independent Editor processes serialize writes via a named mutex, use unique temporary files, and merge independently changed dashboard view entries. Shared window/theme preferences remain last-writer-wins. |
+| `config/editor.json` | Local Editor theme, toolbar icon size and per-dashboard view preferences; no physical Output settings. Two independent Editor processes serialize writes via a named mutex, use unique temporary files, and merge independently changed dashboard view entries. Readers allow atomic replacement while retaining their opened snapshot; they do not allow in-place writes. Shared window/theme preferences remain last-writer-wins. |
 | `config/app.json` / `config/telemetry.json` | Application/output/provider configuration and telemetry scheduling policy, respectively. New application defaults configure a Desktop output with no physical device enabled. |
 | Windows HKCU Run entry | App-wide Runtime autostart setting, managed by the Editor. |
 

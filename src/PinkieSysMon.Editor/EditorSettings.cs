@@ -26,7 +26,8 @@ internal sealed class EditorSettings
             if (!File.Exists(path))
                 return new EditorSettings();
 
-            return JsonSerializer.Deserialize<EditorSettings>(File.ReadAllText(path), new JsonSerializerOptions
+            using var reader = OpenSnapshotReader(path);
+            return JsonSerializer.Deserialize<EditorSettings>(reader.ReadToEnd(), new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
                 ReadCommentHandling = JsonCommentHandling.Skip,
@@ -38,6 +39,11 @@ internal sealed class EditorSettings
             return new EditorSettings();
         }
     }
+
+    // Keep the opened snapshot readable while another Editor atomically replaces
+    // the path. In-place writes remain excluded; readers never see a partial save.
+    internal static StreamReader OpenSnapshotReader(string path) =>
+        new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete));
 
     public DashboardViewSettings GetDashboard(string name)
     {
