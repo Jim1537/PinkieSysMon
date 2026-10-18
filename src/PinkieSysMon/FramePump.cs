@@ -16,6 +16,7 @@ internal sealed class FramePump : IOutputSession
     private readonly string _targetId;
     private readonly int? _maximumFrames;
     private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?> _transportFactory;
+    private readonly Func<IReadOnlyList<OutputDeviceDescriptor>> _turzxRecoveryDiscovery;
 
     private AppConfig _config;
     private OutputTargetConfig _target;
@@ -26,6 +27,8 @@ internal sealed class FramePump : IOutputSession
     private long _nextUsbAttemptAtMs;
     private long _connectionGeneration;
     private bool _transportFaulted;
+    private bool _transportCleanupFailed;
+    private bool _transportAbsenceObserved;
     private bool _transportRetirePending;
     private string _transportRetireReason = "Output lifecycle changed.";
     private string _transportRetireState = "WAITING";
@@ -53,7 +56,8 @@ internal sealed class FramePump : IOutputSession
         global::PinkieSysMon.DashboardModel.DashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null, int? maximumFrames = null)
+        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null,
+        int? maximumFrames = null, Func<IReadOnlyList<OutputDeviceDescriptor>>? turzxRecoveryDiscovery = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -63,6 +67,7 @@ internal sealed class FramePump : IOutputSession
         if (target.Transport == OutputTargetContract.TurzxTransport)
             TurzxFrameTransport.ValidateOptions(target, (target.Usb ?? config.Usb).DiagnosticJournalEnabled);
         _maximumFrames = maximumFrames;
+        _turzxRecoveryDiscovery = turzxRecoveryDiscovery ?? TurzxDeviceDiscovery.CaptureForRecovery;
         _config = config;
         _target = target;
         _targetId = target.Id;
@@ -179,6 +184,7 @@ internal sealed class FramePump : IOutputSession
 
             if (outputConnectionChanged)
             {
+                _transportAbsenceObserved = false;
                 RequestTransportRetirementLocked(
                     "Output target, USB timeout, or USB diagnostics changed; reconnecting.",
                     "WAITING");
@@ -461,6 +467,16 @@ internal sealed class FramePump : IOutputSession
         catch (Exception ex)
         {
             _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
+            lock (_sync)
+            {
+                if (_target.Transport == OutputTargetContract.TurzxTransport)
+                {
+                    _transportCleanupFailed = true;
+                    _transportFaulted = true;
+                    _transportAbsenceObserved = false;
+                    SetUsbStateLocked("ERROR");
+                }
+            }
         }
     }
 
@@ -472,6 +488,7 @@ internal sealed class FramePump : IOutputSession
         bool journalEnabled;
         CancellationToken ioToken;
         long generation;
+        bool faulted;
 
         lock (_sync)
         {
@@ -481,7 +498,7 @@ internal sealed class FramePump : IOutputSession
             if (_display is not null)
                 return _display;
 
-            if (_transportFaulted || Environment.TickCount64 < _nextUsbAttemptAtMs)
+            if (Environment.TickCount64 < _nextUsbAttemptAtMs)
                 return null;
 
             target = _target;
@@ -491,7 +508,11 @@ internal sealed class FramePump : IOutputSession
             journalEnabled = usb.DiagnosticJournalEnabled;
             ioToken = _transportIoCancellation.Token;
             generation = _connectionGeneration;
+            faulted = _transportFaulted;
         }
+
+        if (faulted && !ObserveTransportRecoveryWorker())
+            return null;
 
         IPhysicalFrameTransport? opened;
         try
@@ -539,10 +560,12 @@ internal sealed class FramePump : IOutputSession
                 {
                     SetUsbStateLocked("ERROR");
                     _transportFaulted = target.Transport == OutputTargetContract.TurzxTransport;
+                    _transportAbsenceObserved = false;
                     Volatile.Write(ref _isConnected, false);
                     _nextUsbAttemptAtMs = Environment.TickCount64 + retryMs;
                 }
             }
+            ObserveTransportRecoveryWorker();
             return null;
         }
 
@@ -582,6 +605,65 @@ internal sealed class FramePump : IOutputSession
         }
 
         return opened;
+    }
+
+    private bool ObserveTransportRecoveryWorker()
+    {
+        OutputTargetConfig target;
+        long generation;
+        lock (_sync)
+        {
+            if (!_transportFaulted) return true;
+            if (_maximumFrames is not null || _transportCleanupFailed || _transportRetirePending || _suspended || _idlePaused || _disposeState != 0)
+                return false;
+            target = _target;
+            generation = _connectionGeneration;
+            _nextUsbAttemptAtMs = Environment.TickCount64 + (target.Usb ?? _config.Usb).RetryIntervalMs;
+        }
+
+        OutputDeviceResolution resolution;
+        try
+        {
+            // Passive metadata only. A scan failure is never evidence of removal.
+            resolution = OutputDeviceSelection.Resolve(target, _turzxRecoveryDiscovery());
+        }
+        catch (Exception ex)
+        {
+            _log.WarnThrottled($"frame.usb-recovery.{_targetId}", ConnectionErrorLogThrottleInterval,
+                $"Output target '{TargetName}' passive recovery discovery failed.", ex);
+            lock (_sync)
+                if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused && _disposeState == 0)
+                    SetUsbStateLocked("ERROR");
+            return false;
+        }
+
+        lock (_sync)
+        {
+            if (generation != _connectionGeneration || !_transportFaulted || _transportRetirePending ||
+                _suspended || _idlePaused || _disposeState != 0 || _cts.IsCancellationRequested)
+                return false;
+            if (resolution.Status == OutputDeviceResolutionStatus.Missing)
+            {
+                if (!_transportAbsenceObserved)
+                    _log.Info($"Output target '{TargetName}' binding absent after transport failure; awaiting reattachment.");
+                _transportAbsenceObserved = true;
+                SetUsbStateLocked("WAITING");
+                return false;
+            }
+            if (!_transportAbsenceObserved || resolution.Status != OutputDeviceResolutionStatus.Found)
+            {
+                SetUsbStateLocked(resolution.Status == OutputDeviceResolutionStatus.Ambiguous ? "AMBIGUOUS" : "ERROR");
+                return false;
+            }
+
+            // The retired connection is already drained/disposed by this worker.
+            // Revalidate the exact binding again inside the normal open factory.
+            _transportFaulted = false;
+            _transportAbsenceObserved = false;
+            SetUsbStateLocked("WAITING");
+            _log.Info($"Output target '{TargetName}' binding reattached; permitting a fresh connection.");
+            return true;
+        }
     }
 
     private bool CanSendLocked(IPhysicalFrameTransport display, long generation, CancellationToken token) =>
@@ -672,6 +754,7 @@ internal sealed class FramePump : IOutputSession
                         if (!_transportRetirePending && !_suspended)
                         {
                             _transportFaulted = _target.Transport == OutputTargetContract.TurzxTransport;
+                            _transportAbsenceObserved = false;
                             SetUsbStateLocked(_transportFaulted ? "ERROR" : "WAITING");
                             _nextUsbAttemptAtMs = Environment.TickCount64 + (_target.Usb ?? _config.Usb).RetryIntervalMs;
                         }
@@ -680,6 +763,7 @@ internal sealed class FramePump : IOutputSession
 
                 if (detached)
                     CloseTransportWorker(display, "USB frame transfer failed.", "WAITING");
+                ObserveTransportRecoveryWorker();
                 return;
             }
 
@@ -747,7 +831,7 @@ internal sealed class FramePump : IOutputSession
 
     private void SetUsbStateLocked(string state)
     {
-        if (_transportFaulted && state == "WAITING") state = "ERROR";
+        if (_transportFaulted && !_transportAbsenceObserved && state == "WAITING") state = "ERROR";
         if (_usbState.Equals(state, StringComparison.Ordinal))
             return;
 

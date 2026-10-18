@@ -21,12 +21,21 @@ internal static class TurzxDeviceDiscovery
     // alone never grants consent or opens a frame transport.
     public static IReadOnlyList<OutputDeviceDescriptor> Capture() => Capture(new WindowsTurzxInterfaceDiscoveryApi());
 
-    internal static IReadOnlyList<OutputDeviceDescriptor> Capture(ITurzxInterfaceDiscoveryApi api)
+    public static IReadOnlyList<OutputDeviceDescriptor> CaptureForRecovery() =>
+        Capture(new WindowsTurzxInterfaceDiscoveryApi(), requireCompleteMetadata: true);
+
+    internal static IReadOnlyList<OutputDeviceDescriptor> Capture(ITurzxInterfaceDiscoveryApi api,
+        bool requireCompleteMetadata = false)
     {
         var devices = new List<OutputDeviceDescriptor>();
         foreach (var node in UsbDisplayDiscovery.CaptureNodes(api, product => product == Product))
         {
-            if (!IsEligibleNode(node)) continue;
+            if (!IsEligibleNode(node))
+            {
+                if (requireCompleteMetadata) throw IncompleteRecoveryScan();
+                continue;
+            }
+            var nodeStart = devices.Count;
             var classes = api.ReadInterfaceClasses(node.InstanceId);
             if (classes.Count > 16 || classes.Any(value => value == Guid.Empty))
                 throw new InvalidOperationException("TURZX interface metadata is invalid or exceeds its bound.");
@@ -45,12 +54,19 @@ internal static class TurzxDeviceDiscovery
                     OutputTargetContract.TurzxTransport, ModelName, path)
                 { PnpNodeKey = UsbDisplayDiscovery.CreateObservationId(node.InstanceId) });
             }
+            // Missing registry access/registration, driver problems or an
+            // uncorrelated interface on a PRESENT node cannot prove unplugging.
+            if (requireCompleteMetadata && devices.Count == nodeStart)
+                throw IncompleteRecoveryScan();
         }
         // Multiple distinct interfaces for one node remain distinct descriptors:
         // the existing duplicate-node guard rejects them, even for an exact ID.
         return devices.DistinctBy(device => (device.DeviceId, device.PnpNodeKey))
             .OrderBy(device => device.DeviceId, StringComparer.OrdinalIgnoreCase).ToArray();
     }
+
+    private static InvalidOperationException IncompleteRecoveryScan() =>
+        new("TURZX recovery discovery cannot establish complete present-interface metadata.");
 
     internal static bool IsEligibleNode(UsbPnpNode node) =>
         UsbDisplayCatalog.TryParseInstanceId(node.InstanceId, out var product, out var function) &&

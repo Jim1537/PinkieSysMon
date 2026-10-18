@@ -1,6 +1,6 @@
 # TURZX 12.3-inch — Integration Contract
 
-This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path uses `TurzxFrameTransport`. Exact passive interface discovery supplies a normal Device candidate; explicit adoption/consent permits a saved Runtime session. **Ordinary Settings/Runtime integration is implemented but awaits its separate Windows/device acceptance.** [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
+This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path uses `TurzxFrameTransport`. Exact passive interface discovery supplies a normal Device candidate; explicit adoption/consent permits a saved Runtime session. [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
 
 ## Passive interface discovery
 
@@ -178,7 +178,18 @@ Dispose cancels admission/in-flight work and waits for that ownership boundary b
 
 `OutputSessionManager` routes a matching `turzx` kind/transport to the common physical `FramePump`. The assigned canonical document, telemetry demand/publication, idle/suspend, selected reload, global lifetime and consented Enabled controls retain the [common architecture](../architecture.md#output-status-and-tray-control). There is no fixed frame budget in normal Runtime operation. The bounded developer checkpoint below remains a separate tool.
 
-A missing exact binding returns no connection and can be checked again at the configured retry interval without a native exchange. A failed TURZX open/handshake or admitted frame exchange puts that session in **ERROR**, retires any acquired transport through terminal completion, and blocks automatic reopen. Ordinary reconfiguration, Reload, idle wake or suspend/resume does not clear that failure. After preserving the error, a deliberate **Enabled off → on** or full Runtime stop/start creates a new session and permits a new attempt. A new attempt is not proof of recovery and does not reset firmware/USB state. Trofeo retains its existing retry behavior.
+A missing exact binding returns no connection and can be checked again at the configured retry interval without a native exchange. A failed TURZX open/handshake or admitted frame exchange puts that session in **ERROR** and retires any acquired transport through terminal completion. The worker then checks passive Windows metadata immediately and at the configured USB retry interval; it opens no device during these checks. Idle pause and suspend suppress this polling.
+
+| Passive recovery observation | Result |
+| --- | --- |
+| Exact binding still present, without a preceding observed absence | Keep **ERROR**; do not replay an uncertain exchange. A native error number alone does not establish removal. |
+| Successful complete scan finds the binding missing | Record absence and show **WAITING**. Continue passive polling without USB acquisition. |
+| Exact binding uniquely returns after that absence | Permit a fresh connection through normal binding revalidation and sync, then resume dashboard frames. Saved Enabled, dashboard and sibling Outputs are retained. |
+| Failed/incomplete scan or ambiguous binding | Show **ERROR** or **AMBIGUOUS** and make no native attempt. Present nodes with unavailable metadata, driver problems or no correlated usable interface cannot establish absence. |
+
+Ordinary reconfiguration, Reload, idle wake or suspend/resume does not itself clear the failure. Superseded scan results are discarded; changing the connection invalidates prior absence evidence. If a brief unplug/replug occurs entirely between observations, automatic recovery cannot infer it: reconnect long enough for absence to be observed. After preserving the error, **Enabled off → on** or full Runtime stop/start remains an explicit new-attempt path. A new attempt does not prove recovery or reset firmware/USB state. Trofeo retains its existing retry behavior.
+
+A transport-disposal failure blocks automatic recovery for that session: ownership must not be assumed released. Preserve the local error before a deliberate restart; native completion and cleanup limits remain as defined above.
 
 Brightness adjustment and detailed TURZX USB journaling remain unavailable. `null` brightness preserves the current hardware setting; common lifecycle/errors still use the application log. These limits are enforced in configuration validation, worker preparation and adapter acquisition, including when a caller bypasses file loading. No PNG switching, brightness replay, quality reduction, firmware save or automatic USB reset is added.
 
@@ -199,7 +210,7 @@ Asset/font resolution and a bounded JPEG preflight precede discovery. Exactly on
 
 Expected owner observation: the public Default panel replaces the previous test, its title is readable, seconds advance in place, and the complete 1920×480 composition appears between black horizontal bars on the 1920×720 physical screen. After roughly ten seconds the worker stops and the last picture remains. `FRAMES COMPLETE` requires 20 completed exchanges and at least two different consecutive encoded payloads; it does **not** prove physical animation, correct orientation or ongoing Runtime readiness. Preserve both `artifacts/turzx-runtime-check.log` and `artifacts/turzx-runtime-worker.log`, alongside the build log. The worker log may contain local paths/errors and is private evidence. On failure or a retained/incorrect picture, preserve the result and stop before another attempt or USB reconnect.
 
-`TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. Shared worker lifecycle/error logging remains available. Normal Settings/Runtime sessions follow the contract above; brightness sequencing, automatic post-error recovery and final integration acceptance remain subsequent work.
+`TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. Shared worker lifecycle/error logging remains available. Normal Settings/Runtime sessions follow the recovery contract above; this bounded checkpoint retains its single-attempt policy and performs no automatic recovery. Brightness sequencing and final integration acceptance remain subsequent work.
 
 `Issue71RuntimeTests` exercises legacy raster parity across all canvas orientations, clockwise wire mapping, real renderer fitting/alpha isolation and payload bounds, adapter/consent admission, bounded worker transmission and no-reopen failure behavior using synthetic USB. It distinguishes changing dashboard payloads from identical completed frames. These regressions do not execute Windows discovery/native I/O or establish physical acceptance.
 

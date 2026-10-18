@@ -12,7 +12,7 @@ The Trofeo Vision 9.16 is suitable for PinkieSysMon because it operates as a ded
 
 ## TURZX 12.3-inch
 
-- **Support status:** JPEG frame output implemented; ordinary Settings/Runtime integration awaiting Windows and physical acceptance in [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71).
+- **Support status:** JPEG frame output and ordinary Settings/Runtime integration implemented. Remaining capability and recovery acceptance gates are tracked in [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71).
 - **Physical resolution:** 1920 × 720 pixels; model-specific wire geometry is owned by the [TURZX integration reference](development/devices/turzx-12.3.md).
 - **Connection:** The exact Windows WinUSB interface for the reviewed model. Other Turing/TURZX sizes and products are not admitted by this adapter.
 

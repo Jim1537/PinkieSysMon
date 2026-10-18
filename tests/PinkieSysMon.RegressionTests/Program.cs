@@ -27,6 +27,12 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue71 recovery complete metadata before removal", Issue71ModelTests.RecoveryMetadataCannotInventRemoval),
+            ("Issue71 recovery exact reattachment after send/open failure", Issue71RecoveryTests.ReattachmentRecoversSendAndOpenFailure),
+            ("Issue71 recovery trustworthy absence and exact return", Issue71RecoveryTests.RecoveryRequiresTrustworthyAbsenceAndExactReturn),
+            ("Issue71 recovery stale discovery and lifecycle isolation", Issue71RecoveryTests.StaleRecoveryScanCannotSurviveLifecycleChange),
+            ("Issue71 recovery bounded checkpoint stays single-attempt", Issue71RecoveryTests.BoundedCheckpointNeverRecoversAutomatically),
+            ("Issue71 recovery cleanup failure blocks acquisition", Issue71RecoveryTests.FailedDisposalCannotAuthorizeRecovery),
             ("Issue71 adoption MissingBindingStillAllowsPassiveRetry", Issue71AdoptionTests.MissingBindingStillAllowsPassiveRetry),
             ("Issue71 connected TURZX Settings controls", Issue71SettingsTests.ConnectedSettingsControls),
             ("Issue71 default physical factory and sibling isolation", Issue71SettingsTests.DefaultPhysicalFactoryAndSiblingIsolation),

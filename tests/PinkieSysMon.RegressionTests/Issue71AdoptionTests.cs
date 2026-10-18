@@ -115,7 +115,8 @@ internal static class Issue71AdoptionTests
         var config = new AppConfig(); var opens = 0; var disposed = 0;
         var board = Board();
         using var pump = new FramePump(config, target, board, new MetricStore(), Log(), (_, _, _, _, _) =>
-        { Interlocked.Increment(ref opens); return new FailedFrame(() => Interlocked.Increment(ref disposed)); });
+        { Interlocked.Increment(ref opens); return new FailedFrame(() => Interlocked.Increment(ref disposed)); },
+            turzxRecoveryDiscovery: () => [Device("turzx", 'b')]);
         pump.Start();
         Check(SpinWait.SpinUntil(() => Volatile.Read(ref disposed) == 1, 5000), "Failed send must retire the worker-owned transport.");
         Thread.Sleep(650); // Cross the otherwise-due automatic retry interval.
@@ -135,7 +136,8 @@ internal static class Issue71AdoptionTests
             target.DeviceEnabled = true; target.RefreshIntervalMs = 10; target.Usb!.RetryIntervalMs = 500;
             var attempts = 0;
             using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(), (_, _, _, _, _) =>
-            { Interlocked.Increment(ref attempts); throw new IOException("Synthetic native open failure"); });
+            { Interlocked.Increment(ref attempts); throw new IOException("Synthetic native open failure"); },
+                turzxRecoveryDiscovery: () => [Device("turzx", 'b')]);
             pump.Start();
             Check(SpinWait.SpinUntil(() => pump.UsbState == "ERROR", 5000), "A failed open must publish an explicit error.");
             if (transport == "trofeo")

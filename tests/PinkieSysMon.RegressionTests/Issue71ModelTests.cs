@@ -142,6 +142,25 @@ internal static class Issue71ModelTests
         Throws<InvalidOperationException>(() => TurzxDeviceDiscovery.Capture(failed));
     }
 
+    public static void RecoveryMetadataCannotInventRemoval()
+    {
+        Check(TurzxDeviceDiscovery.Capture(new FakeApi(), requireCompleteMetadata: true).Count == 0,
+            "A successful empty present-node list may establish absence.");
+        Check(TurzxDeviceDiscovery.Capture(new FakeApi(Node("A")), requireCompleteMetadata: true).Count == 1,
+            "Complete correlated metadata must remain eligible during recovery.");
+        foreach (var api in new[]
+        {
+            new FakeApi(new UsbPnpNode(Node("A").InstanceId, null, "WINUSB", ClassA, null, false)),
+            new FakeApi(new UsbPnpNode(Node("A").InstanceId, null, "WINUSB", ClassA, 10, true)),
+            new FakeApi(Node("A")) { Classes = [] },
+            new FakeApi(Node("A")) { Paths = _ => [] },
+            new FakeApi(Node("A")) { Correlation = _ => null },
+            new FakeApi(Node("A")) { FailList = true },
+            new FakeApi(Node("A")) { RemoveAfterFirstRead = true }
+        })
+            Throws<InvalidOperationException>(() => TurzxDeviceDiscovery.Capture(api, requireCompleteMetadata: true));
+    }
+
     public static void BindingAndInventory()
     {
         var devices = TurzxDeviceDiscovery.Capture(new FakeApi(Node("A"), Node("B")));
