@@ -19,6 +19,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (TurzxTransportDiagnostic.TryRun(args, Console.WriteLine) is { } transportExit)
+            return transportExit;
         if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
@@ -71,6 +73,10 @@ internal static class Program
             ("Issue71 TURZX passive diagnostic exact metadata and privacy", TurzxPassiveDiagnosticTests.ExactMetadataAndPrivateOutput),
             ("Issue71 TURZX passive diagnostic missing and ambiguous interfaces", TurzxPassiveDiagnosticTests.MissingAmbiguousAndRemoved),
             ("Issue71 TURZX passive diagnostic sanitized errors", TurzxPassiveDiagnosticTests.ErrorsDoNotLeakPrivateMessages),
+            ("Issue71 TURZX transport diagnostic explicit consent", TurzxTransportDiagnosticTests.ExplicitConsentAndArguments),
+            ("Issue71 TURZX transport diagnostic one command and empty brightness", TurzxTransportDiagnosticTests.OneCommandAndEmptyBrightness),
+            ("Issue71 TURZX transport diagnostic failure isolation", TurzxTransportDiagnosticTests.FailuresStopBeforeFurtherIo),
+            ("Issue71 TURZX synthetic codecs, geometry and corners", TurzxTransportDiagnosticTests.SyntheticCodecGeometryAndCorners),
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Issue77 catalog and exact USB devnode parsing", Issue77UsbDiscoveryTests.CatalogAndExactParsing),
             ("Issue77 passive catalog capture without unrelated reads", Issue77UsbDiscoveryTests.PassiveCatalogCapture),

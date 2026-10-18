@@ -29,6 +29,30 @@ This explicit mode runs the actual passive discovery and exact binding selection
 
 Without arguments, the runner executes deterministic regressions and does not invoke this native checkpoint. `PASSIVE DISCOVERY: PASS` establishes only the observed metadata/binding result; the transport, image, brightness and Runtime gates remain separate. Retain both `builder.log` and this diagnostic log before another run overwrites either. The [Issue stage reports](https://github.com/Jim1537/PinkieSysMon/issues/71) own exact revisions and observed results.
 
+### Manual transport checkpoint
+
+After a current Windows build/regression, an explicit active mode can test the actual C# transport independently of Runtime adoption. Start with the known PNG reference path; keep other TURZX control applications closed:
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check png --consent YES |
+    Tee-Object .\artifacts\turzx-transport-png.log
+```
+
+This replaces the selected TURZX's picture with a synthetic pattern. Hardware use requires the explicit `--consent YES` argument; absent consent or any other value declines before discovery or USB open. Argument consent also works when output is piped to the log, without depending on interactive stdin. The mode captures one exact candidate and the production open path revalidates that saved-in-memory binding before sync. It does not load or save application configuration, adopt a Runtime Output, alter a dashboard or select an alternate unit. A missing/multiple candidate, encoding/open/sync/send error stops the test without automatic retry.
+
+Each invocation opens/synchronizes once, executes **one** selected command, then disposes the transport. `png` and `jpeg` generate the matching encoded 720×1920 raster with the recovered clockwise correction. The expected physical landscape has red top-left, green top-right, blue bottom-right and yellow bottom-left corners, an upright codec label and a right-pointing arrow. A recognized response establishes an exchange result, not a visible/correct image; report those observations separately.
+
+The same mode accepts `jpeg`, or `brightness <0..100>` for a separately planned brightness checkpoint. Brightness changes hardware and is not automatically restored; there is no save/reset command or automatic later frame. A successful empty brightness read produces `UNACKNOWLEDGED` and no subsequent command; it is not a positive ACK or proof of physical effect. Do not chain further tests after an unexplained result.
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | Exchange completed with the current response policy; physical effect remains an observation. |
+| 1 | Incomplete or failed execution. |
+| 2 | Invalid arguments, declined consent or unsupported host. |
+| 3 | Command written, successful empty brightness read, no positive ACK. |
+
+Capture and inspect one bounded result before the next action. Preserve the current `builder.log`, per-action diagnostic log and the owner's physical observation before another run; source is retained in Git. This developer-only checkpoint does not enable TURZX in Devices or change the production session/consent contract.
+
 ## Application configuration
 
 A prepared TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.

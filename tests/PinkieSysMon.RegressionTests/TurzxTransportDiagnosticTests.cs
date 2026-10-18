@@ -1,0 +1,96 @@
+using PinkieSysMon;
+using SkiaSharp;
+
+namespace PinkieSysMon.RegressionTests;
+
+internal static class TurzxTransportDiagnosticTests
+{
+    private static readonly OutputDeviceDescriptor Device = new("turzx:" + new string('a', 64), "turzx", "Synthetic", "PRIVATE-PATH");
+    private static readonly byte[] Png = [137, 80, 78, 71, 13, 10, 26, 10];
+
+    public static void ExplicitConsentAndArguments()
+    {
+        var captures = 0; var opens = 0;
+        int? Run(string[] args) => TurzxTransportDiagnostic.TryRun(args, _ => { },
+            () => { captures++; return [Device]; }, _ => { opens++; return null; });
+        Check(Run([]) is null && Run(["--turzx-passive-check"]) is null, "Unrelated modes must never enter the active checkpoint.");
+        foreach (var args in new[] { new[] { TurzxTransportDiagnostic.Argument }, new[] { TurzxTransportDiagnostic.Argument, "png", "extra" },
+            new[] { TurzxTransportDiagnostic.Argument, "brightness", "101" }, new[] { TurzxTransportDiagnostic.Argument, "brightness", "-1" },
+            new[] { TurzxTransportDiagnostic.Argument, "brightness", "1.5" } })
+            Check(Run([.. args, "--consent", "YES"]) == 2, "Invalid actions/arguments must be rejected before capture.");
+        Check(captures == 0 && opens == 0, "Invalid admission must have no hardware side effects.");
+        Check(Run([TurzxTransportDiagnostic.Argument, "png"]) == 2, "Consent defaults to declined.");
+        foreach (var answer in new[] { "", "yes", "NO" })
+            Check(Run([TurzxTransportDiagnostic.Argument, "png", "--consent", answer]) == 2, "Only explicit uppercase YES authorizes hardware.");
+        Check(captures == 0 && opens == 0, "Declined hardware use cannot discover/open a transport.");
+    }
+
+    public static void OneCommandAndEmptyBrightness()
+    {
+        foreach (var action in new[] { "png", "jpeg", "brightness" })
+        {
+            var io = new FakeConnection(action == "brightness");
+            var output = new List<string>();
+            var args = action == "brightness" ? new[] { TurzxTransportDiagnostic.Argument, action, "25", "--consent", "YES" } : [TurzxTransportDiagnostic.Argument, action, "--consent", "YES"];
+            var result = TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], target =>
+            {
+                Check(target.DeviceEnabled && target.Kind == "turzx" && target.DeviceId == Device.DeviceId, "Consent must create only the exact in-memory enabled test target.");
+                var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+            }, format => format == TurzxImageFormat.Png ? Png : [255, 216, 255, 255, 217]);
+            Check(result == (action == "brightness" ? 3 : 0) && io.Writes == 2 && io.Reads == 2 && io.Disposed,
+                "Each invocation must synchronize, execute exactly one command and dispose, including an unacknowledged brightness result.");
+            var text = string.Join('\n', output);
+            Check(!text.Contains("PRIVATE-PATH") && !text.Contains(Device.DeviceId), "Active diagnostic output cannot expose private bindings/paths.");
+        }
+    }
+
+    public static void FailuresStopBeforeFurtherIo()
+    {
+        var opens = 0;
+        foreach (var devices in new IReadOnlyList<OutputDeviceDescriptor>[] { [], [Device, Device] })
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], _ => { }, () => devices,
+                _ => { opens++; return null; }) == 1, "Missing/multiple candidates must not open.");
+        var output = new List<string>();
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], output.Add, () => [Device],
+            _ => { opens++; return null; }, _ => throw new InvalidOperationException("PRIVATE source must not leak")) == 1 && opens == 0,
+            "Encoding failure must happen before open.");
+        Check(!string.Join('\n', output).Contains("PRIVATE"), "Exception messages must not leak into diagnostic output.");
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], _ => { }, () => [Device],
+            _ => null, _ => Png) == 1, "A binding removed before open must not select a replacement.");
+        var failed = new FakeConnection(true);
+        output.Clear();
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png", "--consent", "YES"], output.Add, () => [Device], _ =>
+        {
+            var transport = new TurzxTransport(failed, () => 0, _ => { }); transport.Synchronize(); return transport;
+        }, _ => Png) == 1 && failed.Disposed && failed.Writes == 2 && failed.Reads == 2,
+            "A failed image response must dispose without another command.");
+        Check(output.Contains("Protocol response: command 102; 0 bytes; unrecognized."),
+            "Known protocol failures retain only numeric command/length context, never arbitrary exception text.");
+    }
+
+    public static void SyntheticCodecGeometryAndCorners()
+    {
+        foreach (var format in new[] { TurzxImageFormat.Png, TurzxImageFormat.Jpeg })
+        {
+            var bytes = TurzxTransportDiagnostic.CreatePattern(format);
+            Check(bytes.Length <= TurzxWireProtocol.MaximumImageBytes, "The synthetic encoded pattern must fit the transport policy.");
+            _ = TurzxWireProtocol.Image(format, bytes, 0);
+            using var bitmap = SKBitmap.Decode(bytes) ?? throw new InvalidOperationException("Diagnostic pattern could not be decoded.");
+            Check(bitmap.Width == 720 && bitmap.Height == 1920, "Synthetic test transport geometry must be portrait without rewriting a dashboard.");
+            var red = bitmap.GetPixel(700, 20); var green = bitmap.GetPixel(700, 1900);
+            var blue = bitmap.GetPixel(20, 1900); var yellow = bitmap.GetPixel(20, 20);
+            Check(red.Red > 200 && red.Green < 80 && red.Blue < 80 && green.Green > 200 && green.Red < 80 && green.Blue < 80 &&
+                blue.Blue > 200 && blue.Red < 80 && blue.Green < 80 && yellow.Red > 200 && yellow.Green > 200 && yellow.Blue < 80,
+                "Independent corner samples must verify the clockwise transform for both real encoded formats.");
+        }
+    }
+
+    private static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+    private sealed class FakeConnection(bool emptyBrightness) : ITurzxUsbConnection
+    {
+        public int Writes, Reads; public bool Disposed;
+        public int Write(byte[] packet, CancellationToken token) { Writes++; return packet.Length; }
+        public int Read(byte[] buffer, CancellationToken token) { Reads++; if (emptyBrightness && Reads == 2) return 0; buffer[1] = 0xC8; return 512; }
+        public void Dispose() => Disposed = true;
+    }
+}
