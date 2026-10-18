@@ -23,6 +23,8 @@ internal static class TurzxTransportDiagnosticTests
         Check(Run([TurzxTransportDiagnostic.Argument, "sync"]) == 2 &&
             Run([TurzxTransportDiagnostic.Argument, "sync", "extra", "--consent", "YES"]) == 2,
             "Sync probing requires exact arguments and the same explicit hardware consent.");
+        Check(Run([TurzxTransportDiagnostic.Argument, "png-sync"]) == 2,
+            "PNG after a sync read requires its own explicit invocation and consent.");
         foreach (var answer in new[] { "", "yes", "NO" })
             Check(Run([TurzxTransportDiagnostic.Argument, "png", "--consent", answer]) == 2, "Only explicit uppercase YES authorizes hardware.");
         Check(captures == 0 && opens == 0, "Declined hardware use cannot discover/open a transport.");
@@ -61,6 +63,21 @@ internal static class TurzxTransportDiagnosticTests
                 output.Contains($"Post-sync full status-marker shape: {(received == 512 ? "YES" : "NO")}."),
                 "Empty/short/full probe observations must be reported separately without turning a short marker into a full response.");
         }
+        var pngIo = new FakeConnection(false); var pngProbes = 0;
+        Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png-sync", "--consent", "YES"], _ => { },
+            () => [Device], _ =>
+            {
+                var transport = new TurzxTransport(pngIo, () => 0, _ => { }); transport.Synchronize(); return transport;
+            }, followUpRead: _ =>
+            {
+                pngProbes++; Check(pngIo.Writes == 1 && pngIo.Reads == 1, "The extra read must precede the PNG command."); return 0;
+            }) == 0 && pngIo.Writes == 2 && pngIo.Reads == 2 && pngProbes == 1 && pngIo.Disposed,
+            "The explicit PNG checkpoint may send exactly one image after its one empty post-sync read.");
+        var pattern = pngIo.LastPacket![512..];
+        using var png = SKBitmap.Decode(pattern) ?? throw new InvalidOperationException("Checkpoint PNG must decode.");
+        Check(pattern[24] == 8 && pattern[25] == 6 && pattern[28] == 0 && png.Width == 720 && png.Height == 1920 &&
+            png.GetPixel(360, 1800) == new SKColor(8, 32, 96) && png.Pixels.All(pixel => pixel.Alpha == 255),
+            "The new frame must retain opaque RGBA geometry and a distinct blue background, so a stale PNG is distinguishable.");
     }
 
     public static void FailuresStopBeforeFurtherIo()
@@ -85,11 +102,12 @@ internal static class TurzxTransportDiagnosticTests
             "A failed image response must dispose without another command.");
         Check(output.Contains("Protocol response: command 102; 0 bytes; unrecognized."),
             "Known protocol failures retain only numeric command/length context, never arbitrary exception text.");
+        foreach (var action in new[] { "sync", "png-sync" })
         foreach (var failure in new Exception[] { new TimeoutException("PRIVATE timeout"), new OperationCanceledException("PRIVATE cancel"),
             new System.ComponentModel.Win32Exception(31, "PRIVATE native failure"), new IOException("PRIVATE failure") })
         {
             var io = new FakeConnection(false); var probes = 0; output.Clear();
-            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "sync", "--consent", "YES"], output.Add,
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, action, "--consent", "YES"], output.Add,
                 () => [Device], _ =>
                 {
                     var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
@@ -97,6 +115,16 @@ internal static class TurzxTransportDiagnosticTests
                 "A failed extra read must dispose without another read/write or any image/brightness command.");
             Check(output.Any(line => line.Contains("ERROR at sync-follow-up")) && !string.Join('\n', output).Contains("PRIVATE"),
                 "Post-sync failure stage must be distinguishable without exposing arbitrary native messages.");
+        }
+        foreach (var received in new[] { -1, 7, 512, 513 })
+        {
+            var io = new FakeConnection(false); var probes = 0;
+            Check(TurzxTransportDiagnostic.TryRun([TurzxTransportDiagnostic.Argument, "png-sync", "--consent", "YES"], _ => { },
+                () => [Device], _ =>
+                {
+                    var transport = new TurzxTransport(io, () => 0, _ => { }); transport.Synchronize(); return transport;
+                }, _ => Png, _ => { probes++; return received; }) == 1 && io.Writes == 1 && io.Reads == 1 && probes == 1 && io.Disposed,
+                "Any nonempty or invalid post-sync read must stop before the PNG command, without another probe.");
         }
     }
 
@@ -138,8 +166,8 @@ internal static class TurzxTransportDiagnosticTests
     private static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
     private sealed class FakeConnection(bool emptyBrightness) : ITurzxUsbConnection
     {
-        public int Writes, Reads; public bool Disposed;
-        public int Write(byte[] packet, CancellationToken token) { Writes++; return packet.Length; }
+        public int Writes, Reads; public bool Disposed; public byte[]? LastPacket;
+        public int Write(byte[] packet, CancellationToken token) { Writes++; LastPacket = packet; return packet.Length; }
         public int Read(byte[] buffer, CancellationToken token) { Reads++; if (emptyBrightness && Reads == 2) return 0; buffer[1] = 0xC8; return 512; }
         public void Dispose() => Disposed = true;
     }

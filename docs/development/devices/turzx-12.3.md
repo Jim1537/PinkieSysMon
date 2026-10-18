@@ -55,6 +55,13 @@ dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-chec
 
 This sends only sync and requires its recognized initial response and normal settling delay, then performs exactly one additional read of up to 512 bytes with the existing 3000 ms transfer timeout. It sends no image/brightness/save/reset command. The log records the follow-up byte count and whether a full response has the known status-marker shape; no raw response bytes or identifiers are printed. Empty, short and full observations remain distinct. Timeout, cancellation or native failure stops execution and disposal still drains native completion; no extra attempt follows. Neither this one read nor closing the connection proves the device queue empty, correlates a later response or authorizes automatic draining in production. The action does not deliberately change the picture, but firmware side effects of sync are not guaranteed absent.
 
+The separately planned `png-sync` action uses that same single post-sync read and sends **one PNG only if the read succeeds with zero bytes**. Any nonempty/invalid count, timeout, cancellation or native failure stops before the image command. The subsequent PNG reply uses the unchanged strict image-response policy; no extra image-response read, automatic retry or drain loop is added. The pattern has a **blue background** and **TURZX PNG SYNC** label so a retained earlier frame can be distinguished. This explicit developer experiment tests the observed reply boundary; it is not an automatic recovery or a production queue-empty guarantee.
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-transport-check png-sync --consent YES |
+    Tee-Object .\artifacts\turzx-png-sync.log
+```
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Exchange completed with the current response policy, or the explicit sync follow-up observation was recorded; neither proves physical effect or reply correlation. |
