@@ -67,8 +67,6 @@ Apply this provider choice with **OK** in [Editor settings](../development/archi
 ---
 ### Done
 
-[![lhm_settings_005.png](../images/lhm_settings_005.png)](../images/lhm_settings_005.png)
-
 If Libre Hardware Monitor is running, its Remote Web Server is active, and the provider is enabled, the available sensors will appear in the Pinkie's System Monitor metric selector.
 
 !!! info

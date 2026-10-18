@@ -22,8 +22,6 @@ Apply this provider choice with **OK** in [Editor settings](../development/archi
 
 ### Done
 
-[![system_settings_002.png](../images/system_settings_002.png)](../images/system_settings_002.png)
-
 Once the provider is enabled, the available system metrics appear under the `system` branch in the Pinkie's System Monitor metric selector.
 
 !!! info

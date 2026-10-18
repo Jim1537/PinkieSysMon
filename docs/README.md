@@ -50,12 +50,6 @@ The visual Editor supports widget placement, resizing, grouping, contextual prop
 
 Use **Edit → Editor settings**, **Desktop**, or **Devices** in the Editor main menu. Each opens its own settings dialog; only Devices retains dynamic Device #N tabs. Hover over a control or its question-mark icon for help. The **Outputs** icon at the right end of the toolbar opens the existing Output control menu.
 
-<p align="center">
-  <a href="images/PinkeySysMon_editor.png">
-    <img src="images/PinkeySysMon_editor.png" alt="PinkieSysMon Dashboard Editor" width="50%">
-  </a>
-</p>
-
 ## Outputs and Runtime
 
 Use the [Desktop guide](outputs/desktop.md) to create, configure, move, stack and manage independent Windows panels.

@@ -56,8 +56,6 @@ Apply this provider choice with **OK** in [Editor settings](../development/archi
 
 ### Done
 
-[![icue_settings_005.png](../images/icue_settings_005.png)](../images/icue_settings_005.png)
-
 If data is being received correctly, the corresponding metrics appear under the iCUE group in the Pinkie's System Monitor metric selector.
 
 !!! info
