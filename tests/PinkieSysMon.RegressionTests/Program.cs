@@ -19,12 +19,23 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (TurzxRuntimeDiagnostic.TryRun(args, Console.WriteLine) is { } runtimeCheckExit)
+            return runtimeCheckExit;
         if (TurzxTransportDiagnostic.TryRun(args, Console.WriteLine) is { } transportExit)
             return transportExit;
         if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue71 Runtime GeometryAndLegacyParity", Issue71RuntimeTests.GeometryAndLegacyParity),
+            ("Issue71 Runtime CanonicalRendererFitAndIsolation", Issue71RuntimeTests.CanonicalRendererFitAndIsolation),
+            ("Issue71 Runtime EncodedPayloadBound", Issue71RuntimeTests.EncodedPayloadBound),
+            ("Issue71 Runtime AdapterAdmission", Issue71RuntimeTests.AdapterAdmission),
+            ("Issue71 Runtime CheckpointAdmissionAndPreflight", Issue71RuntimeTests.CheckpointAdmissionAndPreflight),
+            ("Issue71 Runtime SharedWorkerLiveFrames", Issue71RuntimeTests.SharedWorkerLiveFrames),
+            ("Issue71 Runtime SharedWorkerFailureNoReopen", Issue71RuntimeTests.SharedWorkerFailureNoReopen),
+            ("Issue71 Runtime FrameBudgetStopsFurtherAdmission", Issue71RuntimeTests.FrameBudgetStopsFurtherAdmission),
+            ("Issue71 Runtime StaticPayloadIsNotAnimation", Issue71RuntimeTests.StaticPayloadIsNotAnimation),
             ("Issue70 empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
             ("Issue70 shared Editor settings concurrent merge", Issue70ConcurrentEditorSettingsTests.MergesDashboardViews),
             ("Issue70 Editor save with an open settings snapshot", Issue70ConcurrentEditorSettingsTests.SaveWithOpenSnapshot),
@@ -11763,13 +11774,13 @@ internal static class Program
     private sealed class CancellationAwareTrofeoTestTransport(
         CancellationToken cancellation,
         ManualResetEventSlim started,
-        Action disposed) : ITrofeoFrameTransport
+        Action disposed) : IPhysicalFrameTransport
     {
         public int WireRotationDegrees => 0;
 
         public void SendJpegWithDiagnostics(
             ReadOnlySpan<byte> jpeg,
-            TrofeoFrameRenderDiagnostics diagnostics)
+            FrameRenderDiagnostics diagnostics)
         {
             started.Set();
             if (!cancellation.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
@@ -11782,7 +11793,7 @@ internal static class Program
         public void Dispose() => disposed();
     }
 
-    private sealed class BlockingTrofeoTestTransport : ITrofeoFrameTransport
+    private sealed class BlockingTrofeoTestTransport : IPhysicalFrameTransport
     {
         private readonly ManualResetEventSlim? _sendStarted;
         private readonly ManualResetEventSlim? _allowSend;
@@ -11803,7 +11814,7 @@ internal static class Program
 
         public void SendJpegWithDiagnostics(
             ReadOnlySpan<byte> jpeg,
-            TrofeoFrameRenderDiagnostics diagnostics)
+            FrameRenderDiagnostics diagnostics)
         {
             if (DisposeCount != 0)
                 throw new InvalidOperationException("Test transport was disposed before sending.");

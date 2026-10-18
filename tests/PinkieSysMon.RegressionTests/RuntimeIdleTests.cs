@@ -354,27 +354,27 @@ internal static class RuntimeIdleTests
         public void Dispose() { Disposals++; IsVisible = false; }
     }
 
-    private sealed class CountingTransport : ITrofeoFrameTransport
+    private sealed class CountingTransport : IPhysicalFrameTransport
     {
         private int _sends;
         private int _disposals;
         public int Sends => Volatile.Read(ref _sends);
         public int Disposals => Volatile.Read(ref _disposals);
         public int WireRotationDegrees => 0;
-        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics diagnostics) =>
+        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics) =>
             Interlocked.Increment(ref _sends);
         public void RecordLifecycle(string state, string reason) { }
         public void Dispose() => Interlocked.Increment(ref _disposals);
     }
     private sealed class BlockingFirstTransport(
-        ManualResetEventSlim entered, ManualResetEventSlim release) : ITrofeoFrameTransport
+        ManualResetEventSlim entered, ManualResetEventSlim release) : IPhysicalFrameTransport
     {
         private int _sends;
         private int _disposals;
         public int Sends => Volatile.Read(ref _sends);
         public int Disposals => Volatile.Read(ref _disposals);
         public int WireRotationDegrees => 0;
-        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics diagnostics)
+        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics)
         {
             if (Interlocked.Increment(ref _sends) == 1)
             {

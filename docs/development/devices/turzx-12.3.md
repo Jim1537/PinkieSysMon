@@ -1,6 +1,6 @@
 # TURZX 12.3-inch — Integration Contract
 
-This reference owns the TURZX-specific identity, configuration and standalone transport contract. **The transport is not connected to Runtime sessions, rendering or Settings adoption yet.** The device remains an informational, unsupported family in Devices; [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
+This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path is prepared through `TurzxFrameTransport` and the bounded checkpoint below. **Normal saved Runtime sessions and Settings adoption remain gated pending integration acceptance.** The device remains an informational, unsupported family in Devices; [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
 
 ## Passive interface discovery
 
@@ -148,7 +148,7 @@ The independent C# implementation follows public interoperability facts from [th
 | Brightness `14` | Controller value at byte 8; percent conversion uses the [configuration policy above](#application-configuration). No implicit brightness command on open. |
 | Payload bound | Encoded image limited to 1,048,576 bytes, following the recovered probe/upstream software bound. It is not a measured firmware capacity. No implicit downscaling, codec switch or quality reduction. |
 
-The caller owns encoding and the 720×1920 transport raster. This layer neither rotates the dashboard nor proves JPEG/PNG display compatibility. Application geometry, renderer selection and physical corner/orientation acceptance remain pending.
+The low-level transport accepts encoded bytes without rotating or decoding them. The shared frame adapter selects a 1920×720 physical rectangle with a clockwise 90° wire rotation, producing a 720×1920 JPEG. The canonical renderer first applies the dashboard orientation, fits its entire canvas with preserved proportions and centered black bars, then rotates the physical result. A 1920×480 canvas therefore has 120-pixel top/bottom bars on the physical display. Dashboard geometry/schema are unchanged. Physical orientation, image quality and integrated animation require owner observation.
 
 ### Reply and failure boundaries
 
@@ -173,6 +173,27 @@ The empty-brightness rule preserves the historically observed physical effect wi
 Dispose cancels admission/in-flight work and waits for that ownership boundary before closing native handles. Ordinary open/initialization calls must return before cancellation can be observed and their resources released. A faulty driver can prevent completion: neither timeout nor Dispose promises forced bounded cleanup. No buffer, event or handle is freed merely because the application deadline elapsed.
 
 `Issue71TransportTests` covers both the default JPEG stream and explicitly selected primary-only diagnostic policy, including full primary/follow-up sequencing, rejection/faulting, command serialization and native cancellation during a pending follow-up. It also checks independent packet fixtures, format/size bounds, strict reply policy, exact acquisition and failed-sync cleanup, error identity, pending completion, cancellation failure, deadlines and concurrent disposal using synthetic I/O. These tests do not execute the real Windows backend or establish this unit's native discovery, command responses, brightness sequencing, image orientation or integrated Runtime behavior.
+
+## Shared-worker live-dashboard checkpoint
+
+After a current [Windows build and regression run](../building.md#build-and-regression), close other applications controlling this TURZX device and run the already-built runner **once from the repository root**:
+
+```powershell
+dotnet .\artifacts\tests\PinkieSysMon.RegressionTests.dll --turzx-runtime-check --consent YES |
+    Tee-Object .\artifacts\turzx-runtime-check.log
+"Process exit code: $LASTEXITCODE" |
+    Tee-Object .\artifacts\turzx-runtime-check.log -Append
+```
+
+This loads the repository's public `Default` dashboard through the canonical loader and changes only its in-memory title to **PINKIESYSMON / TURZX LIVE** and clock format to include seconds. It publishes real local time to the shared metric store. It uses the actual `DashboardRenderer`, `FramePump` and JPEG-stream transport, rather than a synthetic A/B picture loop. It does not start ordinary telemetry acquisition/providers or the normal saved-configuration session manager, load a private panel, or save dashboard/configuration files.
+
+Asset/font resolution and a bounded JPEG preflight precede discovery. Exactly one usable interface and explicit `--consent YES` are required. The selected binding is verified again on native acquisition. One native open attempt, one initial sync and at most **20 completed JPEG frames** are admitted at a 500 ms refresh interval. A 20-second observation deadline stops the checkpoint if that budget is not established. Native ownership still drains terminal I/O completion during disposal; neither this deadline nor Ctrl+C guarantees bounded shutdown of a stalled driver. The checkpoint never automatically reopens the connection, changes codecs/brightness, or saves/resets firmware.
+
+Expected owner observation: the public Default panel replaces the previous test, its title is readable, seconds advance in place, and the complete 1920×480 composition appears between black horizontal bars on the 1920×720 physical screen. After roughly ten seconds the worker stops and the last picture remains. `FRAMES COMPLETE` requires 20 completed exchanges and at least two different consecutive encoded payloads; it does **not** prove physical animation, correct orientation or ongoing Runtime readiness. Preserve both `artifacts/turzx-runtime-check.log` and `artifacts/turzx-runtime-worker.log`, alongside the build log. The worker log may contain local paths/errors and is private evidence. On failure or a retained/incorrect picture, preserve the result and stop before another attempt or USB reconnect.
+
+`TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. Shared worker lifecycle/error logging remains available. Ordinary Settings adoption, brightness sequencing, automatic recovery and full telemetry/output coordination belong to subsequent integration stages.
+
+`Issue71RuntimeTests` exercises legacy raster parity across all canvas orientations, clockwise wire mapping, real renderer fitting/alpha isolation and payload bounds, adapter/consent admission, bounded worker transmission and no-reopen failure behavior using synthetic USB. It distinguishes changing dashboard payloads from identical completed frames. These regressions do not execute Windows discovery/native I/O or establish physical acceptance.
 
 ## Integration boundaries
 

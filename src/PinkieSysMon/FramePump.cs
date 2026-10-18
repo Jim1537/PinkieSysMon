@@ -14,13 +14,14 @@ internal sealed class FramePump : IOutputSession
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly string _targetId;
-    private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, ITrofeoFrameTransport?> _transportFactory;
+    private readonly int? _maximumFrames;
+    private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?> _transportFactory;
 
     private AppConfig _config;
     private OutputTargetConfig _target;
     private string _targetName;
     private DashboardRenderer _renderer;
-    private ITrofeoFrameTransport? _display;
+    private IPhysicalFrameTransport? _display;
     private CancellationTokenSource _transportIoCancellation;
     private long _nextUsbAttemptAtMs;
     private long _connectionGeneration;
@@ -51,12 +52,14 @@ internal sealed class FramePump : IOutputSession
         global::PinkieSysMon.DashboardModel.DashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, ITrofeoFrameTransport?>? transportFactory = null)
+        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null, int? maximumFrames = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(dashboard);
 
+        if (maximumFrames is < 1) throw new ArgumentOutOfRangeException(nameof(maximumFrames));
+        _maximumFrames = maximumFrames;
         _config = config;
         _target = target;
         _targetId = target.Id;
@@ -66,7 +69,7 @@ internal sealed class FramePump : IOutputSession
         _transportIoCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _transportFactory = transportFactory ??
             (static (selectedTarget, timeoutMs, journalEnabled, logger, ioToken) =>
-                TrofeoTransport.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
+                PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
         _renderer = new DashboardRenderer(dashboard);
     }
 
@@ -401,7 +404,7 @@ internal sealed class FramePump : IOutputSession
 
     private void DrainTransportRetirementWorker()
     {
-        ITrofeoFrameTransport? retired;
+        IPhysicalFrameTransport? retired;
         CancellationTokenSource retiredCancellation;
         string reason;
         string nextState;
@@ -436,7 +439,7 @@ internal sealed class FramePump : IOutputSession
         }
     }
 
-    private void CloseTransportWorker(ITrofeoFrameTransport display, string reason, string nextState)
+    private void CloseTransportWorker(IPhysicalFrameTransport display, string reason, string nextState)
     {
         _log.Info($"Output target '{TargetName}' disconnected. {reason}");
         try
@@ -458,7 +461,7 @@ internal sealed class FramePump : IOutputSession
         }
     }
 
-    private ITrofeoFrameTransport? EnsureDisplayWorker(CancellationToken token)
+    private IPhysicalFrameTransport? EnsureDisplayWorker(CancellationToken token)
     {
         OutputTargetConfig target;
         int timeoutMs;
@@ -487,7 +490,7 @@ internal sealed class FramePump : IOutputSession
             generation = _connectionGeneration;
         }
 
-        ITrofeoFrameTransport? opened;
+        IPhysicalFrameTransport? opened;
         try
         {
             // Discovery, CreateFile, WinUSB handshake and their failure cleanup run
@@ -577,7 +580,7 @@ internal sealed class FramePump : IOutputSession
         return opened;
     }
 
-    private bool CanSendLocked(ITrofeoFrameTransport display, long generation, CancellationToken token) =>
+    private bool CanSendLocked(IPhysicalFrameTransport display, long generation, CancellationToken token) =>
         !_suspended && !_idlePaused && !_transportRetirePending && _disposeState == 0 &&
         !token.IsCancellationRequested &&
         _connectionGeneration == generation &&
@@ -586,6 +589,7 @@ internal sealed class FramePump : IOutputSession
     private void RenderAndSendWorker(CancellationToken token)
     {
         DrainTransportRetirementWorker();
+        if (_maximumFrames is { } limit && SentFrames >= limit) return;
         var display = EnsureDisplayWorker(token);
         if (display is null)
             return;
@@ -606,7 +610,7 @@ internal sealed class FramePump : IOutputSession
                 // swap/dispose it after rendering, not during rendering.
                 rendered = _renderer.RenderJpeg(
                     _metrics.Snapshot(),
-                    display.WireRotationDegrees,
+                    display.Profile,
                     _target.JpegQuality ?? _config.Renderer.JpegQuality);
             }
         }
@@ -634,7 +638,7 @@ internal sealed class FramePump : IOutputSession
                 // No other thread can dispose this worker-owned display during SendJpeg.
                 display.SendJpegWithDiagnostics(
                     rendered.Bytes,
-                    new TrofeoFrameRenderDiagnostics(rendered.RenderMs, rendered.EncodeMs));
+                    new FrameRenderDiagnostics(rendered.RenderMs, rendered.EncodeMs));
             }
             catch (OperationCanceledException) when (
                 token.IsCancellationRequested || _transportIoCancellation.IsCancellationRequested)
@@ -802,7 +806,7 @@ internal sealed class FramePump : IOutputSession
 
         try
         {
-            ITrofeoFrameTransport? display;
+            IPhysicalFrameTransport? display;
             lock (_sync)
             {
                 display = _display;

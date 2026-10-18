@@ -8,7 +8,7 @@ internal interface ITurzxUsbConnection : IDisposable
 
 internal enum TurzxReplyMode { JpegStream, PrimaryOnly }
 
-// One serialized command/response boundary. Not connected to Runtime/adoption.
+// One serialized command/response boundary. The frame adapter owns worker integration.
 internal sealed class TurzxTransport : IDisposable
 {
     private readonly object _gate = new();

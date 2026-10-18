@@ -66,6 +66,32 @@ internal static class FrameGeometry
         }
     }
 
+    public static void DrawLogicalToPhysicalWire(SKCanvas destination, SKSurface logical,
+        int logicalWidth, int logicalHeight, int nativeWidth, int nativeHeight,
+        int orientationDegrees, PhysicalFrameProfile profile)
+    {
+        var physical = profile.PhysicalSize(nativeWidth, nativeHeight);
+        destination.Save();
+        try
+        {
+            switch (profile.RotationDegrees)
+            {
+                case 90: destination.Translate(physical.Height, 0); destination.RotateDegrees(90); break;
+                case 180: destination.Translate(physical.Width, physical.Height); destination.RotateDegrees(180); break;
+                case 270: destination.Translate(0, physical.Width); destination.RotateDegrees(270); break;
+            }
+            // Fit the complete canonical canvas without stretching/cropping.
+            // Opaque black compositing supplies any letterbox bars.
+            var scale = Math.Min((float)physical.Width / nativeWidth, (float)physical.Height / nativeHeight);
+            destination.Translate((physical.Width - nativeWidth * scale) / 2,
+                (physical.Height - nativeHeight * scale) / 2);
+            destination.Scale(scale);
+            DrawLogicalToWire(destination, logical, logicalWidth, logicalHeight,
+                nativeWidth, nativeHeight, orientationDegrees, wireRotationDegrees: 0);
+        }
+        finally { destination.Restore(); }
+    }
+
     public static void ValidateNativeSize(int nativeWidth, int nativeHeight)
     {
         if (nativeWidth <= 0)
@@ -113,7 +139,7 @@ internal static class FrameGeometry
         return normalized;
     }
 
-    private static int NormalizeWireRotation(int degrees)
+    internal static int NormalizeWireRotation(int degrees)
     {
         var normalized = ((degrees % 360) + 360) % 360;
         if (normalized is not (0 or 180))

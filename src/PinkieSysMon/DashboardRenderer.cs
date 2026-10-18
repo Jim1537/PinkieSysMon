@@ -14,7 +14,9 @@ internal sealed class DashboardRenderer : IDisposable
     private readonly int _nativeHeight;
     private readonly int _orientation;
     private readonly SKSurface _logicalSurface;
-    private readonly SKSurface _wireSurface;
+    private SKSurface _wireSurface;
+    private int _wireWidth;
+    private int _wireHeight;
     private readonly TypefaceCache _typefaceCache;
     private readonly WidgetRenderContext _renderContext;
     private readonly ImageAssetCache _imageAssets;
@@ -92,6 +94,8 @@ internal sealed class DashboardRenderer : IDisposable
             _renderContext = renderContext;
             _logicalSurface = logicalSurface;
             _wireSurface = wireSurface;
+            _wireWidth = _nativeWidth;
+            _wireHeight = _nativeHeight;
             _imageAssets = imageAssets;
             _iconAssets = iconAssets;
             _backgroundImage = backgroundImage;
@@ -190,14 +194,28 @@ internal sealed class DashboardRenderer : IDisposable
         logicalCanvas.Flush();
     }
 
-    public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, int wireRotationDegrees, int jpegQuality)
+    public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, int wireRotationDegrees, int jpegQuality) =>
+        RenderJpeg(metrics, new PhysicalFrameProfile(FrameGeometry.NormalizeWireRotation(wireRotationDegrees)), jpegQuality);
+
+    public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, PhysicalFrameProfile profile, int jpegQuality)
     {
         var renderStartedAt = Stopwatch.GetTimestamp();
         RenderLogicalFrame(metrics);
 
+        var wireSize = profile.WireSize(_nativeWidth, _nativeHeight);
+        if (_wireWidth != wireSize.Width || _wireHeight != wireSize.Height)
+        {
+            var replacement = SKSurface.Create(new SKImageInfo(wireSize.Width, wireSize.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
+                ?? throw new InvalidOperationException("Failed to create model-specific wire surface.");
+            var previous = _wireSurface;
+            _wireSurface = replacement;
+            _wireWidth = wireSize.Width;
+            _wireHeight = wireSize.Height;
+            previous.Dispose();
+        }
         var wireCanvas = _wireSurface.Canvas;
         wireCanvas.Clear(SKColors.Black);
-        FrameGeometry.DrawLogicalToWire(
+        FrameGeometry.DrawLogicalToPhysicalWire(
             wireCanvas,
             _logicalSurface,
             _logicalWidth,
@@ -205,7 +223,7 @@ internal sealed class DashboardRenderer : IDisposable
             _nativeWidth,
             _nativeHeight,
             _orientation,
-            wireRotationDegrees);
+            profile);
         wireCanvas.Flush();
         var renderCompletedAt = Stopwatch.GetTimestamp();
 
@@ -215,6 +233,11 @@ internal sealed class DashboardRenderer : IDisposable
         var encoded = wirePixels.Encode(SKEncodedImageFormat.Jpeg, jpegQuality)
             ?? throw new InvalidOperationException("Skia JPEG encoder returned no data.");
 
+        if (encoded.Size > profile.MaximumImageBytes)
+        {
+            encoded.Dispose();
+            throw new InvalidDataException("Encoded JPEG exceeds the selected Output's payload limit.");
+        }
         var encodeCompletedAt = Stopwatch.GetTimestamp();
         return new RenderedJpeg(
             encoded,

@@ -173,13 +173,13 @@ internal static class BlockedTransportStage27Tests
     }
 
     private sealed class BlockingTransport(
-        ManualResetEventSlim entered, ManualResetEventSlim release) : ITrofeoFrameTransport
+        ManualResetEventSlim entered, ManualResetEventSlim release) : IPhysicalFrameTransport
     {
         private int _sendCount;
         public int SendCount => Volatile.Read(ref _sendCount);
         public int WireRotationDegrees => 0;
         public void SendJpegWithDiagnostics(
-            ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics diagnostics)
+            ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics)
         {
             Interlocked.Increment(ref _sendCount);
             entered.Set();

@@ -208,7 +208,7 @@ internal static class FramePumpShutdownTests
 
     private sealed class TransactionTransport(CancellationToken token,
         ManualResetEventSlim? writeEntered = null, ManualResetEventSlim? releaseWrite = null,
-        ManualResetEventSlim? ackEntered = null, ManualResetEventSlim? releaseAck = null) : ITrofeoFrameTransport
+        ManualResetEventSlim? ackEntered = null, ManualResetEventSlim? releaseAck = null) : IPhysicalFrameTransport
     {
         private int _sends, _completed, _disposals, _inFlight, _disposedInFlight;
         public CancellationToken Token => token;
@@ -217,7 +217,7 @@ internal static class FramePumpShutdownTests
         public int CompletedFrames => Volatile.Read(ref _completed);
         public int DisposeCount => Volatile.Read(ref _disposals);
         public bool DisposedDuringTransfer => Volatile.Read(ref _disposedInFlight) != 0;
-        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics diagnostics)
+        public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics)
         {
             Interlocked.Increment(ref _sends);
             Interlocked.Exchange(ref _inFlight, 1);

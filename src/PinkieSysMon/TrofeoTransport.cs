@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace PinkieSysMon;
 
-internal sealed class TrofeoTransport : ITrofeoFrameTransport
+internal sealed class TrofeoTransport : IPhysicalFrameTransport
 {
     private const byte PipeOut = 0x09;
     private const byte PipeIn = 0x81;
@@ -180,7 +180,7 @@ internal sealed class TrofeoTransport : ITrofeoFrameTransport
     public void SendJpeg(ReadOnlySpan<byte> jpeg) =>
         SendJpegWithDiagnostics(jpeg, default);
 
-    public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, TrofeoFrameRenderDiagnostics renderDiagnostics)
+    public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics renderDiagnostics)
     {
         if (_interfaceHandle == IntPtr.Zero)
             throw new ObjectDisposedException(nameof(TrofeoTransport));
@@ -513,6 +513,3 @@ internal sealed class TrofeoTransport : ITrofeoFrameTransport
         uint valueLength,
         ref uint value);
 }
-
-
-internal readonly record struct TrofeoFrameRenderDiagnostics(double RenderMs, double EncodeMs);
