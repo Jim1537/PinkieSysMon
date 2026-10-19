@@ -27,6 +27,14 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Physical handshake context and bounded evidence", PhysicalHandshakeDiagnosticTests.CommonContextAndBounds),
+            ("Physical handshake quiet paths and original error identity", PhysicalHandshakeDiagnosticTests.ObserverPreservesErrorsAndQuietPaths),
+            ("Physical handshake Trofeo actual handshake replies", PhysicalHandshakeDiagnosticTests.TrofeoHandshakeReplies),
+            ("Physical handshake Trofeo I/O failure ordering", PhysicalHandshakeDiagnosticTests.TrofeoHandshakeIoErrors),
+            ("Physical handshake TURZX short primary replies", PhysicalHandshakeDiagnosticTests.TurzxShortReplies),
+            ("Physical handshake TURZX follow-up and unknown counts", PhysicalHandshakeDiagnosticTests.TurzxFollowUpAndUnknownCounts),
+            ("Physical handshake healthy sync and frame exclusion", PhysicalHandshakeDiagnosticTests.HealthySyncDoesNotCaptureFrames),
+            ("Physical handshake shared factory admission and ordinary log", PhysicalHandshakeDiagnosticTests.FactoryLogsBeforeHardwareAdmission),
             ("Issue71 sync capture exact bytes and single exchange", TurzxTransportDiagnosticTests.SyncCapturePreservesExactReplyAndSingleExchange),
             ("Issue71 sync capture admission and failure lifetime", TurzxTransportDiagnosticTests.SyncCaptureAdmissionAndFailureLifetime),
             ("Issue71 recovery complete metadata before removal", Issue71ModelTests.RecoveryMetadataCannotInventRemoval),

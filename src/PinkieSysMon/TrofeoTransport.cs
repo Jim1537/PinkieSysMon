@@ -72,8 +72,10 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         int transferTimeoutMs,
         bool diagnosticJournalEnabled,
         FileLogger log,
-        CancellationToken ioCancellation)
+        CancellationToken ioCancellation,
+        PhysicalHandshakeDiagnostics? diagnostics = null)
     {
+        diagnostics?.Stage("discovery");
         ArgumentNullException.ThrowIfNull(target);
         ioCancellation.ThrowIfCancellationRequested();
 
@@ -89,7 +91,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         var openStartedAt = Stopwatch.GetTimestamp();
         try
         {
-            transport.Open(resolution.Device.DevicePath, transferTimeoutMs);
+            transport.Open(resolution.Device.DevicePath, transferTimeoutMs, diagnostics);
             return transport;
         }
         catch (Exception ex)
@@ -100,7 +102,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         }
     }
 
-    private void Open(string path, int transferTimeoutMs)
+    private void Open(string path, int transferTimeoutMs, PhysicalHandshakeDiagnostics? diagnostics)
     {
         _ioCancellation.ThrowIfCancellationRequested();
         _diagnostics?.Write(
@@ -111,6 +113,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             ("device", _device.ShortId),
             ("timeoutMs", transferTimeoutMs));
 
+        diagnostics?.Stage("native-open");
         _deviceHandle = CreateFileW(
             path,
             GenericRead | GenericWrite,
@@ -124,15 +127,18 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateFileW(Trofeo) failed");
 
         _ioCancellation.ThrowIfCancellationRequested();
+        diagnostics?.Stage("native-initialize");
         if (!WinUsb_Initialize(_deviceHandle, out _interfaceHandle))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Initialize failed");
 
         _ioCancellation.ThrowIfCancellationRequested();
+        diagnostics?.Stage("configure-out-pipe");
         ConfigurePipe(PipeOut, transferTimeoutMs);
+        diagnostics?.Stage("configure-in-pipe");
         ConfigurePipe(PipeIn, transferTimeoutMs);
 
         _ioCancellation.ThrowIfCancellationRequested();
-        var response = Handshake();
+        var response = Handshake(message => Write(PipeOut, message), count => Read(PipeIn, count), diagnostics);
         _ioCancellation.ThrowIfCancellationRequested();
         var rawPm = response[20];
         var pmRawForCalc = rawPm <= 3 ? 1 : rawPm;
@@ -162,15 +168,21 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
     }
 
-    private byte[] Handshake()
+    internal static byte[] Handshake(Action<byte[]> write, Func<int, byte[]> read,
+        PhysicalHandshakeDiagnostics? diagnostics = null)
     {
         var message = new byte[2048];
         message[0] = 0x02;
         message[1] = 0xFF;
         message[8] = 0x01;
-        Write(PipeOut, message);
+        diagnostics?.Begin("handshake-write", "write", PipeOut, message.Length);
+        write(message);
+        diagnostics?.CompleteWrite(message.Length);
 
-        var response = Read(PipeIn, 512);
+        diagnostics?.Begin("handshake-read", "read", PipeIn, 512);
+        var response = read(512);
+        diagnostics?.CompleteRead(response, response.Length);
+        diagnostics?.Stage("handshake-validation");
         if (response.Length < 23 || response[0] != 0x03 || response[1] != 0xFF || response[8] != 0x01)
             throw new InvalidDataException($"Unexpected Trofeo handshake response ({response.Length} bytes).");
 

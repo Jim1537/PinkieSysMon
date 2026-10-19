@@ -94,6 +94,8 @@ Ordinary session disposal, including disable and process shutdown, first prevent
 
 WinUSB reads and writes use overlapped completion. On cancellation, `CancelIoEx` requests termination of a pending native operation, and the worker waits for its terminal result before releasing pinned buffers and native handles. Cancellation can interrupt the device's protocol transaction; draining Windows completion does not prove that a subsequent handshake will recover the device. **This does not guarantee bounded shutdown if the underlying driver never completes the operation.**
 
+Connection/synchronization failures use the [common failure recorder](../../outputs/physical_devices.md#connection-and-synchronization-failure-diagnostics), independently of the optional journal below.
+
 When explicitly enabled with `Usb.DiagnosticJournalEnabled`, the transport records bounded per-target event logs for connection, frame transfer, acknowledgment, failure, and lifecycle activity. The journal rotates files and periodically flushes to disk. The default is off; diagnostic writes introduce additional I/O and are not proof of the cause of a system-level failure.
 
 ### Maintenance and verification checklist

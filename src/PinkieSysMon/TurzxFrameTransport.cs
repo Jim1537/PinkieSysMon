@@ -19,10 +19,11 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
     public PhysicalFrameProfile Profile => PhysicalFrameProfile.Turzx;
 
     public static TurzxFrameTransport? TryOpen(OutputTargetConfig target, int timeoutMs,
-        bool journalEnabled, FileLogger log, CancellationToken token)
+        bool journalEnabled, FileLogger log, CancellationToken token, PhysicalHandshakeDiagnostics? diagnostics = null)
     {
+        diagnostics?.Stage("options");
         ValidateOptions(target, journalEnabled);
-        var transport = TurzxTransport.TryOpen(target, timeoutMs, token);
+        var transport = TurzxTransport.TryOpen(target, timeoutMs, token, diagnostics);
         return transport is null ? null : new TurzxFrameTransport(transport, token);
     }
 
@@ -45,13 +46,14 @@ internal static class PhysicalFrameTransportFactory
         ArgumentNullException.ThrowIfNull(target);
         token.ThrowIfCancellationRequested();
         if (!target.DeviceEnabled) throw new InvalidOperationException("A disabled physical Output cannot open a frame transport.");
-        return (target.Kind, target.Transport) switch
+        return PhysicalHandshakeDiagnostics.Observe<IPhysicalFrameTransport?>(target, timeoutMs, token, diagnostics =>
+            (target.Kind, target.Transport) switch
         {
             (OutputTargetContract.TrofeoKind, OutputTargetContract.TrofeoTransport) =>
-                TrofeoTransport.TryOpen(target, timeoutMs, journalEnabled, log, token),
+                TrofeoTransport.TryOpen(target, timeoutMs, journalEnabled, log, token, diagnostics),
             (OutputTargetContract.TurzxKind, OutputTargetContract.TurzxTransport) =>
-                TurzxFrameTransport.TryOpen(target, timeoutMs, journalEnabled, log, token),
+                TurzxFrameTransport.TryOpen(target, timeoutMs, journalEnabled, log, token, diagnostics),
             _ => throw new InvalidOperationException("Unsupported physical frame transport.")
-        };
+        }, message => log.Warn(message));
     }
 }

@@ -113,7 +113,7 @@ The current adapter's [native completion limits](../development/devices/trofeo-v
 | Passive inventory and explicit candidate adoption | Windows interface discovery and hardware identity derivation |
 | Detached editing, validation, removal and session coordination | Open/handshake, encoding, framing, ACK and native I/O lifetime |
 
-`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Only Trofeo currently has an integrated transport; the [TURZX preparation contract](../development/devices/turzx-12.3.md) accepts disabled records but blocks adoption and hardware enablement. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings/fingerprints and any legacy selection fallback remain with the model-specific references in [Supported Devices](../supported-devices.md).
+`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Trofeo and [TURZX](../development/devices/turzx-12.3.md) route enabled records to their respective adapters through the common factory; each adapter retains its own capability and recovery limits. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings/fingerprints and any legacy selection fallback remain with the model-specific references in [Supported Devices](../supported-devices.md).
 
 ### Configuration and identity
 
@@ -122,6 +122,21 @@ Physical Outputs use local `Outputs.Targets` records. Their `Id` identifies the 
 `Dashboard`, `RefreshIntervalMs` and `ProviderEnabled` belong to each Output. Physical records additionally own explicit `DeviceEnabled`, `Transport`, `DeviceId` and the current adapter's `JpegQuality`/`Usb` overrides; they must not contain Desktop configuration. `OutputTargetContract` rejects invalid or duplicate identities/bindings. The selected adapter owns normalization, inherited values, bounds and capability limits; use its integration reference from Supported Devices.
 
 Provider descriptors and unavailable values are defined by the [Output metric owner](../telemetry/system.md#runtime-and-output-performance-metrics). The shared [application/dashboard persistence boundary](../development/architecture.md#persistence-and-schema-boundary) prevents Output edits from becoming dashboard-schema changes.
+
+### Connection and synchronization failure diagnostics
+
+Every Runtime physical-transport open runs inside `PhysicalHandshakeDiagnostics` in the shared factory, including Trofeo and TURZX. A failed discovery, native open/initialization or synchronization writes a `PHYSICAL_OPEN_FAILURE` record to the ordinary private `logs/PinkieSysMon.log`. No extra option or detailed USB journal is required. Successful opens, missing bindings and requested lifecycle cancellation produce no such failure record.
+
+| Recorded evidence | Limits and meaning |
+| --- | --- |
+| Attempt context | Runtime version, unique attempt ID, logical Output ID/name, kind/transport, configured transfer timeout, elapsed time and last adapter stage. The timeout is per transfer, not a total-open deadline. |
+| Existing handshake operations | Direction, endpoint, requested and actual completed byte counts. A failed/pending operation has an unknown count (`null`); an actual completed empty read has count `0`. Trofeo write completion is recorded after its existing full-write check; a failed short write retains its count in the original error text. |
+| Actual response bytes | Hexadecimal for at most 512 returned bytes per operation and eight operations per attempt; truncation/omissions are explicit. Invalid counts and failed reads supply no bytes. Primary and follow-up reads remain separate, so stale buffer contents cannot become evidence of a new response. |
+| Error chain | Exception types, HResults and available native Win32 codes, including nested errors; bounded exception messages remain private. The original error continues through the existing worker path even if diagnostic logging fails. |
+
+The recorder observes existing handshake calls only: it adds no USB commands, reads, retries, resets or changes to reply validation, cancellation or recovery. It retains no image payloads and is not used for frame exchanges. Each failed open attempt gets its own record under the application's existing log rotation (5 MiB per file, five archives); successful-attempt data is discarded. New physical adapters must describe their own handshake stages and completed I/O through this shared context rather than adding a model-specific failure logger.
+
+If an intermittent failure recurs during normal use, preserve the main log and its rotated archives before further diagnostic actions. Raw responses and exception messages can contain device or machine identifiers: share these logs privately, never paste them into public Issues. A captured failure can identify the failing boundary; it does not by itself establish firmware state, root cause or successful recovery. Adapter-specific frame/lifecycle journals remain separate.
 
 ### Passive inventory and explicit adoption
 
