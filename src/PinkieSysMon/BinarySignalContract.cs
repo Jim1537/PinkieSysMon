@@ -108,40 +108,101 @@ internal static class BinarySignalContract
         }
 
         if (!TryGetFiniteNumber(value, out var numeric) ||
-            !double.TryParse(
-                setpoint,
-                NumberStyles.Float | NumberStyles.AllowThousands,
-                CultureInfo.InvariantCulture,
-                out var reference) ||
-            !double.IsFinite(reference))
+            string.IsNullOrWhiteSpace(setpoint) ||
+            !SupportedTrueIfOperators.Contains(trueIf, StringComparer.Ordinal))
         {
             return false;
         }
 
-        switch (trueIf)
+        // Validate every alternative before reporting a match. An invalid term must
+        // remain unavailable even if an earlier alternative matched.
+        var remaining = setpoint.AsSpan();
+        while (true)
         {
-            case TrueIfGreaterThan:
-                state = numeric > reference;
-                return true;
-            case TrueIfLessThan:
-                state = numeric < reference;
-                return true;
-            case TrueIfGreaterThanOrEqual:
-                state = numeric >= reference;
-                return true;
-            case TrueIfLessThanOrEqual:
-                state = numeric <= reference;
-                return true;
-            case TrueIfEqual:
-                state = numeric == reference;
-                return true;
-            case TrueIfNotEqual:
-                state = numeric != reference;
-                return true;
-            default:
+            var separator = remaining.IndexOf('|');
+            var term = (separator < 0 ? remaining : remaining[..separator]).Trim();
+            if (!TryParseNumericTerm(term, out var lower, out var upper))
+            {
+                state = false;
                 return false;
+            }
+
+            // A range is a set of candidate reference values, not a pair of
+            // endpoint comparisons. Each operator asks whether any candidate
+            // in [lower, upper] satisfies the comparison.
+            state |= trueIf switch
+            {
+                TrueIfGreaterThan => numeric > lower,
+                TrueIfLessThan => numeric < upper,
+                TrueIfGreaterThanOrEqual => numeric >= lower,
+                TrueIfLessThanOrEqual => numeric <= upper,
+                TrueIfEqual => numeric >= lower && numeric <= upper,
+                TrueIfNotEqual => lower != upper || numeric != lower,
+                _ => false
+            };
+
+            if (separator < 0)
+                return true;
+
+            remaining = remaining[(separator + 1)..];
         }
     }
+
+    private static bool TryParseNumericTerm(
+        ReadOnlySpan<char> term,
+        out double lower,
+        out double upper)
+    {
+        lower = default;
+        upper = default;
+
+        // Parse the entire scalar first to preserve legacy invariant-culture
+        // thousands grouping and signed/exponent values (e.g. 1,234, -5, 1e-3).
+        if (double.TryParse(
+                term,
+                NumberStyles.Float | NumberStyles.AllowThousands,
+                CultureInfo.InvariantCulture,
+                out var scalar))
+        {
+            if (!double.IsFinite(scalar))
+                return false;
+
+            lower = upper = scalar;
+            return true;
+        }
+
+        // A minus sign is a range separator only if both sides independently
+        // parse as finite numbers. This permits negative/exponent endpoints
+        // without confusing their signs with the range separator.
+        var found = false;
+        for (var i = 1; i < term.Length; i++)
+        {
+            if (term[i] != '-' ||
+                !TryParseFiniteReference(term[..i].Trim(), out var start) ||
+                !TryParseFiniteReference(term[(i + 1)..].Trim(), out var finish))
+            {
+                continue;
+            }
+
+            // Reject reversed or ambiguous interpretations rather than guessing.
+            if (found || start > finish)
+                return false;
+
+            lower = start;
+            upper = finish;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private static bool TryParseFiniteReference(ReadOnlySpan<char> term, out double number) =>
+        double.TryParse(
+            term,
+            NumberStyles.Float | NumberStyles.AllowThousands,
+            CultureInfo.InvariantCulture,
+            out number) &&
+        double.IsFinite(number);
 
     private static bool TryGetFiniteNumber(object value, out double numeric)
     {

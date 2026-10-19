@@ -80,7 +80,19 @@ Set the following properties:
 - `True If` — the comparison operator for a numeric metric.
 - `Setpoint` — the reference value.
 
-Supported numeric comparisons are `>`, `<`, `>=`, `<=`, `=`, and `!=`.
+Supported numeric comparisons are `>`, `<`, `>=`, `<=`, `=`, and `!=`. Numeric Setpoint also accepts alternatives separated by `|` and inclusive ranges separated by `-`:
+
+| Setpoint | Meaning with `True If = =` |
+| --- | --- |
+| `5` | Exact number 5. |
+| `5|6|7` or `5 |6| 7` | Any of 5, 6, or 7. |
+| `5-7` | Any number from 5 through 7, including 6.5. |
+| `3|5-7` | Exactly 3, or any number from 5 through 7. |
+| `2-4 | 7-9` | Either inclusive interval. |
+| `-5--3` | Any number from -5 through -3. |
+| `1,234 | 5` | Exactly 1234 or 5; commas remain thousands separators, never list separators. |
+
+Whitespace around each `|` and each range hyphen is optional: ` 2 - 4|7 - 9 ` is valid. This is numeric list/range syntax, **not a regular expression**. Every term must be valid; empty alternatives, reversed ranges, unsupported syntax and non-finite bounds cause an unavailable evaluation, not False.
 
 For example, to indicate when a temperature is above 70 °C, select the temperature metric, choose Celsius as the evaluation unit when available, set `True If` to `>`, and enter `70` as `Setpoint`.
 
@@ -252,7 +264,20 @@ Setpoint behavior depends on the actual runtime value type.
 | String | Ordinal, case-sensitive equality with the stored setpoint, except that `nil` and `undefined` remain unavailable. |
 | Numeric | Finite numeric comparison against a finite reference parsed using `InvariantCulture`. |
 
-The numeric operator is selected from `>`, `<`, `>=`, `<=`, `=`, and `!=`. An unsupported numeric operator or an unparsable/non-finite numeric reference causes evaluation failure.
+The numeric operator is selected from `>`, `<`, `>=`, `<=`, `=`, and `!=`. A numeric Setpoint is parsed as `|`-separated scalar values or inclusive ranges; scalar parsing preserves invariant-culture thousands grouping. All terms are validated before the results are combined by logical OR. An unsupported operator, an empty/malformed term, a reversed interval or a non-finite bound causes evaluation failure (unavailable), even if another term would match. A valid condition that does not match selects False.
+
+Each interval `a-b` represents **every possible reference value** from `a` to `b`, inclusive; it is not expanded into discrete numbers. Given reading `x`, the operator succeeds if **any** reference value in the interval satisfies `x operator reference`:
+
+| `True If` | Interval `a-b` succeeds when |
+| --- | --- |
+| `>` | `x > a` |
+| `<` | `x < b` |
+| `>=` | `x >= a` |
+| `<=` | `x <= b` |
+| `=` | `a <= x <= b` |
+| `!=` | Always, if `a < b`; otherwise `x != a` |
+
+Consequently, `5|6` with `!=` is always True for a finite numeric reading, as is `5-7` with `!=`. The single operator applies separately to all candidates, and their results are ORed; choosing meaningful combinations is up to the dashboard author.
 
 For Boolean and string values, `TrueIf` does not control evaluation. Their Setpoint behavior is equality-based.
 

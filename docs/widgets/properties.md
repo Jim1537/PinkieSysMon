@@ -1468,10 +1468,11 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 
     **Values:**
-    - Text representation of reference value.
+    - Text reference. For numeric metrics, single values, `|`-separated alternatives and inclusive `a-b` ranges are supported.
+    - Commas remain numeric thousands separators, not alternative separators.
 
 
-    Reference value used when [Mode](properties.md#evaluation-mode)=`Setpoint`.
+    Reference value used when [Mode](properties.md#evaluation-mode)=`Setpoint`. See the [Binary Setpoint guide](binary.md#setpoint) for syntax, error behavior, and operator interpretation.
 
     **Used by:** Binary
 
@@ -2129,7 +2130,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `!=`
 
 
-    Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](properties.md#evaluation-mode)=`Setpoint`.
+    Comparison operator against [Setpoint](properties.md#setpoint) when [Mode](properties.md#evaluation-mode)=`Setpoint`. Numeric alternatives use OR; interval comparisons follow the [Binary Setpoint guide](binary.md#setpoint-evaluation).
+
     **Used by:** Binary
 
     **Disabled / read-only when:**
