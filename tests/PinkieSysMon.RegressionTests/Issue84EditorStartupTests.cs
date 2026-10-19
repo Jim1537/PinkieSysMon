@@ -51,6 +51,7 @@ internal static class Issue84EditorStartupTests
         Directory.CreateDirectory(root);
         try
         {
+            CreateToolbarIconFixtures(root);
             using var editor = new EditorForm(root, initialDashboard: null);
             if (editor.Text != "PinkieSysMon Dashboard Editor" ||
                 GetField<object?>(editor, "_definition") is not null ||
@@ -88,6 +89,26 @@ internal static class Issue84EditorStartupTests
             try { Directory.Delete(root, recursive: true); }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static void CreateToolbarIconFixtures(string root)
+    {
+        // EditorForm loads the real Lucide toolbar while constructing the UI.
+        // Isolate document-startup behavior with minimal valid SVG assets rather
+        // than requiring a developer installation or bundling an icon collection.
+        var iconDirectory = Path.Combine(root, "assets", "icons", "Lucide");
+        Directory.CreateDirectory(iconDirectory);
+        const string svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 4h16v16H4z\"/></svg>";
+        foreach (var icon in new[]
+        {
+            "file-plus", "folder-open", "save", "refresh-cw", "plus",
+            "copy", "clipboard-paste", "copy-plus", "undo-2", "redo-2",
+            "group", "ungroup", "zoom-in", "zoom-out", "focus",
+            "move-vertical", "grid-3x3", "monitor"
+        })
+        {
+            File.WriteAllText(Path.Combine(iconDirectory, icon + ".svg"), svg);
         }
     }
 
