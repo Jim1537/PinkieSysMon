@@ -348,7 +348,7 @@ internal sealed class DeviceSettingsPage : TabPage
         var usb = target.Usb ?? throw new InvalidOperationException("Physical Output USB settings are missing.");
         Row("USB retry (ms)", Number("DeviceRetry", usb.RetryIntervalMs, 500, int.MaxValue,
             value => usb.RetryIntervalMs = value), isTurzx
-                ? "Interval for checking a missing exact binding. A failed TURZX open/exchange stops this session until Enabled is turned off and on again."
+                ? "Interval for checking a missing exact binding and passive recovery after a TURZX failure. Automatic reconnect requires observing that binding absent and then uniquely present. Enabled off/on allows an explicit new attempt; recovery is not guaranteed."
                 : EditorSettingsHelp.UsbRetry);
         Row("USB timeout (ms)", Number("DeviceTimeout", usb.TransferTimeoutMs, 500, int.MaxValue,
             value => usb.TransferTimeoutMs = value), EditorSettingsHelp.UsbTimeout);

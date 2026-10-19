@@ -8,9 +8,9 @@ The following configurations have been tested; they are **not minimum hardware r
 | --- | --- |
 | Computer | Windows 11 x64 workstations |
 | Operating system | Windows 11 Pro x64, 26H2 (OS build 26300.9457)<br>Windows 11 Home x64, 26H2 (OS build 26300.9550) |
-| Output hardware | [Thermalright Trofeo Vision 9.16](supported-devices.md) |
+| Output hardware | [Thermalright Trofeo Vision 9.16](supported-devices.md#thermalright-trofeo-vision-916) and [TURZX 12.3-inch](supported-devices.md#turzx-123-inch): ordinary simultaneous JPEG output owner-confirmed. Remaining TURZX acceptance is tracked in [#71](https://github.com/Jim1537/PinkieSysMon/issues/71). |
 
-For current known issues and outstanding checks, see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
+These observations do not establish every Windows/device combination, other firmware variants or exhaustive USB fault recovery. For current known issues and outstanding checks, see [GitHub Issues](https://github.com/Jim1537/PinkieSysMon/issues).
 
 For setup procedures, see [Desktop Outputs](outputs/desktop.md) and [Physical Devices](outputs/physical_devices.md). These guides describe the current implementation; they do not expand the tested-platform or supported-model inventory.
 
