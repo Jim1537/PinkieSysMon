@@ -1,6 +1,6 @@
 # System
 
-The System provider gives Pinkie's System Monitor a set of metrics obtained directly from Windows and from Runtime itself: operating system information, local date/time and uptime, network connectivity, power and battery status, integrated GPU load, audio and media state, and internal Pinkie's System Monitor runtime metrics.
+The System provider gives Pinkie's System Monitor a set of metrics obtained directly from Windows and from Runtime itself: operating system and PC device information, local date/time and uptime, network connectivity, power and battery status, integrated GPU load, audio and media state, and internal Pinkie's System Monitor runtime metrics.
 
 The provider does not require any third-party software to be installed or configured.
 
@@ -63,7 +63,7 @@ The System provider combines the following sources:
 
 | Source | Implementation | Default interval | Purpose |
 | --- | --- | --- | --- |
-| Windows system | `WindowsSystemTelemetrySource` | `1000 ms` | OS identity, local date/time, uptime, integrated GPU load |
+| Windows system | `WindowsSystemTelemetrySource` | `1000 ms` | OS/PC identity, local date/time, uptime, integrated GPU load |
 | Windows network | `WindowsNetworkTelemetrySource` | `5000 ms` | Internet connectivity state |
 | Windows power | `WindowsPowerTelemetrySource` | `5000 ms` | UPS and battery telemetry |
 | Windows media | `WindowsMediaTelemetrySource` | `1000 ms` | Default audio endpoints and media playback |
@@ -94,6 +94,7 @@ All descriptors are assembled into `MetricContract` from:
 Primary metric families:
 
 - `system.os.*`
+- `system.pc.*`
 - `system.gpu.*`
 - `system.network.*`
 - `system.power.*`
@@ -145,6 +146,28 @@ Failure to obtain an individual OS identity value is not fatal. The correspondin
   `Environment.TickCount64`
 
 and published in seconds.
+
+
+### PC Device Information
+
+The `System → pc` metric-selector group exposes six read-only values from Windows device information:
+
+| Metric ID | Display field | Contract | Windows source |
+| --- | --- | --- | --- |
+| `system.pc.name` | Device name | Text | `Environment.MachineName` |
+| `system.pc.processor` | Processor | Text | `Win32_Processor.Name` |
+| `system.pc.ram` | Installed RAM | DataSize / Bytes | Sum of `Win32_PhysicalMemory.Capacity` |
+| `system.pc.type` | System type | Text | Windows OS bitness and `Win32_Processor.Architecture` |
+| `system.pc.manufacturer` | Manufacturer | Text | `Win32_ComputerSystem.Manufacturer` |
+| `system.pc.model` | Model | Text | `Win32_ComputerSystem.Model` |
+
+All six values are sampled once when `WindowsSystemTelemetrySource` is created. Subsequent telemetry captures publish only requested IDs from the cached snapshot; they do not repeat the WMI queries. A machine-information value may remain unavailable until the source is recreated if its initial read fails or the hardware changes.
+
+Installed RAM is the combined **module capacity**, not currently available memory or the potentially lower OS-usable total. A missing or malformed module capacity (or an empty module inventory) makes `system.pc.ram` unavailable rather than publishing a misleading partial total. The system-type text combines OS bitness with a recognized x86, x64, ARM, ARM64 or IA64 processor architecture. An unknown architecture makes that value unavailable.
+
+Each query and each property is isolated. If a Windows source fails or returns no meaningful value, the affected metric is `null`; the other PC values and existing System metrics continue independently. The static descriptors remain selectable even when a reading is unavailable. No additional provider, setting or dashboard schema is required.
+
+**Privacy:** These fields are intended for local display. In particular, the device name can be personal; application diagnostics do not record the actual values. Serial numbers, UUIDs, Windows Product IDs, usernames, network addresses and other machine identifiers are not collected by this group.
 
 
 ### Integrated GPU

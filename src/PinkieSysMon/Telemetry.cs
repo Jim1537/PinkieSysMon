@@ -640,8 +640,16 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
     private readonly WindowsIntegratedGpuTelemetry _integratedGpuTelemetry;
 
     public WindowsSystemTelemetrySource(FileLogger log)
+        : this(log, () => LoadStaticMetrics(log))
     {
-        _staticMetrics = LoadStaticMetrics(log);
+    }
+
+    internal WindowsSystemTelemetrySource(
+        FileLogger log,
+        Func<IReadOnlyDictionary<string, object?>> staticMetricsLoader)
+    {
+        ArgumentNullException.ThrowIfNull(staticMetricsLoader);
+        _staticMetrics = staticMetricsLoader();
         _integratedGpuTelemetry = new WindowsIntegratedGpuTelemetry(log);
     }
 
@@ -681,6 +689,12 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
             [SystemMetricContract.Release] = ReadRelease(),
             [SystemMetricContract.Build] = null,
             [SystemMetricContract.Installed] = null,
+            [SystemMetricContract.PcName] = null,
+            [SystemMetricContract.PcProcessor] = null,
+            [SystemMetricContract.PcRam] = null,
+            [SystemMetricContract.PcType] = null,
+            [SystemMetricContract.PcManufacturer] = null,
+            [SystemMetricContract.PcModel] = null
         };
 
         try
@@ -689,24 +703,164 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
             using var searcher = WindowsManagementQuery.CreateSearcher(query);
             using var rows = searcher.Get();
             using var os = rows.Cast<ManagementObject>().FirstOrDefault();
-            if (os is null)
-                return result;
+            if (os is not null)
+            {
+                result[SystemMetricContract.Edition] = NormalizeText(os["Caption"]);
+                result[SystemMetricContract.Installed] = ParseWmiDateTime(os["InstallDate"]);
 
-            result[SystemMetricContract.Edition] = NormalizeText(os["Caption"]);
-            result[SystemMetricContract.Installed] = ParseWmiDateTime(os["InstallDate"]);
-
-            var build = NormalizeText(os["BuildNumber"]);
-            var ubr = ReadUbr();
-            result[SystemMetricContract.Build] = !string.IsNullOrWhiteSpace(build) && ubr is not null
-                ? $"{build}.{ubr.Value}"
-                : build;
+                var build = NormalizeText(os["BuildNumber"]);
+                var ubr = ReadUbr();
+                result[SystemMetricContract.Build] = !string.IsNullOrWhiteSpace(build) && ubr is not null
+                    ? $"{build}.{ubr.Value}"
+                    : build;
+            }
         }
         catch (Exception ex)
         {
             log.Error("Windows system identity query failed; static system.os.* metrics may be unavailable", ex);
         }
 
+        LoadPcMetrics(result, log);
         return result;
+    }
+
+    private static void LoadPcMetrics(Dictionary<string, object?> result, FileLogger log)
+    {
+        // The computer name is independent of WMI and is never written to diagnostics.
+        try
+        {
+            result[SystemMetricContract.PcName] = NormalizeText(Environment.MachineName);
+        }
+        catch
+        {
+            // Device name remains unavailable; other fields still load.
+        }
+
+        try
+        {
+            using var searcher = WindowsManagementQuery.CreateSearcher(
+                "SELECT Manufacturer, Model FROM Win32_ComputerSystem");
+            using var rows = searcher.Get();
+            using var computer = rows.Cast<ManagementObject>().FirstOrDefault();
+            if (computer is not null)
+            {
+                result[SystemMetricContract.PcManufacturer] =
+                    NormalizeText(ReadWmiProperty(computer, "Manufacturer"));
+                result[SystemMetricContract.PcModel] =
+                    NormalizeText(ReadWmiProperty(computer, "Model"));
+            }
+        }
+        catch
+        {
+            log.Warn("Windows PC manufacturer/model query unavailable.");
+        }
+
+        try
+        {
+            using var searcher = WindowsManagementQuery.CreateSearcher(
+                "SELECT Name, Architecture FROM Win32_Processor");
+            using var rows = searcher.Get();
+            using var processor = rows.Cast<ManagementObject>().FirstOrDefault();
+            if (processor is not null)
+            {
+                result[SystemMetricContract.PcProcessor] =
+                    NormalizeText(ReadWmiProperty(processor, "Name"));
+                result[SystemMetricContract.PcType] = FormatSystemType(
+                    ReadWmiProperty(processor, "Architecture"), Environment.Is64BitOperatingSystem);
+            }
+        }
+        catch
+        {
+            log.Warn("Windows PC processor query unavailable.");
+        }
+
+        try
+        {
+            using var searcher = WindowsManagementQuery.CreateSearcher(
+                "SELECT Capacity FROM Win32_PhysicalMemory");
+            using var rows = searcher.Get();
+            var capacities = new List<object?>();
+            foreach (ManagementObject memory in rows)
+            {
+                using (memory)
+                    capacities.Add(ReadWmiProperty(memory, "Capacity"));
+            }
+
+            result[SystemMetricContract.PcRam] = SumInstalledMemoryBytes(capacities);
+        }
+        catch
+        {
+            log.Warn("Windows PC installed-memory query unavailable.");
+        }
+    }
+
+    private static object? ReadWmiProperty(ManagementBaseObject row, string propertyName)
+    {
+        try
+        {
+            return row[propertyName];
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    internal static string? FormatSystemType(object? processorArchitecture, bool is64BitOperatingSystem)
+    {
+        ushort architecture;
+        try
+        {
+            if (processorArchitecture is null)
+                return null;
+            architecture = Convert.ToUInt16(
+                processorArchitecture, System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
+        }
+
+        var processor = architecture switch
+        {
+            0 => "x86",
+            5 => "ARM",
+            6 => "IA64",
+            9 => "x64",
+            12 => "ARM64",
+            _ => null
+        };
+        return processor is null
+            ? null
+            : $"{(is64BitOperatingSystem ? "64-bit" : "32-bit")} operating system, {processor}-based processor";
+    }
+
+    internal static long? SumInstalledMemoryBytes(IEnumerable<object?>? capacities)
+    {
+        if (capacities is null)
+            return null;
+
+        long total = 0;
+        var found = false;
+        try
+        {
+            foreach (var item in capacities)
+            {
+                // Partial or invalid module inventory must never look like complete installed RAM.
+                var bytes = Convert.ToUInt64(item, System.Globalization.CultureInfo.InvariantCulture);
+                if (bytes == 0 || bytes > (ulong)(long.MaxValue - total))
+                    return null;
+
+                total += (long)bytes;
+                found = true;
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return found ? total : null;
     }
 
     private static string? NormalizeText(object? value)
