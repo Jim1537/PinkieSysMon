@@ -216,7 +216,9 @@ internal sealed partial class EditorForm
 
     private void UpdateTitle()
     {
-        Text = $"PinkieSysMon Dashboard Editor — {_dashboardName}{(_dirty ? " *" : string.Empty)}";
+        Text = string.IsNullOrWhiteSpace(_dashboardName)
+            ? "PinkieSysMon Dashboard Editor"
+            : $"PinkieSysMon Dashboard Editor — {_dashboardName}{(_dirty ? " *" : string.Empty)}";
     }
 
     private void SetStatus(string text) => _statusText.Text = text;

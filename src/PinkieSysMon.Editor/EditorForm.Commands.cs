@@ -97,8 +97,7 @@ internal sealed partial class EditorForm
         ToolStripMenuItem Status,
         ToolStripMenuItem StartReload);
 
-    private bool CanOpenDashboardCommand() =>
-        _definition is not null || DashboardCatalog.Discover(_root).Count > 0;
+    private bool CanOpenDashboardCommand() => true;
 
     private bool CanSaveCommand() =>
         _dirty && _definition is not null && !string.IsNullOrWhiteSpace(_dashboardPath);

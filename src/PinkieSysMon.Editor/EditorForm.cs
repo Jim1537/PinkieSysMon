@@ -179,7 +179,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    public EditorForm(string root, string initialDashboard)
+    public EditorForm(string root, string? initialDashboard)
     {
         _root = root;
         _log = new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"));
@@ -445,13 +445,17 @@ internal sealed partial class EditorForm : PinkieEditorForm
         UpdateCommandStates();
     }
 
-    private void LoadInitialDashboard(string initial)
+    private void LoadInitialDashboard(string? initial)
     {
-        var dashboards = DashboardCatalog.Discover(_root);
-        if (dashboards.Count == 0)
-            throw new InvalidDataException("No dashboards were found.");
+        var name = EditorStartupContract.ResolveInitialDashboard(initial, () => DashboardCatalog.Discover(_root));
+        if (name is null)
+        {
+            UpdateTitle();
+            UpdateStatusBar();
+            SetStatus("No dashboard open. Use New Dashboard or Open Dashboard to begin.");
+            return;
+        }
 
-        var name = dashboards.FirstOrDefault(x => x.Equals(initial, StringComparison.OrdinalIgnoreCase)) ?? dashboards[0];
         LoadDashboard(name);
     }
 
@@ -865,7 +869,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     {
         _statusDashboard.Text = string.IsNullOrWhiteSpace(_dashboardName) ? "Dashboard: —" : $"Dashboard: {_dashboardName}";
         _statusCanvas.Text = _preview is null ? "Canvas: —" : $"Canvas: {_preview.Width}×{_preview.Height}";
-        _statusZoom.Text = $"Zoom: {(int)Math.Round(_zoom * 100)}%";
+        _statusZoom.Text = _preview is null ? "Zoom: —" : $"Zoom: {(int)Math.Round(_zoom * 100)}%";
         _statusSelected.Text = $"Selected: {_selectedWidgets.Count}";
         if (string.IsNullOrWhiteSpace(_statusRuntime.Text))
             _statusRuntime.Text = "Runtime: checking...";

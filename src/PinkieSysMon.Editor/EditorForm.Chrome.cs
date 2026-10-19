@@ -314,13 +314,8 @@ internal sealed partial class EditorForm
             {
                 UseShellExecute = true
             };
-            startInfo.ArgumentList.Add("--root");
-            startInfo.ArgumentList.Add(_root);
-            if (!string.IsNullOrWhiteSpace(_dashboardName))
-            {
-                startInfo.ArgumentList.Add("--dashboard");
-                startInfo.ArgumentList.Add(_dashboardName);
-            }
+            foreach (var argument in EditorStartupContract.GetRestartArguments(_root, _dashboardName))
+                startInfo.ArgumentList.Add(argument);
 
             using var process = System.Diagnostics.Process.Start(startInfo);
         }

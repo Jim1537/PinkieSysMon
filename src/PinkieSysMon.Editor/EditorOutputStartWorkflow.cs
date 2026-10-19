@@ -78,7 +78,10 @@ internal static class EditorOutputStartWorkflow
                 if (string.IsNullOrWhiteSpace(output.Dashboard) ||
                     output.Kind != OutputTargetContract.DesktopKind && !OutputTargetContract.IsPhysicalKind(output.Kind))
                     return Failed($"Runtime does not report the assignment/type for '{output.TargetName}'. Update Runtime first.", completed);
-                var differs = !editorDashboard.Equals(output.Dashboard, StringComparison.OrdinalIgnoreCase);
+                // A document-free Editor can reload an Output's saved assignment,
+                // but must never offer or send an empty Editor dashboard name.
+                var differs = !string.IsNullOrWhiteSpace(editorDashboard) &&
+                    !editorDashboard.Equals(output.Dashboard, StringComparison.OrdinalIgnoreCase);
                 var choice = differs ? actions.ChooseDashboard(output) : OutputDashboardChoice.KeepAssignedDashboard;
                 if (choice == OutputDashboardChoice.Cancel) return null;
                 plans.Add(new(output, choice == OutputDashboardChoice.UseEditorDashboard ? editorDashboard : output.Dashboard!,

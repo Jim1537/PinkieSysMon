@@ -86,6 +86,8 @@ Runtime startup and Reload All validate every configuration record but load cano
 
 ## Editor versus Runtime state
 
+On launch **without** `--dashboard`, Control Center opens with no dashboard document selected or created, even when saved dashboards exist. New/Open are available; canvas, layers, preview and document-only commands stay inactive until a document is opened. An explicit `--dashboard <name>` retains the Editor's existing named-document selection (including its fallback when the name is missing). A theme-change restart passes the current document name only if one is open; an empty workspace restarts empty. `config/app.json` `Dashboard.Active` is not an Editor startup selector and Runtime Output assignments are unaffected.
+
 The Editor creates its own `DashboardPreviewRenderer` from the canonical document and uses the same widget renderer registry as Runtime. Its preview produces in-memory pixels for the Editor window, **not** output frames for the live device.
 
 Editor telemetry is an independently captured **dashboard-demanded snapshot**. The preview render timer consumes that snapshot and does not initiate potentially blocking provider capture calls. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior.
@@ -98,6 +100,8 @@ The two processes can load the same persisted dashboard from disk without sharin
 **Source anchors:** [Editor preview](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Preview.cs), [Preview renderer](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardPreviewRenderer.cs), [Editor document persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Document.cs).
 
 ### Editor Output Reload
+
+When no Editor document is open, a selected Output reload or Reload All uses each Output's current saved dashboard assignment without presenting an unavailable "Use editor dashboard" choice or sending an empty dashboard name. Stop All and other Runtime controls remain independent of Editor document state.
 
 Before **Outputs (toolbar icon) → &lt;Output name&gt; → Reload** or **Reload All**, the Editor uses its existing **Save / Don't Save / Cancel** prompt for a dirty document. Save failure or Cancel prevents the action. Don't Save retains the unsaved editing state; Runtime loads the last saved dashboard version. The initiating dashboard name is captured for the action, and comparison uses fresh `STATUS` metadata for the selected Output rather than the top-level compatibility summary.
 
@@ -162,7 +166,7 @@ The Runtime tray uses this root order, with a separator between each row group:
 
 | Root group | Ownership/action |
 | --- | --- |
-| **Control Center** | Launch the existing Editor with the current application root; the Editor reads its saved default dashboard. |
+| **Control Center** | Launch the existing Editor with the current application root; startup document behavior is owned by [Editor versus Runtime state](#editor-versus-runtime-state). |
 | **Desktop**, followed by configured panel names | Non-clickable heading and root-level per-panel submenus; controls are in the [Desktop guide](../outputs/desktop.md#show-hide-and-reload). |
 | **Physical Devices**, followed by configured device names | Non-clickable heading and root-level per-device submenus; controls are in the [Physical Devices guide](../outputs/physical_devices.md#reload-and-choose-the-dashboard). |
 | **Reload All** | The shared [saved common-configuration request](#reload-all-saved-configuration). |

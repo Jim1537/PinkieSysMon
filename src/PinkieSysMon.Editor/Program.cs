@@ -29,10 +29,7 @@ internal static class Program
             var editorSettings = EditorSettings.Load(Path.Combine(root, "config", "editor.json"));
             EditorThemeContract.ApplyApplicationTheme(EditorThemeContract.Parse(editorSettings.Theme));
 
-            if (string.IsNullOrWhiteSpace(requestedDashboard))
-                requestedDashboard = AppConfig.Load(Path.Combine(root, "config", "app.json"), log).Dashboard.Active;
-
-            Application.Run(new EditorForm(root, requestedDashboard!));
+            Application.Run(new EditorForm(root, requestedDashboard));
         }
         catch (Exception ex)
         {

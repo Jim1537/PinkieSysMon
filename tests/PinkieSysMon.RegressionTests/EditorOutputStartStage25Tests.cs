@@ -35,6 +35,15 @@ internal static class EditorOutputStartStage25Tests
               same.Calls.All(c => !c.StartsWith("CHOICE:", StringComparison.Ordinal) && !c.StartsWith("ASSIGN:", StringComparison.Ordinal)) &&
               same.Outputs.Single(o => o.TargetId == "b").Dashboard == "B",
             "Comparison must use A's assignment, ignore a misleading top-level dashboard and reload only A.");
+        var empty = new Runtime();
+        Check(empty.Run("", "a")?.Success == true && empty.Calls.Contains("START:a") &&
+              empty.Calls.All(c => !c.StartsWith("CHOICE:", StringComparison.Ordinal) && !c.StartsWith("ASSIGN:", StringComparison.Ordinal)) &&
+              empty.Outputs.Single(o => o.TargetId == "a").Dashboard == "A",
+            "A document-free Editor must reload the saved Output assignment without offering an empty Editor dashboard.");
+        var emptyAll = new Runtime();
+        Check(emptyAll.Run("", null)?.Success == true && emptyAll.Calls.Contains("ALL") &&
+              emptyAll.Calls.All(c => !c.StartsWith("CHOICE:", StringComparison.Ordinal) && !c.StartsWith("ASSIGN:", StringComparison.Ordinal)),
+            "A document-free Editor Reload All must retain assigned dashboards without editor-document prompts.");
         var use = new Runtime();
         use.Choices.Enqueue(OutputDashboardChoice.UseEditorDashboard);
         Check(use.Run("Editor", "a")?.Success == true && use.Calls.Contains("ASSIGN:a:Editor") && !use.Calls.Contains("START:a") &&
