@@ -13,15 +13,44 @@ internal static class DesktopPlacement
             throw new ArgumentOutOfRangeException(nameof(canvas));
         ArgumentNullException.ThrowIfNull(workingAreas);
         var bounds = new Rectangle(desired, canvas);
+        var minimumWidth = Math.Min(canvas.Width, 96);
+        var minimumHeight = Math.Min(canvas.Height, 48);
+        var visible = new List<Rectangle>(workingAreas.Count);
         foreach (var area in workingAreas)
         {
             var intersection = Rectangle.Intersect(bounds, area);
-            if (intersection.Width >= Math.Min(canvas.Width, 96) &&
-                intersection.Height >= Math.Min(canvas.Height, 48))
+            if (intersection.Width <= 0 || intersection.Height <= 0)
+                continue;
+            if (intersection.Width >= minimumWidth && intersection.Height >= minimumHeight)
                 return desired;
+            visible.Add(intersection);
         }
+
+        // An Output straddling two displays can be usable even if neither working
+        // area alone meets the minimum. Count actual visible spans, not the
+        // bounding rectangle (which can include gaps between monitor edges).
+        if (visible.Count > 1 &&
+            CoveredLength(visible.Select(area => (area.Left, area.Right))) >= minimumWidth &&
+            CoveredLength(visible.Select(area => (area.Top, area.Bottom))) >= minimumHeight &&
+            visible.Sum(area => (long)area.Width * area.Height) >= (long)minimumWidth * minimumHeight)
+            return desired;
+
         // Keep original X/Y in the file in case a detached screen returns.
         return primary.Location;
+    }
+
+    private static long CoveredLength(IEnumerable<(int Start, int End)> ranges)
+    {
+        long covered = 0;
+        var lastEnd = int.MinValue;
+        foreach (var (start, end) in ranges.OrderBy(range => range.Start))
+        {
+            if (end <= lastEnd)
+                continue;
+            covered += (long)end - Math.Max(start, lastEnd);
+            lastEnd = end;
+        }
+        return covered;
     }
 }
 

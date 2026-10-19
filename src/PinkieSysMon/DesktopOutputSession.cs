@@ -428,6 +428,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private const int GwlExStyle = -20;
     private const uint SwpFrameChangedNoMove = 0x0001u | 0x0002u | 0x0004u | 0x0010u | 0x0020u;
     private const int WmNcHitTest = 0x0084;
+    private const int WmEnterSizeMove = 0x0231;
     internal const int WmExitSizeMove = 0x0232;
     private const int WmDpiChanged = 0x02E0;
     private readonly Action _render;
@@ -440,6 +441,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private Point _lastPosition;
     private bool _locked = true;
     private bool _configuring;
+    private bool _nativeDragActive;
+    private bool _recoverAfterDrag;
     private bool _disposed;
 
     public bool IsVisible => Visible;
@@ -591,6 +594,12 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 
     protected override void WndProc(ref Message m)
     {
+        if (m.Msg == WmEnterSizeMove)
+        {
+            _nativeDragActive = true;
+            base.WndProc(ref m);
+            return;
+        }
         // Unlocked window: native dragging without resize; locked: the OS ignores
         // this layered window entirely for mouse targeting (WS_EX_TRANSPARENT).
         if (m.Msg == WmNcHitTest && !_locked)
@@ -605,6 +614,12 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         if (m.Msg == WmExitSizeMove)
         {
             base.WndProc(ref m);
+            _nativeDragActive = false;
+            if (_recoverAfterDrag)
+            {
+                _recoverAfterDrag = false;
+                RecoverVisible();
+            }
             if (!_disposed && !_locked && Visible)
                 _restoreStack();
             return;
@@ -639,6 +654,13 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     {
         if (_disposed || _canvas.Width <= 0 || _canvas.Height <= 0)
             return;
+        // Do not reposition the HWND while Windows owns a native caption drag.
+        // Recheck after release if a DPI/display event requested recovery.
+        if (_nativeDragActive)
+        {
+            _recoverAfterDrag = true;
+            return;
+        }
         var recovered = Resolve(Location);
         if (recovered == Location)
             return;

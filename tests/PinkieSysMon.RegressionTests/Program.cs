@@ -417,6 +417,7 @@ internal static class Program
             ("Desktop layered BGRA stride, alpha and blending", DesktopTransparencyStage10Tests.PremultipliedTransfer),
             ("Desktop transparent/translucent/opaque session frames", DesktopTransparencyStage10Tests.SessionCanvasAlpha),
             ("Desktop placement multi-monitor and recovery", DesktopPositionStage11Tests.MonitorRecovery),
+            ("Issue97 Desktop cross-monitor visibility and detached recovery", DesktopPositionStage11Tests.MultiMonitorCoverage),
             ("Desktop per-target placement JSON persistence", DesktopPositionStage11Tests.ScopedPersistence),
             ("Issue69 Desktop panel taskbar exclusion", DesktopLockStage12Tests.TaskbarExclusion),
             ("Desktop locked layered style and unlocked hit-testing", DesktopLockStage12Tests.NativeStylePolicy),

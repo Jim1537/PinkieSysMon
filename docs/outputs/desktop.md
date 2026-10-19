@@ -51,7 +51,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 
 For overlapping panels, drag their **list entries in Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls stacking among the **owned** Desktop panels; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order. Panels are ordinary non-topmost top-level windows, not Explorer children. Runtime puts them near the back when they appear, reload, resume, or complete an unlocked drag, but it cannot guarantee they will always remain behind every other application's window. Desktop icons are not guaranteed to stay above the panels.
 
-If a monitor disappears or a panel has too little visible area, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
+If a monitor disappears or a panel has too little visible area across the available monitors, Runtime recovers its placement to the primary monitor without resizing the Canvas or overwriting the saved coordinates. A panel split across adjacent monitors is not treated as lost merely because neither monitor individually exposes the minimum usable area. Display/DPI-triggered recovery waits for an active native drag to finish instead of repositioning the window under the pointer. Windows display scaling does not multiply the panel's configured physical pixel dimensions.
 
 ### Show, hide and reload
 
@@ -138,7 +138,7 @@ The change replaces Explorer child-window hosting following unsuccessful visible
 
 ### Placement, DPI and mouse routing
 
-`FrameGeometry.GetLogicalSize` maps the oriented Canvas to physical client pixels. `AutoScaleMode.None` and PerMonitorV2 handling preserve that client size across DPI changes. `DesktopPlacement.Recover` tests monitor working-area visibility and recovers unusable positions without modifying the configured Canvas or saved monitor coordinates.
+`FrameGeometry.GetLogicalSize` maps the oriented Canvas to physical client pixels. `AutoScaleMode.None` and PerMonitorV2 handling preserve that client size across DPI changes. `DesktopPlacement.Recover` tests the combined usable visibility of monitor working areas (without counting gaps as visible) and recovers unusable positions without modifying the configured Canvas or saved monitor coordinates. During native dragging, display/DPI-triggered recovery is deferred until the drag ends.
 
 `DesktopPositionStore` patches only the matching Desktop target's X/Y in `app.json`, preserving unrelated and unknown JSON fields. The 500 ms move debounce avoids a save on each native movement event; programmatic recovery and locked/configuration moves do not overwrite saved placement.
 

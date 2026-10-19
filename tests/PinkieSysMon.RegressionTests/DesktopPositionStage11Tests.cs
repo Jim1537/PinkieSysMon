@@ -28,6 +28,40 @@ internal static class DesktopPositionStage11Tests
               "Detached negative-coordinate screen must be recoverable.");
     }
 
+    public static void MultiMonitorCoverage()
+    {
+        var primary = new Rectangle(0, 0, 1920, 1040);
+        var above = new Rectangle(0, -900, 1600, 900);
+        Check(DesktopPlacement.Recover(new Point(400, -40), new Size(120, 80),
+              new[] { primary, above }, primary) == new Point(400, -40),
+              "An 80-pixel board split 40/40 across vertical monitors stays visible.");
+
+        var left = new Rectangle(-1600, 0, 1600, 900);
+        Check(DesktopPlacement.Recover(new Point(-80, 200), new Size(160, 30),
+              new[] { primary, left }, primary) == new Point(-80, 200),
+              "A short board across left/right monitors preserves negative X.");
+
+        var offsetAbove = new Rectangle(-200, -900, 1600, 900);
+        Check(DesktopPlacement.Recover(new Point(-70, -40), new Size(140, 80),
+              new[] { primary, offsetAbove }, primary) == new Point(-70, -40),
+              "Unequal, imperfectly aligned monitor working areas share useful visibility.");
+        Check(DesktopPlacement.Recover(new Point(1880, 200), new Size(120, 80),
+              new[] { primary, above }, primary) == primary.Location,
+              "A narrow 40-pixel strip on one screen is still unusable.");
+        Check(DesktopPlacement.Recover(new Point(4000, -3000), new Size(120, 80),
+              new[] { primary, above }, primary) == primary.Location,
+              "Completely off-screen boards still recover.");
+        Check(DesktopPlacement.Recover(new Point(400, -40), new Size(120, 80),
+              new[] { primary }, primary) == primary.Location,
+              "Removing the upper display restores an unusable board to primary.");
+
+        var thinPrimary = new Rectangle(0, 0, 1, 48);
+        var thinAbove = new Rectangle(0, -10, 96, 1);
+        Check(DesktopPlacement.Recover(new Point(0, -10), new Size(96, 58),
+              new[] { thinPrimary, thinAbove }, thinPrimary) == thinPrimary.Location,
+              "Two tiny disconnected visible strips do not fake usable board coverage.");
+    }
+
     public static void ScopedPersistence()
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-position11-" +
