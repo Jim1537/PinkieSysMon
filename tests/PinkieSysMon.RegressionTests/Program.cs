@@ -72,6 +72,7 @@ internal static class Program
             ("Issue70 cancel and invalid image path safety", Issue70ImageImportTests.CancelAndInvalidPaths),
             ("Issue84 startup selection and theme-restart arguments", Issue84EditorStartupTests.SelectionAndRestartArguments),
             ("Issue84 document-free Editor commands", Issue84EditorStartupTests.EmptyWorkspaceControls),
+            ("Issue93 new dashboard creation and save/reopen", Issue93NewDashboardTests.CreateSaveAndReopen),
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),

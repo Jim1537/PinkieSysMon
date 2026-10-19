@@ -492,21 +492,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             try
             {
                 SaveCurrentDashboardViewState();
-                Directory.CreateDirectory(directory);
-                var path = Path.Combine(directory, "dashboard.json");
-                var definition = new CanonicalDashboardDefinition
-                {
-                    SchemaVersion = DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion,
-                    BaseDirectory = directory,
-                    Canvas = new CanonicalCanvasDefinition
-                    {
-                        Width = FrameGeometry.DefaultNativeWidth,
-                        Height = FrameGeometry.DefaultNativeHeight,
-                        Orientation = dialog.Orientation,
-                        BackgroundColor = "#000000"
-                    }
-                };
-                File.WriteAllText(path, DashboardJson.Serialize(definition, indented: true) + Environment.NewLine);
+                WriteNewDashboardFile(directory, dialog.Orientation);
                 LoadDashboard(name);
                 SetStatus($"Created dashboard '{name}'.");
                 return;
@@ -526,6 +512,26 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 return;
             }
         }
+    }
+
+    // Shared by New Dashboard and its disk round-trip regression.
+    internal static void WriteNewDashboardFile(string directory, int orientation)
+    {
+        Directory.CreateDirectory(directory);
+        var definition = new CanonicalDashboardDefinition
+        {
+            SchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion,
+            BaseDirectory = directory,
+            Canvas = new CanonicalCanvasDefinition
+            {
+                Width = FrameGeometry.DefaultNativeWidth,
+                Height = FrameGeometry.DefaultNativeHeight,
+                Orientation = orientation,
+                BackgroundColor = "#000000"
+            }
+        };
+        var path = Path.Combine(directory, "dashboard.json");
+        File.WriteAllText(path, DashboardJson.Serialize(definition, indented: true) + Environment.NewLine);
     }
 
     private void OpenDashboard()
