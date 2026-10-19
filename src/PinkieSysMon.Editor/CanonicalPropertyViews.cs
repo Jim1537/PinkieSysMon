@@ -131,12 +131,19 @@ internal sealed class DateTimeComponentTypeConverter : StringConverter
         new(DateTimeComponentContract.Options.Select(option => option.Label).ToArray());
 }
 
+internal sealed class DateTimeComponentPrecisionTypeConverter : StringConverter
+{
+    public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
+    public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context) =>
+        new(DateTimeComponentContract.PrecisionFormats.Select(option => option.Label).ToArray());
+}
+
 internal static class CanonicalPropertyViewBuilder
 {
     private static readonly TypeConverter TextConverter = new StringConverter();
     private static readonly TypeConverter ComponentConverter = new DateTimeComponentTypeConverter();
-    private static readonly TypeConverter ComponentFormatConverter = new FixedStringConverter(
-        DateTimeComponentContract.PrecisionFormats.Select(option => option.Label).ToArray());
+    private static readonly TypeConverter ComponentFormatConverter = new DateTimeComponentPrecisionTypeConverter();
     private static readonly TypeConverter SourceKindConverter = new FixedStringConverter(["Metric", "Text"]);
     private static readonly TypeConverter ImageKindConverter = new FixedStringConverter(["Image", "Icon"]);
     private static readonly TypeConverter FitConverter = new FixedStringConverter(StateVisualProfileContract.SupportedFits);
