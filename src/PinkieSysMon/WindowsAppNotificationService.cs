@@ -17,9 +17,9 @@ internal static class RuntimeNotificationContract
 
     public static string GetTitle(RuntimeNotificationKind kind) => kind switch
     {
-        RuntimeNotificationKind.Warning => "PinkieSysMon warning",
-        RuntimeNotificationKind.Error => "PinkieSysMon error",
-        _ => DisplayName
+        RuntimeNotificationKind.Warning => "Warning",
+        RuntimeNotificationKind.Error => "Error",
+        _ => "Information"
     };
 }
 

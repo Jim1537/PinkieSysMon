@@ -12,7 +12,12 @@ internal static class RuntimeNotificationStage26Tests
             f.Events[0].Kind == RuntimeNotificationKind.Information &&
             Has(response.Message, "Panel A", "panel-a", "Board A", "DISPLAYING", "panel visible"),
             "A user command must run once and report its actual target, assignment and visible state.");
-        Check(f.Events[0].Message == response.Message, "Tray/IPC feedback must publish the same actionable result returned to the caller.");
+        Check(f.Events[0].Message != response.Message &&
+            Has(f.Events[0].Message, "Panel A", "panel visible") &&
+            !Has(f.Events[0].Message, "panel-a") &&
+            !f.Events[0].Message.Contains("Board A", StringComparison.Ordinal) &&
+            f.Diagnostics.Single().Message == response.Message,
+            "The banner must summarize the observed result without discarding detailed IPC/log feedback.");
 
         response = f.Run(new(RuntimeIpcCommandKind.SetDesktopBoardEnabled, "panel-a", Value: false),
             () => f.Put(Desktop() with { BoardEnabled = false, OutputEnabled = false, UsbState = "DISABLED" }));
@@ -36,7 +41,9 @@ internal static class RuntimeNotificationStage26Tests
         Check(f.Events.Count == 1, "Repeated waiting snapshots must remain quiet.");
         f.Put(Physical(active: true, state: "ERROR")); f.Observe();
         Check(f.Events.Count == 2 && f.Events[^1].Kind == RuntimeNotificationKind.Error &&
-            Has(f.Events[^1].Message, "device-a", "ERROR", "settings/sessions may remain"),
+            Has(f.Events[^1].Message, "Device A", "error") &&
+            !f.Events[^1].Message.Contains("device-a", StringComparison.Ordinal) &&
+            Has(f.Diagnostics[^1].Message, "ERROR", "settings/sessions may remain"),
             "An asynchronous USB/open error must complete the pending user request with one failure notice.");
         f.Put(Physical(active: true, connected: true)); f.Observe(); f.Observe();
         Check(f.Events.Count == 2, "An automatic retry after terminal failure must not create a new success notification.");
@@ -44,7 +51,9 @@ internal static class RuntimeNotificationStage26Tests
         f.Run(start, () => f.Put(Physical(active: true)));
         f.Put(Physical(active: true, connected: true)); f.Observe();
         Check(f.Events.Count == 4 && f.Events[^1].Kind == RuntimeNotificationKind.Information &&
-            Has(f.Events[^1].Message, "CONNECTED", "frame delivery not verified"),
+            Has(f.Events[^1].Message, "Device A", "connected") &&
+            !f.Events[^1].Message.Contains("frame delivery", StringComparison.Ordinal) &&
+            Has(f.Diagnostics[^1].Message, "CONNECTED", "frame delivery not verified"),
             "A new explicit command can later confirm connection without claiming a delivered frame.");
 
         var desktop = new Fixture(Desktop());
@@ -191,7 +200,7 @@ internal static class RuntimeNotificationStage26Tests
     {
         var f = new Fixture(Desktop()) { RejectNotification = true };
         var response = f.Run(new(RuntimeIpcCommandKind.StartOrReloadTarget, "panel-a"), () => f.Put(Desktop(active: true)));
-        Check(response.Success && f.Applied == 1 && f.NotificationErrors == 1,
+        Check(response.Success && f.Applied == 1 && f.NotificationErrors == 1 && f.Diagnostics.Single().Message == response.Message,
             "A delivery failure must be logged without changing or repeating a successfully verified command.");
 
         var exit = new Fixture(Desktop(active: true));
@@ -204,6 +213,59 @@ internal static class RuntimeNotificationStage26Tests
         Check(RuntimeIpcProtocol.ResponseIndicatesRuntimeStopping(stopping), "Accepted shutdown retains the v1 Editor wait-for-exit handshake.");
     }
 
+    public static void ConciseBannerAndFullDiagnostics()
+    {
+        var pending = new Fixture(Physical());
+        var target = new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadTarget, "device-a");
+        var response = pending.Run(target, () => pending.Put(Physical(active: true)));
+        Check(response.Success && pending.Events.Single().Kind == RuntimeNotificationKind.Warning &&
+            Has(pending.Events.Single().Message, "Device A", "not ready") &&
+            pending.Events.Single().Message.Length < 100 &&
+            !Has(pending.Events.Single().Message, "device-a") &&
+            Has(pending.Diagnostics.Single().Message, "device-a", "Board B", "WAITING"),
+            "A pending notification must be short without hiding the full control result.");
+
+        var rejected = new Fixture(Desktop()) { ApplyResult = new(false, "Saved dashboard is missing: detail for log.") };
+        response = rejected.Run(new(RuntimeIpcCommandKind.AssignDashboard, "panel-a", Dashboard: "Edited"), () => { });
+        Check(!response.Success && Has(rejected.Events.Single().Message, "Panel A", "failed") &&
+            !rejected.Events.Single().Message.Contains("detail for log", StringComparison.Ordinal) &&
+            Has(response.Message, "Saved dashboard is missing: detail for log") &&
+            rejected.Diagnostics.Single().Message == response.Message,
+            "A failed command must keep actionable diagnostics outside the short banner.");
+
+        var unverifiable = new Fixture(Desktop()) { FailReadAt = 2 };
+        response = unverifiable.Run(new(RuntimeIpcCommandKind.SetDesktopLock, "panel-a", Value: true),
+            () => unverifiable.Put(Desktop() with { Lock = true }));
+        Check(!response.Success && Has(unverifiable.Events.Single().Message, "not confirmed", "before retrying") &&
+            unverifiable.Diagnostics.Single().Message == response.Message,
+            "An unverified command must not look like an ordinary failed or completed action.");
+
+        var enableOnly = new Fixture(Physical() with { OutputEnabled = false, DeviceEnabled = false });
+        response = enableOnly.Run(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, "device-a", Value: true),
+            () => enableOnly.Put(Physical() with { OutputEnabled = true, DeviceEnabled = true }));
+        Check(response.Success && enableOnly.Events.Single().Message == "Device A: Device enabled." &&
+            !enableOnly.Events.Single().Message.Contains("connected", StringComparison.OrdinalIgnoreCase),
+            "Saved device enablement cannot imply observed USB connectivity.");
+
+        var empty = Physical() with { OutputEnabled = false, DeviceEnabled = false };
+        var none = new Fixture(empty);
+        response = none.Run(new(RuntimeIpcCommandKind.StartOrReloadAll), () => { });
+        Check(response.Success && none.Events.Single().Kind == RuntimeNotificationKind.Warning &&
+            Has(none.Events.Single().Message, "no enabled Outputs") &&
+            !none.Events.Single().Message.Contains("device-a", StringComparison.Ordinal),
+            "An All command with no enabled Outputs must report settings-only completion.");
+
+        var stopped = new Fixture(Desktop(active: true));
+        response = stopped.Run(new(RuntimeIpcCommandKind.StopAll), () => stopped.Put(Desktop()));
+        Check(response.Success && stopped.Events.Single().Message == "Outputs stopped." &&
+            stopped.Diagnostics.Single().Message == response.Message,
+            "Stop All must have a clear one-line banner and a complete diagnostic result.");
+
+        foreach (var kind in Enum.GetValues<RuntimeNotificationKind>())
+            Check(!RuntimeNotificationContract.GetTitle(kind).Contains("PinkieSysMon", StringComparison.OrdinalIgnoreCase),
+                "Native notification titles must not duplicate Windows application identity.");
+    }
+
     private static RuntimeOutputStatus Desktop(bool active = false, string? state = null) =>
         new("panel-a", "Panel A", active, active, state ?? (active ? "DISPLAYING" : "STOPPED"))
         {
@@ -213,7 +275,7 @@ internal static class RuntimeNotificationStage26Tests
 
     private static RuntimeOutputStatus Physical(string id = "device-a", bool active = false,
         bool connected = false, string? state = null) =>
-        new(id, "Device A", active, connected, state ?? (connected ? "CONNECTED" : active ? "WAITING" : "STOPPED"))
+        new(id, id == "device-b" ? "Device B" : "Device A", active, connected, state ?? (connected ? "CONNECTED" : active ? "WAITING" : "STOPPED"))
         {
             Kind = OutputTargetContract.TrofeoKind, Dashboard = "Board B", OutputEnabled = true,
             DeviceEnabled = true, ProviderEnabled = false
@@ -224,6 +286,7 @@ internal static class RuntimeNotificationStage26Tests
         private readonly RuntimeCommandFeedback _feedback;
         public RuntimeStatusSnapshot Current;
         public readonly List<(string Message, RuntimeNotificationKind Kind)> Events = [];
+        public readonly List<(string Message, RuntimeNotificationKind Kind)> Diagnostics = [];
         public int Applied, Reads, CommandErrors, NotificationErrors;
         public int FailReadAt;
         public bool RejectNotification;
@@ -236,7 +299,8 @@ internal static class RuntimeNotificationStage26Tests
             {
                 if (RejectNotification) throw new InvalidOperationException("Toast unavailable.");
                 Events.Add((message, kind));
-            }, _ => NotificationErrors++, _ => CommandErrors++);
+            }, _ => NotificationErrors++, _ => CommandErrors++,
+                (message, kind) => Diagnostics.Add((message, kind)));
         }
 
         public RuntimeIpcResponse Run(RuntimeIpcCommand command, Action apply) =>

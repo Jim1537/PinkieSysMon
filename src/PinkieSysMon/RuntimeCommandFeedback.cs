@@ -3,9 +3,11 @@ namespace PinkieSysMon;
 // Runtime UI-thread owner. Observing a snapshot performs no I/O and creates no requests.
 internal sealed class RuntimeCommandFeedback(
     Action<string, RuntimeNotificationKind> notify, Action<Exception> notificationFailure,
-    Action<Exception> commandFailure)
+    Action<Exception> commandFailure, Action<string, RuntimeNotificationKind> diagnostic)
 {
-    private sealed record Result(RuntimeIpcResponse Response, RuntimeNotificationKind Kind, bool Pending = false);
+    private enum NotificationOutcome { Default, NotStarted, Unverified, OutputError }
+    private sealed record Result(RuntimeIpcResponse Response, RuntimeNotificationKind Kind,
+        bool Pending = false, NotificationOutcome Outcome = NotificationOutcome.Default);
     private sealed record PendingCommand(RuntimeIpcCommand Command, RuntimeStatusSnapshot Before,
         RuntimeOutputStatus[] Expected);
     private readonly List<PendingCommand> _pending = [];
@@ -18,6 +20,7 @@ internal sealed class RuntimeCommandFeedback(
 
         ForgetSuperseded(command);
         Result result;
+        RuntimeOutputStatus[] displayedOutputs = [];
         if (command.Kind == RuntimeIpcCommandKind.Exit)
         {
             try
@@ -36,12 +39,12 @@ internal sealed class RuntimeCommandFeedback(
         else
         {
             RuntimeStatusSnapshot before;
-            try { before = getStatus(); }
+            try { before = getStatus(); displayedOutputs = Select(command, before); }
             catch (Exception ex)
             {
                 LogFailure(commandFailure, ex);
-                result = new(new(false, $"{ActionName(command)} for {Identity(command, [])} was not applied: Runtime status could not be read. {ex.Message}"), RuntimeNotificationKind.Error);
-                Publish(result);
+                result = new(new(false, $"{ActionName(command)} for {Identity(command, [])} was not applied: Runtime status could not be read. {ex.Message}"), RuntimeNotificationKind.Error, Outcome: NotificationOutcome.NotStarted);
+                Publish(result, command, displayedOutputs);
                 return result.Response;
             }
 
@@ -56,6 +59,7 @@ internal sealed class RuntimeCommandFeedback(
             try
             {
                 var after = getStatus();
+                displayedOutputs = Select(command, after);
                 result = Assess(command, response, before, after);
                 if (result.Pending)
                     _pending.Add(new(command, new(before.Dashboard, Select(command, before)), Select(command, after)));
@@ -65,11 +69,11 @@ internal sealed class RuntimeCommandFeedback(
                 LogFailure(commandFailure, ex);
                 result = new(new(false,
                     $"{ActionName(command)} for {Identity(command, Select(command, before))}: {response.Message} Resulting state could not be verified; changes may have been applied. Query Runtime status before retrying. {ex.Message}"),
-                    RuntimeNotificationKind.Error);
+                    RuntimeNotificationKind.Error, Outcome: NotificationOutcome.Unverified);
             }
         }
 
-        Publish(result);
+        Publish(result, command, displayedOutputs);
         return result.Response;
     }
 
@@ -93,7 +97,7 @@ internal sealed class RuntimeCommandFeedback(
             if (result.Pending)
                 continue;
             _pending.Remove(pending);
-            Publish(result); // Only one terminal result; later automatic retries are quiet.
+            Publish(result, pending.Command, current); // Only one terminal result; later automatic retries are quiet.
         }
     }
 
@@ -142,18 +146,18 @@ internal sealed class RuntimeCommandFeedback(
         }
 
         if (command.TargetId is not null && outputs.Length != 1)
-            return new(new(false, $"{ActionName(command)} returned success, but {identity} cannot be uniquely verified. {observed}"), RuntimeNotificationKind.Error);
+            return new(new(false, $"{ActionName(command)} returned success, but {identity} cannot be uniquely verified. {observed}"), RuntimeNotificationKind.Error, Outcome: NotificationOutcome.Unverified);
 
         var mismatch = outputs.FirstOrDefault(output => !MatchesRequest(command, output, previous));
         if (mismatch is not null)
             return new(new(false,
                 $"{ActionName(command)} returned success, but requested state is not confirmed for {identity}. Observed: {observed} Changes may be partially applied; check Runtime status before retrying."),
-                RuntimeNotificationKind.Error);
+                RuntimeNotificationKind.Error, Outcome: NotificationOutcome.Unverified);
 
         if (outputs.Any(o => o.IsActive && IsError(o.UsbState)))
             return new(new(false,
                 $"{ActionName(command)} control applied for {identity}, but an active Output reports failure. Observed: {observed} Applied settings/sessions may remain; check the Output and Runtime logs."),
-                RuntimeNotificationKind.Error);
+                RuntimeNotificationKind.Error, Outcome: NotificationOutcome.OutputError);
 
         var pending = outputs.Any(IsPending);
         var noEligible = command.Kind == RuntimeIpcCommandKind.StartOrReloadAll &&
@@ -216,14 +220,63 @@ internal sealed class RuntimeCommandFeedback(
             }
             : "session inactive");
 
-    private void Publish(Result result)
+    private void Publish(Result result, RuntimeIpcCommand command, RuntimeOutputStatus[] outputs)
     {
-        try { notify(result.Response.Message, result.Kind); }
+        // Diagnostic feedback remains complete and independent of the shell banner.
+        try { diagnostic(result.Response.Message, result.Kind); }
+        catch (Exception ex) { LogFailure(commandFailure, ex); }
+
+        try { notify(NotificationText(command, outputs, result), result.Kind); }
         catch (Exception ex)
         {
             // Notification failure must not change or repeat an already applied command.
             LogFailure(notificationFailure, ex);
         }
+    }
+
+    private static string NotificationText(RuntimeIpcCommand command, RuntimeOutputStatus[] outputs, Result result)
+    {
+        var name = outputs.FirstOrDefault()?.TargetName?.Trim();
+        var prefix = command.TargetId is null ? string.Empty :
+            string.IsNullOrWhiteSpace(name) ? "Output: " : $"{name}: ";
+        var action = command.Kind switch
+        {
+            RuntimeIpcCommandKind.ReloadConfiguration => "Settings reload",
+            RuntimeIpcCommandKind.Exit => "Shutdown",
+            RuntimeIpcCommandKind.StartOrReloadTarget => "Reload",
+            RuntimeIpcCommandKind.StartOrReloadAll => "Reload all",
+            RuntimeIpcCommandKind.StopAll => "Stop",
+            RuntimeIpcCommandKind.AssignDashboard => "Dashboard assignment",
+            RuntimeIpcCommandKind.SetDesktopBoardEnabled => command.Value == true ? "Show board" : "Hide board",
+            RuntimeIpcCommandKind.SetDesktopLock => command.Value == true ? "Lock" : "Unlock",
+            RuntimeIpcCommandKind.SetPhysicalDeviceEnabled => command.Value == true ? "Enable device" : "Disable device",
+            _ => "Command"
+        };
+
+        return prefix + (result.Outcome switch
+        {
+            NotificationOutcome.NotStarted => $"{action} not started; Runtime status unavailable.",
+            NotificationOutcome.Unverified => $"{action} not confirmed; check status before retrying.",
+            NotificationOutcome.OutputError => $"{action} applied; an Output reports an error.",
+            _ when !result.Response.Success => $"{action} failed; check Runtime log.",
+            _ when result.Pending => $"{action} applied; " +
+                (command.TargetId is null ? "some Outputs not ready." : "Output not ready."),
+            _ when result.Kind == RuntimeNotificationKind.Warning => "Settings reloaded; no enabled Outputs.",
+            _ => command.Kind switch
+            {
+                RuntimeIpcCommandKind.ReloadConfiguration => "Settings reloaded.",
+                RuntimeIpcCommandKind.Exit => "Shutdown accepted; unloading continues.",
+                RuntimeIpcCommandKind.StartOrReloadTarget => outputs.FirstOrDefault()?.Kind == OutputTargetContract.DesktopKind
+                    ? "Reload applied; panel visible." : "Reload applied; device connected.",
+                RuntimeIpcCommandKind.StartOrReloadAll => "Outputs reloaded.",
+                RuntimeIpcCommandKind.StopAll => "Outputs stopped.",
+                RuntimeIpcCommandKind.AssignDashboard => "Dashboard assigned.",
+                RuntimeIpcCommandKind.SetDesktopBoardEnabled => command.Value == true ? "Board visible." : "Board hidden.",
+                RuntimeIpcCommandKind.SetDesktopLock => command.Value == true ? "Desktop locked." : "Desktop unlocked.",
+                RuntimeIpcCommandKind.SetPhysicalDeviceEnabled => command.Value == true ? "Device enabled." : "Device disabled.",
+                _ => "Command applied."
+            }
+        });
     }
 
     private static void LogFailure(Action<Exception> log, Exception exception)

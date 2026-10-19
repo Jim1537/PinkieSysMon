@@ -227,7 +227,7 @@ Editor planning and partial client results belong to the [Editor workflow](#edit
 
 ### Runtime command feedback
 
-Tray and Editor IPC mutations use one Runtime-owned command-feedback path. The response and Windows app notification carry the same target name/ID, assigned dashboard and observed session state; request acceptance alone does not establish a visible panel or physical frame delivery. Requested assignment, enablement, Lock and active-session state are checked after apply. A failed or unverifiable apply reports its cause, current state where available and observed partial changes without assuming complete rollback. IPC timeout/disconnect after a command write attempt reports an unknown outcome and asks the client to query status before retrying.
+Tray and Editor IPC mutations use one Runtime-owned command-feedback path. IPC responses and local Runtime logs retain the complete target name/ID, assigned dashboard, command outcome and observed session state. Windows slide-in notifications instead summarize the event and outcome, using a readable Output name when available but not identifiers, assignments or diagnostic state dumps. The Windows application header already supplies the application identity; the notification title conveys only severity. Request acceptance alone does not establish a visible panel or physical frame delivery. Requested assignment, enablement, Lock and active-session state are checked after apply. A failed or unverifiable apply reports its cause, current state where available and observed partial changes without assuming complete rollback. IPC timeout/disconnect after a command write attempt reports an unknown outcome and asks the client to query status before retrying.
 
 | Outcome | Feedback |
 | --- | --- |

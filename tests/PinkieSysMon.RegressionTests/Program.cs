@@ -249,6 +249,7 @@ internal static class Program
             ("Stage26 aggregate All command outcomes", RuntimeNotificationStage26Tests.AggregateAllOutcomes),
             ("Stage26 passive silence and superseded completion", RuntimeNotificationStage26Tests.QuietAndSupersededRequests),
             ("Stage26 notification failure and accepted shutdown", RuntimeNotificationStage26Tests.NotificationFailureAndShutdown),
+            ("Issue86 concise banners and detailed command diagnostics", RuntimeNotificationStage26Tests.ConciseBannerAndFullDiagnostics),
             ("Runtime IPC output control isolation", RuntimeIpcOutputControlIsolation),
             ("Runtime IPC shutdown cancellation contract", RuntimeIpcShutdownCancellationContract),
             ("Runtime normal startup and unsupported arguments", RuntimeOutputStartupPolicy),
@@ -2726,11 +2727,10 @@ internal static class Program
 
     private static void RuntimeModernAppNotificationContract()
     {
-        Assert(RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Information) == "PinkieSysMon",
-            "Informational app notifications must use the canonical PinkieSysMon identity.");
-        Assert(RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Warning) == "PinkieSysMon warning" &&
-               RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Error) == "PinkieSysMon error",
-            "Warning and error app notifications must preserve explicit severity in the native notification title.");
+        Assert(RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Information) == "Information" &&
+               RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Warning) == "Warning" &&
+               RuntimeNotificationContract.GetTitle(RuntimeNotificationKind.Error) == "Error",
+            "Native notification titles must express severity without repeating the Windows application identity.");
 
         var runtimeAssemblyPath = typeof(RuntimeNotificationContract).Assembly.Location;
         var metadata = Encoding.UTF8.GetString(File.ReadAllBytes(runtimeAssemblyPath));

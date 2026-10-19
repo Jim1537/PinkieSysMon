@@ -85,7 +85,14 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _commandFeedback = new RuntimeCommandFeedback(
             (message, kind) => _notifications.Show(message, kind),
             ex => _log.Warn("Runtime command notification failed; command result retained.", ex),
-            ex => _log.Error("Runtime user command or result verification failed.", ex));
+            ex => _log.Error("Runtime user command or feedback reporting failed.", ex),
+            (message, kind) =>
+            {
+                if (kind == RuntimeNotificationKind.Error)
+                    _log.Warn($"Runtime command feedback: {message}");
+                else
+                    _log.Info($"Runtime command feedback: {message}");
+            });
 
         _trayMenu = new RuntimeTrayMenu(OpenDashboardEditor, ExecuteTrayOutputCommand,
             () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled);
@@ -176,7 +183,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _log.Error("Could not change physical device enabled state.", ex);
-            _notifications.Show($"Device setting failed for Output '{targetId}': {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show("Device setting failed; check Runtime log.", RuntimeNotificationKind.Error);
         }
     }
 
@@ -485,7 +492,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _log.Error("Runtime tray Output command failed.", ex);
-            _notifications.Show($"Output command failed: {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show("Output command failed; check Runtime log.", RuntimeNotificationKind.Error);
         }
     }
 
@@ -597,7 +604,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _log.Error("Could not launch dashboard editor", ex);
-            _notifications.Show($"Editor launch failed: {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show("Editor could not be opened; check Runtime log.", RuntimeNotificationKind.Error);
         }
     }
 
@@ -617,7 +624,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         catch (Exception ex)
         {
             _log.Error($"Could not open folder '{path}'", ex);
-            _notifications.Show($"Could not open folder: {ex.Message}", RuntimeNotificationKind.Error);
+            _notifications.Show("Folder could not be opened; check Runtime log.", RuntimeNotificationKind.Error);
         }
     }
 
