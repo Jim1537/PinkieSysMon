@@ -290,6 +290,9 @@ internal static class Program
             ("Quantitative widget unit property visibility", QuantitativeWidgetUnitPropertyVisibility),
             ("Issue66 DateTime component projection, editor and cache", DateTimeComponentTests.ProjectionEditorAndCache),
             ("Issue66 schema 19 migration and quantitative compatibility", DateTimeComponentTests.SchemaMigrationAndCompatibility),
+            ("Issue96 DateTime fractional projection and boundaries", Issue96DateTimePrecisionTests.ProjectionAndBoundaries),
+            ("Issue96 DateTime Editor, cache and Binary equality", Issue96DateTimePrecisionTests.EditorCacheAndBinary),
+            ("Issue96 DateTime format schema compatibility", Issue96DateTimePrecisionTests.SchemaCompatibility),
             ("Issue81 Binary DateTime evaluation and Editor component", Issue81BinaryDateTimeTests.EvaluationAndEditor),
             ("Issue81 Binary DateTime schema 20 migration", Issue81BinaryDateTimeTests.SchemaMigration),
             ("Windows internet connectivity metric", WindowsInternetConnectivityMetric),
@@ -11524,8 +11527,8 @@ internal static class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 21,
-            "The executable current dashboard contract must be schema 21.");
+               MetricContract.DashboardSchemaVersion == 22,
+            "The executable current dashboard contract must be schema 22.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

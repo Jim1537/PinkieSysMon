@@ -177,6 +177,10 @@ internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Component { get; set; }
 
+    [JsonPropertyName("componentFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ComponentFormat { get; set; }
+
     [JsonPropertyName("min")]
     public double Min { get; set; }
 
@@ -196,6 +200,7 @@ internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
     {
         RequireMetric(Metric);
         global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"{Type} widget '{Id}'");
+        global::PinkieSysMon.DateTimeComponentContract.ValidateFormat(ComponentFormat, $"{Type} widget '{Id}'");
         RequireFinite(Min, nameof(Min));
         RequireFinite(Max, nameof(Max));
         RequireFinite(Gap, nameof(Gap));
@@ -278,6 +283,10 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Component { get; set; }
 
+    [JsonPropertyName("componentFormat")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ComponentFormat { get; set; }
+
     [JsonPropertyName("unit")]
     public string? Unit { get; set; }
 
@@ -307,6 +316,7 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
         base.Validate(dashboardBaseDirectory);
         RequireMetric(Metric);
         global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"Binary widget '{Id}'");
+        global::PinkieSysMon.DateTimeComponentContract.ValidateFormat(ComponentFormat, $"Binary widget '{Id}'");
         if (!global::PinkieSysMon.BinarySignalContract.SupportedEvaluationModes.Contains(EvaluationMode, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"Binary widget '{Id}' has invalid EvaluationMode '{EvaluationMode}'.");
         if (!global::PinkieSysMon.BinarySignalContract.SupportedTrueIfOperators.Contains(TrueIf, StringComparer.Ordinal))

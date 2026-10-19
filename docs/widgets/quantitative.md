@@ -6,16 +6,17 @@ This is an **internal shared contract** for the quantitative **Gauge** and **Bar
 
 <!-- --8<-- [start:quantitative-metric] -->
 
-Gauge and Bar inherit `metric`, `unit`, `component`, `min`, `max`, `gap`, `reverse`, and `thresholds` from `QuantitativeWidgetDefinition`. They receive a **current telemetry snapshot** through `WidgetRenderContext`, not by polling a provider during rendering. `DashboardMetricUsage.Collect` requests the configured metric on demand.
+Gauge and Bar inherit `metric`, `unit`, `component`, `componentFormat`, `min`, `max`, `gap`, `reverse`, and `thresholds` from `QuantitativeWidgetDefinition`. They receive a **current telemetry snapshot** through `WidgetRenderContext`, not by polling a provider during rendering. `DashboardMetricUsage.Collect` requests the configured metric on demand.
 
 `WidgetRenderContext.TryGetMetricDouble` retrieves the reading and checks whether its descriptor identifies a numeric metric. For recognized numeric metrics, `MetricValueConverter` applies the requested `Unit`; unknown or non-DateTime nonnumeric descriptors can accept a finite numeric conversion only without a unit or Component. Missing, null, unconvertible, or non-finite readings are unavailable; neither widget reuses a stale last-good numeric value.
 
 For DateTime metrics, the shared DateTime component converter projects the selected
 [Component](properties.md#component) to a finite scalar before the same quantitative
-geometry is evaluated. Textual `Format` remains independent. Numeric caching is
-keyed by metric, unit and component so multiple clock hands do not share a
-misinterpreted cached reading. The former DateTime-unavailable state is
-preserved for migrated widgets without a selected component.
+geometry is evaluated. Optional numeric `componentFormat` selects the scalar's
+quantized precision, per the canonical [Component](properties.md#component) contract.
+Numeric caching is keyed by metric, unit, component and precision; different
+clock hands therefore remain independent. The unavailable state is preserved
+for migrated widgets without a selected Component.
 
 For a valid **converted or projected** reading `v`, the shared geometric position is:
 

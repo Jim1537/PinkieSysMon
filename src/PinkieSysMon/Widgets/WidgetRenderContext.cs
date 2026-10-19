@@ -664,15 +664,15 @@ internal sealed class WidgetRenderContext : IDisposable
     }
 
     public bool TryGetMetricDouble(CanonicalDashboard.BinaryWidgetDefinition widget, out double value) =>
-        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, out value);
+        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, widget.ComponentFormat, out value);
 
     public bool TryGetMetricDouble(CanonicalDashboard.QuantitativeWidgetDefinition widget, out double value) =>
-        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, out value);
+        TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, widget.ComponentFormat, out value);
 
     public bool TryGetMetricDouble(string? metric, string? unit, out double value) =>
-        TryGetMetricDouble(metric, unit, component: null, out value);
+        TryGetMetricDouble(metric, unit, component: null, componentFormat: null, out value);
 
-    private bool TryGetMetricDouble(string? metric, string? unit, string? component, out double value)
+    private bool TryGetMetricDouble(string? metric, string? unit, string? component, string? componentFormat, out double value)
     {
         if (string.IsNullOrWhiteSpace(metric))
         {
@@ -684,7 +684,7 @@ internal sealed class WidgetRenderContext : IDisposable
                              unit.Equals("raw", StringComparison.OrdinalIgnoreCase)
             ? null
             : unit.Trim();
-        var key = new NumericMetricCacheKey(metric, normalizedUnit, component);
+        var key = new NumericMetricCacheKey(metric, normalizedUnit, component, componentFormat);
         if (_doubleMetricCache.TryGetValue(key, out var cached))
         {
             value = cached.GetValueOrDefault();
@@ -697,7 +697,7 @@ internal sealed class WidgetRenderContext : IDisposable
             var descriptor = MetricContract.GetDescriptor(metric);
             if (descriptor?.ValueKind == MetricValueKind.DateTime)
             {
-                if (normalizedUnit is null && DateTimeComponentContract.TryProject(raw, component, out var candidate))
+                if (normalizedUnit is null && DateTimeComponentContract.TryProject(raw, component, componentFormat, out var candidate))
                     converted = candidate;
             }
             else if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
@@ -735,21 +735,24 @@ internal sealed class WidgetRenderContext : IDisposable
 
     private readonly struct NumericMetricCacheKey : IEquatable<NumericMetricCacheKey>
     {
-        public NumericMetricCacheKey(string metric, string? unit, string? component)
+        public NumericMetricCacheKey(string metric, string? unit, string? component, string? componentFormat)
         {
             Metric = metric;
             Unit = unit;
             Component = component;
+            ComponentFormat = componentFormat;
         }
 
         public string Metric { get; }
         public string? Unit { get; }
         public string? Component { get; }
+        public string? ComponentFormat { get; }
 
         public bool Equals(NumericMetricCacheKey other) =>
             string.Equals(Metric, other.Metric, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(Unit, other.Unit, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(Component, other.Component, StringComparison.Ordinal);
+            string.Equals(Component, other.Component, StringComparison.Ordinal) &&
+            string.Equals(ComponentFormat, other.ComponentFormat, StringComparison.Ordinal);
 
         public override bool Equals(object? obj) => obj is NumericMetricCacheKey other && Equals(other);
 
@@ -757,7 +760,8 @@ internal sealed class WidgetRenderContext : IDisposable
             HashCode.Combine(
                 StringComparer.OrdinalIgnoreCase.GetHashCode(Metric),
                 Unit is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(Unit),
-                Component is null ? 0 : StringComparer.Ordinal.GetHashCode(Component));
+                Component is null ? 0 : StringComparer.Ordinal.GetHashCode(Component),
+                ComponentFormat is null ? 0 : StringComparer.Ordinal.GetHashCode(ComponentFormat));
     }
 
     public SKTypeface GetTypeface(TextPresentation presentation) => _typefaces.Get(presentation);

@@ -135,6 +135,8 @@ internal static class CanonicalPropertyViewBuilder
 {
     private static readonly TypeConverter TextConverter = new StringConverter();
     private static readonly TypeConverter ComponentConverter = new DateTimeComponentTypeConverter();
+    private static readonly TypeConverter ComponentFormatConverter = new FixedStringConverter(
+        DateTimeComponentContract.PrecisionFormats.Select(option => option.Label).ToArray());
     private static readonly TypeConverter SourceKindConverter = new FixedStringConverter(["Metric", "Text"]);
     private static readonly TypeConverter ImageKindConverter = new FixedStringConverter(["Image", "Icon"]);
     private static readonly TypeConverter FitConverter = new FixedStringConverter(StateVisualProfileContract.SupportedFits);
@@ -513,6 +515,10 @@ internal static class CanonicalPropertyViewBuilder
                             () => DateTimeComponentContract.GetLabel(binary.Component),
                             value => binary.Component = DateTimeComponentContract.NormalizeOrThrow(Convert.ToString(value)),
                             converter: ComponentConverter));
+                        valueRows.Add(DateTimeComponentFormat(binary, nameof(C.BinaryWidgetDefinition.ComponentFormat),
+                            "data.binary.datetime_component_format", () => binary.ComponentFormat,
+                            v => binary.ComponentFormat = v,
+                            () => binary.Component is null ? NotApplicable("Component") : null));
                     }
 
                     if (dateTime && usesValue)
@@ -521,7 +527,7 @@ internal static class CanonicalPropertyViewBuilder
                             binary,
                             nameof(C.BinaryWidgetDefinition.Format),
                             "data.binary.format",
-                            "Format",
+                            "Text Format",
                             () => binary.Format,
                             v => binary.Format = v));
                     }
@@ -531,7 +537,7 @@ internal static class CanonicalPropertyViewBuilder
                             binary,
                             nameof(C.BinaryWidgetDefinition.Format),
                             "data.binary.format",
-                            "Format",
+                            dateTime ? "Text Format" : "Format",
                             () => binary.Format,
                             v => binary.Format = v,
                             () => CurrentMetric() is { } current ? MetricContract.GetFormats(current) : Array.Empty<MetricPresentationOption>(),
@@ -603,6 +609,10 @@ internal static class CanonicalPropertyViewBuilder
                         () => DateTimeComponentContract.GetLabel(quantitative.Component),
                         value => quantitative.Component = DateTimeComponentContract.NormalizeOrThrow(Convert.ToString(value)),
                         converter: ComponentConverter));
+                    valueRows.Add(DateTimeComponentFormat(quantitative, nameof(C.QuantitativeWidgetDefinition.ComponentFormat),
+                        "data.quantitative.datetime_component_format", () => quantitative.ComponentFormat,
+                        v => quantitative.ComponentFormat = v,
+                        () => quantitative.Component is null ? NotApplicable("Component") : null));
                 }
                 result.Add(Group("Value", valueRows));
                 result.Add(Group("Range", [
@@ -980,6 +990,20 @@ internal static class CanonicalPropertyViewBuilder
             () => MetricOptionLabel(tokenGetter(), optionsAccessor()),
             value => tokenSetter(MetricOptionToken(Convert.ToString(value), optionsAccessor())),
             converter: new DynamicMetricOptionConverter(optionsAccessor),
+            disabledReason: disabled);
+
+    private static CanonicalPropertyDescriptor DateTimeComponentFormat(
+        object target,
+        string name,
+        string semantic,
+        Func<string?> getter,
+        Action<string?> setter,
+        Func<string?> disabled) =>
+        new(
+            name, semantic, "Format", target, typeof(string),
+            () => DateTimeComponentContract.GetFormatLabel(getter()),
+            value => setter(DateTimeComponentContract.NormalizeFormatOrThrow(Convert.ToString(value))),
+            converter: ComponentFormatConverter,
             disabledReason: disabled);
 
     private static CanonicalPropertyDescriptor DateTimeFormat(

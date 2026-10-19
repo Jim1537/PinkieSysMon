@@ -39,7 +39,8 @@ Under `Value`:
 
 - `Source Unit` shows the unit supplied by the metric contract. It is read-only.
 - `Unit` selects a supported numeric conversion, when the metric has compatible units.
-- `Component` selects an integer-valued calendar/clock component when the metric is DateTime. For a clock needle, enable `Gauge → Needle → Enabled` and set the corresponding Min/Max range. The needle advances in discrete component steps, without interpolation. See the shared [Component](properties.md#component) contract.
+- `Component` selects a calendar/clock quantity when the metric is DateTime.
+- `Format` beside Component sets numeric precision: `0` (whole steps), `0.0` (tenths) or `0.00` (hundredths). This changes needle/track movement, not text. For a clock needle, enable `Gauge → Needle → Enabled` and choose its Min/Max range. See [Component](properties.md#component).
 
 Under `Range`:
 
@@ -203,6 +204,7 @@ Gauge-specific and quantitative JSON fields:
 | `metric` | `Metric` | Required metric identifier. |
 | `unit` | `Unit` | Optional numeric unit conversion. |
 | `component` | `Component` | Optional DateTime-to-number projection (schema 20). |
+| `componentFormat` | `ComponentFormat` | Optional numeric precision, default `0` (schema 22). |
 | `min` / `max` | `Min` / `Max` | Scale boundaries; Max must exceed Min. |
 | `reverse` | `Reverse` | Reverses progression along the arc. |
 | `gap` | `Gap` | Track inset spacing. |

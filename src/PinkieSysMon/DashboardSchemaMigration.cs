@@ -16,7 +16,8 @@ internal static class DashboardSchemaMigration
     public const int PropertyModelNormalizationSchemaVersion = 19;
     public const int DateTimeComponentSchemaVersion = 20;
     public const int BinaryDateTimeComponentSchemaVersion = 21;
-    public const int CurrentSchemaVersion = BinaryDateTimeComponentSchemaVersion;
+    public const int DateTimeComponentPrecisionSchemaVersion = 22;
+    public const int CurrentSchemaVersion = DateTimeComponentPrecisionSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -27,31 +28,38 @@ internal static class DashboardSchemaMigration
         if (schemaVersion == CurrentSchemaVersion)
             return false;
 
-        if (schemaVersion != DateTimeComponentSchemaVersion)
+        if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion))
         {
-            if (schemaVersion != PropertyModelNormalizationSchemaVersion)
-            {
-                _ = UpgradeToPropertyModelNormalization(root);
-                schemaVersion = ReadSchemaVersion(root);
-            }
+            _ = UpgradeToPropertyModelNormalization(root);
+            schemaVersion = ReadSchemaVersion(root);
+        }
 
-            if (schemaVersion != PropertyModelNormalizationSchemaVersion)
-                throw new InvalidDataException(
-                    $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
-
-            // Schema 19 has no quantitative Component. Keep its DateTime state unavailable
-            // until the user explicitly selects a numeric projection.
+        if (schemaVersion == PropertyModelNormalizationSchemaVersion)
+        {
+            // No synthetic Component: preserve unavailable legacy DateTime readings.
             root["schemaVersion"] = DateTimeComponentSchemaVersion;
             schemaVersion = DateTimeComponentSchemaVersion;
         }
 
-        if (schemaVersion != DateTimeComponentSchemaVersion)
+        if (schemaVersion == DateTimeComponentSchemaVersion)
+        {
+            // Schema 20 Binary had no Component: never manufacture one.
+            root["schemaVersion"] = BinaryDateTimeComponentSchemaVersion;
+            schemaVersion = BinaryDateTimeComponentSchemaVersion;
+        }
+
+        if (schemaVersion == BinaryDateTimeComponentSchemaVersion)
+        {
+            // A missing componentFormat means exact integer projection ("0").
+            // Leave Binary's existing textual format untouched and add no fields.
+            root["schemaVersion"] = DateTimeComponentPrecisionSchemaVersion;
+            schemaVersion = DateTimeComponentPrecisionSchemaVersion;
+        }
+
+        if (schemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
-
-        // Schema 20 Binary widgets had no Component: leave it unset, preserving unavailable
-        // DateTime evaluation until the user explicitly configures the projection.
-        root["schemaVersion"] = CurrentSchemaVersion;
         return true;
     }
 

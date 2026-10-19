@@ -40,7 +40,8 @@ Open the `Data` tab:
 
 - `Value → Source Unit` shows the unit associated with the selected metric. It is read-only.
 - `Value → Unit` selects a compatible numeric display/conversion unit when the metric supports one.
-- `Value → Component` selects an integer-valued calendar/clock component when the metric is DateTime. The bar changes in discrete component steps, without interpolation. See the shared [Component](properties.md#component) contract.
+- `Value → Component` selects the calendar/clock quantity for DateTime.
+- `Value → Format` sets its numeric precision: `0` (whole steps), `0.0` (tenths) or `0.00` (hundredths). The fill can move fractionally between component changes. See [Component](properties.md#component).
 - `Range → Min` sets the value corresponding to an empty bar.
 - `Range → Max` sets the value corresponding to a completely filled bar.
 
@@ -223,6 +224,7 @@ Bar uses the common dashboard rendering pipeline for container background, borde
 | `metric` | `Metric` | Required telemetry metric identifier. |
 | `unit` | `Unit` | Optional numeric presentation unit. |
 | `component` | `Component` | Optional DateTime-to-number projection (schema 20). |
+| `componentFormat` | `ComponentFormat` | Optional numeric precision, default `0` (schema 22). |
 | `min` / `max` | `Min` / `Max` | Numeric range defining 0% and 100% progress. |
 | `reverse` | `Reverse` | Reverses local progression direction. |
 | `gap` | `Gap` | Inset added inside the common widget border. |

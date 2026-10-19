@@ -142,44 +142,82 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 !!! info ""
 
-    **Editor name:** Component  
-    **Semantic keys:** `data.quantitative.datetime_component` / `data.binary.datetime_component`  
-    **Canonical model:** `QuantitativeWidgetDefinition.Component` / `BinaryWidgetDefinition.Component`  
-    **JSON:** `component` (optional string; Gauge/Bar since schema 20, Binary since schema 21)
+    **Editor name:** Component
+    **Semantic keys:** `data.quantitative.datetime_component` / `data.binary.datetime_component`
+    **Canonical model:** `QuantitativeWidgetDefinition.Component` / `BinaryWidgetDefinition.Component`
+    **JSON:** `component` (optional; Gauge/Bar since schema 20, Binary since schema 21)
 
+    **Choices and whole-component ranges (`Format = 0`):**
 
-    **Values:**
-
-    | Choice | JSON token | Scalar range and interpretation |
+    | Choice | JSON token | Discrete value |
     | --- | --- | --- |
-    | Select component | `null` | Unavailable until selected. |
-    | Year | `year` | Whole civil year, e.g., 2026. |
-    | Month | `month` | Integer 1–12; October is exactly 10 for the whole month. |
-    | Day of month | `dayOfMonth` | Integer 1–31. |
-    | Day of year | `dayOfYear` | Integer 1–365/366, including leap years. |
-    | Day of week (ISO) | `dayOfWeek` | Integer Monday=1 through Sunday=7. |
-    | Hour (24-hour) | `hour24` | Integer 0–23. |
-    | Hour (12-hour) | `hour12` | Integer 1–12; midnight and noon are 12. |
-    | Minute | `minute` | Integer 0–59. |
-    | Second | `second` | Integer 0–59; fractions of a second are discarded. |
+    | Select component | `null` | Unavailable until selected |
+    | Year | `year` | Civil year, 1–9999 |
+    | Month | `month` | 1–12 |
+    | Day of month | `dayOfMonth` | 1–28/29/30/31, depending on month |
+    | Day of year | `dayOfYear` | 1–365/366, depending on leap year |
+    | Day of week (ISO) | `dayOfWeek` | Monday=1 through Sunday=7 |
+    | Hour (24-hour) | `hour24` | 0–23 |
+    | Hour (12-hour) | `hour12` | 1–12; noon and midnight are 12 |
+    | Minute | `minute` | 0–59 |
+    | Second | `second` | 0–59 |
 
-    A DateTime/DateTimeOffset metric must select one numeric Component before
-    Gauge or Bar can map it onto Min/Max, or Binary can evaluate its True/False state. DateTimeOffset uses local time,
-    consistent with textual DateTime formatting. All components are discrete
-    civil-calendar/clock numbers: no fractional months, weekdays, years, hours,
-    minutes or seconds. Gauge and Bar advance by one step when the selected
-    component changes; they do not interpolate between calendar values.
-    For a clock dial, `Min=0`/`Max=12` can map Hour (12-hour)
-    (where 12 occupies the full-scale position), and `Min=0`/`Max=60`
-    maps Minute/Second. For Month use `Min=1`/`Max=12`;
-    Day of month and Day of year have variable calendar limits.
+    A DateTime/DateTimeOffset metric requires one selected Component before Gauge,
+    Bar, or Binary can use its numeric value. DateTimeOffset uses local civil time,
+    as does DateTime text formatting. Compound date/time masks such as `hh:mm`
+    are not Components. Missing or unconvertible readings, or no Component,
+    remain unavailable, never a fabricated False state.
 
-    This is a numeric projection, **not** the text [Format](properties.md#format)
-    editor. Compound masks such as `hh:mm` are invalid and rejected. Existing
-    schema-19 Gauge/Bar and schema-20 Binary dashboards migrate with Component unset
-    and retain their previous unavailable DateTime indication until selection.
+    **Numeric precision (Editor: `Data → Value → Format`):**
 
-    **Used by:** Gauge, Bar, Binary, only when [Metric](properties.md#metric) is DateTime. For Binary the selector is available in both Auto and Setpoint, including Icon/Image-only states. The projected scalar uses ordinary zero/nonzero truth in Auto and the numeric True If comparison in Setpoint; it never changes the Value-state text [Format](properties.md#format).
+    **Semantic keys:** `data.quantitative.datetime_component_format` /
+    `data.binary.datetime_component_format`
+    **Canonical model:** `QuantitativeWidgetDefinition.ComponentFormat` /
+    `BinaryWidgetDefinition.ComponentFormat`
+    **JSON:** `componentFormat` (optional, schema 22)
+
+    | Format | Effective numeric projection |
+    | --- | --- |
+    | `0` (default) | Exact whole calendar/clock component; no fraction |
+    | `0.0` | Component plus elapsed lower-unit proportion, truncated to tenths |
+    | `0.00` | Component plus elapsed lower-unit proportion, truncated to hundredths |
+
+    The fraction is elapsed time within the component's own interval: within a
+    year for Year, its actual month for Month, the local day for day/weekday,
+    the hour for hour, the minute for Minute and the second for Second.
+    Year and Month respect variable lengths and leap years. The projection uses
+    tick-based integer quantization **toward the component's whole value**,
+    not .NET display rounding. It never reaches the following integer before
+    the actual boundary: October stays below 11, even at the last tick of October.
+    The default `0` is represented by an absent `componentFormat` on existing
+    and newly created dashboards; changing this setting affects geometry and
+    Binary evaluation, not just printed text.
+
+    With fractional precision, ranges are half-open: Year [1,10000),
+    Month [1,13), Day of month [1,32) (with the actual month ending earlier),
+    Day of year [1,367) (365/366 days), ISO weekday [1,8),
+    Hour24 [0,24), Hour12 [1,13), Minute and Second [0,60).
+    Set `Min`/`Max` to the desired scale rather than assuming `Max=12`
+    shows fractional progress during month 12 or hour12=12. For a complete
+    fractional clock cycle, Hour12 may use 1–13; Minute/Second use 0–60.
+    Values wrap at civil calendar boundaries; fractional projection does not
+    smooth the discontinuity between the last and first components.
+
+    Binary `Auto` evaluates zero/nonzero on this actual numeric scalar;
+    Setpoint compares the same scalar using the existing operators, alternatives,
+    and inclusive ranges. With fractional Format, `Month = 10` may match
+    only during the initial interval still quantized to 10, not throughout October;
+    use `0` for whole-month equality or an appropriate numeric range when
+    interpolation is wanted. Unavailable does not mean False.
+
+    Binary's existing persisted `format` **still controls only Value-state
+    DateTime text**, with .NET format masks such as `yyyy-MM-dd`. When a Binary
+    state displays a Value, that separate field is labeled **Text Format**.
+    The numeric `componentFormat` is available in Auto/Setpoint and icon/image-only
+    states as well. Schema 21 → 22 migration leaves legacy text masks and
+    absent numeric precision untouched; it never creates an unselected Component.
+
+    **Used by:** Gauge, Bar, Binary when Metric is DateTime.
 
 <!-- --8<-- [end:component] -->
 
@@ -440,7 +478,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - DateTime presets include `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd`, `yyyy`, `MMMM`, `MMM`, `MM`, `dd`, `dddd`, `ddd`, `HH:mm`, `HH:mm:ss`, `hh:mm tt`, `hh:mm:ss tt`, `MMMM d`, `MMMM d, yyyy`, `dddd, MMMM d`, `dddd, MMMM d, yyyy`; custom .NET DateTime formats are validated before acceptance.
 
 
-    Format of the displayed value.
+    Format of the displayed value. In DateTime Binary Value states the editor labels
+    this field **Text Format** so it is distinct from the numeric
+    [Component Format](properties.md#component). The persisted `format` field remains
+    textual; numeric DateTime precision is persisted separately as `componentFormat`.
 
     **Used by:** Text / Value, Binary with Value state
 
