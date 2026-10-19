@@ -288,7 +288,11 @@ internal static class PhysicalOutputEnablementTests
             Check(f.ConsentCalls == 0 && f.Created.All(s => s.TargetId != "device-a"),
                 "The generic field route must keep its physical ownership guard.");
             var messages = new List<(string Text, RuntimeNotificationKind Kind)>();
-            var feedback = new RuntimeCommandFeedback((text, kind) => messages.Add((text, kind)), _ => { }, _ => { });
+            var diagnostics = new List<string>();
+            var feedback = new RuntimeCommandFeedback(
+                (text, kind) => messages.Add((text, kind)),
+                _ => { }, _ => { },
+                (message, _) => diagnostics.Add(message));
             var c = f.Latest("device-c");
             c.IsConnected = false;
             feedback.Execute(new(RuntimeIpcCommandKind.StartOrReloadTarget, "device-c"),
@@ -300,9 +304,12 @@ internal static class PhysicalOutputEnablementTests
             c.IsConnected = true;
             feedback.Observe(f.Control.GetStatus());
             feedback.Observe(f.Control.GetStatus());
-            Check(messages.Count == 3 && messages[2].Text.Contains("(device-c)", StringComparison.Ordinal) &&
+            Check(messages.Count == 3 && diagnostics.Count == 3 &&
+                  messages[2].Text.Contains("Physical C", StringComparison.Ordinal) &&
+                  !messages[2].Text.Contains("(device-c)", StringComparison.Ordinal) &&
+                  diagnostics[2].Contains("(device-c)", StringComparison.Ordinal) &&
                   messages[2].Kind == RuntimeNotificationKind.Information,
-                "A physical field change must preserve an unrelated pending completion and publish its terminal result once.");
+                "A physical field change must preserve unrelated pending completion, while keeping the target ID in diagnostics instead of the banner.");
         }
     }
 

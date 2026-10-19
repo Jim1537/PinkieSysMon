@@ -259,7 +259,7 @@ internal static class SavedOutputReloadTests
                 OnCommit?.Invoke(next);
             });
             Control = new RuntimeOutputControl(Manager, () => "Summary", settings.Execute);
-            Feedback = new((message, kind) => Events.Add((message, kind)), _ => { }, _ => { });
+            Feedback = new((message, kind) => Events.Add((message, kind)), _ => { }, _ => { }, (_, _) => { });
             Manager.Start();
         }
         public Session Session(string id) => Created.Single(s => s.TargetId == id);

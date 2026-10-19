@@ -326,7 +326,7 @@ internal static class SavedConfigurationReloadTests
                 media => { Media = media; OnMedia?.Invoke(); },
                 next => { Current = next; OnRuntimeCommit?.Invoke(next); });
             Control = new(Manager, () => "Summary", reloadAll: () => Controller.Reload());
-            Feedback = new((_, kind) => Events.Add(kind), _ => { }, _ => { });
+            Feedback = new((_, kind) => Events.Add(kind), _ => { }, _ => { }, (_, _) => { });
         }
         public Session Session(string id) => Created.Single(s => s.TargetId == id && s.Disposals == 0);
         private static RuntimeIpcCommand Request() => RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.StartOrReloadAllCommand);
