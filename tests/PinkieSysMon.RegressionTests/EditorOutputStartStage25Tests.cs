@@ -183,6 +183,63 @@ internal static class EditorOutputStartStage25Tests
             "Lost status after All must leave the applied outcome unknown rather than inventing success or rollback.");
     }
 
+    public static void GroupedOutputMenu()
+    {
+        var targets = new[]
+        {
+            new OutputTargetConfig { Id = "usb-2", Name = "Z Device", Kind = OutputTargetContract.TurzxKind },
+            new OutputTargetConfig { Id = "desktop-2", Name = "A Desktop", Kind = OutputTargetContract.DesktopKind },
+            new OutputTargetConfig { Id = "usb-1", Name = "A Device", Kind = OutputTargetContract.TrofeoKind },
+            new OutputTargetConfig { Id = "desktop-1", Name = "Z Desktop", Kind = OutputTargetContract.DesktopKind }
+        };
+        var groups = ScreenMenuContract.GroupTargets(targets);
+        Check(groups.Length == 2 &&
+              groups[0].Heading == ScreenMenuContract.DesktopHeading &&
+              groups[0].Targets.Select(t => t.Id).SequenceEqual(new[] { "desktop-2", "desktop-1" }) &&
+              groups[1].Heading == ScreenMenuContract.PhysicalDevicesHeading &&
+              groups[1].Targets.Select(t => t.Id).SequenceEqual(new[] { "usb-2", "usb-1" }),
+            "Mixed Outputs must use direct Desktop/Physical headings and preserve original order within each kind.");
+
+        var displayed = groups.SelectMany(group => group.Targets)
+            .Select(target => new ScreenMenuTargetIdentity(target.Id, target.Kind)).ToArray();
+        Check(!ScreenMenuContract.TargetsRequireRebuild(displayed, targets),
+            "Unchanged grouped Outputs must retain their existing menu items and actions.");
+        var reordered = targets.AsEnumerable().Reverse().ToArray();
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayed, reordered),
+            "A change to order within either Output group must rebuild the menu.");
+        var renamed = targets.Select(t => new OutputTargetConfig
+        {
+            Id = t.Id, Kind = t.Kind, Name = "Updated " + t.Name
+        }).ToArray();
+        Check(!ScreenMenuContract.TargetsRequireRebuild(displayed, renamed),
+            "A name-only change must be reflected by state projection without losing submenu ownership.");
+        var added = targets.Append(new OutputTargetConfig
+        {
+            Id = "desktop-3", Name = "New Desktop", Kind = OutputTargetContract.DesktopKind
+        }).ToArray();
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayed, added) &&
+              ScreenMenuContract.TargetsRequireRebuild(displayed, targets.Skip(1).ToArray()),
+            "Adding or removing an Output must rebuild its grouped menu immediately.");
+        var switched = targets.Select(t => t.Id == "desktop-2"
+            ? new OutputTargetConfig { Id = t.Id, Name = t.Name, Kind = OutputTargetContract.TurzxKind }
+            : t).ToArray();
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayed, switched),
+            "Changing an Output's kind without changing its ID must move it to the correct group.");
+        foreach (var kind in new[] { OutputTargetContract.DesktopKind, OutputTargetContract.TrofeoKind })
+        {
+            var selected = targets.Where(t => kind == OutputTargetContract.DesktopKind
+                ? t.Kind == OutputTargetContract.DesktopKind
+                : OutputTargetContract.IsPhysicalKind(t.Kind)).ToArray();
+            var oneGroup = ScreenMenuContract.GroupTargets(selected);
+            Check(oneGroup.Length == 1 && oneGroup[0].Targets.Length == 2 &&
+                  oneGroup[0].Heading == (kind == OutputTargetContract.DesktopKind
+                      ? ScreenMenuContract.DesktopHeading : ScreenMenuContract.PhysicalDevicesHeading),
+                "An empty Output kind must not display an orphan heading or empty submenu.");
+        }
+        Check(ScreenMenuContract.GroupTargets(Array.Empty<OutputTargetConfig>()).Length == 0,
+            "A configuration without Outputs must not invent placeholder group entries.");
+    }
+
     public static void LegacyDriftAndMenu()
     {
         var legacy = new Runtime();
@@ -208,21 +265,25 @@ internal static class EditorOutputStartStage25Tests
         Check(state.Targets[0].CanStartOrReload && state.Targets[0].StatusText.Contains("Dashboard: A", StringComparison.Ordinal) &&
               !state.Targets[1].CanStartOrReload,
             "Menu must show per-target assignment and deny disabled physical activation independently of Provider Enabled.");
-        var displayedIds = config.Outputs.Targets.Select(target => target.Id).ToArray();
-        Check(!ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets),
+        var displayedTargets = ScreenMenuContract.GroupTargets(config.Outputs.Targets)
+            .SelectMany(group => group.Targets)
+            .Select(target => new ScreenMenuTargetIdentity(target.Id, target.Kind)).ToArray();
+        Check(!ScreenMenuContract.TargetsRequireRebuild(displayedTargets, config.Outputs.Targets),
             "Unchanged Output menu targets must not be recreated.");
         var withNewDesktop = config.Outputs.Targets.Append(new OutputTargetConfig
         {
             Id = "new-desktop", Name = "New Desktop", Kind = OutputTargetContract.DesktopKind,
             Transport = OutputTargetContract.DesktopTransport, Dashboard = "A", Desktop = new()
         }).ToArray();
-        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, withNewDesktop),
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayedTargets, withNewDesktop),
             "Settings-created Outputs must rebuild the Editor menu after its configuration snapshot was updated.");
-        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets.Skip(1).ToArray()),
+        Check(ScreenMenuContract.TargetsRequireRebuild(displayedTargets, config.Outputs.Targets.Skip(1).ToArray()),
             "Settings-removed Outputs must rebuild the Editor menu.");
-        Check(ScreenMenuContract.TargetsRequireRebuild(displayedIds, config.Outputs.Targets.AsEnumerable().Reverse().ToArray()),
-            "Reordering Outputs must update their Editor menu order.");
-        Check(!ScreenMenuContract.TargetsRequireRebuild(["A", "c"], config.Outputs.Targets),
+        Check(!ScreenMenuContract.TargetsRequireRebuild(displayedTargets, config.Outputs.Targets.AsEnumerable().Reverse().ToArray()),
+            "Cross-kind configuration order changes must retain the established Desktop-first menu order.");
+        Check(!ScreenMenuContract.TargetsRequireRebuild(
+                [new ScreenMenuTargetIdentity("A", OutputTargetContract.DesktopKind),
+                 new ScreenMenuTargetIdentity("c", OutputTargetContract.TrofeoKind)], config.Outputs.Targets),
             "Output IDs must retain case-insensitive matching for existing Editor menu entries.");
 
         var offline = EditorOutputStartWorkflow.FromConfiguration(config);

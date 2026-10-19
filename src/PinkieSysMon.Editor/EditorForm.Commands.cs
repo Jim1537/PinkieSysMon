@@ -492,27 +492,40 @@ internal sealed partial class EditorForm
         _screenMenu.DropDownItems.Clear();
         _screenTargetMenuItems.Clear();
 
-        foreach (var target in _appConfig.Outputs.Targets)
+        var hasGroup = false;
+        foreach (var group in ScreenMenuContract.GroupTargets(_appConfig.Outputs.Targets))
         {
-            var targetId = target.Id;
-            var targetItem = new ToolStripMenuItem(target.Name);
-            var statusItem = new ToolStripMenuItem("Status: checking...") { Enabled = false };
-            var startReloadItem = new ToolStripMenuItem(
-                ScreenMenuContract.StartReloadText,
-                null,
-                async (_, _) => await ExecuteStartOrReloadTargetAsync(targetId));
-            targetItem.DropDownItems.Add(statusItem);
-            targetItem.DropDownItems.Add(new ToolStripSeparator());
-            targetItem.DropDownItems.Add(startReloadItem);
-            _screenMenu.DropDownItems.Add(targetItem);
+            if (hasGroup)
+                _screenMenu.DropDownItems.Add(new ToolStripSeparator());
 
-            _screenTargetMenuItems[targetId] = new ScreenTargetMenuItems(
-                targetItem,
-                statusItem,
-                startReloadItem);
+            _screenMenu.DropDownItems.Add(new ToolStripMenuItem(group.Heading) { Enabled = false });
+            foreach (var target in group.Targets)
+            {
+                var targetId = target.Id;
+                var targetItem = new ToolStripMenuItem(target.Name)
+                {
+                    Tag = new ScreenMenuTargetIdentity(targetId, target.Kind)
+                };
+                var statusItem = new ToolStripMenuItem("Status: checking...") { Enabled = false };
+                var startReloadItem = new ToolStripMenuItem(
+                    ScreenMenuContract.StartReloadText,
+                    null,
+                    async (_, _) => await ExecuteStartOrReloadTargetAsync(targetId));
+                targetItem.DropDownItems.Add(statusItem);
+                targetItem.DropDownItems.Add(new ToolStripSeparator());
+                targetItem.DropDownItems.Add(startReloadItem);
+                _screenMenu.DropDownItems.Add(targetItem);
+
+                _screenTargetMenuItems[targetId] = new ScreenTargetMenuItems(
+                    targetItem,
+                    statusItem,
+                    startReloadItem);
+            }
+            hasGroup = true;
         }
 
-        _screenMenu.DropDownItems.Add(new ToolStripSeparator());
+        if (hasGroup)
+            _screenMenu.DropDownItems.Add(new ToolStripSeparator());
         _screenStartReloadAllMenuItem = new ToolStripMenuItem(
             ScreenMenuContract.StartReloadAllText,
             null,
@@ -529,7 +542,11 @@ internal sealed partial class EditorForm
 
     private void SynchronizeScreenMenu()
     {
-        if (ScreenMenuContract.TargetsRequireRebuild(_screenTargetMenuItems.Keys, _appConfig.Outputs.Targets))
+        var displayed = _screenMenu.DropDownItems
+            .OfType<ToolStripMenuItem>()
+            .Select(item => item.Tag)
+            .OfType<ScreenMenuTargetIdentity>();
+        if (ScreenMenuContract.TargetsRequireRebuild(displayed, _appConfig.Outputs.Targets))
             RebuildScreenMenu();
         else
             UpdateScreenMenuStates();
@@ -776,17 +793,44 @@ internal sealed record ScreenMenuCommandState(
     bool CanStartOrReloadAll,
     bool CanStopAll);
 
+internal sealed record ScreenMenuTargetIdentity(string TargetId, string Kind);
+internal sealed record ScreenMenuTargetGroup(string Heading, OutputTargetConfig[] Targets);
+
 internal static class ScreenMenuContract
 {
+    public const string DesktopHeading = "Desktop";
+    public const string PhysicalDevicesHeading = "Physical Devices";
     public const string StartReloadText = "Reload";
     public const string StartReloadAllText = "Reload All";
     public const string StopAllText = "Stop / Unload All Outputs";
 
-    public static bool TargetsRequireRebuild(IEnumerable<string> displayedTargetIds, IReadOnlyList<OutputTargetConfig> targets)
+    public static ScreenMenuTargetGroup[] GroupTargets(IReadOnlyList<OutputTargetConfig> targets)
     {
-        ArgumentNullException.ThrowIfNull(displayedTargetIds);
         ArgumentNullException.ThrowIfNull(targets);
-        return !displayedTargetIds.SequenceEqual(targets.Select(target => target.Id), StringComparer.OrdinalIgnoreCase);
+        var desktop = targets.Where(target => string.Equals(
+            target.Kind, OutputTargetContract.DesktopKind, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var physical = targets.Where(target => OutputTargetContract.IsPhysicalKind(target.Kind)).ToArray();
+        if (desktop.Length + physical.Length != targets.Count)
+            throw new InvalidDataException("The Outputs menu contains an unsupported Output kind.");
+
+        var groups = new List<ScreenMenuTargetGroup>(2);
+        if (desktop.Length > 0)
+            groups.Add(new ScreenMenuTargetGroup(DesktopHeading, desktop));
+        if (physical.Length > 0)
+            groups.Add(new ScreenMenuTargetGroup(PhysicalDevicesHeading, physical));
+        return groups.ToArray();
+    }
+
+    public static bool TargetsRequireRebuild(
+        IEnumerable<ScreenMenuTargetIdentity> displayedTargets, IReadOnlyList<OutputTargetConfig> targets)
+    {
+        ArgumentNullException.ThrowIfNull(displayedTargets);
+        var displayed = displayedTargets.ToArray();
+        var expected = GroupTargets(targets).SelectMany(group => group.Targets).ToArray();
+        return displayed.Length != expected.Length ||
+            displayed.Where((item, index) =>
+                !string.Equals(item.TargetId, expected[index].Id, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(item.Kind, expected[index].Kind, StringComparison.OrdinalIgnoreCase)).Any();
     }
 
     public static ScreenMenuCommandState Build(

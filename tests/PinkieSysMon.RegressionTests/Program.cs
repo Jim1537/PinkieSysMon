@@ -242,6 +242,7 @@ internal static class Program
             ("Stage25 failed apply and observed completion", EditorOutputStartStage25Tests.FailuresAndVerification),
             ("Stage25 All choice preflight and partial results", EditorOutputStartStage25Tests.AllPlanningAndPartialResults),
             ("Stage25 legacy status, assignment drift and menu ownership", EditorOutputStartStage25Tests.LegacyDriftAndMenu),
+            ("Issue87 Editor Outputs grouping and refresh", EditorOutputStartStage25Tests.GroupedOutputMenu),
             ("Stage26 shared command result and target identity", RuntimeNotificationStage26Tests.SharedCommandResults),
             ("Stage26 pending readiness and one terminal notification", RuntimeNotificationStage26Tests.PendingAndTerminalOutcomes),
             ("Stage26 configuration observation and sibling isolation", RuntimeNotificationStage26Tests.ConfigurationAndIsolation),
