@@ -184,7 +184,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
         canvas.Clear(_backgroundColor);
         DrawCanvasImage(canvas, _backgroundImage);
 
-        _renderContext.UpdateMetrics(metrics);
+        _renderContext.BeginFrame(metrics);
         foreach (var entry in _renderEntries)
             WidgetTransform.Render(canvas, entry.Widget, _renderContext, entry.Renderer);
 

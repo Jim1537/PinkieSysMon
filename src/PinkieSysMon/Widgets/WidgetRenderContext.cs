@@ -15,7 +15,11 @@ internal sealed class WidgetRenderContext : IDisposable
     private readonly Dictionary<CanonicalWidgetDefinition, ContainerRenderResources> _containerResources = new();
     private readonly Dictionary<CanonicalWidgetDefinition, string> _formattedMetricCache = new();
     private readonly Dictionary<NumericMetricCacheKey, double?> _doubleMetricCache = new();
+    // The wall-clock display has a per-frame lifetime, unlike immutable telemetry snapshots.
+    private readonly Dictionary<CanonicalWidgetDefinition, string> _frameClockTextCache = new();
+    private readonly Dictionary<NumericMetricCacheKey, double?> _frameClockNumericCache = new();
     private IReadOnlyDictionary<string, object?> _metrics;
+    private DateTime? _frameClock;
     private long _shadowCacheBytes;
 
     public WidgetRenderContext(
@@ -41,7 +45,42 @@ internal sealed class WidgetRenderContext : IDisposable
         _metrics = metrics;
         _formattedMetricCache.Clear();
         _doubleMetricCache.Clear();
+        _frameClock = null;
+        _frameClockTextCache.Clear();
+        _frameClockNumericCache.Clear();
     }
+
+    // Both Runtime and Editor render the same System clock at frame cadence.
+    // Availability still belongs to the scheduled provider snapshot; no metric is published
+    // or fabricated when that source has not provided a usable reading.
+    public void BeginFrame(IReadOnlyDictionary<string, object?> metrics)
+    {
+        UpdateMetrics(metrics);
+        SetFrameClock(metrics.TryGetValue(SystemMetricContract.DateTime, out var raw) &&
+                      raw is DateTime or DateTimeOffset
+            ? DateTime.Now
+            : null);
+    }
+
+    // An explicit timestamp permits deterministic regression coverage without wall-clock sleeps.
+    internal void SetFrameClock(DateTime? timestamp)
+    {
+        if (_frameClock == timestamp)
+            return;
+
+        _frameClock = timestamp;
+        _frameClockTextCache.Clear();
+        _frameClockNumericCache.Clear();
+    }
+
+    private static bool IsFrameClockMetric(string? metric) =>
+        string.Equals(metric, SystemMetricContract.DateTime, StringComparison.OrdinalIgnoreCase);
+
+    private object ResolveFrameReading(string metric, object raw) =>
+        IsFrameClockMetric(metric) && _frameClock is { } current &&
+        raw is DateTime or DateTimeOffset
+            ? current
+            : raw;
 
 
 
@@ -611,7 +650,8 @@ internal sealed class WidgetRenderContext : IDisposable
         string suffix,
         string fallback)
     {
-        if (_formattedMetricCache.TryGetValue(cacheKey, out var cached))
+        var cache = IsFrameClockMetric(metric) ? _frameClockTextCache : _formattedMetricCache;
+        if (cache.TryGetValue(cacheKey, out var cached))
             return cached;
 
         string formatted;
@@ -621,6 +661,7 @@ internal sealed class WidgetRenderContext : IDisposable
         }
         else
         {
+            value = ResolveFrameReading(metric, value);
             var descriptor = MetricContract.GetDescriptor(metric);
             if (descriptor is null)
             {
@@ -652,7 +693,7 @@ internal sealed class WidgetRenderContext : IDisposable
             }
         }
 
-        _formattedMetricCache[cacheKey] = formatted;
+        cache[cacheKey] = formatted;
         return formatted;
     }
 
@@ -685,7 +726,8 @@ internal sealed class WidgetRenderContext : IDisposable
             ? null
             : unit.Trim();
         var key = new NumericMetricCacheKey(metric, normalizedUnit, component, componentFormat);
-        if (_doubleMetricCache.TryGetValue(key, out var cached))
+        var cache = IsFrameClockMetric(metric) ? _frameClockNumericCache : _doubleMetricCache;
+        if (cache.TryGetValue(key, out var cached))
         {
             value = cached.GetValueOrDefault();
             return cached.HasValue;
@@ -694,6 +736,7 @@ internal sealed class WidgetRenderContext : IDisposable
         double? converted = null;
         if (Metrics.TryGetValue(metric, out var raw) && raw is not null)
         {
+            raw = ResolveFrameReading(metric, raw);
             var descriptor = MetricContract.GetDescriptor(metric);
             if (descriptor?.ValueKind == MetricValueKind.DateTime)
             {
@@ -725,7 +768,7 @@ internal sealed class WidgetRenderContext : IDisposable
             }
         }
 
-        _doubleMetricCache[key] = converted;
+        cache[key] = converted;
         value = converted.GetValueOrDefault();
         return converted.HasValue;
     }

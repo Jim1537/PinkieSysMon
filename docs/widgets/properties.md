@@ -191,7 +191,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
     the actual boundary: October stays below 11, even at the last tick of October.
     The default `0` is represented by an absent `componentFormat` on existing
     and newly created dashboards; changing this setting affects geometry and
-    Binary evaluation, not just printed text.
+    Binary evaluation, not just printed text. For the live System clock's
+    per-frame updates, see [System telemetry](../telemetry/system.md#operating-system-and-general-system-metrics).
 
     With fractional precision, ranges are half-open: Year [1,10000),
     Month [1,13), Day of month [1,32) (with the actual month ending earlier),

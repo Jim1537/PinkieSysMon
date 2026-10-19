@@ -141,6 +141,17 @@ Failure to obtain an individual OS identity value is not fatal. The correspondin
 
   `DateTime.Now`
 
+The scheduled source publishes a snapshot at its configured telemetry interval
+(default `1000 ms`). When that snapshot contains an available DateTime reading,
+the shared Runtime/Editor renderer samples local `DateTime.Now` **once per frame**
+for this metric's numeric components and displayed DateTime text. This
+presentation-only clock is never written back to `MetricStore`: provider
+demand, disablement and unavailable readings still govern availability.
+Frame/preview refresh cadence limits visible precision independently of
+telemetry polling; other DateTime metrics (including `system.os.installed`)
+keep their sampled values. This avoids globally faster polling and additional
+WMI, sensor or device capture work.
+
 `system.os.uptime` is calculated from:
 
   `Environment.TickCount64`

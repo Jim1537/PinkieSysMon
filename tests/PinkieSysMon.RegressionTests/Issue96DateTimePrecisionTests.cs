@@ -210,6 +210,71 @@ internal static class Issue96DateTimePrecisionTests
             "Existing Binary DateTime textual masks must still render unchanged.");
     }
 
+    public static void LiveFrameClockAndAvailability()
+    {
+        var sampledClock = new DateTime(2026, 10, 16, 12, 30, 45);
+        var installedDate = new DateTime(2020, 1, 1, 10, 20, 30);
+        var snapshot = new Dictionary<string, object?>
+        {
+            [SystemMetricContract.DateTime] = sampledClock,
+            [SystemMetricContract.Installed] = installedDate
+        };
+        var gauge = new C.GaugeWidgetDefinition
+        {
+            Id = "live-clock-gauge", Metric = SystemMetricContract.DateTime,
+            Component = "second", ComponentFormat = "0.00", Width = 150, Height = 150
+        };
+        var bar = new C.BarWidgetDefinition
+        {
+            Id = "live-clock-bar", Metric = SystemMetricContract.DateTime,
+            Component = "second", ComponentFormat = "0.0", Width = 150, Height = 20
+        };
+        var staticDate = new C.GaugeWidgetDefinition
+        {
+            Id = "installed-date-gauge", Metric = SystemMetricContract.Installed,
+            Component = "second", ComponentFormat = "0.00", Width = 150, Height = 150
+        };
+        var binary = CreateBinary();
+        binary.Component = "second";
+        binary.ComponentFormat = "0.00";
+        binary.Setpoint = "45.12";
+        binary.Format = "HH:mm:ss.fff";
+
+        using var fonts = new TypefaceCache(AppContext.BaseDirectory, Array.Empty<C.WidgetDefinition>());
+        using var context = new WidgetRenderContext(snapshot, antialias: false, fonts);
+        context.BeginFrame(snapshot);
+        context.SetFrameClock(new DateTime(2026, 10, 16, 12, 30, 45, 123));
+        Check(context.TryGetMetricDouble(gauge, out var first) && first == 45.12 &&
+              context.TryGetMetricDouble(bar, out var coarse) && coarse == 45.1 &&
+              context.TryGetMetricDouble(staticDate, out var staticValue) && staticValue == 30,
+            "A frame clock must drive per-widget precision without altering historical dates.");
+        CheckState(context, binary, BinarySignalContract.TrueKey,
+            "Binary comparisons must use the current frame clock.");
+        Check(context.FormatMetric(binary) == "12:30:45.123",
+            "Binary textual DateTime must use the same frame as numeric evaluation.");
+
+        // The snapshot object is deliberately unchanged: it still holds the original 45.00.
+        context.SetFrameClock(new DateTime(2026, 10, 16, 12, 30, 45, 789));
+        Check(context.TryGetMetricDouble(gauge, out var second) && second == 45.78 &&
+              context.TryGetMetricDouble(bar, out var coarseSecond) && coarseSecond == 45.7 &&
+              context.TryGetMetricDouble(staticDate, out var sameStatic) && sameStatic == 30 &&
+              context.FormatMetric(binary) == "12:30:45.789",
+            "Each frame must invalidate only live-clock caches, not retain sampled seconds.");
+        CheckState(context, binary, BinarySignalContract.FalseKey,
+            "Binary evaluation must re-evaluate fractional setpoints on every frame.");
+        Check(snapshot[SystemMetricContract.DateTime] is DateTime unchanged && unchanged == sampledClock,
+            "Frame presentation must not modify the immutable telemetry snapshot.");
+
+        // Loss of demand, provider disablement or an unavailable capture is never replaced with Now.
+        context.BeginFrame(new Dictionary<string, object?> { [SystemMetricContract.DateTime] = null });
+        Check(!context.TryGetMetricDouble(gauge, out _) &&
+              !context.TryResolveBinaryVisualProfile(binary, out _),
+            "An unavailable System clock must remain unavailable after frame sampling.");
+        context.BeginFrame(new Dictionary<string, object?>());
+        Check(!context.TryGetMetricDouble(bar, out _),
+            "Missing System clock demand must remain missing.");
+    }
+
     private static C.BinaryWidgetDefinition CreateBinary()
     {
         var widget = new C.BinaryWidgetDefinition

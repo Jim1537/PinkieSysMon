@@ -293,6 +293,7 @@ internal static class Program
             ("Issue96 DateTime fractional projection and boundaries", Issue96DateTimePrecisionTests.ProjectionAndBoundaries),
             ("Issue96 DateTime Editor, cache and Binary equality", Issue96DateTimePrecisionTests.EditorCacheAndBinary),
             ("Issue96 DateTime format schema compatibility", Issue96DateTimePrecisionTests.SchemaCompatibility),
+            ("Issue96 live frame clock and telemetry availability", Issue96DateTimePrecisionTests.LiveFrameClockAndAvailability),
             ("Issue81 Binary DateTime evaluation and Editor component", Issue81BinaryDateTimeTests.EvaluationAndEditor),
             ("Issue81 Binary DateTime schema 20 migration", Issue81BinaryDateTimeTests.SchemaMigration),
             ("Windows internet connectivity metric", WindowsInternetConnectivityMetric),
