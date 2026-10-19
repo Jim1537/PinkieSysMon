@@ -10,6 +10,7 @@ internal sealed class FramePump : IOutputSession
 
     private readonly object _sync = new();
     private readonly MetricStore _metrics;
+    private readonly Func<DateTime>? _frameClockNow;
     private readonly FileLogger _log;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
@@ -57,7 +58,8 @@ internal sealed class FramePump : IOutputSession
         MetricStore metrics,
         FileLogger log,
         Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null,
-        int? maximumFrames = null, Func<IReadOnlyList<OutputDeviceDescriptor>>? turzxRecoveryDiscovery = null)
+        int? maximumFrames = null, Func<IReadOnlyList<OutputDeviceDescriptor>>? turzxRecoveryDiscovery = null,
+        Func<DateTime>? frameClockNow = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -74,11 +76,12 @@ internal sealed class FramePump : IOutputSession
         _targetName = target.Name;
         _metrics = metrics;
         _log = log;
+        _frameClockNow = frameClockNow;
         _transportIoCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _transportFactory = transportFactory ??
             (static (selectedTarget, timeoutMs, journalEnabled, logger, ioToken) =>
                 PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
-        _renderer = new DashboardRenderer(dashboard);
+        _renderer = new DashboardRenderer(dashboard, _frameClockNow);
     }
 
     public string TargetId => _targetId;
@@ -125,7 +128,7 @@ internal sealed class FramePump : IOutputSession
             dashboard.Canvas.Width,
             dashboard.Canvas.Height,
             dashboard.Canvas.Orientation,
-            new DashboardRenderer(dashboard));
+            new DashboardRenderer(dashboard, _frameClockNow));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(

@@ -42,7 +42,8 @@ internal static class TurzxRuntimeDiagnostic
             var clock = now ?? (() => DateTime.Now);
             metrics.Publish(SystemMetricContract.DateTime, clock());
             // Resolve assets/fonts and validate the encoded bound before any USB open.
-            using (var renderer = new DashboardRenderer(board))
+            // Use the same explicit clock for bounded diagnostics and their real worker.
+            using (var renderer = new DashboardRenderer(board, clock))
             using (var preflight = renderer.RenderJpeg(metrics.Snapshot(), PhysicalFrameProfile.Turzx, 90))
                 write($"Preflight JPEG: {preflight.Length} bytes; wire raster 720x1920; aspect-preserving fit.");
             stage = "capture";
@@ -77,7 +78,8 @@ internal static class TurzxRuntimeDiagnostic
                 Console.CancelKeyPress += cancel;
                 try
                 {
-                    using var pump = new FramePump(config, target, board, metrics, log, OpenOnce, maximumFrames: frameLimit);
+                    using var pump = new FramePump(config, target, board, metrics, log, OpenOnce,
+                        maximumFrames: frameLimit, frameClockNow: clock);
                     pump.Start();
                     var timer = Stopwatch.StartNew();
                     long lastReported = 0;

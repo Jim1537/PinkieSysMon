@@ -149,8 +149,10 @@ presentation-only clock is never written back to `MetricStore`: provider
 demand, disablement and unavailable readings still govern availability.
 Frame/preview refresh cadence limits visible precision independently of
 telemetry polling; other DateTime metrics (including `system.os.installed`)
-keep their sampled values. This avoids globally faster polling and additional
-WMI, sensor or device capture work.
+keep their sampled values. Bounded runtime diagnostics may supply their own
+frame clock so explicitly injected synthetic timestamps remain meaningful.
+Normal Runtime and Editor use the local wall clock. This avoids globally faster
+polling and additional WMI, sensor or device capture work.
 
 `system.os.uptime` is calculated from:
 

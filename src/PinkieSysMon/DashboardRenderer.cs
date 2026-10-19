@@ -10,6 +10,7 @@ namespace PinkieSysMon;
 internal sealed class DashboardRenderer : IDisposable
 {
     private readonly CanonicalDashboardDefinition _definition;
+    private readonly Func<DateTime>? _frameClockNow;
     private readonly int _nativeWidth;
     private readonly int _nativeHeight;
     private readonly int _orientation;
@@ -31,9 +32,10 @@ internal sealed class DashboardRenderer : IDisposable
     private int _owners = 1;
 
 
-    public DashboardRenderer(CanonicalDashboardDefinition definition)
+    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null)
     {
         _definition = definition;
+        _frameClockNow = frameClockNow;
         _nativeWidth = definition.Canvas.Width;
         _nativeHeight = definition.Canvas.Height;
         _orientation = definition.Canvas.Orientation;
@@ -186,7 +188,7 @@ internal sealed class DashboardRenderer : IDisposable
         logicalCanvas.Clear(_backgroundColor);
         DrawCanvasImage(logicalCanvas, _backgroundImage);
 
-        _renderContext.BeginFrame(metrics);
+        _renderContext.BeginFrame(metrics, _frameClockNow);
         foreach (var entry in _renderEntries)
             WidgetTransform.Render(logicalCanvas, entry.Widget, _renderContext, entry.Renderer);
 

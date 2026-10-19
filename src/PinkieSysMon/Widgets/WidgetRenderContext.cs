@@ -53,12 +53,12 @@ internal sealed class WidgetRenderContext : IDisposable
     // Both Runtime and Editor render the same System clock at frame cadence.
     // Availability still belongs to the scheduled provider snapshot; no metric is published
     // or fabricated when that source has not provided a usable reading.
-    public void BeginFrame(IReadOnlyDictionary<string, object?> metrics)
+    public void BeginFrame(IReadOnlyDictionary<string, object?> metrics, Func<DateTime>? clockNow = null)
     {
         UpdateMetrics(metrics);
         SetFrameClock(metrics.TryGetValue(SystemMetricContract.DateTime, out var raw) &&
                       raw is DateTime or DateTimeOffset
-            ? DateTime.Now
+            ? clockNow?.Invoke() ?? DateTime.Now
             : null);
     }
 
