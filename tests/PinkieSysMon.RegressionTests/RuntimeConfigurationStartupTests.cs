@@ -5,6 +5,31 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class RuntimeConfigurationStartupTests
 {
+    public static void RootWithoutDashboardDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-empty-root-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var configFolder = Path.Combine(root, "config");
+            var nestedFolder = Path.Combine(root, "bin");
+            Directory.CreateDirectory(configFolder);
+            Directory.CreateDirectory(nestedFolder);
+            File.WriteAllText(Path.Combine(configFolder, "app.json"), "{}");
+            Check(!Directory.Exists(Path.Combine(root, "dashboards")) &&
+                  string.Equals(ApplicationRootLocator.Find(nestedFolder), root, StringComparison.OrdinalIgnoreCase),
+                  "Application root must resolve from config/app.json before any dashboard directory exists.");
+            Check(RuntimeConfigurationValidator.LoadEnabledAssignments(
+                    AppConfig.Load(Path.Combine(configFolder, "app.json"),
+                        new FileLogger(Path.Combine(root, "root.log"))), root).Count == 0,
+                  "A clean root with no dashboard directory must need no enabled dashboard files.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     public static void DesktopOnly()
     {
         InSandbox((root, path, log) =>
