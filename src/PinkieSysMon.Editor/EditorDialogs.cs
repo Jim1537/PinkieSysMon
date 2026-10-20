@@ -9,7 +9,17 @@ internal enum SaveChangesChoice
 
 internal sealed class NewDashboardDialog : PinkieEditorForm
 {
+    // Convenience values for manual Editor creation only; not a factory whitelist.
+    internal static readonly (int Width, int Height)[] ResolutionPresets =
+    [
+        (320, 240), (320, 320), (320, 480), (480, 320), (480, 480),
+        (640, 480), (640, 640), (800, 480), (960, 320), (1024, 600),
+        (1280, 480), (1280, 720), (1280, 800), (1600, 720),
+        (1920, 462), (1920, 480), (1920, 720)
+    ];
+
     private readonly TextBox _name = new() { Dock = DockStyle.Fill };
+    private readonly ComboBox _resolution = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
     private readonly ComboBox _orientation = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
 
     public NewDashboardDialog()
@@ -20,8 +30,12 @@ internal sealed class NewDashboardDialog : PinkieEditorForm
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(440, 145);
+        ClientSize = new Size(440, 185);
 
+        foreach (var (width, height) in ResolutionPresets)
+            _resolution.Items.Add(width == 640 && height == 640
+                ? "640 × 640 (Desktop)" : $"{width} × {height}");
+        _resolution.SelectedIndex = 6;
         _orientation.Items.AddRange(["0°", "90°", "180°", "270°"]);
         _orientation.SelectedIndex = 0;
 
@@ -30,18 +44,21 @@ internal sealed class NewDashboardDialog : PinkieEditorForm
             Dock = DockStyle.Fill,
             Padding = new Padding(12),
             ColumnCount = 2,
-            RowCount = 3
+            RowCount = 4
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         layout.Controls.Add(new Label { Text = "Name:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 10, 8) }, 0, 0);
         layout.Controls.Add(_name, 1, 0);
-        layout.Controls.Add(new Label { Text = "Orientation:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 10, 8) }, 0, 1);
-        layout.Controls.Add(_orientation, 1, 1);
+        layout.Controls.Add(new Label { Text = "Resolution:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 10, 8) }, 0, 1);
+        layout.Controls.Add(_resolution, 1, 1);
+        layout.Controls.Add(new Label { Text = "Orientation:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 6, 10, 8) }, 0, 2);
+        layout.Controls.Add(_orientation, 1, 2);
 
         var buttons = new FlowLayoutPanel
         {
@@ -55,7 +72,7 @@ internal sealed class NewDashboardDialog : PinkieEditorForm
         var create = new Button { Text = "Create", DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(create);
-        layout.Controls.Add(buttons, 0, 2);
+        layout.Controls.Add(buttons, 0, 3);
         layout.SetColumnSpan(buttons, 2);
 
         Controls.Add(layout);
@@ -65,6 +82,7 @@ internal sealed class NewDashboardDialog : PinkieEditorForm
     }
 
     public string DashboardName => _name.Text;
+    public (int Width, int Height) Resolution => ResolutionPresets[_resolution.SelectedIndex];
     public int Orientation => _orientation.SelectedIndex switch { 1 => 90, 2 => 180, 3 => 270, _ => 0 };
 }
 

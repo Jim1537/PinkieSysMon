@@ -17,8 +17,8 @@ internal static class Issue93NewDashboardTests
                 var name = $"New-{orientation}";
                 var directory = Path.Combine(DashboardCatalog.GetRoot(root), name);
 
-                // Exercise the exact file-creation method called by EditorForm.NewDashboard.
-                EditorForm.WriteNewDashboardFile(directory, orientation);
+                // Exercise the exact creation method called by EditorForm.NewDashboard.
+                EditorForm.WriteNewDashboardFile(directory, 640, 640, orientation);
                 var path = DashboardCatalog.GetDefinitionPath(root, name);
                 if (!File.Exists(path))
                     throw new InvalidOperationException("New Dashboard did not write dashboard.json.");
@@ -31,14 +31,11 @@ internal static class Issue93NewDashboardTests
 
                 var loaded = C.DashboardDefinition.Load(path);
                 if (loaded.SchemaVersion != DashboardSchemaMigration.CurrentSchemaVersion ||
-                    loaded.Canvas.Width != FrameGeometry.DefaultNativeWidth ||
-                    loaded.Canvas.Height != FrameGeometry.DefaultNativeHeight ||
+                    loaded.Canvas.Width != 640 || loaded.Canvas.Height != 640 ||
                     loaded.Canvas.Orientation != orientation ||
-                    loaded.Canvas.BackgroundColor != "#000000" ||
-                    loaded.Widgets.Count != 0)
-                    throw new InvalidOperationException("New Dashboard lost its canonical canvas or empty-widget defaults.");
+                    loaded.Widgets.Count < 3)
+                    throw new InvalidOperationException("New Dashboard lost canonical canvas or generated mandatory widgets.");
 
-                // Exercise the Editor's strict serializer and an actual second disk load.
                 var saved = DashboardJson.Serialize(loaded, indented: true) + Environment.NewLine;
                 File.WriteAllText(path, saved);
                 var reopened = C.DashboardDefinition.Load(path);

@@ -492,7 +492,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
             try
             {
                 SaveCurrentDashboardViewState();
-                WriteNewDashboardFile(directory, dialog.Orientation);
+                var (width, height) = dialog.Resolution;
+                WriteNewDashboardFile(directory, width, height, dialog.Orientation);
                 LoadDashboard(name);
                 SetStatus($"Created dashboard '{name}'.");
                 return;
@@ -515,23 +516,32 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     // Shared by New Dashboard and its disk round-trip regression.
-    internal static void WriteNewDashboardFile(string directory, int orientation)
+    internal static void WriteNewDashboardFile(string directory, int width, int height, int orientation)
     {
+        // Reject invalid geometry and serialization before creating any directory.
+        var definition = AdaptiveDashboardFactory.Create(width, height, orientation, directory);
+        var json = DashboardJson.Serialize(definition, indented: true) + Environment.NewLine;
         Directory.CreateDirectory(directory);
-        var definition = new CanonicalDashboardDefinition
-        {
-            SchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion,
-            BaseDirectory = directory,
-            Canvas = new CanonicalCanvasDefinition
-            {
-                Width = FrameGeometry.DefaultNativeWidth,
-                Height = FrameGeometry.DefaultNativeHeight,
-                Orientation = orientation,
-                BackgroundColor = "#000000"
-            }
-        };
         var path = Path.Combine(directory, "dashboard.json");
-        File.WriteAllText(path, DashboardJson.Serialize(definition, indented: true) + Environment.NewLine);
+        var createdFile = false;
+        try
+        {
+            // Never overwrite a user's document, even if another process created
+            // it after the Editor's case-insensitive directory-collision check.
+            using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            createdFile = true;
+            using var writer = new StreamWriter(stream);
+            writer.Write(json);
+        }
+        catch
+        {
+            if (createdFile)
+            {
+                try { File.Delete(path); }
+                catch { /* Preserve the original write failure. */ }
+            }
+            throw;
+        }
     }
 
     private void OpenDashboard()
