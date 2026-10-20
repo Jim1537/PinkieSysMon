@@ -122,6 +122,9 @@ internal static class Issue94PhysicalDefaultAssignmentTests
             var path = Path.Combine(root, "config", "app.json");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var config = new AppConfig();
+            // A previously configured Output with its own valid manual board.
+            config.Outputs.Targets[0].Dashboard = "Default";
+            config.Outputs.Targets[0].Desktop!.BoardEnabled = true;
             config.Save(path);
             action(root, path, config, File.ReadAllBytes(path));
         }

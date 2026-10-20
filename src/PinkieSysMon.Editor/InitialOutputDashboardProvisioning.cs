@@ -36,12 +36,21 @@ internal sealed class InitialOutputDashboardProvisioning : IDisposable
             }
         }
 
+        // An untouched public first-install Desktop is intentionally pending
+        // its first board. This is not a user-created missing assignment:
+        // successful Settings commit materializes it exactly once.
+        var bootstrap = updated.Outputs.Targets.FirstOrDefault(t =>
+            IsUnprovisionedPublicDesktop(oldConfig, previousIds, t));
+        if (bootstrap is not null)
+            requests.TryAdd(OutputDefaultDashboardPolicy.DesktopName, (640, 640));
+
         var pending = new InitialOutputDashboardProvisioning(configPath, oldConfig);
         if (requests.Count == 0)
             return pending;
 
         // A new request never silently repairs an older explicit bad reference.
-        foreach (var old in updated.Outputs.Targets.Where(t => previousIds.Contains(t.Id)))
+        foreach (var old in updated.Outputs.Targets.Where(t =>
+                     previousIds.Contains(t.Id) && !ReferenceEquals(t, bootstrap)))
             _ = RuntimeConfigurationValidator.LoadTarget(old, applicationRoot);
 
         try
@@ -55,6 +64,47 @@ internal sealed class InitialOutputDashboardProvisioning : IDisposable
             pending.Dispose();
             throw;
         }
+    }
+
+    private static bool IsUnprovisionedPublicDesktop(
+        byte[]? oldConfig, IReadOnlySet<string> originalIds, OutputTargetConfig target)
+    {
+        if (originalIds.Count != 1 || !originalIds.Contains("desktop-1") ||
+            !string.Equals(target.Id, "desktop-1", StringComparison.OrdinalIgnoreCase) ||
+            target.Kind != OutputTargetContract.DesktopKind ||
+            !string.Equals(target.Dashboard, OutputDefaultDashboardPolicy.DesktopName,
+                StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (oldConfig is null)
+            return true; // Missing config: AppConfig.Load constructed the same safe defaults.
+
+        try
+        {
+            ReadOnlySpan<byte> json = oldConfig;
+            if (json.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
+                json = json[3..];
+            using var document = System.Text.Json.JsonDocument.Parse(json.ToArray());
+            var root = document.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object ||
+                root.TryGetProperty("Dashboard", out _) ||
+                root.TryGetProperty("Runtime", out _))
+                return false; // Normalized saved/user config is never treated as untouched stock.
+            if (!root.TryGetProperty("Outputs", out var outputs))
+                return !root.EnumerateObject().Any(); // A literal empty initial config.
+            if (!outputs.TryGetProperty("Targets", out var targets) ||
+                targets.ValueKind != System.Text.Json.JsonValueKind.Array ||
+                targets.GetArrayLength() != 1)
+                return false;
+            var first = targets[0];
+            return first.GetProperty("Id").GetString() == "desktop-1" &&
+                   first.GetProperty("Name").GetString() == "Desktop 1" &&
+                   first.GetProperty("Kind").GetString() == OutputTargetContract.DesktopKind &&
+                   first.GetProperty("Dashboard").GetString() == OutputDefaultDashboardPolicy.DesktopName &&
+                   first.GetProperty("Desktop").GetProperty("BoardEnabled").GetBoolean() == false;
+        }
+        catch (System.Text.Json.JsonException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (KeyNotFoundException) { return false; }
     }
 
     private void EnsureBoard(string root, string name, int width, int height)

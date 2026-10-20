@@ -79,6 +79,8 @@ internal static class Program
             ("Issue94 Desktop default rollback and collisions", Issue94DesktopDefaultAssignmentTests.RollbackAndCollisions),
             ("Issue94 integrated physical native default assignment", Issue94PhysicalDefaultAssignmentTests.IntegratedProfilesAndReuse),
             ("Issue94 physical default rollback and unprofiled adapter", Issue94PhysicalDefaultAssignmentTests.FailureAndUnsupportedProfiles),
+            ("Issue94 first Desktop bootstrap and missing-file protection", Issue94FreshBootstrapTests.FirstDesktopAndNoRepair),
+            ("Issue94 first physical bootstrap and safe rollback", Issue94FreshBootstrapTests.PhysicalFirstAndCancel),
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),
