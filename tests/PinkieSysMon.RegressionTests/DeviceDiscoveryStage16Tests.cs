@@ -230,7 +230,7 @@ internal static class DeviceDiscoveryStage16Tests
         var config = new AppConfig { Outputs = new OutputConfig { Targets = [physical, desktop] } };
         var device = new OutputDeviceDescriptor(
             physical.DeviceId, OutputTargetContract.TrofeoTransport, "Known device", "synthetic-path");
-        var model = new DeviceSettingsModel(config, "Default");
+        var model = new DeviceSettingsModel(config);
         var draft = model.Entries.Single().Target;
         var before = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
         var disconnected = PhysicalDeviceInventory.Build(config.Outputs.Targets, []);
@@ -269,7 +269,7 @@ internal static class DeviceDiscoveryStage16Tests
         {
             Outputs = new OutputConfig { Targets = [Target()] }
         };
-        var soleModel = new DeviceSettingsModel(solePhysical, "Default");
+        var soleModel = new DeviceSettingsModel(solePhysical);
         var soleDraft = soleModel.Entries.Single().Target;
         Check(!soleModel.CanRemove(soleDraft, 0),
             "The final physical Output must never offer Remove.");
