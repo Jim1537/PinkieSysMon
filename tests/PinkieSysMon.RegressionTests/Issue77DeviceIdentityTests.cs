@@ -109,7 +109,7 @@ internal static class Issue77DeviceIdentityTests
     public static void InformationalDraftLifecycle()
     {
         var config = new AppConfig();
-        var deviceDraft = new DeviceSettingsModel(config, "Default");
+        var deviceDraft = new DeviceSettingsModel(config);
         var model = new RecognizedDeviceSettingsModel();
         var a = Id("1CBE:0123", "SYNTHETIC-A");
         var b = Id("1CBE:0123", "SYNTHETIC-B");
@@ -152,7 +152,7 @@ internal static class Issue77DeviceIdentityTests
             config.Outputs.Targets.Add(target);
             config.Save(path);
             var baseline = File.ReadAllBytes(path);
-            var model = new DeviceSettingsModel(config, "Default");
+            var model = new DeviceSettingsModel(config);
             model.Refresh([first, second]);
             model.ApplyTo(config);
             Check(!model.IsDirty && File.ReadAllBytes(path).SequenceEqual(baseline) && config.Outputs.Targets.Count == 2,
