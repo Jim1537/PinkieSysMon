@@ -630,7 +630,7 @@ internal sealed class OutputSessionManager : IDisposable
                 return status with
                 {
                     Kind = target.Kind,
-                    Dashboard = target.Dashboard,
+                    Dashboard = target.Dashboard ?? OutputDefaultDashboardPolicy.NameFor(target),
                     OutputEnabled = OutputTargetContract.IsEnabled(target),
                     ProviderEnabled = target.ProviderEnabled,
                     DeviceEnabled = desktop ? null : target.DeviceEnabled,
