@@ -165,6 +165,7 @@ internal static class Program
             ("Issue63 compatible Enabled persistence and consumer policy", OutputEnabledContractTests.PersistenceAndConsumers),
             ("Output desktop-only configuration", OutputConfigurationModelTests.DesktopOnly),
             ("Output per-instance invalid references and identity", OutputConfigurationModelTests.InvalidReferences),
+            ("Issue94 application root without dashboard folder", RuntimeConfigurationStartupTests.RootWithoutDashboardDirectory),
             ("Runtime config clean desktop-only bootstrap", RuntimeConfigurationStartupTests.DesktopOnly),
             ("Runtime config mixed enablement and reload", RuntimeConfigurationStartupTests.MixedTargets),
             ("Runtime config invalid dashboard and malformed input", RuntimeConfigurationStartupTests.InvalidInput),
