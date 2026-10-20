@@ -95,6 +95,7 @@ internal static class Issue71RuntimeTests
 
     public static void CheckpointAdmissionAndPreflight()
     {
+        CheckpointGeneratedBoardWithoutStockFiles();
         var captures = 0;
         int? Run(string[] args) => TurzxRuntimeDiagnostic.TryRun(args, _ => { }, capture: () => { captures++; return []; },
             loadBoard: () => throw new InvalidDataException("synthetic private path"), createLog: Log);
@@ -107,6 +108,39 @@ internal static class Issue71RuntimeTests
             Check(TurzxRuntimeDiagnostic.TryRun(Consent, _ => { }, () => Enumerable.Repeat(Device, count).ToArray(),
                 (_, _, _, _, _) => throw new Exception("Unexpected open"), () => Board(), Log) == 1,
                 "Missing/ambiguous discovery must not open any interface.");
+    }
+
+    private static void CheckpointGeneratedBoardWithoutStockFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-issue94-checkpoint-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var board = TurzxRuntimeDiagnostic.CreateCheckpointBoard(root);
+            Check(board.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
+                  board.Canvas.Width == 1920 && board.Canvas.Height == 480 && board.Canvas.Orientation == 0 &&
+                  board.BaseDirectory == Path.Combine(root, "dashboards", TurzxRuntimeDiagnostic.CheckpointDashboardName),
+                "Checkpoint must use the canonical adaptive generator and its unsaved asset context.");
+
+            var widgets = board.Widgets.OfType<C.ValueWidgetDefinition>().ToArray();
+            var clock = widgets.Single(w => w.Id == "clock");
+            var host = widgets.Single(w => w.Id == "computer");
+            var title = widgets.Single(w => w.Id == "brand");
+            Check(clock.SourceKind == C.ValueSourceKind.Metric &&
+                  clock.Metric == SystemMetricContract.DateTime && clock.Format == "HH:mm:ss" &&
+                  host.SourceKind == C.ValueSourceKind.Metric && host.Metric == SystemMetricContract.PcName &&
+                  title.SourceKind == C.ValueSourceKind.Text && title.Metric is null &&
+                  title.Text == "PINKIESYSMON / TURZX LIVE",
+                "Diagnostic must retain a real clock and the distinctive in-memory title.");
+
+            Check(!Directory.Exists(Path.Combine(root, "dashboards")) &&
+                  !File.Exists(Path.Combine(root, "config", "app.json")),
+                "Checkpoint board creation must neither require nor persist any dashboard or config file.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     public static void SharedWorkerLiveFrames()

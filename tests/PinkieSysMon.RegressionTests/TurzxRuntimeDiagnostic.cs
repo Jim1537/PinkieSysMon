@@ -9,6 +9,7 @@ namespace PinkieSysMon.RegressionTests;
 internal static class TurzxRuntimeDiagnostic
 {
     public const string Argument = "--turzx-runtime-check";
+    internal const string CheckpointDashboardName = "turzx-runtime-check";
 
     public static int? TryRun(string[] args, Action<string> write,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? capture = null,
@@ -30,14 +31,16 @@ internal static class TurzxRuntimeDiagnostic
         var invocation = Guid.NewGuid().ToString("N");
         write($"Invocation: {invocation}; UTC {DateTimeOffset.UtcNow:O}.");
         write($"Real FramePump and canonical renderer; at most {frameLimit} completed JPEG frames, {refreshMs} ms refresh, one native open attempt.");
-        write("Only the public Default dashboard is loaded. Clock seconds/title change in memory; no dashboard/configuration save, brightness, codec switch or firmware command.");
+        write("An adaptive 1920x480 diagnostic dashboard is generated in memory; no stock/saved board is loaded. No dashboard/configuration save, brightness, codec switch or firmware command.");
         FileLogger? log = null;
         var stage = "load/preflight";
         try
         {
             log = (createLog ?? (() => new FileLogger(Path.Combine(Environment.CurrentDirectory, "artifacts", "turzx-runtime-worker.log"))))();
             log.Info($"TURZX runtime checkpoint invocation {invocation}.");
-            var board = (loadBoard ?? LoadPublicBoard)();
+            var board = loadBoard is null
+                ? CreateCheckpointBoard(ApplicationRootLocator.Find(AppContext.BaseDirectory))
+                : loadBoard();
             var metrics = new MetricStore();
             var clock = now ?? (() => DateTime.Now);
             metrics.Publish(SystemMetricContract.DateTime, clock());
@@ -53,7 +56,7 @@ internal static class TurzxRuntimeDiagnostic
             var target = new OutputTargetConfig
             {
                 Id = "turzx-runtime-check", Name = "TURZX runtime checkpoint", Kind = "turzx", Transport = "turzx",
-                DeviceId = devices[0].DeviceId, DeviceEnabled = true, Dashboard = "Default", RefreshIntervalMs = refreshMs,
+                DeviceId = devices[0].DeviceId, DeviceEnabled = true, Dashboard = CheckpointDashboardName, RefreshIntervalMs = refreshMs,
                 JpegQuality = 90, Usb = new UsbConfig { TransferTimeoutMs = 3000, RetryIntervalMs = 3000 }, Turzx = new()
             };
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
@@ -120,13 +123,15 @@ internal static class TurzxRuntimeDiagnostic
         finally { write("No automatic native reopen/retry, brightness or firmware-save/reset. Preserve this log and artifacts/turzx-runtime-worker.log."); }
     }
 
-    internal static C.DashboardDefinition LoadPublicBoard()
+    internal static C.DashboardDefinition CreateCheckpointBoard(string applicationRoot)
     {
-        var path = Path.Combine(Environment.CurrentDirectory, "dashboards", "Default", "dashboard.json");
-        var board = C.DashboardDefinition.Load(path);
-        var clock = board.Widgets.OfType<C.ValueWidgetDefinition>().Single(widget => widget.Id == "clock-time");
-        clock.Format = "HH:mm:ss";
-        var title = board.Widgets.OfType<C.ValueWidgetDefinition>().Single(widget => widget.Id == "text-title");
+        ArgumentException.ThrowIfNullOrWhiteSpace(applicationRoot);
+
+        // This logical directory provides the application asset context; it is
+        // never created or read as a persisted dashboard.
+        var board = AdaptiveDashboardFactory.Create(1920, 480, 0,
+            Path.Combine(applicationRoot, "dashboards", CheckpointDashboardName));
+        var title = board.Widgets.OfType<C.ValueWidgetDefinition>().Single(widget => widget.Id == "brand");
         title.Text = "PINKIESYSMON / TURZX LIVE";
         board.Validate();
         return board;
