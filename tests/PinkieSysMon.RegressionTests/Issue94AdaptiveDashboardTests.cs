@@ -52,20 +52,25 @@ internal static class Issue94AdaptiveDashboardTests
                                 m != SystemMetricContract.PcName && !supportedExtras.Contains(m)))
                 throw new InvalidOperationException("Generated dashboard references an unapproved metric.");
 
+            // Text/Value uses a middle-aligned Y anchor and an intrinsic text
+            // rectangle. Check conservative font-height envelopes, not a fictional
+            // container derived from the dormant Height property.
             var logical = FrameGeometry.GetLogicalSize(width, height, orientation);
             foreach (var widget in values)
             {
-                if (widget.Width <= 0 || widget.Height <= 0 || widget.X < 0 || widget.Y < 0 ||
-                    widget.X + widget.Width > logical.Width + 0.01f ||
-                    widget.Y + widget.Height > logical.Height + 0.01f)
+                var halfHeight = widget.TextPresentation.FontSize * 0.75f;
+                if (widget.Width <= 0 || widget.Height != 0 || widget.X < 0 ||
+                    widget.Y - halfHeight < 0 || widget.Y + halfHeight > logical.Height ||
+                    widget.X + widget.Width > logical.Width + 0.01f)
                     throw new InvalidOperationException($"Generated widget '{widget.Id}' leaves the logical canvas.");
 
                 foreach (var other in values.Where(v => v != widget))
                 {
+                    var otherHalfHeight = other.TextPresentation.FontSize * 0.75f;
                     if (widget.X < other.X + other.Width - 0.01f &&
                         other.X < widget.X + widget.Width - 0.01f &&
-                        widget.Y < other.Y + other.Height - 0.01f &&
-                        other.Y < widget.Y + widget.Height - 0.01f)
+                        widget.Y - halfHeight < other.Y + otherHalfHeight - 0.01f &&
+                        other.Y - otherHalfHeight < widget.Y + halfHeight - 0.01f)
                         throw new InvalidOperationException($"Generated widgets '{widget.Id}' and '{other.Id}' overlap.");
                 }
             }
@@ -78,8 +83,8 @@ internal static class Issue94AdaptiveDashboardTests
     public static void RejectInfeasibleGeometry()
     {
         foreach (var (width, height, orientation) in new[]
-            { (1, 1, 0), (199, 400, 0), (320, 179, 0), (100000, 100000, 0),
-              (int.MaxValue, int.MaxValue, 0), (640, 640, 45) })
+            { (1, 1, 0), (239, 400, 0), (320, 179, 0), (100000, 100000, 0),
+              (int.MaxValue, int.MaxValue, 0), (640, 640, 45), (640, 640, 360) })
         {
             try
             {

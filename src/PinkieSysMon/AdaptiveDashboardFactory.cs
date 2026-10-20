@@ -16,6 +16,9 @@ internal static class AdaptiveDashboardFactory
 
     public static DashboardDefinition Create(int width, int height, int orientation, string baseDirectory)
     {
+        if (orientation is not (0 or 90 or 180 or 270))
+            throw new ArgumentOutOfRangeException(nameof(orientation), orientation,
+                "Orientation must be exactly 0, 90, 180, or 270 degrees.");
         var logical = FrameGeometry.GetLogicalSize(width, height, orientation);
         if ((long)width * height > MaximumPixels)
             throw new ArgumentOutOfRangeException(nameof(width),
@@ -24,10 +27,10 @@ internal static class AdaptiveDashboardFactory
         // Three required rows must remain readable even at the smallest geometry.
         // These bounds reflect the existing fixed-width Roboto Value widget layout,
         // with an independent text container for the title, clock and host name.
-        if (logical.Width < 200 || logical.Height < 180)
+        if (logical.Width < 240 || logical.Height < 180)
             throw new ArgumentOutOfRangeException(nameof(width),
                 $"Canvas {width}x{height} at {orientation}° leaves only {logical.Width}x{logical.Height} logical pixels. " +
-                "At least 200x180 logical pixels are needed for the clock, computer name and title.");
+                "At least 240x180 logical pixels are needed for the clock, computer name and title.");
 
         var w = (float)logical.Width;
         var h = (float)logical.Height;
@@ -130,9 +133,11 @@ internal static class AdaptiveDashboardFactory
         Unit = unit,
         Prefix = prefix,
         X = x,
-        Y = y,
+        // Value widgets use Y as the text's vertical alignment anchor, not a tile top.
+        // Height=0 is intentional: their visual bounds are intrinsically text-sized.
+        Y = y + height / 2f,
         Width = width,
-        Height = height,
+        Height = 0f,
         Color = color,
         BackgroundColor = background,
         CornerRadius = 10f,
