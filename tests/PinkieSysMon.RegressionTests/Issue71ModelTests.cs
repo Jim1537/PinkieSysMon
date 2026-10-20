@@ -213,7 +213,7 @@ internal static class Issue71ModelTests
         var oldTarget = new OutputTargetConfig { Id = "old", DeviceId = old.DeviceId };
         var config = new AppConfig();
         config.Outputs.Targets.AddRange([oldTarget, target]);
-        var model = new DeviceSettingsModel(config, "Default");
+        var model = new DeviceSettingsModel(config);
         model.Refresh([old, device]);
         var draft = model.Entries.Single(e => e.Target.Id == target.Id);
         Check(draft.CanEdit && !model.CanEnable(draft.Target) && !model.IsDirty &&
@@ -227,7 +227,7 @@ internal static class Issue71ModelTests
         Check(config.Outputs.Targets.Single(t => t.Id == target.Id).Turzx!.BrightnessPercent == 61 &&
             config.Outputs.Targets.Single(t => t.Id == "old").Name == "Renamed old device" && !target.DeviceEnabled,
             "Saving a sibling's editable settings must preserve the pending model's complete options.");
-        var candidate = new DeviceSettingsModel(new AppConfig(), "Default");
+        var candidate = new DeviceSettingsModel(new AppConfig());
         candidate.Refresh([device]);
         Check(!candidate.IsDirty && candidate.ConfiguredCount == 0 && candidate.Entries.Single().CanEdit,
             "Passive discovery offers an editable candidate without automatically adopting it.");
