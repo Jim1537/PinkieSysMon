@@ -25,7 +25,7 @@ internal static class Issue71AdoptionTests
             Check(inventory.Single(e => e.ConfiguredTarget!.Transport == failed).Status == PhysicalDeviceInventoryStatus.DiscoveryUnavailable &&
                 inventory.Single(e => e.ConfiguredTarget!.Transport != failed).CanEditSettings,
                 "Runtime inventory must distinguish unavailable discovery from a disconnected device.");
-            var model = new DeviceSettingsModel(new AppConfig { Outputs = new() { Targets = [.. targets] } }, "Default");
+            var model = new DeviceSettingsModel(new AppConfig { Outputs = new() { Targets = [.. targets] } });
             model.Refresh([old, turzx]);
             model.Refresh(error.Devices, error.UnavailableTransports);
             Check(model.Entries.Single(e => e.Target.Transport == failed).Status is null &&
@@ -40,7 +40,7 @@ internal static class Issue71AdoptionTests
         var device = Device("turzx", 'b');
         var config = new AppConfig();
         config.Usb.DiagnosticJournalEnabled = true;
-        var draft = new DeviceSettingsModel(config, "Default");
+        var draft = new DeviceSettingsModel(config);
         draft.Refresh([device]);
         var target = draft.Entries.Single().Target;
         Check(draft.Entries.Single().CanEdit && !draft.IsDirty && !target.DeviceEnabled &&
@@ -65,7 +65,7 @@ internal static class Issue71AdoptionTests
                 "Explicit enabled ownership must survive save/reload with null brightness.");
         }
         finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
-        var cancelled = new DeviceSettingsModel(config, "Default"); cancelled.Refresh([device]);
+        var cancelled = new DeviceSettingsModel(config); cancelled.Refresh([device]);
         var independent = cancelled.Entries.Single().Target; independent.Name = "Uncommitted change"; cancelled.MarkChanged(independent);
         Check(config.Outputs.Targets.Single(t => t.Kind == "turzx").Name != independent.Name,
             "Cancel/discard must leave the applied target independent from further draft edits.");
@@ -75,7 +75,7 @@ internal static class Issue71AdoptionTests
     {
         var device = Device("turzx", 'b');
         var config = new AppConfig();
-        var draft = new DeviceSettingsModel(config, "Default"); draft.Refresh([device]);
+        var draft = new DeviceSettingsModel(config); draft.Refresh([device]);
         var target = draft.Entries.Single().Target;
         Check(draft.SetEnabled(target, true, true), "Precondition: one consented enabled draft.");
         _ = Catch<InvalidOperationException>(() => draft.ValidateForApply([]));
