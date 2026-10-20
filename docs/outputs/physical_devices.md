@@ -1,6 +1,8 @@
 # Physical Devices
 
-A **physical Output** assigns a saved dashboard to a supported hardware display. This guide covers discovery, explicit adoption, Settings and daily management. The [Supported Devices inventory](../supported-devices.md) defines which models are implemented; a similar USB connector, resolution or appearance does not establish compatibility.
+A **physical Output** assigns a saved dashboard to a supported hardware display.
+
+When a supported integrated device is **newly added** in Settings, its initial assignment is an ordinary editable on-demand board: `device_1920x480_default` for Trofeo or `device_1920x720_default` for TURZX (0° orientation). The saved board is created only after **OK**; an existing valid board of that name is reused without overwriting edits, and an explicit alternative saved assignment wins. **Cancel**, passive discovery and reconnect create no files. Unrecognized or unsupported families are never adopted by this mechanism. See the [supported model inventory](../supported-devices.md) for verified native dimensions. This guide covers discovery, explicit adoption, Settings and daily management. The [Supported Devices inventory](../supported-devices.md) defines which models are implemented; a similar USB connector, resolution or appearance does not establish compatibility.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 

@@ -17,16 +17,14 @@ internal sealed class DeviceSettingsModel
     private readonly HashSet<string> _removedBindings = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _initialEnabledBindings;
     private readonly HashSet<string> _enableConsent = new(StringComparer.OrdinalIgnoreCase);
-    private readonly string _defaultDashboard;
     private readonly AppConfig _defaults;
     private IReadOnlyList<OutputDeviceDescriptor> _discovered = [];
     private bool _discoveryAvailable;
     private IReadOnlySet<string> _unavailableTransports = new HashSet<string>();
 
-    public DeviceSettingsModel(AppConfig config, string defaultDashboard)
+    public DeviceSettingsModel(AppConfig config)
     {
         _defaults = config;
-        _defaultDashboard = defaultDashboard;
         _targets = config.Outputs.Targets
             .Where(t => OutputTargetContract.IsPhysicalKind(t.Kind)).Select(Copy).ToList();
         _initialEnabledBindings = _targets.Where(t => t.DeviceEnabled)
@@ -55,7 +53,7 @@ internal sealed class DeviceSettingsModel
                 _targets.Any(t => t.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase)) ||
                 _candidates.Any(t => t.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            _candidates.Add(new OutputTargetConfig
+            var candidate = new OutputTargetConfig
             {
                 Id = "screen-" + Guid.NewGuid().ToString("N"),
                 Name = device.DisplayName,
@@ -63,7 +61,7 @@ internal sealed class DeviceSettingsModel
                     ? OutputTargetContract.TurzxKind : OutputTargetContract.TrofeoKind,
                 Transport = device.Transport,
                 DeviceId = device.DeviceId,
-                Dashboard = _defaultDashboard,
+                Dashboard = null,
                 RefreshIntervalMs = _defaults.Display.RefreshIntervalMs,
                 JpegQuality = _defaults.Renderer.JpegQuality,
                 Usb = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
@@ -71,7 +69,9 @@ internal sealed class DeviceSettingsModel
                     : CopyUsb(_defaults.Usb),
                 Turzx = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
                     ? new TurzxOutputConfig() : null
-            });
+            };
+            candidate.Dashboard = InitialOutputDashboardProvisioning.PhysicalProfile(candidate).Name;
+            _candidates.Add(candidate);
         }
     }
 
@@ -191,7 +191,7 @@ internal sealed class DeviceSettingsModel
     private OutputTargetConfig Copy(OutputTargetConfig source) => new()
     {
         Id = source.Id, Name = source.Name, Kind = source.Kind, Transport = source.Transport,
-        DeviceId = source.DeviceId, Dashboard = source.Dashboard ?? _defaults.Dashboard.Active,
+        DeviceId = source.DeviceId, Dashboard = source.Dashboard,
         RefreshIntervalMs = source.RefreshIntervalMs ?? _defaults.Display.RefreshIntervalMs,
         ProviderEnabled = source.ProviderEnabled, DeviceEnabled = source.DeviceEnabled,
         JpegQuality = source.JpegQuality ?? _defaults.Renderer.JpegQuality,

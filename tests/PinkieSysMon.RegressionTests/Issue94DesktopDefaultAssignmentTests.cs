@@ -12,11 +12,11 @@ internal static class Issue94DesktopDefaultAssignmentTests
         {
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialDesktopDashboardProvisioning.DashboardName);
+            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
             Check(config.Outputs.Targets.Count == 1 && !File.Exists(DefaultFile(root)),
                 "A new Desktop draft must not mutate saved Outputs or create files before OK.");
             draft.ApplyTo(config);
-            using (var provision = InitialDesktopDashboardProvisioning.Prepare(root, path, original, ids, config))
+            using (var provision = InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config))
             {
                 var board = C.DashboardDefinition.Load(DefaultFile(root));
                 Check(board.Canvas.Width == 640 && board.Canvas.Height == 640 &&
@@ -32,9 +32,9 @@ internal static class Issue94DesktopDefaultAssignmentTests
             var edited = File.ReadAllBytes(DefaultFile(root));
             var nextIds = Ids(config);
             var next = new DesktopSettingsModel(config);
-            next.Create(InitialDesktopDashboardProvisioning.DashboardName);
+            next.Create(InitialOutputDashboardProvisioning.DesktopName);
             next.ApplyTo(config);
-            using (var provision = InitialDesktopDashboardProvisioning.Prepare(root, path, original, nextIds, config))
+            using (var provision = InitialOutputDashboardProvisioning.Prepare(root, path, original, nextIds, config))
                 provision.Commit();
             Check(File.ReadAllBytes(DefaultFile(root)).SequenceEqual(edited) &&
                   config.Outputs.Targets.Count == 3,
@@ -44,7 +44,7 @@ internal static class Issue94DesktopDefaultAssignmentTests
             var manual = new DesktopSettingsModel(config);
             manual.Create("Default");
             manual.ApplyTo(config);
-            using (var provision = InitialDesktopDashboardProvisioning.Prepare(root, path, original, manualIds, config))
+            using (var provision = InitialOutputDashboardProvisioning.Prepare(root, path, original, manualIds, config))
                 provision.Commit();
             Check(File.ReadAllBytes(DefaultFile(root)).SequenceEqual(edited) &&
                   config.Outputs.Targets[^1].Dashboard == "Default",
@@ -58,40 +58,40 @@ internal static class Issue94DesktopDefaultAssignmentTests
         {
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialDesktopDashboardProvisioning.DashboardName);
+            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
             Check(!Directory.Exists(DefaultDirectory(root)), "Cancel must not create a folder.");
             draft.ApplyTo(config);
-            using (InitialDesktopDashboardProvisioning.Prepare(root, path, original, ids, config))
+            using (InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config))
                 Check(File.Exists(DefaultFile(root)), "OK-stage must create the missing board.");
             Check(!Directory.Exists(DefaultDirectory(root)) &&
                   File.ReadAllBytes(path).SequenceEqual(original),
                 "Failed settings commit must clean unchanged board without touching app config.");
 
             Directory.CreateDirectory(DefaultDirectory(root));
-            Invalid(() => InitialDesktopDashboardProvisioning.Prepare(root, path, original, ids, config));
+            Invalid(() => InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config));
             Check(!File.Exists(DefaultFile(root)),
                 "An incomplete directory is a collision, not permission to overwrite.");
             File.WriteAllText(DefaultFile(root), "{bad json");
-            Invalid(() => InitialDesktopDashboardProvisioning.Prepare(root, path, original, ids, config));
+            Invalid(() => InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config));
             Check(File.ReadAllText(DefaultFile(root)) == "{bad json",
                 "Invalid existing default must never be overwritten.");
         });
         Sandbox((root, path, config, original) =>
         {
             // Existing explicit references are not silently repaired.
-            config.Outputs.Targets[0].Dashboard = InitialDesktopDashboardProvisioning.DashboardName;
+            config.Outputs.Targets[0].Dashboard = InitialOutputDashboardProvisioning.DesktopName;
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialDesktopDashboardProvisioning.DashboardName);
+            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
             draft.ApplyTo(config);
-            Invalid(() => InitialDesktopDashboardProvisioning.Prepare(root, path, original, ids, config));
+            Invalid(() => InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config));
             Check(!Directory.Exists(DefaultDirectory(root)),
                 "A broken assigned board must remain an explicit error.");
         });
     }
 
     private static string DefaultDirectory(string root) =>
-        Path.Combine(root, "dashboards", InitialDesktopDashboardProvisioning.DashboardName);
+        Path.Combine(root, "dashboards", InitialOutputDashboardProvisioning.DesktopName);
     private static string DefaultFile(string root) => Path.Combine(DefaultDirectory(root), "dashboard.json");
     private static HashSet<string> Ids(AppConfig config) =>
         config.Outputs.Targets.Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);

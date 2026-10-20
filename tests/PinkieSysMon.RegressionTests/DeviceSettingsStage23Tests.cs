@@ -9,7 +9,7 @@ internal static class DeviceSettingsStage23Tests
     {
         var config = new AppConfig();
         var desktop = config.Outputs.Targets.Single();
-        var model = new DeviceSettingsModel(config, "Default");
+        var model = new DeviceSettingsModel(config);
         model.Refresh([]);
         Check(model.Entries.Count == 0 && !model.IsDirty, "No never-detected physical tab or config mutation is allowed.");
         var device = Device("first");
@@ -34,7 +34,7 @@ internal static class DeviceSettingsStage23Tests
         model.Refresh([device]);
         Check(model.Entries.Count == 0, "A removed attached device must not recreate its tab/record on the next notification.");
         model.ApplyTo(config);
-        var reopened = new DeviceSettingsModel(config, "Default");
+        var reopened = new DeviceSettingsModel(config);
         reopened.Refresh([device]);
         reopened.ApplyTo(config);
         Check(!reopened.Entries.Single().IsConfigured && !reopened.IsDirty && config.Outputs.Targets.Count == 1,
@@ -42,7 +42,7 @@ internal static class DeviceSettingsStage23Tests
 
         var solePhysical = new AppConfig();
         solePhysical.Outputs.Targets = [Target(device, "only")];
-        var soleModel = new DeviceSettingsModel(solePhysical, "Default");
+        var soleModel = new DeviceSettingsModel(solePhysical);
         soleModel.Refresh([]);
         Check(!soleModel.CanRemove(soleModel.Entries.Single().Target, 0), "The last Output cannot be removed.");
         Throws(() => soleModel.Remove(soleModel.Entries.Single().Target, 0));
@@ -71,7 +71,7 @@ internal static class DeviceSettingsStage23Tests
         original.ProviderEnabled = true;
         var sibling = Target(second, "second");
         config.Outputs.Targets.AddRange([original, sibling]);
-        var model = new DeviceSettingsModel(config, "Default");
+        var model = new DeviceSettingsModel(config);
         model.Refresh([first, second]);
         var draft = model.Entries.Single(e => e.Target.Id == original.Id).Target;
         Check(!model.SetEnabled(draft, true, false) && !draft.DeviceEnabled && draft.ProviderEnabled && !model.IsDirty,

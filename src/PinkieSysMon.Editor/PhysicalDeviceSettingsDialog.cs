@@ -13,7 +13,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     {
         _help = new EditorSettingsHelp(applicationRoot);
         _dashboardChoices = dashboards;
-        _devices = new DeviceSettingsModel(config, dashboards.FirstOrDefault() ?? config.Dashboard.Active);
+        _devices = new DeviceSettingsModel(config);
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
         _discoverDevices = discoverDevices ?? PhysicalDeviceDiscovery.Capture;
         // Existing injected discovery callers stay fully native-free. Production
