@@ -372,7 +372,7 @@ internal sealed class OutputSessionManager : IDisposable
                 _sessions.TryGetValue(previousTarget.Id, out var existing);
                 var nextConfig = new AppConfig
                 {
-                    Dashboard = _config.Dashboard, Display = _config.Display, Runtime = _config.Runtime,
+                    Display = _config.Display, Runtime = _config.Runtime,
                     Renderer = _config.Renderer, Usb = _config.Usb, Media = _config.Media,
                     MetricProviders = _config.MetricProviders,
                     Outputs = new OutputConfig { Targets = _config.Outputs.Targets
@@ -630,7 +630,7 @@ internal sealed class OutputSessionManager : IDisposable
                 return status with
                 {
                     Kind = target.Kind,
-                    Dashboard = target.Dashboard ?? _config.Dashboard.Active,
+                    Dashboard = target.Dashboard,
                     OutputEnabled = OutputTargetContract.IsEnabled(target),
                     ProviderEnabled = target.ProviderEnabled,
                     DeviceEnabled = desktop ? null : target.DeviceEnabled,
