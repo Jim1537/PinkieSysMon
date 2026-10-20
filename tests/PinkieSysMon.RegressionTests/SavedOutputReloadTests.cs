@@ -55,7 +55,8 @@ internal static class SavedOutputReloadTests
         var previous = f.Current;
         f.Edit(root =>
         {
-            root["Dashboard"]!["Active"] = "Inherited";
+            // A stale retired global selection must not override the physical profile.
+            root["Dashboard"] = new JsonObject { ["Active"] = "Inherited" };
             root["Display"]!["RefreshIntervalMs"] = 730;
             root["Renderer"]!["JpegQuality"] = 81;
             root["Usb"]!["RetryIntervalMs"] = 2200;
@@ -70,14 +71,14 @@ internal static class SavedOutputReloadTests
         });
         var bytes = File.ReadAllBytes(f.Path);
         Check(f.Reload("c").Success && f.Session("c").Width == 640 &&
-              f.Session("c").Target is { Dashboard: "Inherited", RefreshIntervalMs: 730, JpegQuality: 81,
+              f.Session("c").Target is { Dashboard: OutputDefaultDashboardPolicy.TrofeoName, RefreshIntervalMs: 730, JpegQuality: 81,
                   Usb: { RetryIntervalMs: 2200, TransferTimeoutMs: 3300, DiagnosticJournalEnabled: true } } &&
               ReferenceEquals(f.Current.Renderer, previous.Renderer) && ReferenceEquals(f.Current.Usb, previous.Usb) &&
               f.Current.Display.RefreshIntervalMs == 1000 && f.Created.Count == 3 &&
               f.Session("a").Prepares == 0 && f.Session("b").Prepares == 0 &&
               f.Metrics.Snapshot()[OutputMetricContract.Id("c", OutputMetricContract.Fps)] is null &&
               File.ReadAllBytes(f.Path).SequenceEqual(bytes),
-            "Physical reload must use selected inherited effective values while preserving shared defaults, consent, siblings and disk bytes.");
+            "Physical reload must use the per-device profile (not retired global selection), inherited common settings, consent, siblings and unchanged disk bytes.");
 
         f.Edit(root => Target(root, "c")["DeviceId"] = "trofeo:" + new string('c', 64));
         var commits = f.Session("c").Commits;
@@ -245,7 +246,8 @@ internal static class SavedOutputReloadTests
             ] } };
             Current.Save(Path);
             Edit(root => root["Future"] = new JsonObject { ["Keep"] = 42 });
-            Board("Same", 320); Board("Hardware", 480); Board("Disabled", 500); Board("Inherited", 640);
+            Board("Same", 320); Board("Hardware", 480); Board("Disabled", 500);
+            Board(OutputDefaultDashboardPolicy.TrofeoName, 640);
             Manager = new OutputSessionManager(Current, RuntimeConfigurationValidator.LoadAssignments(Current, Root), Metrics, log,
                 (app, target, board, store, logger) =>
                 {
