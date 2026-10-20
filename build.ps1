@@ -234,12 +234,11 @@ function Write-PortableReleaseConfig {
         throw "Release config source is not valid JSON: $publicConfigPath - $($_.Exception.Message)"
     }
 
-    if ($null -eq $config.Dashboard -or $null -eq $config.MetricProviders -or
+    if ($null -eq $config.MetricProviders -or
         $null -eq $config.Outputs -or $null -eq $config.Media) {
         throw 'Release config source is missing required public configuration sections.'
     }
 
-    $config.Dashboard.Active = 'Default'
     $config.MetricProviders.system = $true
     $config.MetricProviders.lhm = $false
     $config.MetricProviders.icue = $false
@@ -287,7 +286,7 @@ function Assert-PortableReleaseStaging {
         }
     }
 
-    foreach ($relative in @('assets\fonts\Roboto', 'assets\icons\Lucide', 'dashboards\Default')) {
+    foreach ($relative in @('assets\fonts\Roboto', 'assets\icons\Lucide', 'dashboards')) {
         $path = Join-Path $AppRoot $relative
         if (-not (Test-Path -LiteralPath $path -PathType Container)) {
             throw "Portable release staging is incomplete. Missing directory: $path"
@@ -307,15 +306,21 @@ function Assert-PortableReleaseStaging {
     }
 
     $dashboardRoot = Join-Path $AppRoot 'dashboards'
-    $unexpectedDashboards = @(Get-ChildItem -LiteralPath $dashboardRoot -Directory -Force | Where-Object Name -ne 'Default')
+    $unexpectedDashboards = @(Get-ChildItem -LiteralPath $dashboardRoot -Force)
     if ($unexpectedDashboards.Count -ne 0) {
-        throw "Portable release contains unexpected dashboards: $($unexpectedDashboards.Name -join ', ')"
+        throw "Portable release must contain no saved dashboards or user files: $($unexpectedDashboards.Name -join ', ')"
     }
 
     $configPath = Join-Path $AppRoot 'config\app.json'
     $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-    if ([string]$config.Dashboard.Active -ne 'Default') {
-        throw 'Portable release config must select the Default dashboard.'
+    if ($null -ne $config.PSObject.Properties['Dashboard']) {
+        throw 'Portable release config must not contain the retired global Dashboard setting.'
+    }
+    if (@($config.Outputs.Targets).Count -ne 1 -or
+        [string]$config.Outputs.Targets[0].Kind -ne 'desktop' -or
+        [string]$config.Outputs.Targets[0].Dashboard -ne 'desktop_default' -or
+        $config.Outputs.Targets[0].Desktop.BoardEnabled -ne $false) {
+        throw 'Portable release must start with a disabled Desktop Output and no prepackaged board.'
     }
     if ($config.MetricProviders.system -ne $true -or
         $config.MetricProviders.lhm -ne $false -or
@@ -347,7 +352,7 @@ function Prepare-PortableReleasePackage {
         Copy-DirectoryContent -Source $publishOut -Destination (Join-Path $releaseStageAppRoot 'bin')
         Copy-DirectoryContent -Source (Join-Path $root 'assets\fonts\Roboto') -Destination (Join-Path $releaseStageAppRoot 'assets\fonts\Roboto')
         Copy-DirectoryContent -Source (Join-Path $root 'assets\icons\Lucide') -Destination (Join-Path $releaseStageAppRoot 'assets\icons\Lucide')
-        Copy-DirectoryContent -Source (Join-Path $root 'dashboards\Default') -Destination (Join-Path $releaseStageAppRoot 'dashboards\Default')
+        New-Item -ItemType Directory -Path (Join-Path $releaseStageAppRoot 'dashboards') -Force | Out-Null
         Write-PortableReleaseConfig -DestinationPath (Join-Path $releaseStageAppRoot 'config\app.json')
         Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination (Join-Path $releaseStageAppRoot 'LICENSE') -Force
         Copy-Item -LiteralPath (Join-Path $root 'THIRD-PARTY-NOTICES.md') -Destination (Join-Path $releaseStageAppRoot 'THIRD-PARTY-NOTICES.md') -Force
@@ -386,7 +391,7 @@ function Prepare-PortableReleasePackage {
             $forbiddenEntryPatterns = @(
                 '^PinkieSysMon/assets/fonts/(?!Roboto(?:/|$))',
                 '^PinkieSysMon/assets/icons/(?!Lucide(?:/|$))',
-                '^PinkieSysMon/dashboards/(?!Default(?:/|$))',
+                '^PinkieSysMon/dashboards/[^/]',
                 '^PinkieSysMon/config/(?!app\.json$)',
                 '^PinkieSysMon/(?:External|src|tests|tools|logs)(?:/|$)'
             )
@@ -443,7 +448,7 @@ function Commit-PortableReleasePackage {
     Write-Host ''
     Write-Host 'PORTABLE RELEASE: PASS'
     Write-Host "Release ZIP: $($PreparedPackage.FinalZipPath)"
-    Write-Host 'Release defaults: dashboard=Default; providers=System only'
+    Write-Host 'Release startup: disabled Desktop placeholder; dashboards generated after Settings OK'
     Write-Host 'Release assets: Roboto + Lucide only'
 }
 
@@ -555,10 +560,6 @@ function Publish-Local {
         [PSCustomObject]@{
             Relative = 'assets\icons\Lucide'
             Source = (Join-Path $root 'assets\icons\Lucide')
-        },
-        [PSCustomObject]@{
-            Relative = 'dashboards\Default'
-            Source = (Join-Path $root 'dashboards\Default')
         }
     )
 
@@ -679,7 +680,7 @@ function Publish-Local {
         Write-Host 'LOCAL PUBLISH: PASS'
         Write-Host "Updated: $LocalRoot\bin"
         Write-Host 'Updated public assets: Roboto + Lucide'
-        Write-Host 'Updated public dashboard: Default'
+        Write-Host 'Preserved all existing saved dashboards (none deployed or replaced).'
         Write-Host 'Installed root Launcher.exe; retired obsolete root shortcuts and previous Launcher executable name.'
         Write-Host 'Desktop / Start Menu shortcuts: not created'
         Write-Host 'Preserved: config, PinkiePie_Vertical, private/local assets, logs'
@@ -969,7 +970,7 @@ function Get-PinkieSourceDigest {
     $rows = @("HEAD=$($head[0])")
     foreach ($entry in @($files | Sort-Object -Unique)) {
         $name = ([string]$entry).Replace('\', '/')
-        if ($name -notmatch '^(src/|tests/|tools/|assets/fonts/Roboto/|assets/icons/Lucide/|dashboards/Default/|config/app[.]json$|Directory[.]Build[.]props$|build[.]ps1$|builder[.]ps1$|global[.]json$|NuGet[.]Config$|[^/]+[.](?:sln|slnx|props|targets)$|LICENSE$|THIRD-PARTY-NOTICES[.]md$)') { continue }
+        if ($name -notmatch '^(src/|tests/|tools/|assets/fonts/Roboto/|assets/icons/Lucide/|config/app[.]json$|Directory[.]Build[.]props$|build[.]ps1$|builder[.]ps1$|global[.]json$|NuGet[.]Config$|[^/]+[.](?:sln|slnx|props|targets)$|LICENSE$|THIRD-PARTY-NOTICES[.]md$)') { continue }
         $path = Join-Path $root $entry
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $rows += ('{0}:{1}' -f $name, (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash)

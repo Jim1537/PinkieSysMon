@@ -70,7 +70,7 @@ internal sealed class DeviceSettingsModel
                 Turzx = device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase)
                     ? new TurzxOutputConfig() : null
             };
-            candidate.Dashboard = InitialOutputDashboardProvisioning.PhysicalProfile(candidate).Name;
+            candidate.Dashboard = OutputDefaultDashboardPolicy.PhysicalProfile(candidate).Name;
             _candidates.Add(candidate);
         }
     }

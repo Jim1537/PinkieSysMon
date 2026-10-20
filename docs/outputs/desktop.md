@@ -8,7 +8,7 @@ An **Output** is the configured destination; a **dashboard** is the saved Canvas
 
 ### Step 1. Prepare a saved dashboard
 
-Open the Dashboard Editor and open an existing dashboard, such as `Default`, or create and save one. Use the [widget guides](../README.md#available-widgets) to build its content.
+Open the Dashboard Editor and open any saved dashboard, or create and save one. No stock dashboard is bundled with a clean installation. Use the [widget guides](../README.md#available-widgets) to build its content.
 
 Select **Canvas** in the Editor to configure [Width](../widgets/properties.md#width), [Height](../widgets/properties.md#height), [Orientation](../widgets/properties.md#orientation) and [Background Color](../widgets/properties.md#background-color). These properties determine the panel's size and appearance; the panel has no resize border. A 90° or 270° orientation exchanges the displayed width and height.
 
@@ -29,7 +29,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 | **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
 | **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
 
-A panel created with **Create New** starts with **Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial assignment is `desktop_default`: an ordinary editable **640×640**, **0°** dashboard generated only after **OK**. An existing valid `desktop_default` is reused without overwriting edits. You may choose another saved dashboard before OK; that explicit choice wins. **Cancel** creates neither the panel nor the default file.
+A clean installation also contains an initially **disabled** Desktop placeholder; it does not render without a saved board. Use **Create New** to create your first generated board-backed panel, and optionally remove the disabled placeholder afterward (at least one Output must remain). A panel created with **Create New** starts with **Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial assignment is `desktop_default`: an ordinary editable **640×640**, **0°** dashboard generated only after **OK**. An existing valid `desktop_default` is reused without overwriting edits. You may choose another saved dashboard before OK; that explicit choice wins. **Cancel** creates neither the panel nor the default file.
 
 Hover over a control or its help icon for the current parameter explanation. The list selects which panel you are editing; it does not select a global active dashboard.
 
@@ -111,12 +111,12 @@ The [panel creation procedure](#step-2-create-and-configure-the-panel) edits the
 | Fields | Responsibility |
 | --- | --- |
 | `Id`, `Name` | Stable Output identity and editable display label. |
-| `Dashboard`, `RefreshIntervalMs` | Per-Output saved dashboard reference and redraw interval. Legacy absent values inherit application defaults. |
+| `Dashboard`, `RefreshIntervalMs` | Per-Output saved dashboard reference and redraw interval. A missing dashboard assignment uses the Desktop profile name (`desktop_default`); refresh interval inherits the shared application setting. |
 | `ProviderEnabled` | Independent metric-publication policy; metric IDs and availability are owned by the [metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
 | `Desktop.BoardEnabled`, `Desktop.Lock` | Presentation enablement and native pointer policy. |
 | `Desktop.X`, `Desktop.Y`, `Desktop.ZOrder` | Physical-pixel placement and sibling stacking order. |
 
-`OutputTargetContract` rejects Desktop records with hardware bindings, `DeviceEnabled`, JPEG or USB settings. Fresh application defaults configure a Desktop Output rather than implicitly enabling hardware. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
+`OutputTargetContract` rejects Desktop records with hardware bindings, `DeviceEnabled`, JPEG or USB settings. Fresh application defaults configure a disabled Desktop placeholder, with no physical Output enabled and no prepackaged dashboard files. The [persistence/schema boundary](../development/architecture.md#persistence-and-schema-boundary) separates application settings from dashboard content and Editor metadata.
 
 `DesktopSettingsModel` owns copied Desktop targets until OK. It preserves physical target objects, assigns a new stable ID on creation, renumbers Z-order on reorder/removal and counts saved physical Outputs for the last-Output guard. `DesktopSettingsDialog` binds only its detached Desktop draft. Validation and commit use the shared [Settings transaction](../development/architecture.md#settings-save-and-apply).
 

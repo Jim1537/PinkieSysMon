@@ -107,9 +107,9 @@ internal static class OutputConfigurationModelTests
                 """{"Dashboard":{"Active":"Legacy"},"Display":{"RefreshIntervalMs":740},"Renderer":{"JpegQuality":81}}""");
             var legacy = OutputTargetContract.GetPrimary(AppConfig.Load(path, log));
             Check(legacy.Kind == OutputTargetContract.DesktopKind &&
-                  legacy.Dashboard == "Legacy" && legacy.RefreshIntervalMs == 740 &&
+                  legacy.Dashboard == OutputDefaultDashboardPolicy.DesktopName && legacy.RefreshIntervalMs == 740 &&
                   legacy.JpegQuality is null && !legacy.DeviceEnabled && !legacy.ProviderEnabled,
-                  "Configuration with no Outputs must use Desktop defaults and inherit dashboard/cadence.");
+                  "Configuration with no Outputs must use the Desktop profile, ignore retired global selection and inherit refresh cadence.");
         });
     }
 

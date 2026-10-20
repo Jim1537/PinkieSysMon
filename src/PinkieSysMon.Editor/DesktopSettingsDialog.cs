@@ -170,7 +170,7 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
 
         // A future saved default can be selected without being created in the draft.
         _desktopDashboard.Items.AddRange(_dashboardChoices
-            .Append(InitialOutputDashboardProvisioning.DesktopName)
+            .Append(OutputDefaultDashboardPolicy.DesktopName)
             .Distinct(StringComparer.OrdinalIgnoreCase).Cast<object>().ToArray());
         _desktopDetails.Controls.Add(details);
         columns.Controls.Add(_desktopDetails, 1, 0);
@@ -271,7 +271,7 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
         _createDesktop.Click += (_, _) =>
         {
             // Do not inherit the selected/first board. File creation waits for OK.
-            var created = _desktops.Create(InitialOutputDashboardProvisioning.DesktopName);
+            var created = _desktops.Create(OutputDefaultDashboardPolicy.DesktopName);
             ReloadDesktopList(created);
             _removeDesktop.Enabled = _selectedDesktop is not null && CanRemoveDesktop(_selectedDesktop);
         };

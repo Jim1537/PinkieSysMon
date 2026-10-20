@@ -4,7 +4,6 @@ namespace PinkieSysMon;
 
 internal sealed class AppConfig
 {
-    public DashboardConfig Dashboard { get; set; } = new();
     public DisplayConfig Display { get; set; } = new();
     public RuntimeConfig Runtime { get; set; } = new();
     public OutputConfig Outputs { get; set; } = new();
@@ -65,14 +64,11 @@ internal sealed class AppConfig
 
     private void Validate()
     {
-        if (Dashboard is null || Display is null || Runtime is null || Outputs is null ||
+        if (Display is null || Runtime is null || Outputs is null ||
             Renderer is null || Usb is null || Media is null)
-            throw new InvalidDataException("Application config requires Dashboard, Display, Runtime, Outputs, Renderer, Usb and Media objects.");
+            throw new InvalidDataException("Application config requires Display, Runtime, Outputs, Renderer, Usb and Media objects.");
         if (Outputs.Targets is null)
             throw new InvalidDataException("Outputs.Targets must be an array of configured outputs.");
-
-        if (string.IsNullOrWhiteSpace(Dashboard.Active))
-            throw new InvalidDataException("Dashboard.Active must not be empty.");
 
         if (Runtime.IdleTimeoutMinutes is < 0 or > RuntimeIdlePolicy.MaximumTimeoutMinutes)
             throw new InvalidDataException("Runtime.IdleTimeoutMinutes must be 0 (disabled) or 1..1440 minutes.");
@@ -81,7 +77,7 @@ internal sealed class AppConfig
             throw new InvalidDataException("Display.RefreshIntervalMs must be at least 10 ms.");
 
         OutputTargetContract.ValidateAndNormalize(
-            Outputs.Targets, Dashboard.Active, Display.RefreshIntervalMs,
+            Outputs.Targets, Display.RefreshIntervalMs,
             Renderer.JpegQuality, Usb);
 
         if (Renderer.JpegQuality is < 10 or > 100)
@@ -103,11 +99,6 @@ internal sealed class AppConfig
                 throw new InvalidDataException($"Invalid media endpoint override type '{pair.Value}'.");
         }
     }
-}
-
-internal sealed class DashboardConfig
-{
-    public string Active { get; set; } = "Default";
 }
 
 internal sealed class DisplayConfig
@@ -185,7 +176,10 @@ internal static class OutputTargetContract
             Name = "Desktop 1",
             Kind = DesktopKind,
             Transport = DesktopTransport,
-            Desktop = new DesktopOutputConfig()
+            Dashboard = OutputDefaultDashboardPolicy.DesktopName,
+            // No prepackaged file exists; first install opens Control Center
+            // without trying to render a missing dashboard.
+            Desktop = new DesktopOutputConfig { BoardEnabled = false }
         }
     ];
 
@@ -217,7 +211,6 @@ internal static class OutputTargetContract
 
     public static void ValidateAndNormalize(
         List<OutputTargetConfig> targets,
-        string legacyDashboard = "Default",
         int legacyRefreshIntervalMs = 1000,
         int legacyJpegQuality = 92,
         UsbConfig? legacyUsb = null)
@@ -251,7 +244,7 @@ internal static class OutputTargetContract
             if (target.Kind is not (TrofeoKind or TurzxKind or DesktopKind))
                 throw new InvalidDataException($"Unsupported output Kind '{target.Kind}'.");
 
-            target.Dashboard ??= legacyDashboard;
+            target.Dashboard ??= OutputDefaultDashboardPolicy.NameFor(target);
             target.Dashboard = target.Dashboard.Trim();
             if (!WindowsPathComponentValidator.IsSafe(target.Dashboard))
                 throw new InvalidDataException($"Output target '{target.Id}' has invalid Dashboard reference '{target.Dashboard}'.");

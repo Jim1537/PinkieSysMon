@@ -54,7 +54,8 @@ internal static class OutputEnabledContractTests
                 var device = config.Outputs.Targets[1];
                 Check(panel.Id == "panel" && device.Id == "device" &&
                       panel.Desktop is { Lock: false, X: -100, Y: 240, ZOrder: 2 } &&
-                      panel.Dashboard == "Legacy" && device.Dashboard == "Legacy" &&
+                      panel.Dashboard == OutputDefaultDashboardPolicy.DesktopName &&
+                      device.Dashboard == OutputDefaultDashboardPolicy.PhysicalProfile(device).Name &&
                       panel.RefreshIntervalMs == 740 && device.RefreshIntervalMs == 740 &&
                       device.DeviceId == "trofeo:" + new string('a', 64) && device.JpegQuality == 81 &&
                       device.Usb is { RetryIntervalMs: 850, TransferTimeoutMs: 950, DiagnosticJournalEnabled: true } &&
@@ -62,6 +63,8 @@ internal static class OutputEnabledContractTests
                     "Enablement policy must preserve identity, placement, publication and inherited settings.");
                 using (var json = JsonDocument.Parse(firstSave))
                 {
+                    Check(!json.RootElement.TryGetProperty("Dashboard", out _),
+                        "Retired global Dashboard.Active must not survive normalized persistence.");
                     var targets = json.RootElement.GetProperty("Outputs").GetProperty("Targets");
                     Check(!targets[0].TryGetProperty("Enabled", out _) &&
                           !targets[0].GetProperty("Desktop").TryGetProperty("Enabled", out _) &&

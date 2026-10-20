@@ -12,7 +12,7 @@ internal static class Issue94DesktopDefaultAssignmentTests
         {
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
+            draft.Create(OutputDefaultDashboardPolicy.DesktopName);
             Check(config.Outputs.Targets.Count == 1 && !File.Exists(DefaultFile(root)),
                 "A new Desktop draft must not mutate saved Outputs or create files before OK.");
             draft.ApplyTo(config);
@@ -32,7 +32,7 @@ internal static class Issue94DesktopDefaultAssignmentTests
             var edited = File.ReadAllBytes(DefaultFile(root));
             var nextIds = Ids(config);
             var next = new DesktopSettingsModel(config);
-            next.Create(InitialOutputDashboardProvisioning.DesktopName);
+            next.Create(OutputDefaultDashboardPolicy.DesktopName);
             next.ApplyTo(config);
             using (var provision = InitialOutputDashboardProvisioning.Prepare(root, path, original, nextIds, config))
                 provision.Commit();
@@ -58,7 +58,7 @@ internal static class Issue94DesktopDefaultAssignmentTests
         {
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
+            draft.Create(OutputDefaultDashboardPolicy.DesktopName);
             Check(!Directory.Exists(DefaultDirectory(root)), "Cancel must not create a folder.");
             draft.ApplyTo(config);
             using (InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config))
@@ -79,10 +79,10 @@ internal static class Issue94DesktopDefaultAssignmentTests
         Sandbox((root, path, config, original) =>
         {
             // Existing explicit references are not silently repaired.
-            config.Outputs.Targets[0].Dashboard = InitialOutputDashboardProvisioning.DesktopName;
+            config.Outputs.Targets[0].Dashboard = OutputDefaultDashboardPolicy.DesktopName;
             var ids = Ids(config);
             var draft = new DesktopSettingsModel(config);
-            draft.Create(InitialOutputDashboardProvisioning.DesktopName);
+            draft.Create(OutputDefaultDashboardPolicy.DesktopName);
             draft.ApplyTo(config);
             Invalid(() => InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config));
             Check(!Directory.Exists(DefaultDirectory(root)),
@@ -91,7 +91,7 @@ internal static class Issue94DesktopDefaultAssignmentTests
     }
 
     private static string DefaultDirectory(string root) =>
-        Path.Combine(root, "dashboards", InitialOutputDashboardProvisioning.DesktopName);
+        Path.Combine(root, "dashboards", OutputDefaultDashboardPolicy.DesktopName);
     private static string DefaultFile(string root) => Path.Combine(DefaultDirectory(root), "dashboard.json");
     private static HashSet<string> Ids(AppConfig config) =>
         config.Outputs.Targets.Select(t => t.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);

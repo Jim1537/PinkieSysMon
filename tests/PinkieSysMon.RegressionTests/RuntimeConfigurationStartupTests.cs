@@ -50,13 +50,16 @@ internal static class RuntimeConfigurationStartupTests
                       "Set reconfiguration must not duplicate Desktop sessions or create a USB session.");
             }
 
-            // Parsing a default file without Outputs must not invent a physical display.
-            File.WriteAllText(path, """{"Dashboard":{"Active":"PanelA"}}""");
+            // A clean installation has no bundled dashboard to load.
+            File.WriteAllText(path, """{}""");
             var defaults = AppConfig.Load(path, log);
             Check(defaults.Outputs.Targets.Count == 1 &&
-                  defaults.Outputs.Targets[0].Kind == OutputTargetContract.DesktopKind,
-                  "New default configuration must contain only a virtual target.");
-            RuntimeConfigurationValidator.ValidateAndSelect(defaults, root);
+                  defaults.Outputs.Targets[0].Kind == OutputTargetContract.DesktopKind &&
+                  defaults.Outputs.Targets[0].Dashboard == OutputDefaultDashboardPolicy.DesktopName &&
+                  !OutputTargetContract.IsEnabled(defaults.Outputs.Targets[0]),
+                  "New installation must be Desktop-only and safely disabled until a board is assigned.");
+            Check(RuntimeConfigurationValidator.LoadEnabledAssignments(defaults, root).Count == 0,
+                  "No dashboard files must be required by clean Runtime startup.");
         });
     }
 
@@ -168,7 +171,7 @@ internal static class RuntimeConfigurationStartupTests
             Check(Throws<InvalidDataException>(() => AppConfig.Load(path, log)),
                 "Null output targets must reject configuration on load.");
 
-            File.WriteAllText(path, """{"Dashboard":null}""");
+            File.WriteAllText(path, """{"Display":null}""");
             Check(Throws<InvalidDataException>(() => AppConfig.Load(path, log)),
                 "Explicitly null top-level settings must produce an actionable validation error.");
 

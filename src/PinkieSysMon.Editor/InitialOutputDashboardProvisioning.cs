@@ -4,7 +4,6 @@ namespace PinkieSysMon.Editor;
 // Incomplete commits may release only files created by this transaction.
 internal sealed class InitialOutputDashboardProvisioning : IDisposable
 {
-    internal const string DesktopName = "desktop_default";
     private readonly string _configPath;
     private readonly byte[]? _oldConfig;
     private readonly List<(string Path, byte[] Bytes)> _created = [];
@@ -16,20 +15,6 @@ internal sealed class InitialOutputDashboardProvisioning : IDisposable
         _oldConfig = oldConfig;
     }
 
-    // The only integrated adapters have model-confirmed native geometry.
-    // Adding an adapter requires a verified profile, not a preset or USB guess.
-    internal static (string Name, int Width, int Height) PhysicalProfile(OutputTargetConfig target) =>
-        (target.Kind, target.Transport) switch
-        {
-            (OutputTargetContract.TrofeoKind, OutputTargetContract.TrofeoTransport) =>
-                ("device_1920x480_default", 1920, 480),
-            (OutputTargetContract.TurzxKind, OutputTargetContract.TurzxTransport) =>
-                ("device_1920x720_default", 1920, 720),
-            _ => throw new InvalidOperationException(
-                $"Output '{target.Name}' has no verified integrated native geometry; " +
-                "a model-specific geometry policy must be approved before generation.")
-        };
-
     internal static InitialOutputDashboardProvisioning Prepare(
         string applicationRoot, string configPath, byte[]? oldConfig,
         IReadOnlySet<string> previousIds, AppConfig updated)
@@ -40,12 +25,12 @@ internal sealed class InitialOutputDashboardProvisioning : IDisposable
         {
             if (target.Kind == OutputTargetContract.DesktopKind)
             {
-                if (string.Equals(target.Dashboard, DesktopName, StringComparison.OrdinalIgnoreCase))
-                    requests.TryAdd(DesktopName, (640, 640));
+                if (string.Equals(target.Dashboard, OutputDefaultDashboardPolicy.DesktopName, StringComparison.OrdinalIgnoreCase))
+                    requests.TryAdd(OutputDefaultDashboardPolicy.DesktopName, (640, 640));
             }
             else if (OutputTargetContract.IsPhysicalKind(target.Kind))
             {
-                var profile = PhysicalProfile(target);
+                var profile = OutputDefaultDashboardPolicy.PhysicalProfile(target);
                 if (string.Equals(target.Dashboard, profile.Name, StringComparison.OrdinalIgnoreCase))
                     requests.TryAdd(profile.Name, (profile.Width, profile.Height));
             }

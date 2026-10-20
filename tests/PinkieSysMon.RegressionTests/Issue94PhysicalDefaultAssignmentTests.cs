@@ -98,7 +98,7 @@ internal static class Issue94PhysicalDefaultAssignmentTests
             {
                 Name = "Unprofiled integrated future device", Kind = "future", Transport = "future"
             };
-            try { _ = InitialOutputDashboardProvisioning.PhysicalProfile(unknown); }
+            try { _ = OutputDefaultDashboardPolicy.PhysicalProfile(unknown); }
             catch (InvalidOperationException) { return; }
             throw new InvalidOperationException("Unknown native geometry must not be guessed.");
         });

@@ -30,12 +30,13 @@ assets/
 
 src/PinkieSysMon/PinkieSysMon.ico  Project application icon
 
-dashboards/Default/              Public default dashboard
 config/app.json                  Public, machine-neutral defaults
 tools/                           Local code-signing helpers
 builder.ps1                      Interactive menu and session diagnostic log
 build.ps1                        Noninteractive compilation, regression, deployment and Git executor
 ```
+
+There are no tracked default dashboard documents. Saved dashboards are created on demand under the installed application's `dashboards/` folder; they belong to the user, not to the release payload.
 
 Build output is generated under `artifacts/` and is not tracked. Portable release ZIPs are generated under `release/`; that directory is also intentionally gitignored.
 
@@ -121,13 +122,13 @@ C:\PinkieSysMon
 ```
 
 !!! info "Publish local: replaced vs. preserved"
-    - **Replaced:** `Publish local` replaces only developer-managed application material: binaries, the public Roboto/Lucide assets, and the public `Default` dashboard.
+    - **Replaced:** `Publish local` replaces only developer-managed application material: binaries and the public Roboto/Lucide assets. **All saved dashboards, including user-customized defaults and a dashboard named `Default`, remain untouched.**
     - **Included:** A versioned standalone `Launcher.exe` in the installation root, with a built-in icon and a shared About/Launcher window. It determines the Runtime and Editor executable paths from its current installation root, rather than embedding an installation-specific target. Legacy root `.lnk` files and the previous `PinkieSysMon.Launcher.exe` filename are retired on a subsequent local deployment. The Launcher only creates the three user-specific Desktop or Start Menu shortcuts when explicitly requested through **Advanced**; `Publish local` does not create them.
     - **Advanced shortcut actions:** each location receives Launcher, Control Center (current Editor), and Runtime shortcuts pointing to the *current absolute Launcher location* with command arguments. These user-created shortcuts must be refreshed through Advanced after the installation folder moves. Existing matching shortcuts are left untouched; different targets/settings require replacement confirmation.
     - **Preserved:** Existing machine-specific configuration, private/local assets, dashboards, and logs.
     - **After deployment:** The application is left stopped so runtime/device verification remains an explicit step.
 
-The same **Publish local** action also prepares a clean redistributable portable ZIP under `release/`. The archive contains a top-level `PinkieSysMon/` folder with the portable single-file `Launcher.exe` at its root, self-contained Runtime and Editor binaries in `bin/`, the project/third-party license notices, only the public Roboto and Lucide assets, only the public `Default` dashboard, and a machine-neutral `config/app.json` configured for `Default` with only the `system` metric provider enabled. The Launcher is published as a separate self-contained single-file WinForms application, so it increases ZIP size; it has no dependency on machine-installed .NET. The same shared `ProjectInfoWindow.cs` source is compiled into both Launcher and Editor, while the About mode omits only the three process-launch buttons. The ZIP filename is `PinkieSysMon_A.B.C.zip`; rerunning the same resolved version replaces that ZIP.
+The same **Publish local** action also prepares a clean redistributable portable ZIP under `release/`. The archive contains a top-level `PinkieSysMon/` folder with the portable single-file `Launcher.exe` at its root, self-contained Runtime and Editor binaries in `bin/`, the project/third-party license notices, only the public Roboto and Lucide assets, an empty dashboard directory (no pre-created dashboards), and a machine-neutral `config/app.json` with an initially disabled Desktop Output assigned `desktop_default` and only the `system` metric provider enabled. A fresh installation can start with no dashboard files; use **Desktop → Create New → OK** to generate its first editable 640×640 board and enable the new Output. The Launcher is published as a separate self-contained single-file WinForms application, so it increases ZIP size; it has no dependency on machine-installed .NET. The same shared `ProjectInfoWindow.cs` source is compiled into both Launcher and Editor, while the About mode omits only the three process-launch buttons. The ZIP filename is `PinkieSysMon_A.B.C.zip`; rerunning the same resolved version replaces that ZIP.
 
 Libre Hardware Monitor is an independent external application and is not bundled into the portable PinkieSysMon installation.
 

@@ -1,7 +1,4 @@
 ﻿{
-  "Dashboard": {
-    "Active": "Default"
-  },
   "Display": {
     "RefreshIntervalMs": 1000
   },
@@ -12,11 +9,11 @@
         "Name": "Desktop 1",
         "Kind": "desktop",
         "Transport": "desktop",
-        "Dashboard": "Default",
+        "Dashboard": "desktop_default",
         "RefreshIntervalMs": 1000,
         "ProviderEnabled": false,
         "Desktop": {
-          "BoardEnabled": true,
+          "BoardEnabled": false,
           "Lock": true,
           "X": 0,
           "Y": 0,
