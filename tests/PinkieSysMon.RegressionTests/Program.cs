@@ -75,6 +75,8 @@ internal static class Program
             ("Issue93 new dashboard creation and save/reopen", Issue93NewDashboardTests.CreateSaveAndReopen),
             ("Issue94 adaptive dashboard geometry and semantics", Issue94AdaptiveDashboardTests.GeneratorGeometryAndSemantics),
             ("Issue94 infeasible canvas rejection", Issue94AdaptiveDashboardTests.RejectInfeasibleGeometry),
+            ("Issue94 Desktop default staged assignment", Issue94DesktopDefaultAssignmentTests.StagingAndReuse),
+            ("Issue94 Desktop default rollback and collisions", Issue94DesktopDefaultAssignmentTests.RollbackAndCollisions),
             ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
             ("Issue65 launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ("Issue60 idle timeout policy and config persistence", RuntimeIdleTests.PolicyAndConfig),

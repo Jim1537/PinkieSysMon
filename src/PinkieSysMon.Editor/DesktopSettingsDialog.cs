@@ -168,7 +168,10 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
         _help.Bind(orderHint, EditorSettingsHelp.Stacking);
         details.RowCount++;
 
-        _desktopDashboard.Items.AddRange(_dashboardChoices.Cast<object>().ToArray());
+        // A future saved default can be selected without being created in the draft.
+        _desktopDashboard.Items.AddRange(_dashboardChoices
+            .Append(InitialDesktopDashboardProvisioning.DashboardName)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Cast<object>().ToArray());
         _desktopDetails.Controls.Add(details);
         columns.Controls.Add(_desktopDetails, 1, 0);
         page.Controls.Add(columns);
@@ -267,14 +270,8 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
 
         _createDesktop.Click += (_, _) =>
         {
-            var dashboard = _selectedDesktop?.Dashboard ?? _dashboardChoices.FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(dashboard))
-            {
-                MessageBox.Show("Create a dashboard first.", "Desktop Output",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            var created = _desktops.Create(dashboard);
+            // Do not inherit the selected/first board. File creation waits for OK.
+            var created = _desktops.Create(InitialDesktopDashboardProvisioning.DashboardName);
             ReloadDesktopList(created);
             _removeDesktop.Enabled = _selectedDesktop is not null && CanRemoveDesktop(_selectedDesktop);
         };
@@ -368,7 +365,8 @@ internal sealed class DesktopSettingsDialog : PinkieEditorForm
             if (!string.IsNullOrWhiteSpace(dashboard) &&
                 !_desktopDashboard.Items.Cast<string>().Contains(dashboard, StringComparer.OrdinalIgnoreCase))
                 _desktopDashboard.Items.Add(dashboard);
-            _desktopDashboard.SelectedItem = dashboard;
+            _desktopDashboard.SelectedItem = _desktopDashboard.Items.Cast<string>()
+                .FirstOrDefault(item => string.Equals(item, dashboard, StringComparison.OrdinalIgnoreCase));
             _boardEnabled.Checked = target is not null && OutputTargetContract.IsEnabled(target);
             _providerEnabled.Checked = target?.ProviderEnabled ?? false;
             _desktopLock.Checked = target?.Desktop?.Lock ?? false;

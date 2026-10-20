@@ -2,7 +2,7 @@
 
 A **Desktop Output** displays a saved dashboard in an independent, per-pixel-transparent top-level Windows panel. Several panels can run at once, each with its own dashboard, position and settings. No USB display is required. Panels are initially positioned near the back of the normal window stack, above the desktop wallpaper; this is **best effort**, not a permanent Windows Z-order guarantee. A later application activation, Windows shell transition or virtual-desktop change may interleave another window and a Desktop panel.
 
-An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Creating or removing a panel does not create or delete its dashboard files. For hardware display setup, use [Physical Devices](physical_devices.md). For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
+An **Output** is the configured destination; a **dashboard** is the saved Canvas and widgets assigned to it. Confirming a *new* Desktop panel can generate its initial dashboard once; removing a panel never deletes its dashboard files. For hardware display setup, use [Physical Devices](physical_devices.md). For application-wide coordination, see [Application Architecture](../development/architecture.md#runtime-output-ownership).
 
 ## User Guide
 
@@ -29,7 +29,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 | **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
 | **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
 
-A panel created with **Create New** starts with **Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial dashboard is taken from the selected panel, or the first saved dashboard when none is selected. Review that choice before applying.
+A panel created with **Create New** starts with **Enabled** and **Lock (click-through)** on, **Provider Enabled** off, and a 1000 ms refresh interval. Its initial assignment is `desktop_default`: an ordinary editable **640×640**, **0°** dashboard generated only after **OK**. An existing valid `desktop_default` is reused without overwriting edits. You may choose another saved dashboard before OK; that explicit choice wins. **Cancel** creates neither the panel nor the default file.
 
 Hover over a control or its help icon for the current parameter explanation. The list selects which panel you are editing; it does not select a global active dashboard.
 
