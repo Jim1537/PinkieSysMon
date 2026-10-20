@@ -110,7 +110,7 @@ internal static class AdaptiveDashboardFactory
         {
             SchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion,
             BaseDirectory = baseDirectory,
-            Canvas = new CanvasDefinition
+            Canvas = new global::PinkieSysMon.DashboardModel.CanvasDefinition
             {
                 Width = width,
                 Height = height,
