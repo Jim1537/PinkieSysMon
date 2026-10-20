@@ -1,4 +1,7 @@
 using PinkieSysMon.DashboardModel;
+using CanonicalDashboardDefinition = PinkieSysMon.DashboardModel.DashboardDefinition;
+using CanonicalWidgetDefinition = PinkieSysMon.DashboardModel.WidgetDefinition;
+using CanonicalTextPresentationDefinition = PinkieSysMon.DashboardModel.TextPresentationDefinition;
 
 namespace PinkieSysMon;
 
@@ -14,7 +17,7 @@ internal static class AdaptiveDashboardFactory
     // This is a per-generated-dashboard safety budget, not a transport capability.
     internal const long MaximumPixels = 4_194_304;
 
-    public static DashboardDefinition Create(int width, int height, int orientation, string baseDirectory)
+    public static CanonicalDashboardDefinition Create(int width, int height, int orientation, string baseDirectory)
     {
         if (orientation is not (0 or 90 or 180 or 270))
             throw new ArgumentOutOfRangeException(nameof(orientation), orientation,
@@ -40,7 +43,7 @@ internal static class AdaptiveDashboardFactory
         var headerHeight = Math.Clamp(h * 0.11f, 26f, 48f);
         var bodyTop = pad + headerHeight + gap;
         var bodyHeight = h - pad - bodyTop;
-        var widgets = new List<WidgetDefinition>
+        var widgets = new List<CanonicalWidgetDefinition>
         {
             Value("brand", "Application title", null, "Pinkie's System Monitor",
                 pad, pad, available, headerHeight, Math.Clamp(available / 19f, 16f, 28f),
@@ -103,7 +106,7 @@ internal static class AdaptiveDashboardFactory
                 prefix: "OS  "));
         }
 
-        return new DashboardDefinition
+        return new CanonicalDashboardDefinition
         {
             SchemaVersion = DashboardSchemaMigration.CurrentSchemaVersion,
             BaseDirectory = baseDirectory,
@@ -141,7 +144,7 @@ internal static class AdaptiveDashboardFactory
         Color = color,
         BackgroundColor = background,
         CornerRadius = 10f,
-        TextPresentation = new TextPresentationDefinition
+        TextPresentation = new CanonicalTextPresentationDefinition
         {
             FontFamily = "Roboto",
             FontSize = fontSize,
