@@ -46,7 +46,7 @@ The [Properties by Tab](widgets/properties-by-tab.md) and [Property Dictionary](
 
 ## Dashboard Editor
 
-The visual Editor supports widget placement, resizing, grouping, contextual property editing, metric selection, and live previews. Dashboards are saved separately from the application binaries.
+The visual Editor supports widget placement, resizing, grouping, contextual property editing, metric selection, and live previews. Dashboards are saved separately from the application binaries. Hold the middle mouse button and drag anywhere on the canvas (including over a widget) to pan the viewport without moving widgets; scrollbars and wheel scrolling remain available.
 
 Use **Edit → Editor settings**, **Desktop**, or **Devices** in the Editor main menu. Each opens its own settings dialog; only Devices retains dynamic Device #N tabs. Hover over a control or its question-mark icon for help. The **Outputs** icon at the right end of the toolbar opens the existing Output control menu.
 

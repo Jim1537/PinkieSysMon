@@ -72,6 +72,7 @@ internal static class Program
             ("Issue70 cancel and invalid image path safety", Issue70ImageImportTests.CancelAndInvalidPaths),
             ("Issue84 startup selection and theme-restart arguments", Issue84EditorStartupTests.SelectionAndRestartArguments),
             ("Issue84 document-free Editor commands", Issue84EditorStartupTests.EmptyWorkspaceControls),
+            ("Issue98 middle-mouse canvas pan delta and scroll bounds", Issue98CanvasPanTests.DeltaAndBounds),
             ("Issue93 new dashboard creation and save/reopen", Issue93NewDashboardTests.CreateSaveAndReopen),
             ("Issue94 adaptive dashboard geometry and semantics", Issue94AdaptiveDashboardTests.GeneratorGeometryAndSemantics),
             ("Issue94 infeasible canvas rejection", Issue94AdaptiveDashboardTests.RejectInfeasibleGeometry),

@@ -81,6 +81,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private CanonicalWidgetDefinition? _selectedWidget;
     private readonly HashSet<CanonicalWidgetDefinition> _selectedWidgets = new(ReferenceEqualityComparer.Instance);
     private bool _dragging;
+    private bool _panning;
+    private Point _panMouseOrigin;
+    private Point _panScrollOrigin;
     private PointF _dragStartLogical;
     private readonly Dictionary<CanonicalWidgetDefinition, (float X, float Y)> _dragOrigins = new(ReferenceEqualityComparer.Instance);
     private ResizeDragState? _resizeDrag;
@@ -227,6 +230,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         FormClosing += OnFormClosing;
         FormClosed += (_, _) => LaunchRestartedEditor();
+        Deactivate += (_, _) => EndCanvasPan();
         Resize += (_, _) =>
         {
             if (_fitZoom)
@@ -363,7 +367,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _workspaceViewport.MouseDown += CanvasMouseDown;
         _workspaceViewport.MouseMove += CanvasMouseMove;
         _workspaceViewport.MouseUp += CanvasMouseUp;
-        _workspaceViewport.MouseDoubleClick += (_, e) => SelectAt(e.Location);
+        _workspaceViewport.MouseCaptureChanged += (_, _) => EndCanvasPan();
+        _workspaceViewport.MouseDoubleClick += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left && !_panning)
+                SelectAt(e.Location);
+        };
         _workspaceViewport.Scroll += (_, _) => _workspaceViewport.Invalidate();
 
         _widgetTree.LabelEdit = false;
@@ -1438,7 +1447,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private void CanvasMouseDown(object? sender, MouseEventArgs e)
     {
         ClaimEditorInputSurface(EditorInputSurface.Canvas, _workspaceViewport);
-        if (e.Button != MouseButtons.Left || _definition is null || _preview is null)
+        if (e.Button == MouseButtons.Middle)
+        {
+            BeginCanvasPan(e.Location);
+            return;
+        }
+        if (_panning || e.Button != MouseButtons.Left || _definition is null || _preview is null)
             return;
 
         var point = ScreenToLogical(e.Location);
@@ -1551,6 +1565,15 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
     private void CanvasMouseMove(object? sender, MouseEventArgs e)
     {
+        if (_panning)
+        {
+            if ((e.Button & MouseButtons.Middle) == 0)
+                EndCanvasPan();
+            else
+                PanCanvas(e.Location);
+            return;
+        }
+
         var point = ScreenToLogical(e.Location);
         if (!_dragging || _selectedWidgets.Count == 0 || e.Button != MouseButtons.Left)
         {
@@ -1652,7 +1675,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
     private void CanvasMouseUp(object? sender, MouseEventArgs e)
     {
-        if (!_dragging)
+        if (e.Button == MouseButtons.Middle)
+        {
+            EndCanvasPan();
+            return;
+        }
+        if (e.Button != MouseButtons.Left || !_dragging)
             return;
 
         var resize = _resizeDrag;
@@ -1675,6 +1703,42 @@ internal sealed partial class EditorForm : PinkieEditorForm
         var point = ScreenToLogical(e.Location);
         UpdateResizeCursor(point);
         RenderPreview(force: true, immediate: true);
+    }
+
+    private void BeginCanvasPan(Point mousePosition)
+    {
+        if (_preview is null || _panning || _dragging)
+            return;
+
+        // A pending zoom/reload scroll restore must not overwrite a live drag.
+        ++_scrollRestoreGeneration;
+        _panMouseOrigin = mousePosition;
+        _panScrollOrigin = CaptureScrollPosition();
+        _panning = true;
+        _workspaceViewport.Capture = true;
+        _workspaceViewport.Cursor = Cursors.SizeAll;
+    }
+
+    private void PanCanvas(Point mousePosition)
+    {
+        RestoreScrollPosition(CalculatePanScrollPosition(_panScrollOrigin, _panMouseOrigin, mousePosition));
+        // Programmatic AutoScrollPosition changes do not reliably raise Scroll.
+        _workspaceViewport.Invalidate();
+    }
+
+    private void EndCanvasPan()
+    {
+        if (!_panning)
+            return;
+
+        _panning = false;
+        if (_workspaceViewport.Capture)
+            _workspaceViewport.Capture = false;
+        _workspaceViewport.Cursor = Cursors.Default;
+
+        var pointer = _workspaceViewport.PointToClient(Cursor.Position);
+        if (_workspaceViewport.ClientRectangle.Contains(pointer))
+            UpdateResizeCursor(ScreenToLogical(pointer));
     }
 
     private void UpdateResizeCursor(PointF point)
@@ -1887,10 +1951,18 @@ internal sealed partial class EditorForm : PinkieEditorForm
         Math.Max(0, -_workspaceViewport.AutoScrollPosition.X),
         Math.Max(0, -_workspaceViewport.AutoScrollPosition.Y));
 
-    private Point ClampScrollPosition(Point position)
+    // Dragging the board toward the pointer moves the viewport in the opposite direction.
+    internal static Point CalculatePanScrollPosition(Point initialScroll, Point initialMouse, Point currentMouse) =>
+        new(initialScroll.X - (currentMouse.X - initialMouse.X),
+            initialScroll.Y - (currentMouse.Y - initialMouse.Y));
+
+    private Point ClampScrollPosition(Point position) =>
+        ClampScrollPosition(position, _workspaceViewport.AutoScrollMinSize, _workspaceViewport.ClientSize);
+
+    internal static Point ClampScrollPosition(Point position, Size contentSize, Size viewportSize)
     {
-        var maxX = Math.Max(0, _workspaceViewport.AutoScrollMinSize.Width - _workspaceViewport.ClientSize.Width);
-        var maxY = Math.Max(0, _workspaceViewport.AutoScrollMinSize.Height - _workspaceViewport.ClientSize.Height);
+        var maxX = Math.Max(0, contentSize.Width - viewportSize.Width);
+        var maxY = Math.Max(0, contentSize.Height - viewportSize.Height);
         return new Point(
             Math.Clamp(position.X, 0, maxX),
             Math.Clamp(position.Y, 0, maxY));
@@ -1932,6 +2004,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     {
         if (_preview is null)
             return;
+        EndCanvasPan();
 
         var desiredScroll = CaptureScrollPosition();
         if (_fitZoom)
@@ -2352,6 +2425,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             return;
         }
 
+        EndCanvasPan();
         SaveEditorSettings();
         if (_wheelFilter is not null)
             Application.RemoveMessageFilter(_wheelFilter);
