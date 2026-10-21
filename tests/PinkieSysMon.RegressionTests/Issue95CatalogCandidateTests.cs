@@ -18,7 +18,7 @@ internal static class Issue95CatalogCandidateTests
         api.Paths[known] = [Path("0416:5409", "ONE", ClassA)];
 
         var candidates = CatalogUsbInterfaceDiscovery.Capture(api);
-        Check(candidates.Length == 1 && candidates[0].Family.Product ==
+        Check(candidates.Count == 1 && candidates[0].Family.Product ==
               new UsbProductId(0x0416, 0x5409) &&
               candidates[0].SuggestedTransport is null,
             "A listed unknown commercial model is offered without invented protocol hints.");
@@ -46,17 +46,17 @@ internal static class Issue95CatalogCandidateTests
             Path("0416:5408", "OTHER", ClassA),
             Path("1CBE:0123", "TWO", ClassB).Replace(ClassB.ToString(), ClassA.ToString())];
         var candidates = CatalogUsbInterfaceDiscovery.Capture(api);
-        Check(candidates.Length == 2 && candidates[0].Id != candidates[1].Id &&
+        Check(candidates.Count == 2 && candidates[0].Id != candidates[1].Id &&
               candidates[0].PnpNodeKey == candidates[1].PnpNodeKey &&
               candidates.All(c => c.SuggestedTransport == OutputTargetContract.TurzxTransport),
             "Two interfaces on one known unit remain separate and ambiguous, never first-selected.");
 
         api.InterfaceInstanceId = _ => NodeId("1CBE:0123", "ANOTHER");
-        Check(CatalogUsbInterfaceDiscovery.Capture(api).Length == 0,
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0,
             "Even a matching product/class path must be rejected without exact node correlation.");
         api.InterfaceInstanceId = _ => id;
         api.Read = key => key == id ? null : Node(key);
-        Check(CatalogUsbInterfaceDiscovery.Capture(api).Length == 0,
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0,
             "An interface disappearing during enumeration cannot be proposed.");
     }
 
@@ -86,7 +86,7 @@ internal static class Issue95CatalogCandidateTests
         api.Nodes[id] = Node(id, "USBSTOR");
         api.Classes[id] = [ClassA];
         api.Paths[id] = [valid];
-        Check(CatalogUsbInterfaceDiscovery.Capture(api).Length == 0 &&
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0 &&
               api.ClassesRead.Count == 0,
             "A listed storage-driver device cannot be offered for active WinUSB test.");
     }
