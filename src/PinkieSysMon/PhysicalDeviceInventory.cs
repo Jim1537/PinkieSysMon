@@ -84,8 +84,8 @@ internal static class PhysicalDeviceInventory
         var entries = new List<PhysicalDeviceInventoryEntry>();
 
         // Persisted targets always remain visible, even when unplugged.
-        // An unbound legacy target may resolve a single attached device, but its
-        // configuration identity remains unchanged. No record is auto-persisted.
+        // A target without an exact saved interface ID stays disconnected,
+        // even if there is only one compatible discovered device.
         foreach (var target in targets)
         {
             var resolution = OutputDeviceSelection.Resolve(target, candidates);

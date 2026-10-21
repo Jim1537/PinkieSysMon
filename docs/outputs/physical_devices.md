@@ -115,7 +115,7 @@ The selected adapter's native completion limits still apply to a stalled USB ope
 | Passive inventory and explicit candidate adoption | Windows interface discovery and hardware identity derivation |
 | Detached editing, validation, removal and session coordination | Open/handshake, encoding, framing, ACK and native I/O lifetime |
 
-`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Trofeo and [TURZX](../development/devices/turzx-12.3.md) route enabled records to their respective adapters through the common factory; each adapter retains its own capability and recovery limits. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings/fingerprints and any legacy selection fallback remain with the model-specific references in [Supported Devices](../supported-devices.md).
+`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Trofeo and [TURZX](../development/devices/turzx-12.3.md) route enabled records to their respective adapters through the common factory; each adapter retains its own capability and recovery limits. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings and fingerprints remain with the model-specific references in [Supported Devices](../supported-devices.md). There is no automatic selection of a sole detected device: a saved physical Output without an exact interface binding remains disconnected, and the observed device remains an unconfigured candidate.
 
 ### Configuration and identity
 

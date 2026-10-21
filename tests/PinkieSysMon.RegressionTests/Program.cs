@@ -627,8 +627,8 @@ internal static class Program
             "An unbound target must not silently select the first device when multiple compatible devices are present.");
 
         var single = OutputDeviceSelection.Resolve(target, [devices[0]]);
-        Assert(single.Status == OutputDeviceResolutionStatus.Found && single.Device?.DeviceId == devices[0].DeviceId,
-            "Legacy unbound configuration must retain single-device behavior when exactly one compatible device is present.");
+        Assert(single.Status == OutputDeviceResolutionStatus.Missing && single.Device is null,
+            "A single attached device must not authorize an unbound physical Output.");
 
         target.DeviceId = devices[1].DeviceId;
         var explicitMatch = OutputDeviceSelection.Resolve(target, devices);

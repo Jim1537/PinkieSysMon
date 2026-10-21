@@ -113,23 +113,14 @@ internal static class OutputDeviceSelection
             };
         }
 
-        // New adapters require an explicit binding even with one attached device.
-        // The unbound fallback remains a legacy Trofeo compatibility rule only.
-        if (target.Kind.Equals(OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase))
-            return new(OutputDeviceResolutionStatus.Missing, null,
-                "TURZX requires an explicit physical device binding.");
-        return candidates.Length switch
-        {
-            0 => new OutputDeviceResolution(
-                OutputDeviceResolutionStatus.Missing,
-                null,
-                $"No compatible output device is present for target '{target.Name}'."),
-            1 => new OutputDeviceResolution(OutputDeviceResolutionStatus.Found, candidates[0], string.Empty),
-            _ => new OutputDeviceResolution(
-                OutputDeviceResolutionStatus.Ambiguous,
-                null,
-                $"Multiple compatible output devices are present for target '{target.Name}'. Select an explicit device in Settings.")
-        };
+        // Issue #95: there is no implicit "only attached device" adoption.
+        // Even a singleton matching this protocol could be a different panel,
+        // interface, port, or unconfirmed manufacturer. Only the exact saved
+        // interface ID may authorize a physical transport.
+        return new OutputDeviceResolution(
+            OutputDeviceResolutionStatus.Missing,
+            null,
+            $"Output target '{target.Name}' requires an explicit physical interface binding.");
     }
 
     // A repeated serial claim or exact devnode cannot authorize choosing one

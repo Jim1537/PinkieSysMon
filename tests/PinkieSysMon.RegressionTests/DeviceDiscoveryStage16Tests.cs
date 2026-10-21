@@ -54,8 +54,8 @@ internal static class DeviceDiscoveryStage16Tests
 
         target.DeviceId = string.Empty;
         var unbound = OutputDeviceSelection.Resolve(target, twins);
-        Check(unbound.Status == OutputDeviceResolutionStatus.Ambiguous && unbound.Device is null,
-            "An unbound target must also refuse two compatible physical interfaces.");
+        Check(unbound.Status == OutputDeviceResolutionStatus.Missing && unbound.Device is null,
+            "An unbound target must require an exact binding even if multiple physical interfaces are present.");
 
         target.DeviceId = "trofeo:" + new string('b', 64);
         var absent = OutputDeviceSelection.Resolve(target, twins);
@@ -164,14 +164,19 @@ internal static class DeviceDiscoveryStage16Tests
 
         var legacy = Target();
         var legacyObserved = PhysicalDeviceInventory.Build([legacy], [device]);
-        Check(legacyObserved.Count == 1 &&
-              legacyObserved[0].Status == PhysicalDeviceInventoryStatus.Connected &&
+        Check(legacyObserved.Count == 2 &&
+              legacyObserved[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              legacyObserved[0].DiscoveredDevice is null &&
+              legacyObserved[1].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
+              legacyObserved[1].DiscoveredDevice == device &&
               legacy.DeviceId.Length == 0,
-            "An unbound legacy target may use the sole physical device without persisting an implicit binding.");
+            "An unbound saved target must stay disconnected; the sole physical device stays an unconfigured candidate.");
         var legacyAmbiguous = PhysicalDeviceInventory.Build([legacy], [device, newDevice]);
-        Check(legacyAmbiguous[0].Status == PhysicalDeviceInventoryStatus.Ambiguous &&
-              legacyAmbiguous[0].DiscoveredDevice is null,
-            "An unbound legacy target must be ambiguous with multiple devices.");
+        Check(legacyAmbiguous.Count == 3 &&
+              legacyAmbiguous[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              legacyAmbiguous[0].DiscoveredDevice is null &&
+              legacyAmbiguous.Skip(1).All(x => x.Status == PhysicalDeviceInventoryStatus.Unconfigured),
+            "No number of compatible devices can authorize an unbound target or consume candidates.");
 
         var reconnect = PhysicalDeviceInventory.Build([known], [device]);
         Check(reconnect.Count == 1 &&
@@ -202,7 +207,7 @@ internal static class DeviceDiscoveryStage16Tests
 
         known.DeviceId = string.Empty;
         Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], [device]).Single()),
-            "Implicit single-device legacy matching is insufficient to enable USB ownership without explicit binding.");
+            "An unbound physical target cannot enable USB ownership without exact persisted identity.");
         known.DeviceId = device.DeviceId;
 
         var twin = device with { DevicePath = "second-path" };
