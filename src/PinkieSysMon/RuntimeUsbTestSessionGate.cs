@@ -13,7 +13,7 @@ internal sealed class RuntimeUsbTestLease(
     internal CancellationToken StopRequested => Cancellation.Token;
 }
 
-internal enum RuntimeUsbTestAdmission { Started, AlreadyRunning, Busy, AttemptReused }
+internal enum RuntimeUsbTestAdmission { Started, AlreadyRunning, Busy, AttemptReused, CandidateRejected }
 internal enum RuntimeUsbTestPhase
 {
     Missing, Running, CancelRequested, CleanupPending,
