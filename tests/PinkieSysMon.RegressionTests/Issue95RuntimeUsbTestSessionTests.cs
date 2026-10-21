@@ -48,9 +48,10 @@ internal static class Issue95RuntimeUsbTestSessionTests
               { Phase: RuntimeUsbTestPhase.SucceededAndReleased,
                 TechnicalOutcome: CatalogUsbTestTechnicalOutcome.SucceededAndReleased },
             "Only a trusted terminal native result can release an attempt.");
-        Check(gate.TryBegin(original, Tick(3), out _) == RuntimeUsbTestAdmission.AttemptReused &&
-              gate.TryBegin(other, Tick(3), out var next) == RuntimeUsbTestAdmission.Started,
-            "Already-completed attempts cannot be replayed; fresh attempts may start.");
+        Check(gate.TryBegin(original, Tick(3), out _) == RuntimeUsbTestAdmission.AttemptReused,
+            "Already-completed attempts cannot be replayed.");
+        Check(gate.TryBegin(other, Tick(3), out var next) == RuntimeUsbTestAdmission.Started,
+            "Fresh attempts may start after confirmed native release.");
         var nextOwner = next ?? throw new InvalidOperationException("Fresh attempt has no lease.");
         Check(!gate.ReportTechnicalOutcome(owner, CatalogUsbTestTechnicalOutcome.FailedAndReleased) &&
               gate.GetStatus(nextOwner.Handle, Tick(3)).Phase == RuntimeUsbTestPhase.Running &&

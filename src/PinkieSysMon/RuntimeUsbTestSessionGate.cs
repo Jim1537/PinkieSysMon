@@ -9,8 +9,8 @@ internal sealed class RuntimeUsbTestLease(
 {
     internal CatalogUsbTestBeginRequest Request { get; } = request;
     internal CatalogUsbTestHandle Handle { get; } = new(request.ClientId, request.Intent.AttemptId);
-    internal CancellationToken StopRequested => cancellation.Token;
     internal CancellationTokenSource Cancellation { get; } = cancellation;
+    internal CancellationToken StopRequested => Cancellation.Token;
 }
 
 internal enum RuntimeUsbTestAdmission { Started, AlreadyRunning, Busy, AttemptReused }
