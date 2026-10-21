@@ -68,6 +68,8 @@ No history samples are fabricated during idle. Physical display blanking and pos
 
 ## Runtime output ownership
 
+Before ordinary Runtime initializes sessions, its process acquires a Windows account-scoped named-mutex ownership lease, shared across installations and Windows sessions for that account. An already-owned or inaccessible lease prevents a second Runtime from starting Outputs even when the first Runtime's IPC endpoint is unresponsive. The process retains the lease through shutdown and fatal-error UI so a potentially stalled native transfer cannot be followed by another Runtime acquiring USB. This prevents **competing PinkieSysMon Runtime processes**; it does not claim ownership against unrelated vendor software or establish device compatibility. Runtime IPC remains the control endpoint, not the ownership lease.
+
 `OutputSessionManager` owns the active-session set. [Desktop Outputs](../outputs/desktop.md#technical-information) owns native panel configuration, presentation, placement and mouse input; [Physical Devices](../outputs/physical_devices.md#technical-information) owns physical inventory, consent and session boundaries, with transport details in its adapter reference. Both consume the shared `MetricStore` snapshot through the canonical widget renderer.
 
 Configured Outputs register dynamic provider descriptors independently of telemetry acquisition. The [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics) owns provider enablement, namespaces, fields, publication and unavailable values.

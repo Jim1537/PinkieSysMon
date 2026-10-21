@@ -138,6 +138,8 @@ internal static class Program
             ("Issue71 TURZX diagnostic uses stream transport owner", TurzxTransportDiagnosticTests.JpegStreamUsesTransport),
             ("Issue71 TURZX synthetic codecs, geometry and corners", TurzxTransportDiagnosticTests.SyntheticCodecGeometryAndCorners),
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
+            ("Issue95 exclusive Runtime process ownership", Issue95RuntimeProcessLeaseTests.ConcurrentOwnersFailClosed),
+            ("Issue95 Runtime lease release and restart", Issue95RuntimeProcessLeaseTests.ReleasedOwnerAllowsNewAcquisition),
             ("Issue95 catalog VID/PID candidate admission", Issue95CatalogCandidateTests.CatalogBoundedPassiveCandidates),
             ("Issue95 candidate draft exact trial and invalidation", Issue95CandidateDraftTests.EditableParametersAndRuntimeIntent),
             ("Issue95 candidate draft invalid and stale binding", Issue95CandidateDraftTests.InvalidAndUnprovenCandidatesFailClosed),
