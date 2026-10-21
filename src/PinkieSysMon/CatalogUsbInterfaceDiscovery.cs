@@ -27,20 +27,27 @@ internal sealed class CatalogUsbInterfaceCandidate(
     public override string ToString() => $"{Family.Name} [{Id[^8..]}]";
 }
 
+internal sealed record CatalogUsbCandidateSnapshot(
+    IReadOnlyList<CatalogUsbInterfaceCandidate> Candidates,
+    IReadOnlyList<string> UnavailableNodeKeys);
+
 internal static class CatalogUsbInterfaceDiscovery
 {
-    // Production entry point: passive Windows PnP and registered-interface
-    // queries only. No USB handle is opened by this discovery API.
-    internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Capture() =>
-        Capture(new WindowsTurzxInterfaceDiscoveryApi());
+    // Passive partial-result entry point. Global PnP list failure still throws.
+    internal static CatalogUsbCandidateSnapshot CaptureSnapshot() =>
+        CaptureSnapshot(new WindowsTurzxInterfaceDiscoveryApi());
 
-    // No generic USB scan and no arbitrary WinUSB picker: only exact catalog
-    // VID/PID products are eligible even for passive candidate enumeration.
+    internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Capture() =>
+        CaptureSnapshot().Candidates;
+
     internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Capture(
-        IUsbInterfaceDiscoveryApi api)
+        IUsbInterfaceDiscoveryApi api) => CaptureSnapshot(api).Candidates;
+
+    internal static CatalogUsbCandidateSnapshot CaptureSnapshot(IUsbInterfaceDiscoveryApi api)
     {
         ArgumentNullException.ThrowIfNull(api);
         var candidates = new List<CatalogUsbInterfaceCandidate>();
+        var unavailable = new List<string>();
         var nodes = UsbDisplayDiscovery.CaptureNodes(api,
             product => UsbDisplayCatalog.Find(product) is not null);
         foreach (var node in nodes)
@@ -48,11 +55,15 @@ internal static class CatalogUsbInterfaceDiscovery
             if (!TryEligibleNode(node, out var product))
                 continue;
 
-            var registered = api.ReadInterfaceClasses(node.InstanceId);
-            if (registered.Count > 16 || registered.Any(guid => guid == Guid.Empty))
-                throw new InvalidOperationException("USB candidate interface classes are invalid.");
-            foreach (var interfaceClass in registered.Distinct())
+            // Only publish a node after all of its interfaces are enumerated:
+            // partial enumeration could falsely appear uniquely bindable.
+            var perNode = new List<CatalogUsbInterfaceCandidate>();
+            try
             {
+                var registered = api.ReadInterfaceClasses(node.InstanceId);
+                if (registered.Count > 16 || registered.Any(guid => guid == Guid.Empty))
+                    throw new InvalidOperationException("USB candidate interface classes are invalid.");
+                foreach (var interfaceClass in registered.Distinct())
                 foreach (var path in api.EnumerateInterfaces(interfaceClass, node.InstanceId)
                     .Distinct(StringComparer.OrdinalIgnoreCase))
                 {
@@ -62,8 +73,6 @@ internal static class CatalogUsbInterfaceDiscovery
                             StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    // A PnP removal or driver change during enumeration cannot
-                    // promote stale data to an openable candidate.
                     if (api.ReadNode(node.InstanceId) is not { } current ||
                         !TryEligibleNode(current, out var currentProduct) ||
                         currentProduct != product ||
@@ -71,19 +80,25 @@ internal static class CatalogUsbInterfaceDiscovery
                             StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    candidates.Add(new CatalogUsbInterfaceCandidate(
+                    perNode.Add(new CatalogUsbInterfaceCandidate(
                         StableInterfaceId(path), UsbDisplayCatalog.Find(product)!, path,
                         UsbDisplayDiscovery.CreateObservationId(node.InstanceId)));
                 }
             }
+            catch (Exception error) when (error is InvalidOperationException or
+                System.ComponentModel.Win32Exception or DllNotFoundException or
+                EntryPointNotFoundException)
+            {
+                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(node.InstanceId));
+                continue;
+            }
+            candidates.AddRange(perNode);
         }
-
-        // One node may advertise several distinct interfaces. Preserve each
-        // for later explicit ambiguity handling; never choose a first match.
-        return candidates
-            .DistinctBy(candidate => candidate.Id)
-            .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
-            .ToArray();
+        return new CatalogUsbCandidateSnapshot(
+            candidates.DistinctBy(candidate => candidate.Id)
+                .OrderBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray(),
+            unavailable.Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(key => key, StringComparer.Ordinal).ToArray());
     }
 
     private static bool TryEligibleNode(UsbPnpNode node, out UsbProductId product)

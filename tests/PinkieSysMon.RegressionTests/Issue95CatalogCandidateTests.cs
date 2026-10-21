@@ -33,6 +33,8 @@ internal static class Issue95CatalogCandidateTests
               !candidates[0].ToString().Contains("ONE", StringComparison.Ordinal) &&
               !candidates[0].ToString().Contains(@"\\?\usb", StringComparison.Ordinal),
             "Candidate IDs must be exact-interface hashes, not path text or model bindings.");
+        // Include isolated-native-error cases in this existing registered test.
+        PartialFailureIsolation();
     }
 
     public static void ExactCorrelationAndAmbiguity()
@@ -163,6 +165,45 @@ internal static class Issue95CatalogCandidateTests
             "Duplicate candidate identities must never be selected by first match.");
     }
 
+
+    public static void PartialFailureIsolation()
+    {
+        var good = NodeId("0416:5409", "GOOD");
+        var failed = NodeId("1CBE:0123", "FAIL");
+        var incomplete = NodeId("0416:5408", "INCOMPLETE");
+        var api = new FakeApi([good, failed, incomplete]);
+        api.Classes[good] = [ClassA];
+        api.Paths[good] = [Path("0416:5409", "GOOD", ClassA)];
+        api.Classes[failed] = [ClassA];
+        api.Classes[incomplete] = [ClassA, ClassB];
+        api.Paths[incomplete] = [Path("0416:5408", "INCOMPLETE", ClassA)];
+        api.FailedClassNode = failed;
+        api.FailedEnumeratedClass = ClassB;
+
+        var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot(api);
+        var expected = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            UsbDisplayDiscovery.CreateObservationId(failed),
+            UsbDisplayDiscovery.CreateObservationId(incomplete)
+        };
+        Check(snapshot.Candidates.Count == 1 &&
+              snapshot.Candidates[0].Family.Product == new UsbProductId(0x0416, 0x5409) &&
+              snapshot.UnavailableNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                  .SetEquals(expected),
+            "Partial failures must preserve healthy catalog units without publishing incomplete candidates.");
+        Check(snapshot.UnavailableNodeKeys.All(key => key.StartsWith("usb-pnp:", StringComparison.Ordinal)
+                  && !key.Contains("INCOMPLETE", StringComparison.OrdinalIgnoreCase)),
+            "Only hashed private node identities may be exposed as unavailable.");
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 1,
+            "Candidate-only enumeration must preserve independent healthy units.");
+
+        api.FailListSize = true;
+        var failedGlobal = false;
+        try { CatalogUsbInterfaceDiscovery.CaptureSnapshot(api); }
+        catch (InvalidOperationException) { failedGlobal = true; }
+        Check(failedGlobal, "A failed PnP list must not be mistaken for an empty successful scan.");
+    }
+
     private static string NodeId(string pair, string unit) =>
         $"USB\\VID_{pair[..4]}&PID_{pair[5..]}\\SYNTHETIC-{unit}";
 
@@ -184,13 +225,16 @@ internal static class Issue95CatalogCandidateTests
             new(StringComparer.OrdinalIgnoreCase);
         public List<string> ReadCalls { get; } = [];
         public List<string> ClassesRead { get; } = [];
+        public string? FailedClassNode { get; set; }
+        public Guid? FailedEnumeratedClass { get; set; }
+        public bool FailListSize { get; set; }
         public Func<string, UsbPnpNode?>? Read { get; set; }
         public Func<string, string?>? InterfaceInstanceId { get; set; }
 
         public uint GetListSize(out uint characters)
         {
             characters = checked((uint)_list.Length);
-            return UsbDisplayDiscovery.Success;
+            return FailListSize ? 0x0D : UsbDisplayDiscovery.Success;
         }
 
         public uint GetList(char[] buffer)
@@ -208,11 +252,17 @@ internal static class Issue95CatalogCandidateTests
         public IReadOnlyList<Guid> ReadInterfaceClasses(string id)
         {
             ClassesRead.Add(id);
+            if (id.Equals(FailedClassNode, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Synthetic class metadata error.");
             return Classes.GetValueOrDefault(id) ?? [];
         }
 
-        public IReadOnlyList<string> EnumerateInterfaces(Guid cls, string id) =>
-            Paths.GetValueOrDefault(id) ?? [];
+        public IReadOnlyList<string> EnumerateInterfaces(Guid cls, string id)
+        {
+            if (cls == FailedEnumeratedClass)
+                throw new InvalidOperationException("Synthetic interface enumeration error.");
+            return Paths.GetValueOrDefault(id) ?? [];
+        }
 
         public string? ReadInterfaceInstanceId(string path) =>
             InterfaceInstanceId?.Invoke(path) ??
