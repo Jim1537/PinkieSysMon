@@ -78,6 +78,7 @@ internal static class Program
             ("Issue94 infeasible canvas rejection", Issue94AdaptiveDashboardTests.RejectInfeasibleGeometry),
             ("Issue94 Desktop default staged assignment", Issue94DesktopDefaultAssignmentTests.StagingAndReuse),
             ("Issue94 Desktop default rollback and collisions", Issue94DesktopDefaultAssignmentTests.RollbackAndCollisions),
+            ("Issue95 user-defined physical board naming", Issue95PhysicalDashboardNamesTests.UserGeometryNaming),
             ("Issue94 integrated physical native default assignment", Issue94PhysicalDefaultAssignmentTests.IntegratedProfilesAndReuse),
             ("Issue94 physical default rollback and unprofiled adapter", Issue94PhysicalDefaultAssignmentTests.FailureAndUnsupportedProfiles),
             ("Issue94 first Desktop bootstrap and missing-file protection", Issue94FreshBootstrapTests.FirstDesktopAndNoRepair),

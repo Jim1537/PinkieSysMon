@@ -8,6 +8,15 @@ internal static class OutputDefaultDashboardPolicy
     public const string TrofeoName = "device_1920x480_default";
     public const string TurzxName = "device_1920x720_default";
 
+    // The user's entered screen geometry determines a new physical Output's
+    // first editable board name; USB product, protocol and model do not.
+    // Frame/rendering resource limits are validated separately.
+    public static string NameForPhysicalGeometry(int width, int height)
+    {
+        FrameGeometry.ValidateNativeSize(width, height);
+        return $"device_{width}x{height}_default";
+    }
+
     // Kind classification only; OutputTargetContract validates the exact
     // transport pair subsequently and returns its normal InvalidDataException.
     public static string NameFor(OutputTargetConfig target) => target.Kind switch
