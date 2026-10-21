@@ -32,10 +32,10 @@ internal static class OutputDefaultDashboardPolicy
         ArgumentNullException.ThrowIfNull(target);
         if (string.Equals(target.Kind, OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(target.Transport, OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase))
-            return (TrofeoName, 1920, 480);
+            return (NameForPhysicalGeometry(1920, 480), 1920, 480);
         if (string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
-            return (TurzxName, 1920, 720);
+            return (NameForPhysicalGeometry(1920, 720), 1920, 720);
         throw new InvalidOperationException(
             $"Output '{target.Name}' has no verified integrated native geometry; " +
             "a model-specific geometry policy is required before generating a dashboard.");
