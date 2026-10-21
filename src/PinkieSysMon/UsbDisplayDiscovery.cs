@@ -58,7 +58,7 @@ internal static class UsbDisplayDiscovery
 
     // Shared bounded metadata capture; callers select products before per-node reads.
     internal static IReadOnlyList<UsbPnpNode> CaptureNodes(IUsbPnpDiscoveryApi api,
-        Func<UsbProductId, bool> include)
+        Func<UsbProductId, bool> include, Action<string>? onReadFailure = null)
     {
         ArgumentNullException.ThrowIfNull(api);
         ArgumentNullException.ThrowIfNull(include);
@@ -83,7 +83,18 @@ internal static class UsbDisplayDiscovery
                     continue;
                 // A device removed after enumeration is absent, not an available
                 // transport. Only matching families incur per-node metadata reads.
-                if (api.ReadNode(id) is { } node)
+                UsbPnpNode? node;
+                try { node = api.ReadNode(id); }
+                catch (Exception error) when (onReadFailure is not null &&
+                    (error is InvalidOperationException or System.ComponentModel.Win32Exception or
+                        DllNotFoundException or EntryPointNotFoundException))
+                {
+                    // Only callers opting into partial snapshots isolate native
+                    // per-node errors. Existing strict callers still fail.
+                    onReadFailure(id);
+                    continue;
+                }
+                if (node is not null)
                 {
                     if (!id.Equals(node.InstanceId, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidOperationException("USB PnP discovery returned inconsistent node metadata.");

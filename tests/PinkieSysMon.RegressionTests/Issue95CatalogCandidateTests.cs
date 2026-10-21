@@ -225,6 +225,34 @@ internal static class Issue95CatalogCandidateTests
                   UsbDisplayDiscovery.CreateObservationId(unstable)),
             "Driver changes during enumeration must discard all earlier interfaces.");
 
+        // The initial PnP metadata read may fail for one admitted node.
+        // Catalog capture isolates it; all existing strict callers retain
+        // their original fail-fast behavior with no missing-device guess.
+        var initialFailure = NodeId("1CBE:0123", "INITIAL-ERROR");
+        var initialGood = NodeId("0416:5409", "INITIAL-GOOD");
+        var initial = new FakeApi([initialFailure, initialGood]);
+        initial.Classes[initialGood] = [ClassA];
+        initial.Paths[initialGood] = [Path("0416:5409", "INITIAL-GOOD", ClassA)];
+        initial.Read = id => id.Equals(initialFailure, StringComparison.OrdinalIgnoreCase)
+            ? throw new InvalidOperationException("Synthetic native PnP metadata failure.")
+            : Node(id);
+        var partial = CatalogUsbInterfaceDiscovery.CaptureSnapshot(initial);
+        Check(partial.Candidates.Count == 1 &&
+              partial.Candidates[0].Family.Product == new UsbProductId(0x0416, 0x5409) &&
+              partial.UnavailableNodeKeys.SequenceEqual(
+                  [UsbDisplayDiscovery.CreateObservationId(initialFailure)]),
+            "Initial per-node PnP failure must not hide healthy catalog candidates.");
+
+        var strictFailure = false;
+        try
+        {
+            _ = UsbDisplayDiscovery.CaptureNodes(initial,
+                _ => true);
+        }
+        catch (InvalidOperationException) { strictFailure = true; }
+        Check(strictFailure,
+            "Legacy strict PnP discovery must still report native metadata errors.");
+
         api.FailListSize = true;
         var failedGlobal = false;
         try { CatalogUsbInterfaceDiscovery.CaptureSnapshot(api); }

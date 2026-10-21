@@ -49,7 +49,8 @@ internal static class CatalogUsbInterfaceDiscovery
         var candidates = new List<CatalogUsbInterfaceCandidate>();
         var unavailable = new List<string>();
         var nodes = UsbDisplayDiscovery.CaptureNodes(api,
-            product => UsbDisplayCatalog.Find(product) is not null);
+            product => UsbDisplayCatalog.Find(product) is not null,
+            failedId => unavailable.Add(UsbDisplayDiscovery.CreateObservationId(failedId)));
         foreach (var node in nodes)
         {
             if (!TryEligibleNode(node, out var product))
