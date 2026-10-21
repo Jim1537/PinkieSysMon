@@ -140,6 +140,8 @@ internal static class Program
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Issue95 exclusive Runtime process ownership", Issue95RuntimeProcessLeaseTests.ConcurrentOwnersFailClosed),
             ("Issue95 Runtime lease release and restart", Issue95RuntimeProcessLeaseTests.ReleasedOwnerAllowsNewAcquisition),
+            ("Issue95 USB Test typed IPC roundtrip", Issue95UsbTestIpcTests.RoundtripAndCorrelation),
+            ("Issue95 USB Test IPC rejects malformed and unsafe requests", Issue95UsbTestIpcTests.MalformedRequestsFailClosed),
             ("Issue95 catalog VID/PID candidate admission", Issue95CatalogCandidateTests.CatalogBoundedPassiveCandidates),
             ("Issue95 candidate draft exact trial and invalidation", Issue95CandidateDraftTests.EditableParametersAndRuntimeIntent),
             ("Issue95 candidate draft invalid and stale binding", Issue95CandidateDraftTests.InvalidAndUnprovenCandidatesFailClosed),

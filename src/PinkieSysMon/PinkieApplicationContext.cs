@@ -333,6 +333,14 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus())));
 
+        // Parsed wire messages alone do not grant USB ownership. Admission,
+        // runtime-local candidate revalidation, lifecycle and native release
+        // must be implemented before any Test verb can become executable.
+        if (parsed.Kind is RuntimeIpcCommandKind.UsbTestBegin or
+            RuntimeIpcCommandKind.UsbTestStatus or RuntimeIpcCommandKind.UsbTestCancel)
+            return Task.FromResult(new RuntimeIpcResponse(false,
+                "USB Test sessions are not available in this Runtime revision; no device was opened."));
+
         return InvokeOnUiAsync(() =>
         {
             switch (parsed.Kind)

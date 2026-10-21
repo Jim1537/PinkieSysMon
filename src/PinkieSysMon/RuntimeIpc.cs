@@ -58,6 +58,9 @@ internal enum RuntimeIpcCommandKind
     AssignDashboard,
     SetDesktopBoardEnabled,
     SetDesktopLock,
+    UsbTestBegin,
+    UsbTestStatus,
+    UsbTestCancel,
     // Internal tray feedback only; deliberately no IPC verb or parser route grants USB ownership.
     SetPhysicalDeviceEnabled
 }
@@ -67,7 +70,9 @@ internal sealed record RuntimeIpcCommand(
     string? TargetId = null,
     string? Error = null,
     string? Dashboard = null,
-    bool? Value = null);
+    bool? Value = null,
+    CatalogUsbTestBeginRequest? UsbTestBegin = null,
+    CatalogUsbTestHandle? UsbTestHandle = null);
 
 internal static class RuntimeIpcProtocol
 {
@@ -125,6 +130,9 @@ internal static class RuntimeIpcProtocol
             return new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll);
         if (command.Equals(StopAllCommand, StringComparison.OrdinalIgnoreCase))
             return new RuntimeIpcCommand(RuntimeIpcCommandKind.StopAll);
+
+        if (CatalogUsbTestIpcProtocol.TryParse(command, out var usbTest))
+            return usbTest;
 
         if (TryParseTargetCommand(command, StartOrReloadTargetCommand, RuntimeIpcCommandKind.StartOrReloadTarget, out var parsed))
             return parsed;
@@ -231,7 +239,8 @@ internal static class RuntimeIpc
         timeout.CancelAfter(Math.Max(100, timeoutMs));
         var requestAttempted = false;
         var readOnly = command.Equals(RuntimeIpcProtocol.PingCommand, StringComparison.OrdinalIgnoreCase) ||
-            command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase);
+            command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase) ||
+            command.StartsWith(CatalogUsbTestIpcProtocol.StatusCommand + "\t", StringComparison.OrdinalIgnoreCase);
 
         try
         {
