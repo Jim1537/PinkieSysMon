@@ -141,6 +141,8 @@ internal static class Program
             ("Issue95 catalog VID/PID candidate admission", Issue95CatalogCandidateTests.CatalogBoundedPassiveCandidates),
             ("Issue95 candidate draft exact trial and invalidation", Issue95CandidateDraftTests.EditableParametersAndRuntimeIntent),
             ("Issue95 candidate draft invalid and stale binding", Issue95CandidateDraftTests.InvalidAndUnprovenCandidatesFailClosed),
+            ("Issue95 clean runtime plus visual approval gates Save", Issue95CandidateDraftTests.OnlyCleanRuntimeAndPositiveVisualAllowSave),
+            ("Issue95 failed USB result and native cleanup block Save", Issue95CandidateDraftTests.TechnicalFailureAndNativeCleanupFailClosed),
             ("Issue95 exact passive interface correlation", Issue95CatalogCandidateTests.ExactCorrelationAndAmbiguity),
             ("Issue95 exact candidate selection and per-instance Forget", Issue95CatalogCandidateTests.ExactSelectionAndPerInstanceIgnore),
             ("Issue95 multi-interface candidate ambiguity", Issue95CatalogCandidateTests.MultiInterfaceSelectionFailsClosed),

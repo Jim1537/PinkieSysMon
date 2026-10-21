@@ -6,6 +6,16 @@ internal sealed record CatalogUsbTrialIntent(
     Guid AttemptId, string InterfaceId, string PnpNodeKey,
     string Protocol, int Width, int Height, int Revision);
 
+// A Runtime result is not a visual confirmation. In particular, native
+// cancellation/Dispose being requested is not proof of USB handle release.
+internal enum CatalogUsbTestTechnicalOutcome
+{
+    SucceededAndReleased,
+    FailedAndReleased,
+    CanceledAndReleased,
+    CleanupPending
+}
+
 internal sealed class CatalogUsbCandidateDraft
 {
     private readonly IReadOnlySet<string> _applicable;
@@ -16,6 +26,10 @@ internal sealed class CatalogUsbCandidateDraft
     private CatalogUsbTrialIntent? _active;
     private Guid? _latest;
     private int _revision;
+    private CatalogUsbTrialIntent? _technicallyPassed;
+    private bool _visualConfirmed;
+    private bool _attemptHadFailure;
+    private bool _dispatchAttempted;
 
     internal CatalogUsbCandidateDraft(CatalogUsbInterfaceCandidate candidate,
         string suggestedName, IEnumerable<string> applicableImplementedProtocols)
@@ -36,6 +50,14 @@ internal sealed class CatalogUsbCandidateDraft
     internal string PnpNodeKey { get; }
     internal IReadOnlySet<string> ApplicableProtocols => _applicable;
     internal bool IsTesting => _active is not null;
+
+    // Only the exact most recent, technically error-free, fully released Test
+    // plus explicit visible changing-seconds confirmation may unlock Save.
+    // This is a local draft gate, not authorization to persist without a fresh
+    // exact binding and concurrent-write check in the eventual Save transaction.
+    internal bool CanSaveConfiguration =>
+        !IsTesting && _visualConfirmed && MatchesLatestWire(_technicallyPassed) &&
+        !string.IsNullOrWhiteSpace(Name) && !Name.Any(char.IsControl);
 
     internal string Name
     {
@@ -96,7 +118,65 @@ internal sealed class CatalogUsbCandidateDraft
         _active = new CatalogUsbTrialIntent(Guid.NewGuid(), InterfaceId,
             PnpNodeKey, Protocol!, Width, Height, _revision);
         _latest = _active.AttemptId;
+        _technicallyPassed = null;
+        _visualConfirmed = false;
+        _attemptHadFailure = false;
+        _dispatchAttempted = false;
         return _active;
+    }
+
+    // Mark before any possibly transmitted IPC write. A request timeout
+    // cannot undo an attempted remote command or prove USB ownership released.
+    internal bool MarkDispatchAttempted(CatalogUsbTrialIntent intent)
+    {
+        if (!IsCurrent(intent) || _dispatchAttempted)
+            return false;
+        _dispatchAttempted = true;
+        return true;
+    }
+
+    // Apply a Runtime-owned *technical* result only to the exact active attempt.
+    // A pending native completion holds the draft busy; no positive result
+    // can resurrect an attempt that has ever reported an error/pending cleanup.
+    // Runtime must log and notify on failure; this pure model neither opens
+    // USB nor manufactures a success from a positive screen observation.
+    internal bool RecordTechnicalOutcome(CatalogUsbTrialIntent intent,
+        CatalogUsbTestTechnicalOutcome outcome)
+    {
+        if (!_dispatchAttempted || !IsCurrent(intent) || !Enum.IsDefined(outcome))
+            return false;
+
+        if (outcome == CatalogUsbTestTechnicalOutcome.CleanupPending)
+        {
+            _attemptHadFailure = true;
+            _technicallyPassed = null;
+            _visualConfirmed = false;
+            return true;
+        }
+
+        _active = null;
+        _dispatchAttempted = false;
+        _technicallyPassed = outcome == CatalogUsbTestTechnicalOutcome.SucceededAndReleased &&
+            !_attemptHadFailure ? intent : null;
+        _visualConfirmed = false;
+        return true;
+    }
+
+    // The user can approve only a clean terminal result for the current wire
+    // snapshot. "No" explicitly revokes the result; a fresh Test is required.
+    internal bool ConfirmVisibleChangingSeconds(CatalogUsbTrialIntent intent,
+        bool confirmed)
+    {
+        if (IsTesting || !MatchesLatestWire(intent) || _technicallyPassed != intent)
+            return false;
+        if (!confirmed)
+        {
+            _technicallyPassed = null;
+            _visualConfirmed = false;
+            return true;
+        }
+        _visualConfirmed = true;
+        return true;
     }
 
     // Name-only edits after a completed attempt do not alter this wire snapshot.
@@ -104,9 +184,12 @@ internal sealed class CatalogUsbCandidateDraft
     // those gates require the separately approved Runtime/IPC result policy.
     internal bool CompleteAttempt(CatalogUsbTrialIntent intent)
     {
-        if (!IsCurrent(intent))
+        // Legacy pre-dispatch release: never bypass Runtime native completion.
+        if (_dispatchAttempted || !IsCurrent(intent))
             return false;
         _active = null;
+        _technicallyPassed = null;
+        _visualConfirmed = false;
         return true;
     }
 
@@ -125,9 +208,14 @@ internal sealed class CatalogUsbCandidateDraft
 
     internal bool AbandonAttempt(CatalogUsbTrialIntent intent)
     {
-        if (!IsCurrent(intent)) return false;
+        if (!IsCurrent(intent) || _dispatchAttempted) return false;
+        // This is only permitted before any possibly dispatched IPC command.
+        // After dispatch, cancellation must first be reported by Runtime after
+        // native I/O has reached terminal release.
         _active = null;
         _latest = null;
+        _technicallyPassed = null;
+        _visualConfirmed = false;
         return true;
     }
 

@@ -93,6 +93,89 @@ internal static class Issue95CandidateDraftTests
         Check(!binding.IsTesting, "Every rejected request must leave the draft inactive.");
     }
 
+    public static void OnlyCleanRuntimeAndPositiveVisualAllowSave()
+    {
+        var hardware = Candidate("0416:5408", "TEST-GOOD");
+        var draft = new CatalogUsbCandidateDraft(hardware, "Display", [OutputTargetContract.TrofeoTransport])
+        { Width = 1920, Height = 480 };
+        var first = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
+        Check(!draft.CanSaveConfiguration &&
+              !draft.RecordTechnicalOutcome(first, CatalogUsbTestTechnicalOutcome.SucceededAndReleased) &&
+              !draft.ConfirmVisibleChangingSeconds(first, true),
+            "No synthetic Runtime success or early visual answer can approve an undispatched Test.");
+        Check(draft.MarkDispatchAttempted(first) && !draft.MarkDispatchAttempted(first) &&
+              !draft.CompleteAttempt(first) && !draft.AbandonAttempt(first),
+            "A dispatched Test cannot be silently released or restarted from the Editor.");
+        Check(draft.RecordTechnicalOutcome(first, CatalogUsbTestTechnicalOutcome.SucceededAndReleased) &&
+              !draft.CanSaveConfiguration,
+            "Even a clean technical completion does not authorize Save without visual Yes.");
+        Check(draft.ConfirmVisibleChangingSeconds(first, true) && draft.CanSaveConfiguration,
+            "Exact clean, terminal Runtime success plus changing-seconds Yes grants Save eligibility.");
+        draft.Name = "After test rename";
+        Check(draft.CanSaveConfiguration, "Name-only edits must retain approval.");
+        draft.Name = "";
+        Check(!draft.CanSaveConfiguration, "An invalid name must block Save despite old approval.");
+        draft.Name = "Restored label";
+        Check(draft.CanSaveConfiguration, "Valid name can restore existing exact-wire approval.");
+        draft.Height = 600;
+        draft.Height = 480;
+        Check(!draft.CanSaveConfiguration,
+            "A changed-and-restored wire parameter must invalidate prior approval forever.");
+        var second = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
+        Check(!draft.ConfirmVisibleChangingSeconds(first, true) &&
+              !draft.MarkDispatchAttempted(first) && !draft.CanSaveConfiguration,
+            "Late results from an earlier attempt must not authorize the current card.");
+        Check(draft.MarkDispatchAttempted(second) &&
+              draft.RecordTechnicalOutcome(second, CatalogUsbTestTechnicalOutcome.SucceededAndReleased) &&
+              draft.ConfirmVisibleChangingSeconds(second, false) &&
+              !draft.CanSaveConfiguration &&
+              !draft.ConfirmVisibleChangingSeconds(second, true),
+            "A visual No must revoke the result; Yes cannot resurrect it without a new Test.");
+    }
+
+    public static void TechnicalFailureAndNativeCleanupFailClosed()
+    {
+        var hardware = Candidate("0416:5408", "TEST-FAIL");
+        var draft = new CatalogUsbCandidateDraft(hardware, "Demo", [OutputTargetContract.TrofeoTransport])
+        { Width = 640, Height = 640 };
+        var pending = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
+        Check(draft.MarkDispatchAttempted(pending) &&
+              draft.RecordTechnicalOutcome(pending, CatalogUsbTestTechnicalOutcome.CleanupPending) &&
+              draft.IsTesting && !draft.CanSaveConfiguration &&
+              !draft.ConfirmVisibleChangingSeconds(pending, true) &&
+              !draft.CompleteAttempt(pending) && !draft.AbandonAttempt(pending),
+            "Native cleanup pending must hold ownership and deny positive visual confirmation.");
+        CheckThrows(() => draft.BeginTest(Snapshot(hardware), new HashSet<string>()),
+            "A second trial is forbidden while native I/O is pending.");
+        Check(draft.RecordTechnicalOutcome(pending, CatalogUsbTestTechnicalOutcome.SucceededAndReleased) &&
+              !draft.IsTesting && !draft.CanSaveConfiguration &&
+              !draft.ConfirmVisibleChangingSeconds(pending, true),
+            "A late success after any pending-cleanup failure cannot convert that Test into PASS.");
+
+        foreach (var outcome in new[]
+        {
+            CatalogUsbTestTechnicalOutcome.FailedAndReleased,
+            CatalogUsbTestTechnicalOutcome.CanceledAndReleased
+        })
+        {
+            var attempt = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
+            Check(draft.MarkDispatchAttempted(attempt) &&
+                  !draft.RecordTechnicalOutcome(attempt, (CatalogUsbTestTechnicalOutcome)999) &&
+                  draft.IsTesting,
+                "Invalid terminal result types must not release a running trial.");
+            Check(draft.RecordTechnicalOutcome(attempt, outcome) &&
+                  !draft.CanSaveConfiguration &&
+                  !draft.ConfirmVisibleChangingSeconds(attempt, true),
+                "USB/ACK errors and cancellation must never be overridden by a visible image.");
+            Check(!draft.RecordTechnicalOutcome(attempt,
+                      CatalogUsbTestTechnicalOutcome.SucceededAndReleased),
+                "A late result cannot upgrade an already completed failed attempt.");
+        }
+        var unsent = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
+        Check(draft.AbandonAttempt(unsent) && !draft.CanSaveConfiguration,
+            "A never-dispatched draft attempt may be dropped without USB ownership.");
+    }
+
     private static void CheckThrows(Action action, string message)
     {
         try { action(); }
