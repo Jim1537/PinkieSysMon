@@ -55,9 +55,14 @@ internal static class Issue95CatalogCandidateTests
         Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0,
             "Even a matching product/class path must be rejected without exact node correlation.");
         api.InterfaceInstanceId = _ => id;
-        api.Read = key => key == id ? null : Node(key);
-        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0,
-            "An interface disappearing during enumeration cannot be proposed.");
+        var reads = 0;
+        api.Read = key => ++reads == 1 ? Node(key) : null;
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0 && reads >= 2,
+            "An interface disappearing after the first snapshot cannot be proposed.");
+        reads = 0;
+        api.Read = key => ++reads == 1 ? Node(key) : Node(key, "HIDUSB");
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0 && reads >= 2,
+            "A driver changing after initial enumeration cannot authorize stale WinUSB I/O.");
     }
 
     public static void StrictPathAndMissingDriver()
