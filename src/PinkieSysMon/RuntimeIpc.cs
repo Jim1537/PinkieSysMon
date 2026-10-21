@@ -383,7 +383,12 @@ internal sealed class RuntimeIpcServer : IDisposable
                     NewLine = "\n"
                 };
 
-                var command = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) ?? string.Empty;
+                using var receiveDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                // A connected but silent peer cannot hold the only IPC listener forever.
+                // The timeout covers request admission, not native session cleanup.
+                receiveDeadline.CancelAfter(TimeSpan.FromSeconds(10));
+                var command = await RuntimeIpcRequestReader.ReadLineAsync(reader,
+                    receiveDeadline.Token).ConfigureAwait(false) ?? string.Empty;
                 var response = await _handler(command.Trim(), cancellationToken).ConfigureAwait(false);
                 var status = response.Success ? "OK" : "ERR";
                 var message = (response.Message ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ');

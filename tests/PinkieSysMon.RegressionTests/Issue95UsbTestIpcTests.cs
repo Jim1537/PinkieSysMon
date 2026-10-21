@@ -88,6 +88,36 @@ internal static class Issue95UsbTestIpcTests
             "An empty attempt may not be serialized for cancellation.");
     }
 
+    public static void BoundedServerRequestAdmission()
+    {
+        using var shortReader = new StringReader("USB_TEST_STATUS\t{}\r\nTRAILING_IGNORED\n");
+        Check(RuntimeIpcRequestReader.ReadLineAsync(shortReader).GetAwaiter().GetResult() ==
+              "USB_TEST_STATUS\t{}",
+            "The Runtime server should consume only a single logical request line.");
+
+        using var exactReader = new StringReader(new string('X',
+            RuntimeIpcRequestReader.MaxCommandCharacters) + "\n");
+        Check(RuntimeIpcRequestReader.ReadLineAsync(exactReader).GetAwaiter().GetResult().Length ==
+              RuntimeIpcRequestReader.MaxCommandCharacters,
+            "The finite input boundary must admit its exact maximum.");
+
+        using var oversizedReader = new StringReader(new string('X',
+            RuntimeIpcRequestReader.MaxCommandCharacters + 1) + "\n");
+        try
+        {
+            _ = RuntimeIpcRequestReader.ReadLineAsync(oversizedReader).GetAwaiter().GetResult();
+            throw new InvalidOperationException("An oversized IPC request was incorrectly accepted.");
+        }
+        catch (InvalidDataException)
+        {
+            // Expected: reject before handing the command to any Runtime control.
+        }
+
+        using var emptyReader = new StringReader("");
+        Check(RuntimeIpcRequestReader.ReadLineAsync(emptyReader).GetAwaiter().GetResult() is null,
+            "An EOF without a command must not invent a request.");
+    }
+
     private static void CheckThrows(Action run, string message)
     {
         try { run(); }
