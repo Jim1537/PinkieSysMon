@@ -5,7 +5,7 @@ namespace PinkieSysMon;
 
 // All values here come from cached Windows metadata. Implementations cannot
 // initialize WinUSB, request USB descriptors, or send any device command.
-internal interface ITurzxInterfaceDiscoveryApi : IUsbPnpDiscoveryApi
+internal interface ITurzxInterfaceDiscoveryApi : IUsbInterfaceDiscoveryApi
 {
     IReadOnlyList<Guid> ReadInterfaceClasses(string instanceId);
     IReadOnlyList<string> EnumerateInterfaces(Guid interfaceClass, string instanceId);
