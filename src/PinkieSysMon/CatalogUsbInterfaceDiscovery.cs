@@ -150,28 +150,28 @@ internal readonly record struct CatalogUsbCandidateResolution(
     CatalogUsbCandidateResolutionStatus Status, CatalogUsbInterfaceCandidate? Candidate);
 
 // Protocol choice, USB session acquisition and persistence are independent.
+// Ignoring a device excludes its physical node, not merely one interface.
 // Always resolve against the COMPLETE passive snapshot, not a visible subset.
 internal static class CatalogUsbCandidateSelection
 {
     internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Available(
         IReadOnlyList<CatalogUsbInterfaceCandidate> candidates,
-        IReadOnlySet<string> ignoredInterfaceIds)
+        IReadOnlySet<string> ignoredDeviceNodeKeys)
     {
         ArgumentNullException.ThrowIfNull(candidates);
-        ArgumentNullException.ThrowIfNull(ignoredInterfaceIds);
-        return candidates.Where(candidate => !IsIgnored(ignoredInterfaceIds, candidate.Id)).ToArray();
+        ArgumentNullException.ThrowIfNull(ignoredDeviceNodeKeys);
+        return candidates.Where(candidate => !IsIgnored(ignoredDeviceNodeKeys, candidate.PnpNodeKey)).ToArray();
     }
 
     internal static CatalogUsbCandidateResolution Resolve(
         IReadOnlyList<CatalogUsbInterfaceCandidate> candidates,
         string? selectedInterfaceId,
-        IReadOnlySet<string> ignoredInterfaceIds)
+        IReadOnlySet<string> ignoredDeviceNodeKeys)
     {
         ArgumentNullException.ThrowIfNull(candidates);
-        ArgumentNullException.ThrowIfNull(ignoredInterfaceIds);
+        ArgumentNullException.ThrowIfNull(ignoredDeviceNodeKeys);
 
-        if (string.IsNullOrWhiteSpace(selectedInterfaceId) ||
-            IsIgnored(ignoredInterfaceIds, selectedInterfaceId))
+        if (string.IsNullOrWhiteSpace(selectedInterfaceId))
             return new(CatalogUsbCandidateResolutionStatus.Missing, null);
 
         var matches = candidates.Where(candidate => candidate.Id.Equals(
@@ -182,6 +182,8 @@ internal static class CatalogUsbCandidateSelection
             return new(CatalogUsbCandidateResolutionStatus.Ambiguous, null);
 
         var selected = matches[0];
+        if (IsIgnored(ignoredDeviceNodeKeys, selected.PnpNodeKey))
+            return new(CatalogUsbCandidateResolutionStatus.Missing, null);
         // One PnP node advertising multiple distinct WinUSB interfaces is not
         // silently resolved by selecting the first or ignoring its sibling.
         if (candidates.Count(candidate => candidate.PnpNodeKey.Equals(

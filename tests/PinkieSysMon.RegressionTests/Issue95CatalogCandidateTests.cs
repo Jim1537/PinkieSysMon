@@ -124,14 +124,14 @@ internal static class Issue95CatalogCandidateTests
               CatalogUsbCandidateResolutionStatus.Missing,
             "Absent exact binding cannot silently fall back to a same-product sibling.");
 
-        ignored.Add(selectedId.ToUpperInvariant());
+        ignored.Add(selected.Candidate!.PnpNodeKey.ToUpperInvariant());
         var available = CatalogUsbCandidateSelection.Available(discovered, ignored);
         Check(available.Count == 1 && available[0].Id != selectedId &&
               CatalogUsbCandidateSelection.Resolve(discovered, selectedId, ignored).Status ==
               CatalogUsbCandidateResolutionStatus.Missing &&
               CatalogUsbCandidateSelection.Resolve(discovered, available[0].Id, ignored).Status ==
               CatalogUsbCandidateResolutionStatus.Found,
-            "Case-insensitive per-instance Forget must not hide other units with the same VID/PID.");
+            "Case-insensitive physical-instance Forget must not hide other units with the same VID/PID.");
     }
 
     public static void MultiInterfaceSelectionFailsClosed()
@@ -149,11 +149,12 @@ internal static class Issue95CatalogCandidateTests
                   CatalogUsbCandidateResolutionStatus.Ambiguous),
             "Even an explicit interface ID cannot bypass ambiguous physical node identity.");
 
-        ignored.Add(interfaces[0].Id);
-        Check(CatalogUsbCandidateSelection.Resolve(
+        ignored.Add(interfaces[0].PnpNodeKey);
+        Check(CatalogUsbCandidateSelection.Available(interfaces, ignored).Count == 0 &&
+              CatalogUsbCandidateSelection.Resolve(
                   interfaces, interfaces[1].Id, ignored).Status ==
-              CatalogUsbCandidateResolutionStatus.Ambiguous,
-            "Ignoring one interface does not establish the remaining interface's physical identity.");
+              CatalogUsbCandidateResolutionStatus.Missing,
+            "Forgetting the physical unit hides all its registered interfaces.");
 
         var duplicates = new[] { interfaces[1], interfaces[1] };
         Check(CatalogUsbCandidateSelection.Resolve(
