@@ -197,6 +197,34 @@ internal static class Issue95CatalogCandidateTests
         Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 1,
             "Candidate-only enumeration must preserve independent healthy units.");
 
+        // A node that disappears after its first valid interface must not
+        // leave that one interface spuriously testable as an unambiguous device.
+        var unstable = NodeId("0416:5408", "UNSTABLE");
+        var racing = new FakeApi([good, unstable]);
+        racing.Classes[good] = [ClassA];
+        racing.Paths[good] = [Path("0416:5409", "GOOD", ClassA)];
+        racing.Classes[unstable] = [ClassA, ClassB];
+        racing.Paths[unstable] = [Path("0416:5408", "UNSTABLE", ClassA),
+                                   Path("0416:5408", "UNSTABLE", ClassB)];
+        var reads = 0;
+        racing.Read = id => id.Equals(unstable, StringComparison.OrdinalIgnoreCase)
+            ? ++reads < 3 ? Node(id) : null : Node(id);
+        var removed = CatalogUsbInterfaceDiscovery.CaptureSnapshot(racing);
+        Check(reads >= 3 && removed.Candidates.Count == 1 &&
+              removed.Candidates[0].Family.Product == new UsbProductId(0x0416, 0x5409) &&
+              removed.UnavailableNodeKeys.Contains(
+                  UsbDisplayDiscovery.CreateObservationId(unstable)),
+            "Removal during multi-interface discovery must discard the entire unstable node.");
+
+        reads = 0;
+        racing.Read = id => id.Equals(unstable, StringComparison.OrdinalIgnoreCase)
+            ? ++reads < 3 ? Node(id) : Node(id, "HIDUSB") : Node(id);
+        var changed = CatalogUsbInterfaceDiscovery.CaptureSnapshot(racing);
+        Check(reads >= 3 && changed.Candidates.Count == 1 &&
+              changed.UnavailableNodeKeys.Contains(
+                  UsbDisplayDiscovery.CreateObservationId(unstable)),
+            "Driver changes during enumeration must discard all earlier interfaces.");
+
         api.FailListSize = true;
         var failedGlobal = false;
         try { CatalogUsbInterfaceDiscovery.CaptureSnapshot(api); }

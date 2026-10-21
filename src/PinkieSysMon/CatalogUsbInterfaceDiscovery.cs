@@ -78,7 +78,8 @@ internal static class CatalogUsbInterfaceDiscovery
                         currentProduct != product ||
                         !node.InstanceId.Equals(current.InstanceId,
                             StringComparison.OrdinalIgnoreCase))
-                        continue;
+                        throw new InvalidOperationException(
+                            "USB candidate changed during interface enumeration.");
 
                     perNode.Add(new CatalogUsbInterfaceCandidate(
                         StableInterfaceId(path), UsbDisplayCatalog.Find(product)!, path,
