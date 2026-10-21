@@ -29,6 +29,11 @@ internal sealed class CatalogUsbInterfaceCandidate(
 
 internal static class CatalogUsbInterfaceDiscovery
 {
+    // Production entry point: passive Windows PnP and registered-interface
+    // queries only. No USB handle is opened by this discovery API.
+    internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Capture() =>
+        Capture(new WindowsTurzxInterfaceDiscoveryApi());
+
     // No generic USB scan and no arbitrary WinUSB picker: only exact catalog
     // VID/PID products are eligible even for passive candidate enumeration.
     internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Capture(
@@ -132,4 +137,61 @@ internal static class CatalogUsbInterfaceDiscovery
         return "usb-interface:" + Convert.ToHexString(SHA256.HashData(
             Encoding.UTF8.GetBytes(path.ToUpperInvariant()))).ToLowerInvariant();
     }
+}
+
+internal enum CatalogUsbCandidateResolutionStatus
+{
+    Found,
+    Missing,
+    Ambiguous
+}
+
+internal readonly record struct CatalogUsbCandidateResolution(
+    CatalogUsbCandidateResolutionStatus Status, CatalogUsbInterfaceCandidate? Candidate);
+
+// Protocol choice, USB session acquisition and persistence are independent.
+// Always resolve against the COMPLETE passive snapshot, not a visible subset.
+internal static class CatalogUsbCandidateSelection
+{
+    internal static IReadOnlyList<CatalogUsbInterfaceCandidate> Available(
+        IReadOnlyList<CatalogUsbInterfaceCandidate> candidates,
+        IReadOnlySet<string> ignoredInterfaceIds)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(ignoredInterfaceIds);
+        return candidates.Where(candidate => !IsIgnored(ignoredInterfaceIds, candidate.Id)).ToArray();
+    }
+
+    internal static CatalogUsbCandidateResolution Resolve(
+        IReadOnlyList<CatalogUsbInterfaceCandidate> candidates,
+        string? selectedInterfaceId,
+        IReadOnlySet<string> ignoredInterfaceIds)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(ignoredInterfaceIds);
+
+        if (string.IsNullOrWhiteSpace(selectedInterfaceId) ||
+            IsIgnored(ignoredInterfaceIds, selectedInterfaceId))
+            return new(CatalogUsbCandidateResolutionStatus.Missing, null);
+
+        var matches = candidates.Where(candidate => candidate.Id.Equals(
+            selectedInterfaceId, StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+        if (matches.Length == 0)
+            return new(CatalogUsbCandidateResolutionStatus.Missing, null);
+        if (matches.Length > 1)
+            return new(CatalogUsbCandidateResolutionStatus.Ambiguous, null);
+
+        var selected = matches[0];
+        // One PnP node advertising multiple distinct WinUSB interfaces is not
+        // silently resolved by selecting the first or ignoring its sibling.
+        if (candidates.Count(candidate => candidate.PnpNodeKey.Equals(
+                selected.PnpNodeKey, StringComparison.OrdinalIgnoreCase)) != 1)
+            return new(CatalogUsbCandidateResolutionStatus.Ambiguous, null);
+
+        return new(CatalogUsbCandidateResolutionStatus.Found, selected);
+    }
+
+    private static bool IsIgnored(IReadOnlySet<string> ignored, string id) =>
+        ignored.Contains(id) || ignored.Any(other =>
+            other.Equals(id, StringComparison.OrdinalIgnoreCase));
 }

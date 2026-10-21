@@ -140,6 +140,8 @@ internal static class Program
             ("Output device discovery identity", OutputDeviceDiscoveryIdentity),
             ("Issue95 catalog VID/PID candidate admission", Issue95CatalogCandidateTests.CatalogBoundedPassiveCandidates),
             ("Issue95 exact passive interface correlation", Issue95CatalogCandidateTests.ExactCorrelationAndAmbiguity),
+            ("Issue95 exact candidate selection and per-instance Forget", Issue95CatalogCandidateTests.ExactSelectionAndPerInstanceIgnore),
+            ("Issue95 multi-interface candidate ambiguity", Issue95CatalogCandidateTests.MultiInterfaceSelectionFailsClosed),
             ("Issue95 strict catalog path and driver rejection", Issue95CatalogCandidateTests.StrictPathAndMissingDriver),
             ("Issue77 catalog and exact USB devnode parsing", Issue77UsbDiscoveryTests.CatalogAndExactParsing),
             ("Issue77 passive catalog capture without unrelated reads", Issue77UsbDiscoveryTests.PassiveCatalogCapture),

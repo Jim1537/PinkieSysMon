@@ -96,6 +96,72 @@ internal static class Issue95CatalogCandidateTests
             "A listed storage-driver device cannot be offered for active WinUSB test.");
     }
 
+
+    public static void ExactSelectionAndPerInstanceIgnore()
+    {
+        var firstNode = NodeId("0416:5408", "FIRST");
+        var secondNode = NodeId("0416:5408", "SECOND");
+        var api = new FakeApi([secondNode, firstNode]);
+        api.Classes[firstNode] = [ClassA];
+        api.Classes[secondNode] = [ClassA];
+        api.Paths[firstNode] = [Path("0416:5408", "FIRST", ClassA)];
+        api.Paths[secondNode] = [Path("0416:5408", "SECOND", ClassA)];
+
+        var discovered = CatalogUsbInterfaceDiscovery.Capture(api);
+        Check(discovered.Count == 2 && discovered[0].Id != discovered[1].Id &&
+              discovered[0].PnpNodeKey != discovered[1].PnpNodeKey,
+            "Equal VID/PID must not merge distinct physical units.");
+
+        var ignored = new HashSet<string>();
+        var selectedId = CatalogUsbInterfaceDiscovery.StableInterfaceId(
+            Path("0416:5408", "SECOND", ClassA));
+        var selected = CatalogUsbCandidateSelection.Resolve(discovered, selectedId, ignored);
+        Check(selected.Status == CatalogUsbCandidateResolutionStatus.Found &&
+              selected.Candidate?.Id == selectedId,
+            "Exact binding, not enumeration order, selects the physical candidate.");
+        Check(CatalogUsbCandidateSelection.Resolve(
+                  discovered, "usb-interface:" + new string('0', 64), ignored).Status ==
+              CatalogUsbCandidateResolutionStatus.Missing,
+            "Absent exact binding cannot silently fall back to a same-product sibling.");
+
+        ignored.Add(selectedId.ToUpperInvariant());
+        var available = CatalogUsbCandidateSelection.Available(discovered, ignored);
+        Check(available.Count == 1 && available[0].Id != selectedId &&
+              CatalogUsbCandidateSelection.Resolve(discovered, selectedId, ignored).Status ==
+              CatalogUsbCandidateResolutionStatus.Missing &&
+              CatalogUsbCandidateSelection.Resolve(discovered, available[0].Id, ignored).Status ==
+              CatalogUsbCandidateResolutionStatus.Found,
+            "Case-insensitive per-instance Forget must not hide other units with the same VID/PID.");
+    }
+
+    public static void MultiInterfaceSelectionFailsClosed()
+    {
+        var node = NodeId("1CBE:0123", "MULTI");
+        var api = new FakeApi([node]);
+        api.Classes[node] = [ClassA, ClassB];
+        api.Paths[node] = [Path("1CBE:0123", "MULTI", ClassA),
+                           Path("1CBE:0123", "MULTI", ClassB)];
+        var interfaces = CatalogUsbInterfaceDiscovery.Capture(api);
+        var ignored = new HashSet<string>();
+        Check(interfaces.Count == 2 &&
+              interfaces.All(candidate => CatalogUsbCandidateSelection.Resolve(
+                  interfaces, candidate.Id, ignored).Status ==
+                  CatalogUsbCandidateResolutionStatus.Ambiguous),
+            "Even an explicit interface ID cannot bypass ambiguous physical node identity.");
+
+        ignored.Add(interfaces[0].Id);
+        Check(CatalogUsbCandidateSelection.Resolve(
+                  interfaces, interfaces[1].Id, ignored).Status ==
+              CatalogUsbCandidateResolutionStatus.Ambiguous,
+            "Ignoring one interface does not establish the remaining interface's physical identity.");
+
+        var duplicates = new[] { interfaces[1], interfaces[1] };
+        Check(CatalogUsbCandidateSelection.Resolve(
+                  duplicates, interfaces[1].Id, new HashSet<string>()).Status ==
+              CatalogUsbCandidateResolutionStatus.Ambiguous,
+            "Duplicate candidate identities must never be selected by first match.");
+    }
+
     private static string NodeId(string pair, string unit) =>
         $"USB\\VID_{pair[..4]}&PID_{pair[5..]}\\SYNTHETIC-{unit}";
 
