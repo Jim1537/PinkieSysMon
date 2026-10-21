@@ -82,7 +82,7 @@ internal static class Issue95CatalogCandidateTests
             Path("1CBE:9999", "THREE", ClassA),
             valid + "#extra",
             valid.Replace("THREE", "BAD/PORT"),
-            valid.Replace("pid_5408", "pid_5408&mi_00")
+            valid.Replace("pid_5408", "pid_5408&mi_0G")
         })
             Check(!CatalogUsbInterfaceDiscovery.TryParseExactInterface(
                 invalid, ClassA, out _),
@@ -96,6 +96,7 @@ internal static class Issue95CatalogCandidateTests
         Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 0 &&
               api.ClassesRead.Count == 0,
             "A listed storage-driver device cannot be offered for active WinUSB test.");
+        CompositeFunctionCorrelation();
     }
 
 
@@ -259,6 +260,79 @@ internal static class Issue95CatalogCandidateTests
         catch (InvalidOperationException) { failedGlobal = true; }
         Check(failedGlobal, "A failed PnP list must not be mistaken for an empty successful scan.");
     }
+
+
+    // A parent may run USBCCGP while its exact WinUSB MI_XX child is the
+    // interface-owning device. Physical identity belongs to the observed parent.
+    public static void CompositeFunctionCorrelation()
+    {
+        var parent = NodeId("0416:5408", "PARENT-A");
+        var child = FunctionId("0416:5408", "FUNCTION-A", 1);
+        var otherParent = NodeId("0416:5408", "PARENT-B");
+        var otherChild = FunctionId("0416:5408", "FUNCTION-B", 1);
+        var api = new FakeApi([parent, child, otherParent, otherChild]);
+        api.Nodes[parent] = Node(parent, "USBCCGP");
+        api.Nodes[otherParent] = Node(otherParent, "USBCCGP");
+        api.Nodes[child] = new UsbPnpNode(child, parent, "WINUSB", Guid.Empty, 0, true);
+        api.Nodes[otherChild] = new UsbPnpNode(otherChild, otherParent, "WINUSB", Guid.Empty, 0, true);
+        api.Classes[child] = [ClassA];
+        api.Classes[otherChild] = [ClassA];
+        var pathA = FunctionPath("0416:5408", "FUNCTION-A", 1, ClassA);
+        var pathB = FunctionPath("0416:5408", "FUNCTION-B", 1, ClassA);
+        api.Paths[child] = [pathA];
+        api.Paths[otherChild] = [pathB];
+
+        Check(CatalogUsbInterfaceDiscovery.TryParseExactInterface(pathA, ClassA,
+                  out var product, out var parsedMi) &&
+              product == new UsbProductId(0x0416, 0x5408) && parsedMi == 1,
+            "An exact registered MI_XX interface may be correlated to its own function.");
+        var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot(api);
+        Check(snapshot.Candidates.Count == 2 && snapshot.UnavailableNodeKeys.Count == 0 &&
+              snapshot.Candidates.Any(c => c.Id ==
+                  CatalogUsbInterfaceDiscovery.StableInterfaceId(pathA) &&
+                  c.PnpNodeKey == UsbDisplayDiscovery.CreateObservationId(parent)) &&
+              snapshot.Candidates.Any(c => c.Id ==
+                  CatalogUsbInterfaceDiscovery.StableInterfaceId(pathB) &&
+                  c.PnpNodeKey == UsbDisplayDiscovery.CreateObservationId(otherParent)),
+            "Two equal-product composite devices must retain separate physical parent identities.");
+        foreach (var candidate in snapshot.Candidates)
+        {
+            Check(CatalogUsbCandidateSelection.Resolve(snapshot.Candidates, candidate.Id,
+                      new HashSet<string>()).Status == CatalogUsbCandidateResolutionStatus.Found,
+                "A unique MI interface must select its exact observed physical parent.");
+        }
+        var ignoreFirst = new HashSet<string> { UsbDisplayDiscovery.CreateObservationId(parent) };
+        Check(CatalogUsbCandidateSelection.Available(snapshot.Candidates, ignoreFirst).Count == 1,
+            "Forgetting one composite device must not exclude an equal-product sibling.");
+
+        api.Paths[child] = [FunctionPath("0416:5408", "FUNCTION-A", 2, ClassA)];
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 1,
+            "A registered MI_02 path cannot be assigned to the MI_01 devnode.");
+        api.Paths[child] = [pathA];
+        api.Nodes[child] = new UsbPnpNode(child, otherParent, "WINUSB", Guid.Empty, 0, true);
+        var switchedParent = CatalogUsbInterfaceDiscovery.Capture(api);
+        Check(switchedParent.Count == 2 &&
+              switchedParent.Count(c => c.PnpNodeKey ==
+                  UsbDisplayDiscovery.CreateObservationId(otherParent)) == 2 &&
+              CatalogUsbCandidateSelection.Resolve(switchedParent,
+                  CatalogUsbInterfaceDiscovery.StableInterfaceId(pathB),
+                  new HashSet<string>()).Status == CatalogUsbCandidateResolutionStatus.Ambiguous,
+            "Competing functions on one verified parent remain ambiguous, never first-selected.");
+
+        api.Nodes[child] = new UsbPnpNode(child, "USB\\VID_0416&PID_5408\\MISSING-PARENT",
+            "WINUSB", Guid.Empty, 0, true);
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 1,
+            "An unobserved parent, even with matching VID/PID, cannot authorize an MI candidate.");
+        api.Nodes[child] = new UsbPnpNode(child, parent, "HIDUSB", Guid.Empty, 0, true);
+        Check(CatalogUsbInterfaceDiscovery.Capture(api).Count == 1,
+            "An MI function must have its own WinUSB driver, regardless of the parent.");
+    }
+
+    private static string FunctionId(string pair, string unit, byte mi) =>
+        $"USB\\VID_{pair[..4]}&PID_{pair[5..]}&MI_{mi:X2}\\SYNTHETIC-{unit}";
+
+    private static string FunctionPath(string pair, string unit, byte mi, Guid cls) =>
+        $@"\\?\usb#vid_{pair[..4]}&pid_{pair[5..]}&mi_{mi:X2}#SYNTHETIC-{unit}#{{{cls}}}";
 
     private static string NodeId(string pair, string unit) =>
         $"USB\\VID_{pair[..4]}&PID_{pair[5..]}\\SYNTHETIC-{unit}";

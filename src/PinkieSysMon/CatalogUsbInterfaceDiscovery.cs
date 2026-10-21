@@ -56,6 +56,26 @@ internal static class CatalogUsbInterfaceDiscovery
             if (!TryEligibleNode(node, out var product))
                 continue;
 
+            // A WinUSB function of a composite device belongs to its actually
+            // observed parent, never another unit with an equal VID/PID. The
+            // parent can legitimately use USBCCGP instead of WinUSB.
+            var isFunction = UsbDisplayCatalog.TryParseInstanceId(
+                node.InstanceId, out _, out var parsedFunction) && parsedFunction;
+            var physicalId = node.InstanceId;
+            if (isFunction)
+            {
+                var parent = nodes.Where(other =>
+                    node.ParentInstanceId is not null &&
+                    node.ParentInstanceId.Equals(other.InstanceId, StringComparison.OrdinalIgnoreCase) &&
+                    UsbDisplayCatalog.TryParseInstanceId(other.InstanceId,
+                        out var parentProduct, out var parentIsFunction) &&
+                    parentProduct == product && !parentIsFunction &&
+                    other.MetadataAvailable && other.ProblemCode == 0).ToArray();
+                if (parent.Length != 1)
+                    continue;
+                physicalId = parent[0].InstanceId;
+            }
+
             // Only publish a node after all of its interfaces are enumerated:
             // partial enumeration could falsely appear uniquely bindable.
             var perNode = new List<CatalogUsbInterfaceCandidate>();
@@ -68,8 +88,11 @@ internal static class CatalogUsbInterfaceDiscovery
                 foreach (var path in api.EnumerateInterfaces(interfaceClass, node.InstanceId)
                     .Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    if (!TryParseExactInterface(path, interfaceClass, out var pathProduct) ||
+                    if (!TryParseExactInterface(path, interfaceClass, out var pathProduct,
+                            out var pathInterfaceNumber) ||
                         pathProduct != product ||
+                        isFunction != pathInterfaceNumber.HasValue ||
+                        (isFunction && pathInterfaceNumber != DeviceInterfaceNumber(node.InstanceId)) ||
                         !node.InstanceId.Equals(api.ReadInterfaceInstanceId(path),
                             StringComparison.OrdinalIgnoreCase))
                         continue;
@@ -84,14 +107,14 @@ internal static class CatalogUsbInterfaceDiscovery
 
                     perNode.Add(new CatalogUsbInterfaceCandidate(
                         StableInterfaceId(path), UsbDisplayCatalog.Find(product)!, path,
-                        UsbDisplayDiscovery.CreateObservationId(node.InstanceId)));
+                        UsbDisplayDiscovery.CreateObservationId(physicalId)));
                 }
             }
             catch (Exception error) when (error is InvalidOperationException or
                 System.ComponentModel.Win32Exception or DllNotFoundException or
                 EntryPointNotFoundException)
             {
-                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(node.InstanceId));
+                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(physicalId));
                 continue;
             }
             candidates.AddRange(perNode);
@@ -107,8 +130,7 @@ internal static class CatalogUsbInterfaceDiscovery
     {
         product = default;
         return UsbDisplayCatalog.TryParseInstanceId(node.InstanceId, out product,
-                   out var isFunction) &&
-               !isFunction &&
+                   out _) &&
                UsbDisplayCatalog.Find(product) is not null &&
                node.MetadataAvailable && node.ProblemCode == 0 &&
                string.Equals(node.DriverService, "WINUSB", StringComparison.OrdinalIgnoreCase);
@@ -118,9 +140,14 @@ internal static class CatalogUsbInterfaceDiscovery
     // required. A VID/PID substring, arbitrary HID path or compatible brand
     // name is never enough.
     internal static bool TryParseExactInterface(string? path, Guid registeredClass,
-        out UsbProductId product)
+        out UsbProductId product) =>
+        TryParseExactInterface(path, registeredClass, out product, out _);
+
+    internal static bool TryParseExactInterface(string? path, Guid registeredClass,
+        out UsbProductId product, out byte? interfaceNumber)
     {
         product = default;
+        interfaceNumber = null;
         if (string.IsNullOrWhiteSpace(path) || path.Length > 4096 ||
             path.Any(char.IsControl) || registeredClass == Guid.Empty)
             return false;
@@ -134,7 +161,7 @@ internal static class CatalogUsbInterfaceDiscovery
             return false;
 
         var pair = parts[1].Split('&');
-        if (pair.Length != 2 ||
+        if (pair.Length is not (2 or 3) ||
             pair[0].Length != 8 || pair[1].Length != 8 ||
             !pair[0].StartsWith("vid_", StringComparison.OrdinalIgnoreCase) ||
             !pair[1].StartsWith("pid_", StringComparison.OrdinalIgnoreCase) ||
@@ -144,8 +171,29 @@ internal static class CatalogUsbInterfaceDiscovery
                 CultureInfo.InvariantCulture, out var pid))
             return false;
 
+        if (pair.Length == 3)
+        {
+            if (pair[2].Length != 5 ||
+                !pair[2].StartsWith("mi_", StringComparison.OrdinalIgnoreCase) ||
+                !byte.TryParse(pair[2].AsSpan(3), NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture, out var value))
+                return false;
+            interfaceNumber = value;
+        }
+
         product = new UsbProductId(vid, pid);
         return UsbDisplayCatalog.Find(product) is not null;
+    }
+
+    private static byte? DeviceInterfaceNumber(string instanceId)
+    {
+        // Input has already passed the strict USB devnode parser.
+        var tokens = instanceId.Split('\\')[1].Split('&');
+        var token = tokens.FirstOrDefault(part =>
+            part.StartsWith("MI_", StringComparison.OrdinalIgnoreCase));
+        return token is not null &&
+               byte.TryParse(token.AsSpan(3), NumberStyles.HexNumber,
+                   CultureInfo.InvariantCulture, out var number) ? number : null;
     }
 
     internal static string StableInterfaceId(string path)
