@@ -97,8 +97,8 @@ internal static class Issue95UsbTestIpcTests
 
         using var exactReader = new StringReader(new string('X',
             RuntimeIpcRequestReader.MaxCommandCharacters) + "\n");
-        Check(RuntimeIpcRequestReader.ReadLineAsync(exactReader).GetAwaiter().GetResult().Length ==
-              RuntimeIpcRequestReader.MaxCommandCharacters,
+        var exactLine = RuntimeIpcRequestReader.ReadLineAsync(exactReader).GetAwaiter().GetResult();
+        Check(exactLine is not null && exactLine.Length == RuntimeIpcRequestReader.MaxCommandCharacters,
             "The finite input boundary must admit its exact maximum.");
 
         using var oversizedReader = new StringReader(new string('X',
