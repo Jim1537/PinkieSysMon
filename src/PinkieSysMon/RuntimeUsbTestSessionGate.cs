@@ -17,11 +17,13 @@ internal enum RuntimeUsbTestAdmission { Started, AlreadyRunning, Busy, AttemptRe
 internal enum RuntimeUsbTestPhase
 {
     Missing, Running, CancelRequested, CleanupPending,
-    SucceededAndReleased, FailedAndReleased, CanceledAndReleased
+    SucceededAndReleased, FailedAndReleased, CanceledAndReleased,
+    Connecting, Observing, Disconnecting
 }
 
 internal sealed record RuntimeUsbTestStatus(
-    RuntimeUsbTestPhase Phase, CatalogUsbTestTechnicalOutcome? TechnicalOutcome = null);
+    RuntimeUsbTestPhase Phase, CatalogUsbTestTechnicalOutcome? TechnicalOutcome = null,
+    int? SecondsRemaining = null);
 
 // Caller must invoke Sweep(Stopwatch.GetTimestamp()) on the existing Runtime
 // heartbeat. This state gate does not start background polling.

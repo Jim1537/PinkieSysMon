@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace PinkieSysMon.Editor;
 
 internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
@@ -269,7 +267,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         if (_testUiBusy || _devices.CandidateDraft(target) is not { } draft || !draft.CanTest) return Task.CompletedTask;
         if (MessageBox.Show(this,
             "Test will send display frames using the selected protocol. Close vendor display-control software first. " +
-            "Watch the current test image and check that seconds change. A progress window will keep the Editor " +
+            "Watch the current test image and check that seconds change. A successful visual Test runs for 30 seconds after the first frame; Cancel or a failure ends it earlier. " +
+            "A progress window will keep the Editor " +
             "unavailable until Runtime reports the Test outcome. Configuration will not be saved.",
             "USB Test", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return Task.CompletedTask;
         _testUiBusy = true;
@@ -287,10 +286,9 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                         var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
                         intent = await _testClient.TestAsync(draft, snapshot, message =>
                         {
-                            progress.Report(message);
                             if (!IsDisposed && _devicePages.TryGetValue(target.Id, out var page))
                             { page.SetTestMessage(message); UpdateDevicePages(); }
-                        }, _testCancellation.Token);
+                        }, _testCancellation.Token, progress.ReportStatus);
                     }
                     catch (Exception error) { testError = error; }
                     finally { progress.Complete(); }
@@ -738,18 +736,17 @@ internal sealed class DeviceSettingsPage : TabPage
 internal sealed class UsbTestProgressDialog : PinkieEditorForm
 {
     private readonly Action _requestCancel;
-    private readonly Stopwatch _elapsed = new();
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 250 };
     private readonly Font _titleFont = new(SystemFonts.MessageBoxFont, FontStyle.Bold);
-    private readonly Font _elapsedFont = new(SystemFonts.MessageBoxFont.FontFamily, 38, FontStyle.Bold);
+    private readonly Font _clockFont = new(SystemFonts.MessageBoxFont.FontFamily, 38, FontStyle.Bold);
+    private readonly Font _phaseFont = new(SystemFonts.MessageBoxFont.FontFamily, 22, FontStyle.Bold);
     private readonly Label _clock = new()
     {
-        Name = "UsbTestElapsed", Text = "00:00", Dock = DockStyle.Fill,
+        Name = "UsbTestCountdown", Text = "Connecting…", Dock = DockStyle.Fill,
         TextAlign = ContentAlignment.MiddleCenter, ForeColor = SystemColors.Highlight
     };
     private readonly Label _phase = new()
     {
-        Name = "UsbTestPhase", Text = "Preparing Runtime…", Dock = DockStyle.Fill,
+        Name = "UsbTestPhase", Text = "Waiting for the first delivered frame.", Dock = DockStyle.Fill,
         TextAlign = ContentAlignment.MiddleCenter
     };
     private readonly Button _cancel = new() { Text = "Cancel Test", Name = "UsbTestCancel", AutoSize = true };
@@ -765,7 +762,7 @@ internal sealed class UsbTestProgressDialog : PinkieEditorForm
         MaximizeBox = false;
         ShowInTaskbar = false;
         ClientSize = new Size(560, 300);
-        _clock.Font = _elapsedFont;
+        _clock.Font = _phaseFont;
 
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(20) };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -785,38 +782,50 @@ internal sealed class UsbTestProgressDialog : PinkieEditorForm
         layout.Controls.Add(actions, 0, 4);
         Controls.Add(layout);
 
-        _timer.Tick += (_, _) => UpdateElapsed();
         _cancel.Click += (_, _) => RequestCancel();
         CancelButton = _cancel;
     }
 
-    protected override void OnShown(EventArgs e)
+    internal void ReportStatus(RuntimeUsbTestStatus status)
     {
-        base.OnShown(e);
-        _elapsed.Start();
-        _timer.Start();
+        if (!_cancel.Enabled && !_completed) return;
+        switch (status.Phase)
+        {
+            case RuntimeUsbTestPhase.Observing when status.SecondsRemaining is { } seconds:
+                _clock.Font = _clockFont;
+                _clock.Text = Math.Clamp(seconds, 0, (int)RuntimeUsbTestService.ObservationDuration.TotalSeconds).ToString();
+                _phase.Text = "Watch the display and its changing seconds.";
+                break;
+            case RuntimeUsbTestPhase.Disconnecting or RuntimeUsbTestPhase.CancelRequested:
+                _clock.Font = _phaseFont;
+                _clock.Text = "Disconnecting…";
+                _phase.Text = "Waiting for Runtime to release USB.";
+                break;
+            case RuntimeUsbTestPhase.Missing:
+                _clock.Font = _phaseFont;
+                _clock.Text = "Waiting for Runtime…";
+                _phase.Text = "The result of this attempt is not yet confirmed.";
+                break;
+            case RuntimeUsbTestPhase.Connecting or RuntimeUsbTestPhase.Running:
+                _clock.Font = _phaseFont;
+                _clock.Text = "Connecting…";
+                _phase.Text = "Waiting for the first delivered frame.";
+                break;
+        }
     }
-
-    internal void Report(string message) => _phase.Text = message;
 
     internal void Complete()
     {
         _completed = true;
-        _timer.Stop();
-        UpdateElapsed();
         Close();
-    }
-
-    private void UpdateElapsed()
-    {
-        var time = _elapsed.Elapsed;
-        _clock.Text = $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
     }
 
     private void RequestCancel()
     {
         if (!_cancel.Enabled) return;
         _cancel.Enabled = false;
+        _clock.Font = _phaseFont;
+        _clock.Text = "Disconnecting…";
         _phase.Text = "Cancel requested. Waiting for Runtime to release USB…";
         _requestCancel();
     }
@@ -835,9 +844,9 @@ internal sealed class UsbTestProgressDialog : PinkieEditorForm
     {
         if (disposing)
         {
-            _timer.Dispose();
             _titleFont.Dispose();
-            _elapsedFont.Dispose();
+            _clockFont.Dispose();
+            _phaseFont.Dispose();
         }
         base.Dispose(disposing);
     }

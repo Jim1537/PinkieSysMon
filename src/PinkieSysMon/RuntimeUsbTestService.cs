@@ -9,16 +9,20 @@ internal sealed record CatalogUsbTestReply(CatalogUsbTestHandle Handle, RuntimeU
 // run on a worker. The existing gate alone decides when ownership is released.
 internal sealed class RuntimeUsbTestService
 {
-    internal const int FrameCount = 20;
+    internal const int FrameCount = 80;
     internal const int RefreshMs = 500;
+    internal static readonly TimeSpan ObservationDuration = TimeSpan.FromSeconds(30);
     private readonly object _sync = new();
-    private readonly RuntimeUsbTestSessionGate _gate = new(TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(30));
+    private readonly RuntimeUsbTestSessionGate _gate = new(TimeSpan.FromSeconds(6), TimeSpan.FromSeconds(90));
+    private readonly TimeSpan _observationDuration;
     private readonly Func<CatalogUsbCandidateSnapshot> _capture;
     private readonly Func<CatalogUsbTrialIntent, CatalogUsbCandidateSnapshot, bool> _isOwned;
     private readonly Func<CatalogUsbTrialIntent, FramePump> _createPump;
     private readonly Func<IReadOnlySet<string>> _readIgnoredNodes;
     private readonly FileLogger _log;
     private CatalogUsbTestHandle? _active;
+    private long _observationStarted;
+    private bool _disconnecting;
     private long _completedAt;
     internal bool HasActive => Volatile.Read(ref _active) is not null;
     internal long CompletedAt => Interlocked.Read(ref _completedAt);
@@ -27,9 +31,12 @@ internal sealed class RuntimeUsbTestService
     internal RuntimeUsbTestService(Func<CatalogUsbCandidateSnapshot> capture,
         Func<CatalogUsbTrialIntent, CatalogUsbCandidateSnapshot, bool> isOwned,
         Func<CatalogUsbTrialIntent, FramePump> createPump, FileLogger log,
-        Func<IReadOnlySet<string>>? readIgnoredNodes = null)
+        Func<IReadOnlySet<string>>? readIgnoredNodes = null, TimeSpan? observationDuration = null)
     { _capture = capture; _isOwned = isOwned; _createPump = createPump; _log = log;
-      _readIgnoredNodes = readIgnoredNodes ?? (() => new HashSet<string>()); }
+      _readIgnoredNodes = readIgnoredNodes ?? (() => new HashSet<string>());
+      _observationDuration = observationDuration ?? ObservationDuration;
+      if (_observationDuration <= TimeSpan.Zero || _observationDuration > ObservationDuration)
+          throw new ArgumentOutOfRangeException(nameof(observationDuration)); }
 
     internal RuntimeIpcResponse Execute(RuntimeIpcCommand command)
     {
@@ -52,6 +59,8 @@ internal sealed class RuntimeUsbTestService
                     return new(false, "Test not started: another attempt owns Runtime or this attempt ID was already used.");
                 if (lease is not null)
                 {
+                    Interlocked.Exchange(ref _observationStarted, 0);
+                    _disconnecting = false;
                     Volatile.Write(ref _active, lease.Handle);
                     _ = Task.Run(() => RunAsync(lease));
                 }
@@ -71,8 +80,23 @@ internal sealed class RuntimeUsbTestService
         return new(false, "Invalid USB Test request.");
     }
 
-    private RuntimeIpcResponse Status(CatalogUsbTestHandle handle) => new(true,
-        JsonSerializer.Serialize(new CatalogUsbTestReply(handle, _gate.GetStatus(handle, Stopwatch.GetTimestamp()))));
+    private RuntimeIpcResponse Status(CatalogUsbTestHandle handle)
+    {
+        var status = _gate.GetStatus(handle, Stopwatch.GetTimestamp());
+        if (Volatile.Read(ref _active) == handle && status.Phase == RuntimeUsbTestPhase.Running)
+        {
+            var started = Interlocked.Read(ref _observationStarted);
+            status = _disconnecting ? status with { Phase = RuntimeUsbTestPhase.Disconnecting }
+                : started == 0 ? status with { Phase = RuntimeUsbTestPhase.Connecting }
+                : status with
+                {
+                    Phase = RuntimeUsbTestPhase.Observing,
+                    SecondsRemaining = Math.Max(0, (int)Math.Ceiling(
+                        (_observationDuration - Stopwatch.GetElapsedTime(started)).TotalSeconds))
+                };
+        }
+        return new(true, JsonSerializer.Serialize(new CatalogUsbTestReply(handle, status)));
+    }
     internal void Tick() => _gate.Sweep(Stopwatch.GetTimestamp());
     internal void CancelActive()
     {
@@ -96,15 +120,23 @@ internal sealed class RuntimeUsbTestService
             while (!lease.StopRequested.IsCancellationRequested && pump.TestFailure is null && pump.SentFrames < FrameCount)
             {
                 _gate.Sweep(Stopwatch.GetTimestamp());
+                if (pump.SentFrames > 0 && Interlocked.Read(ref _observationStarted) == 0)
+                    Interlocked.CompareExchange(ref _observationStarted, Stopwatch.GetTimestamp(), 0);
+                var started = Interlocked.Read(ref _observationStarted);
+                if (started != 0 && Stopwatch.GetElapsedTime(started) >= _observationDuration)
+                {
+                    complete = true;
+                    break;
+                }
                 await Task.Delay(50).ConfigureAwait(false);
             }
-            complete = pump.SentFrames == FrameCount && pump.TestFailure is null;
             failure = pump.TestFailure;
         }
         catch (OperationCanceledException) when (lease.StopRequested.IsCancellationRequested) { }
         catch (Exception error) { failure = error; }
         finally
         {
+            lock (_sync) _disconnecting = true;
             // Dispose may wait indefinitely for a native driver. This worker
             // retains the reservation; IPC and the UI stay responsive.
             try { pump?.Dispose(); }

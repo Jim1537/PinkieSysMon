@@ -28,7 +28,8 @@ internal sealed class EditorUsbTestClient
     { _send = send; _ownerExists = ownerExists; _launch = launch; _delay = delay; }
 
     internal async Task<CatalogUsbTrialIntent?> TestAsync(CatalogUsbCandidateDraft draft,
-        CatalogUsbCandidateSnapshot snapshot, Action<string> report, CancellationToken cancellation)
+        CatalogUsbCandidateSnapshot snapshot, Action<string> report, CancellationToken cancellation,
+        Action<RuntimeUsbTestStatus>? reportStatus = null)
     {
         var intent = draft.BeginTest(snapshot, new HashSet<string>());
         var handle = new CatalogUsbTestHandle(_client, intent.AttemptId);
@@ -63,8 +64,9 @@ internal sealed class EditorUsbTestClient
             }
             // A lost Begin reply is not a rejection. Query this same attempt;
             // never resend it with a new ID or infer that native work stopped.
-            var uncertain = !TryRead(begin, handle, out _);
-            for (var i = 0; i < 40; i++)
+            var uncertain = !TryRead(begin, handle, out var beginStatus);
+            if (!uncertain) reportStatus?.Invoke(beginStatus);
+            for (var i = 0; i < 200; i++)
             {
                 if (cancellation.IsCancellationRequested && !cancelSent)
                 {
@@ -74,6 +76,7 @@ internal sealed class EditorUsbTestClient
                 var response = await _send(CatalogUsbTestIpcProtocol.BuildStatus(handle));
                 if (TryRead(response, handle, out var status))
                 {
+                    reportStatus?.Invoke(status);
                     if (status.TechnicalOutcome is { } terminal)
                     {
                         // A local Cancel cannot be turned into visual success by
@@ -97,7 +100,8 @@ internal sealed class EditorUsbTestClient
                     report(cancelSent ? "Cancel requested; waiting for Runtime to release USB."
                         : "Observe the current test image and changing seconds. Waiting for Runtime completion…");
                 }
-                else { uncertain = true; report("Runtime outcome is unavailable; waiting for this exact attempt. Configuration remains unsaved."); }
+                else { uncertain = true; reportStatus?.Invoke(new(RuntimeUsbTestPhase.Missing));
+                    report("Runtime outcome is unavailable; waiting for this exact attempt. Configuration remains unsaved."); }
                 await _delay();
             }
             await _send(CatalogUsbTestIpcProtocol.BuildCancel(handle));
@@ -127,6 +131,12 @@ internal sealed class EditorUsbTestClient
         {
             var reply = JsonSerializer.Deserialize<CatalogUsbTestReply>(response.Message);
             if (reply?.Handle != handle || reply.Status is null || !Enum.IsDefined(reply.Status.Phase)) return false;
+            if (reply.Status.Phase == RuntimeUsbTestPhase.Observing)
+            {
+                if (reply.Status.SecondsRemaining is not int seconds || seconds < 0 ||
+                    seconds > RuntimeUsbTestService.ObservationDuration.TotalSeconds) return false;
+            }
+            else if (reply.Status.SecondsRemaining is not null) return false;
             var expected = reply.Status.Phase switch
             {
                 RuntimeUsbTestPhase.SucceededAndReleased => CatalogUsbTestTechnicalOutcome.SucceededAndReleased,

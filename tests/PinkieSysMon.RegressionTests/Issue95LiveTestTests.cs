@@ -20,8 +20,9 @@ internal static class Issue95LiveTestTests
                 Check(service.Execute(Begin(request)).Success, "Valid exact candidate must start a transient worker.");
                 var result = Wait(service, request);
                 Check(result.TechnicalOutcome == CatalogUsbTestTechnicalOutcome.SucceededAndReleased &&
-                    opens == 1 && frames.Images.Count == RuntimeUsbTestService.FrameCount && frames.Disposals == 1 && !service.HasActive,
-                    "Success requires every bounded frame and completed native release on exactly one acquisition.");
+                    opens == 1 && frames.Images.Count is > 1 and <= RuntimeUsbTestService.FrameCount &&
+                    frames.Disposals == 1 && !service.HasActive,
+                    "Success requires timed observation with changing frames and completed native release on exactly one acquisition.");
                 Check(!frames.Images.First().AsSpan().SequenceEqual(frames.Images.Last()), "The canonical clock must produce changing real raster payloads.");
                 using var decoded = SKBitmap.Decode(frames.Images[0]);
                 Check(decoded.Width == (protocol == OutputTargetContract.EncryptedJpegTransport ? 240 : 320), "Virtual geometry follows user input and ordinary conversion.");
@@ -31,6 +32,8 @@ internal static class Issue95LiveTestTests
                     "Test must never persist the generated document or application configuration.");
             }
         });
+        ConnectionCountdownAndDisconnectPhases();
+        ModalDisplaysOnlyRuntimeReportedObservation();
     }
 
     public static void StrictWorkerFailureAndCleanup()
@@ -69,7 +72,7 @@ internal static class Issue95LiveTestTests
                 Check(entered.Wait(5000), "Worker must reach its injected native send.");
                 Check(!service.Execute(Begin(Request())).Success, "A second client cannot acquire during a send.");
                 service.Execute(new(RuntimeIpcCommandKind.UsbTestCancel, UsbTestHandle: new(Guid.NewGuid(), request.Intent.AttemptId)));
-                Check(Status(service, request).Phase == RuntimeUsbTestPhase.Running, "A foreign client cannot cancel this attempt.");
+                Check(Status(service, request).Phase == RuntimeUsbTestPhase.Connecting, "A foreign client cannot cancel this attempt.");
                 service.CancelActive();
                 Check(Status(service, request).Phase == RuntimeUsbTestPhase.CancelRequested && service.HasActive && frames.Disposals == 0,
                     "Cancel is intent only; admission must remain reserved while native completion is blocked.");
@@ -78,6 +81,48 @@ internal static class Issue95LiveTestTests
             Check(Wait(service, request).TechnicalOutcome == CatalogUsbTestTechnicalOutcome.CanceledAndReleased && frames.Disposals == 1,
                 "Only completed disposal publishes a canceled-and-released result.");
         });
+    }
+
+    public static void ConnectionCountdownAndDisconnectPhases()
+    {
+        WithRoot(root =>
+        {
+            var request = Request();
+            using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+            using var disposing = new ManualResetEventSlim(); using var disposeRelease = new ManualResetEventSlim();
+            var frames = new Frames(request.Intent.Protocol)
+            { Entered = entered, Release = release, DisposeEntered = disposing, DisposeRelease = disposeRelease };
+            var service = Service(root, request, frames, () => { }, TimeSpan.FromMilliseconds(1100));
+            service.Execute(Begin(request));
+            try
+            {
+                Check(entered.Wait(5000) && Status(service, request) is { Phase: RuntimeUsbTestPhase.Connecting, SecondsRemaining: null },
+                    "A connected transport without a delivered frame must still show Connecting, not a countdown.");
+                release.Set();
+                Check(SpinWait.SpinUntil(() => Status(service, request) is
+                    { Phase: RuntimeUsbTestPhase.Observing, SecondsRemaining: > 0 }, 5000),
+                    "A delivered frame starts the Runtime-owned observation clock.");
+                Check(disposing.Wait(5000) && Status(service, request) is
+                    { Phase: RuntimeUsbTestPhase.Disconnecting, SecondsRemaining: null } && service.HasActive,
+                    "After the timed observation, Disconnecting retains ownership until native disposal completes.");
+            }
+            finally { release.Set(); disposeRelease.Set(); }
+            Check(Wait(service, request).TechnicalOutcome == CatalogUsbTestTechnicalOutcome.SucceededAndReleased,
+                "Only completed disposal permits the visual confirmation question.");
+        });
+    }
+
+    public static void ModalDisplaysOnlyRuntimeReportedObservation()
+    {
+        using var dialog = new UsbTestProgressDialog(() => { });
+        var clock = (System.Windows.Forms.Label)dialog.Controls.Find("UsbTestCountdown", true).Single();
+        Check(clock.Text == "Connecting…", "The modal must not start a countdown before Runtime reports a delivered frame.");
+        dialog.ReportStatus(new(RuntimeUsbTestPhase.Observing, SecondsRemaining: 30));
+        Check(clock.Text == "30", "The visual observation begins with whole seconds remaining and no minute field.");
+        dialog.ReportStatus(new(RuntimeUsbTestPhase.Observing, SecondsRemaining: 5));
+        Check(clock.Text == "5", "The countdown must follow the Runtime status rather than local window elapsed time.");
+        dialog.ReportStatus(new(RuntimeUsbTestPhase.Disconnecting));
+        Check(clock.Text == "Disconnecting…", "The modal must wait for native release after the observation.");
     }
 
     public static void ExistingOwnerAndResponseCorrelation()
@@ -96,6 +141,8 @@ internal static class Issue95LiveTestTests
         RuntimeIpcResponse Reply(CatalogUsbTestHandle h, RuntimeUsbTestStatus status) => new(true, JsonSerializer.Serialize(new CatalogUsbTestReply(h, status)));
         Check(!EditorUsbTestClient.TryRead(Reply(handle with { ClientId = Guid.NewGuid() }, new(RuntimeUsbTestPhase.Running)), handle, out _), "Wrong client cannot supply a result.");
         Check(!EditorUsbTestClient.TryRead(Reply(handle, new(RuntimeUsbTestPhase.Running, CatalogUsbTestTechnicalOutcome.SucceededAndReleased)), handle, out _), "Phase and terminal outcome must agree.");
+        Check(!EditorUsbTestClient.TryRead(Reply(handle, new(RuntimeUsbTestPhase.Observing)), handle, out _),
+            "Observation without a bounded countdown must not be accepted.");
         RuntimeStartupOptions.Validate(["--usb-test-only"]);
         foreach (var args in new[] { new[] { "--usb-test-only", "extra" }, new[] { "--USB-TEST-ONLY" } })
         {
@@ -163,7 +210,8 @@ internal static class Issue95LiveTestTests
             "Transient worker must reach a terminal or explicitly retained-cleanup state.");
         return result!;
     }
-    private static RuntimeUsbTestService Service(string root, CatalogUsbTestBeginRequest request, Frames frames, Action opened) => new(
+    private static RuntimeUsbTestService Service(string root, CatalogUsbTestBeginRequest request, Frames frames, Action opened,
+        TimeSpan? duration = null) => new(
         () => Snapshot(request.Intent), (_, _) => false, intent =>
         {
             // Use bundled fonts in the application root. The previous fixture
@@ -177,13 +225,14 @@ internal static class Issue95LiveTestTests
                 Width = intent.Width, Height = intent.Height, DeviceEnabled = true, RefreshIntervalMs = 10 }, board, metrics,
                 new FileLogger(Path.Combine(root, "worker.log")), (_, _, _, _, _) => { opened(); return frames; },
                 maximumFrames: RuntimeUsbTestService.FrameCount, frameClockNow: () => new DateTime(2026, 1, 1).AddSeconds(Interlocked.Increment(ref clock)), stopOnFailure: true);
-        }, new FileLogger(Path.Combine(root, "service.log")));
+        }, new FileLogger(Path.Combine(root, "service.log")), observationDuration: duration ?? TimeSpan.FromMilliseconds(300));
     private sealed class Frames(string protocol) : IPhysicalFrameTransport
     {
         internal List<byte[]> Images { get; } = [];
         internal int Disposals, FailAt;
         internal bool FailCleanup, FailEncode;
         internal ManualResetEventSlim? Entered, Release;
+        internal ManualResetEventSlim? DisposeEntered, DisposeRelease;
         public int WireRotationDegrees => protocol == OutputTargetContract.LyBulkTransport ? 180 : 90;
         public PhysicalFrameProfile Profile => new(WireRotationDegrees, FailEncode ? 1 : 1_048_576);
         public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics)
@@ -193,7 +242,8 @@ internal static class Issue95LiveTestTests
             Images.Add(jpeg.ToArray());
         }
         public void RecordLifecycle(string state, string reason) { }
-        public void Dispose() { Disposals++; if (FailCleanup) throw new IOException("Synthetic cleanup failure."); }
+        public void Dispose()
+        { DisposeEntered?.Set(); DisposeRelease?.Wait(); Disposals++; if (FailCleanup) throw new IOException("Synthetic cleanup failure."); }
     }
     private static string VirtualBoardRoot() => Path.Combine(
         ApplicationRootLocator.Find(AppContext.BaseDirectory), "__issue95_transient_virtual_board__");
