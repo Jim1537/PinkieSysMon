@@ -233,6 +233,30 @@ internal static class FramePumpShutdownTests
         throw new InvalidOperationException("A failed native release must reject selected Remove.");
     }
 
+    public static void AcquisitionCleanupFailureBlocksRemoval()
+    {
+        using var root = new TestRoot();
+        var target = Target(15_000);
+        var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
+        var opens = 0;
+        using var manager = new OutputSessionManager(config, root.Board(), new MetricStore(), root.Log,
+            (app, selected, board, store, log) => new FramePump(app, selected, board, store, log,
+                (_, _, _, _, _) =>
+                {
+                    Interlocked.Increment(ref opens);
+                    throw new PhysicalTransportCleanupException(
+                        new IOException("Injected open failure"), new IOException("Injected cleanup failure"));
+                }));
+        manager.Start();
+        Check(SpinWait.SpinUntil(() => manager.GetStatuses().Single().UsbState == "ERROR",
+                TimeSpan.FromSeconds(5)), "Acquisition failure must become observable before Remove.");
+        var rejected = false;
+        try { manager.PreparePhysicalRemoval(target.Id); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected && opens == 1 && !manager.GetStatuses().Single().IsActive,
+            "An unconfirmed acquisition cleanup must block retry and terminal Remove success.");
+    }
+
     private static OutputTargetConfig Target(int timeoutMs) => new()
     { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:e912cbded0e8644fea777832da3443ec7f5a9ed35fa4a52b2eda150d97218dae",
         Id = "synthetic-physical", Name = "Synthetic physical", Dashboard = "Synthetic",

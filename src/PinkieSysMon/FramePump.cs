@@ -490,13 +490,11 @@ internal sealed class FramePump : IOutputSession
             _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
             lock (_sync)
             {
-                if (_target.Transport == OutputTargetContract.EncryptedJpegTransport)
-                {
-                    _transportCleanupFailed = true;
-                    _transportFaulted = true;
-                    _transportAbsenceObserved = false;
-                    SetUsbStateLocked("ERROR");
-                }
+                // A failed release is unsafe for either protocol to reacquire.
+                _transportCleanupFailed = true;
+                _transportFaulted = true;
+                _transportAbsenceObserved = false;
+                SetUsbStateLocked("ERROR");
             }
         }
     }
@@ -513,7 +511,8 @@ internal sealed class FramePump : IOutputSession
 
         lock (_sync)
         {
-            if (_suspended || _idlePaused || _transportRetirePending || _disposeState != 0 || token.IsCancellationRequested)
+            if (_suspended || _idlePaused || _transportRetirePending || _transportCleanupFailed ||
+                _disposeState != 0 || token.IsCancellationRequested)
                 return null;
 
             if (_display is not null)
@@ -571,7 +570,12 @@ internal sealed class FramePump : IOutputSession
         catch (Exception ex)
         {
             RecordTestFailure(ex);
-            if (ex is PhysicalTransportCleanupException) Volatile.Write(ref _testCleanupFailed, true);
+            if (ex is PhysicalTransportCleanupException)
+            {
+                Volatile.Write(ref _testCleanupFailed, true);
+                Volatile.Write(ref _nativeReleaseFailed, true);
+                lock (_sync) _transportCleanupFailed = true;
+            }
             _log.ErrorThrottled(
                 $"frame.usb-connect.{_targetId}",
                 ConnectionErrorLogThrottleInterval,
@@ -583,7 +587,8 @@ internal sealed class FramePump : IOutputSession
                 if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked("ERROR");
-                    _transportFaulted = target.Transport == OutputTargetContract.EncryptedJpegTransport;
+                    _transportFaulted = _transportCleanupFailed ||
+                        target.Transport == OutputTargetContract.EncryptedJpegTransport;
                     _transportAbsenceObserved = false;
                     Volatile.Write(ref _isConnected, false);
                     _nextUsbAttemptAtMs = Environment.TickCount64 + retryMs;

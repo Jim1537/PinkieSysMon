@@ -261,6 +261,7 @@ internal static class Program
             ("Frame pump dispose completes pending handshake without frame admission", FramePumpShutdownTests.HandshakeCompletion),
             ("Frame pump dispose cancels stalled handshake after grace", FramePumpShutdownTests.StalledHandshakeCancellation),
             ("Issue95 selected physical Remove native release and sibling isolation", FramePumpShutdownTests.SelectedPhysicalRemovalRelease),
+            ("Issue95 acquisition cleanup uncertainty blocks Remove", FramePumpShutdownTests.AcquisitionCleanupFailureBlocksRemoval),
             ("Frame pump suspend during blocked USB open", FramePumpSuspendDuringBlockedOpen),
             ("Frame pump suspend during blocked USB send", FramePumpSuspendDuringBlockedSend),
             ("Frame pump reconfigure during blocked USB send", FramePumpReconfigureDuringBlockedSend),
