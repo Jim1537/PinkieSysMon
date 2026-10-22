@@ -4,7 +4,7 @@ A **physical Output** assigns a saved dashboard to a supported hardware display.
 
 A saved physical Output uses the user's name, exact USB interface binding, selected implemented protocol and explicit screen width/height. The first working board is `device_<width>x<height>_default`, at 0° orientation, generated through the shared adaptive dashboard factory. An existing valid board is reused without overwriting edits. Ordinary frames use the assigned dashboard's Canvas; screen dimensions are not a model-size whitelist or an automatic fitting instruction.
 
-Candidate **Test** uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** commits a confirmed candidate as a disabled Output with an editable working board; **Forget** remains unavailable pending its exclusion transaction. Configured-device edits and Remove still use the dialog's OK/Cancel draft path while per-card integration continues in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
+Candidate **Test** uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** commits the selected candidate or configured-device edits immediately; a new Output starts disabled with an editable working board. **Forget** remains unavailable. The dialog's **OK** applies pending Remove only, and is unavailable while a configured card has unsaved edits; that legacy Remove path awaits its per-card transaction in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 
@@ -48,9 +48,9 @@ For a configured, connected Output, edit its name, saved dashboard assignment, r
 
 To permit hardware output for an already configured Output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. An unconfigured candidate cannot be enabled or adopted through this switch.
 
-For existing configured-device edits, click **OK** to validate/save the draft and apply it through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). Candidate Save Configuration commits immediately and independently of OK. A newly enabled configured device is rechecked after consent and immediately before saving. If it has disappeared or become ambiguous, enabling fails instead of selecting replacement hardware.
+For existing configured-device edits, click that card's **Save Configuration** to commit only its changed settings through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). It checks that the selected saved record has not changed elsewhere, rechecks the exact interface and validates its assigned board. Other cards' unsaved drafts and newer unrelated settings remain untouched. A newly enabled configured device also requires explicit consent. If its identity has disappeared or become ambiguous, saving fails instead of selecting replacement hardware.
 
-**Cancel** discards uncommitted drafts, including configured-device edits, enablement and removals; it cannot reverse a completed candidate Save Configuration. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
+**Cancel** discards uncommitted drafts, including configured-device edits, enablement and removals; it cannot reverse a completed per-card Save Configuration. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
 
 | Switch | What it permits |
 | --- | --- |
@@ -61,7 +61,7 @@ For existing configured-device edits, click **OK** to validate/save the draft an
 
 - In the Editor, choose **Outputs (toolbar icon) → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
-- Change assignment in **Devices → &lt;device name&gt; → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
+- Change assignment in **Devices → &lt;device name&gt; → Dashboard → Save Configuration**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 

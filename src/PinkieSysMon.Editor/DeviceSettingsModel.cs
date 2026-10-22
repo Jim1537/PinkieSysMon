@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace PinkieSysMon.Editor;
 
 internal sealed record DeviceSettingsEntry(
@@ -137,6 +139,38 @@ internal sealed class DeviceSettingsModel
         _drafts.Remove(target.Id);
         _targets.Add(target);
         _originalConnections.Add(target.Id, Copy(target));
+    }
+
+    internal (OutputTargetConfig Original, OutputTargetConfig Updated) PrepareConfigured(OutputTargetConfig target)
+    {
+        RequireEditable(target);
+        if (!_targets.Contains(target) || !_originalConnections.TryGetValue(target.Id, out var original))
+            throw new InvalidOperationException("This configured device card is no longer available.");
+        if (!OutputTargetContract.ConnectionEquals(original, target))
+            throw new InvalidOperationException("Changing the connection requires Remove, Test and Save Configuration.");
+        if (target.DeviceEnabled && (!original.DeviceEnabled ||
+            !original.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase)) &&
+            (!_enableConsent.Contains(target.Id) || !CanEnable(target)))
+            throw new InvalidOperationException("Enablement requires current exact identity and explicit consent.");
+        var updated = Copy(target);
+        OutputTargetContract.ValidateAndNormalize([updated]);
+        return (Copy(original), updated);
+    }
+
+    internal bool HasPendingConfiguredEdit(OutputTargetConfig target) =>
+        _targets.Contains(target) && _originalConnections.TryGetValue(target.Id, out var original) &&
+        JsonSerializer.Serialize(target) != JsonSerializer.Serialize(original);
+
+    internal void AcceptSavedConfigured(OutputTargetConfig target, OutputTargetConfig updated)
+    {
+        if (!_targets.Contains(target) || target.Id != updated.Id)
+            throw new InvalidOperationException("The configured device card changed during Save.");
+        _originalConnections[target.Id] = Copy(updated);
+        _initialEnabledBindings.Remove(target.Id);
+        if (updated.DeviceEnabled) _initialEnabledBindings[target.Id] = updated.DeviceId;
+        _enableConsent.Remove(target.Id);
+        IsDirty = _targets.Count != _originalConnections.Count ||
+            _targets.Any(HasPendingConfiguredEdit);
     }
 
     public void MarkChanged(OutputTargetConfig target)

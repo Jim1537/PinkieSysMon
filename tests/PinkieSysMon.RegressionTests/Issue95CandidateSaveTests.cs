@@ -26,7 +26,7 @@ internal static class Issue95CandidateSaveTests
             newer.Display.RefreshIntervalMs = 777;
             newer.Save(path);
             var calls = 0;
-            var (saved, reloaded) = PhysicalCandidateSaveTransaction.SaveAsync(root, path, log,
+            var (saved, reloaded) = PhysicalDeviceSettingsTransaction.SaveCandidateAsync(root, path, log,
                 confirmed, device.PnpNodeKey!, () => [device], (updated, bytes) =>
                 {
                     calls++;
@@ -64,15 +64,15 @@ internal static class Issue95CandidateSaveTests
                 EditorSettingsPersistence.ApplyAsync(path, updated, bytes,
                     () => Task.FromResult<RuntimeIpcResponse?>(new(false, "Injected apply failure")));
             var before = File.ReadAllBytes(path);
-            Reject(() => PhysicalCandidateSaveTransaction.SaveAsync(root, path, log,
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveCandidateAsync(root, path, log,
                 confirmed, device.PnpNodeKey!, () => [], Persist).GetAwaiter().GetResult());
             Check(!File.Exists(board) && File.ReadAllBytes(path).SequenceEqual(before),
                 "Lost exact binding must reject before writing config or board.");
-            Reject(() => PhysicalCandidateSaveTransaction.SaveAsync(root, path, log,
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveCandidateAsync(root, path, log,
                 confirmed, device.PnpNodeKey!, () => [device with { PnpNodeKey = "changed" }], Persist)
                 .GetAwaiter().GetResult());
             Check(!File.Exists(board), "Changed physical node cannot inherit the Test confirmation.");
-            Reject(() => PhysicalCandidateSaveTransaction.SaveAsync(root, path, log,
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveCandidateAsync(root, path, log,
                 confirmed, device.PnpNodeKey!, () => [device], Persist).GetAwaiter().GetResult());
             Check(File.ReadAllBytes(path).SequenceEqual(before) && !File.Exists(board) &&
                   !model.Entries.Single().IsConfigured && model.CandidateDraft(card)!.CanSaveConfiguration,
@@ -82,10 +82,92 @@ internal static class Issue95CandidateSaveTests
             external.Outputs.Targets.Add(confirmed);
             external.Save(path);
             var concurrent = File.ReadAllBytes(path);
-            Reject(() => PhysicalCandidateSaveTransaction.SaveAsync(root, path, log,
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveCandidateAsync(root, path, log,
                 confirmed, device.PnpNodeKey!, () => [device], Persist).GetAwaiter().GetResult());
             Check(File.ReadAllBytes(path).SequenceEqual(concurrent) && !File.Exists(board),
                 "An already committed binding must reject the stale card without collateral writes.");
+        });
+    }
+
+    public static void ConfiguredCardIsolationAndStaleWrite()
+    {
+        InSandbox((root, path, log) =>
+        {
+            EditorForm.WriteNewDashboardFile(Path.Combine(root, "dashboards", "desktop_default"), 640, 640, 0);
+            EditorForm.WriteNewDashboardFile(Path.Combine(root, "dashboards", "Existing"), 800, 600, 0);
+            var device = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'u');
+            var siblingDevice = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'v');
+            var config = new AppConfig();
+            config.Outputs.Targets.Add(new OutputTargetConfig
+            {
+                Id = "configured-u", Name = "Original", Kind = OutputTargetContract.PhysicalKind,
+                Transport = device.Transport, DeviceId = device.DeviceId, Width = 800, Height = 600,
+                Dashboard = "Existing", Usb = new UsbConfig()
+            });
+            config.Outputs.Targets.Add(new OutputTargetConfig
+            {
+                Id = "configured-v", Name = "Sibling", Kind = OutputTargetContract.PhysicalKind,
+                Transport = siblingDevice.Transport, DeviceId = siblingDevice.DeviceId,
+                Width = 800, Height = 600, Dashboard = "Existing", Usb = new UsbConfig()
+            });
+            config.Save(path);
+            var model = new DeviceSettingsModel(AppConfig.Load(path, log)); model.Refresh([device, siblingDevice]);
+            var card = model.Entries.Single(e => e.Target.Id == "configured-u").Target;
+            var siblingDraft = model.Entries.Single(e => e.Target.Id == "configured-v").Target;
+            siblingDraft.Name = "Unsaved sibling draft"; model.MarkChanged(siblingDraft);
+            card.Name = "Selected edit"; card.ProviderEnabled = true; model.MarkChanged(card);
+            var (original, updated) = model.PrepareConfigured(card);
+            var newer = AppConfig.Load(path, log);
+            newer.Outputs.Targets[0].Name = "Concurrent Desktop edit";
+            newer.Outputs.Targets[2].Name = "Concurrent sibling edit";
+            newer.Display.RefreshIntervalMs = 655;
+            newer.Save(path);
+            var beforeSave = File.ReadAllBytes(path);
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
+                root, path, log, original, updated, () => [],
+                (next, expected) => EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                    () => Task.FromResult<RuntimeIpcResponse?>(null))).GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(beforeSave),
+                "Configured Save cannot commit against a lost exact interface.");
+            var (saved, reloaded) = PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
+                root, path, log, original, updated, () => [device],
+                (next, expected) => EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                    () => Task.FromResult<RuntimeIpcResponse?>(null))).GetAwaiter().GetResult();
+            model.AcceptSavedConfigured(card, updated);
+            Check(!reloaded && model.IsDirty && siblingDraft.Name == "Unsaved sibling draft" &&
+                  saved.Outputs.Targets[0].Name == "Concurrent Desktop edit" &&
+                  saved.Display.RefreshIntervalMs == 655 &&
+                  saved.Outputs.Targets[1].Name == "Selected edit" && saved.Outputs.Targets[1].ProviderEnabled &&
+                  !saved.Outputs.Targets[1].DeviceEnabled && saved.Outputs.Targets[1].Dashboard == "Existing" &&
+                  saved.Outputs.Targets[2].Name == "Concurrent sibling edit",
+                "Configured Save commits only its card, retaining an unsaved sibling draft and newer disk settings.");
+
+            var another = new DeviceSettingsModel(AppConfig.Load(path, log)); another.Refresh([device, siblingDevice]);
+            var staleCard = another.Entries.Single(e => e.Target.Id == "configured-u").Target;
+            staleCard.Name = "Stale edit"; another.MarkChanged(staleCard);
+            var (staleOriginal, staleUpdated) = another.PrepareConfigured(staleCard);
+            var concurrent = AppConfig.Load(path, log);
+            concurrent.Outputs.Targets[1].Name = "External selected edit";
+            concurrent.Save(path);
+            var externalBytes = File.ReadAllBytes(path);
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
+                root, path, log, staleOriginal, staleUpdated, () => [device],
+                (next, expected) => EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                    () => Task.FromResult<RuntimeIpcResponse?>(null))).GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(externalBytes),
+                "A newer edit of this same Output must not be overwritten by an older card.");
+
+            var current = new DeviceSettingsModel(AppConfig.Load(path, log)); current.Refresh([device, siblingDevice]);
+            var missing = current.Entries.Single(e => e.Target.Id == "configured-u").Target;
+            missing.Dashboard = "Missing-assignment"; current.MarkChanged(missing);
+            var (missingOriginal, missingUpdated) = current.PrepareConfigured(missing);
+            Reject(() => PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
+                root, path, log, missingOriginal, missingUpdated, () => [device],
+                (next, expected) => EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                    () => Task.FromResult<RuntimeIpcResponse?>(null))).GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(externalBytes) &&
+                  !Directory.Exists(Path.Combine(root, "dashboards", "Missing-assignment")),
+                "Missing selected dashboard is an Output-specific failure, not generated or saved silently.");
         });
     }
 

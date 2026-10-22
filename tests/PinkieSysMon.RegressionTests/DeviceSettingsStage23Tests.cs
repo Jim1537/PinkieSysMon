@@ -140,8 +140,9 @@ internal static class DeviceSettingsStage23Tests
             "A configured connected device must have one editable tab after one passive capture.");
         var provider = (CheckBox)page.Controls.Find("DeviceProvider", true).Single();
         provider.Checked = true;
-        Check(dialog.DevicesChanged && !physical.ProviderEnabled && !physical.DeviceEnabled,
-            "Provider UI edits must be staged independently without altering the original hardware state.");
+        Check(dialog.DevicesChanged && !physical.ProviderEnabled && !physical.DeviceEnabled &&
+              !((Button)dialog.AcceptButton!).Enabled,
+            "A pending configured-card edit must not silently fall through whole-dialog OK.");
         discovery = [];
         dialog.RefreshDeviceDiscovery();
         Check(!fields.Enabled && remove.Enabled &&
@@ -161,10 +162,10 @@ internal static class DeviceSettingsStage23Tests
         fail = false;
         discovery = [device];
         dialog.RefreshDeviceDiscovery();
-        dialog.ApplyOutputChanges(config);
-        Check(config.Outputs.Targets.Single(t => t.Id == physical.Id).ProviderEnabled &&
+        Throws(() => dialog.ApplyOutputChanges(config));
+        Check(!config.Outputs.Targets.Single(t => t.Id == physical.Id).ProviderEnabled &&
               !config.Outputs.Targets.Single(t => t.Id == physical.Id).DeviceEnabled,
-            "Provider-only apply must never implicitly enable USB.");
+            "The former whole-dialog OK cannot commit a configured-card edit or implicitly enable USB.");
     }
 
     public static void SettingsApplyRecovery()

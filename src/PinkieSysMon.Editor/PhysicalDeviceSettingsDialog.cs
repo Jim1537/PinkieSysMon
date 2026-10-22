@@ -13,6 +13,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly Func<AppConfig, byte[]?, Task<bool>>? _persistAndApply;
     private readonly Action<AppConfig, bool>? _onCommitted;
     private readonly FileLogger? _log;
+    private readonly Button _ok = new() { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
 
     public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
@@ -52,18 +53,17 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Padding = new Padding(8), WrapContents = false
         };
         var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.Add(cancel);
-        buttons.Controls.Add(ok);
-        AcceptButton = ok;
+        buttons.Controls.Add(_ok);
+        AcceptButton = _ok;
         CancelButton = cancel;
         var notice = new Label
         {
             Dock = DockStyle.Bottom, Height = 54,
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
-            Text = "Candidate Save Configuration commits immediately and stays disabled; Cancel cannot undo it. " +
-                   "Configured-device edits and Remove still take effect after OK. A responsive Runtime reloads saved settings."
+            Text = "Save Configuration commits only this card immediately; Cancel cannot undo it. " +
+                   "OK applies a pending Remove only; Save each edited card separately. A responsive Runtime reloads saved settings."
         };
         Controls.Add(notice);
         Controls.Add(buttons);
@@ -95,6 +95,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     public void ApplyOutputChanges(AppConfig config)
     {
+        if (_devices.Entries.Any(e => e.IsConfigured && _devices.HasPendingConfiguredEdit(e.Target)))
+            throw new InvalidOperationException("Save each edited device card before applying a pending Remove.");
         if (_desktopCount + _devices.ConfiguredCount == 0)
             throw new InvalidOperationException("At least one Output must remain configured.");
         if (DevicesChanged)
@@ -195,14 +197,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                         UpdateDevicePages();
                     },
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
-                    () => SaveCandidateAsync(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
+                    () => entry.IsConfigured ? SaveConfiguredAsync(entry.Target) : SaveCandidateAsync(entry.Target),
+                    () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
                     () => TestDeviceAsync(entry.Target), CancelCandidate);
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
                 if (wasSelected) _settingsTabs.SelectedTab = page;
             }
             page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount), _testUiBusy || _saveUiBusy,
-                _persistAndApply is not null);
+                _persistAndApply is not null, _devices.HasPendingConfiguredEdit(entry.Target));
         }
         var recognized = _recognizedDevices.Entries;
         var recognizedIds = recognized.Select(e => e.Observation.ObservationId).ToHashSet(StringComparer.Ordinal);
@@ -233,6 +236,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _devicePages.GetValueOrDefault(entry.Target.Id) == tab);
             tab.Text = configured?.Target.Name ?? $"Device #{index + 1}";
         }
+        _ok.Enabled = !_saveUiBusy && !_testUiBusy &&
+            !entries.Any(e => e.IsConfigured && _devices.HasPendingConfiguredEdit(e.Target));
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -305,22 +310,45 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             RefreshDeviceDiscovery();
             var confirmed = _devices.PrepareCandidate(target);
             var node = _devices.CandidateDraft(target)!.PnpNodeKey;
-            var (saved, reloaded) = await PhysicalCandidateSaveTransaction.SaveAsync(
+            var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.SaveCandidateAsync(
                 _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
                 _log, confirmed, node, _discoverDevices, _persistAndApply);
             _devices.AcceptSavedCandidate(target, confirmed);
-            try { _onCommitted?.Invoke(saved, reloaded); }
-            catch (Exception refreshError)
-            {
-                MessageBox.Show(this,
-                    $"Configuration was saved, but the Editor view could not refresh: {refreshError.Message}\nReopen Settings before further edits.",
-                    "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            ReportCommitted(saved, reloaded);
             _devicePages[target.Id].SetTestMessage(null);
             UpdateDevicePages();
         }
         catch (Exception ex) { ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
+    }
+
+    private async Task SaveConfiguredAsync(OutputTargetConfig target)
+    {
+        if (_saveUiBusy || _testUiBusy || _persistAndApply is null || _log is null) return;
+        _saveUiBusy = true;
+        try
+        {
+            RefreshDeviceDiscovery();
+            var (original, updated) = _devices.PrepareConfigured(target);
+            var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
+                _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
+                _log, original, updated, _discoverDevices, _persistAndApply);
+            _devices.AcceptSavedConfigured(target, updated);
+            ReportCommitted(saved, reloaded);
+        }
+        catch (Exception ex) { ShowDeviceError(ex); }
+        finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
+    }
+
+    private void ReportCommitted(AppConfig saved, bool reloaded)
+    {
+        try { _onCommitted?.Invoke(saved, reloaded); }
+        catch (Exception refreshError)
+        {
+            MessageBox.Show(this,
+                $"Configuration was saved, but the Editor view could not refresh: {refreshError.Message}\nReopen Settings before further edits.",
+                "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private bool ChangeDeviceEnabled(OutputTargetConfig target, bool enabled)
@@ -338,7 +366,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 confirmed = MessageBox.Show(this,
                     $"Enable PinkieSysMon control of '{target.Name}'?\n\n" +
                     "Vendor software or another application controlling the same USB display may conflict. " +
-                    "Close other display-control software first. The device will be saved and may start after OK.",
+                    "Close other display-control software first. The device may start after Save Configuration.",
                     "Enable Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                 if (!confirmed)
@@ -445,7 +473,9 @@ internal sealed class DeviceSettingsPage : TabPage
                 _help.Bind(_cancel, "Cancel the current Test, or close this unsaved card. Native release remains owned by Runtime.");
             }
             else { buttons.Controls.Add(_add); buttons.Controls.Add(_remove); }
-            _help.Bind(_add, EditorSettingsHelp.AddDevice);
+            _help.Bind(_add, _candidate is null
+                ? "Save only this configured Output now. Cancel cannot undo a completed Save."
+                : EditorSettingsHelp.AddDevice);
             _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
             _add.Click += async (_, _) => await add();
             _remove.Click += (_, _) => remove();
@@ -513,7 +543,8 @@ internal sealed class DeviceSettingsPage : TabPage
             dashboard.Items.Add(assigned);
         dashboard.SelectedItem = target.Dashboard;
         dashboard.SelectedIndexChanged += (_, _) => Change(() => target.Dashboard = dashboard.SelectedItem as string);
-        Row("Dashboard", dashboard, EditorSettingsHelp.Dashboard);
+        Row("Dashboard", dashboard,
+            "Select this Output's saved dashboard. Save Configuration applies this card; other Outputs retain their assignments.");
         _enabled.Checked = OutputTargetContract.IsEnabled(target);
         _enabled.CheckedChanged += (_, _) =>
         {
@@ -524,7 +555,8 @@ internal sealed class DeviceSettingsPage : TabPage
             try { _enabled.Checked = enable(requested); }
             finally { _binding = false; }
         };
-        Row("Display", _enabled, EditorSettingsHelp.DeviceEnabled);
+        Row("Display", _enabled,
+            "Permit Runtime to open this USB display after Save Configuration. Enabling requires confirmation and a fresh exact binding; Provider Enabled is independent.");
         var provider = new CheckBox { Text = "Provider Enabled", Name = "DeviceProvider",
             Checked = target.ProviderEnabled, AutoSize = true };
         provider.CheckedChanged += (_, _) => Change(() => target.ProviderEnabled = provider.Checked);
@@ -581,7 +613,7 @@ internal sealed class DeviceSettingsPage : TabPage
     }
 
     public void UpdateState(DeviceSettingsEntry entry, bool canRemove, bool operationBusy = false,
-        bool canPersist = false)
+        bool canPersist = false, bool pendingConfiguredEdit = false)
     {
         var status = entry.Status switch
         {
@@ -593,13 +625,14 @@ internal sealed class DeviceSettingsPage : TabPage
             _ => "Discovery unavailable — controls unavailable"
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
-            (entry.IsConfigured ? "Changes are saved and applied after OK." :
+            (entry.IsConfigured ? "Save Configuration commits this card now; Remove still applies after OK." :
                 _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test; Forget is not yet available.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
-        _add.Visible = !entry.IsConfigured;
-        _add.Enabled = !entry.IsConfigured && canPersist && entry.CanEdit &&
-            _candidate?.CanSaveConfiguration == true && !operationBusy;
+        _add.Visible = true;
+        _add.Enabled = canPersist && entry.CanEdit && !operationBusy &&
+            (entry.IsConfigured ? pendingConfiguredEdit :
+                _candidate?.CanSaveConfiguration == true);
         _forget.Enabled = false;
         _cancel.Enabled = true;
         _enabled.Enabled = entry.IsConfigured;
