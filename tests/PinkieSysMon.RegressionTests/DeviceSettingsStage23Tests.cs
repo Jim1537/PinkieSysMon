@@ -26,12 +26,14 @@ internal static class DeviceSettingsStage23Tests
         model.Refresh([device]);
         Issue95GenericOutputTests.Confirm(model, target, device);
         model.Add(target);
+        Check(!model.HasPendingRemoval, "An adopted card is not a pending Remove.");
         model.ValidateForApply([device]);
         model.ApplyTo(config);
         Check(config.Outputs.Targets.Count == 2 && ReferenceEquals(config.Outputs.Targets[0], desktop) &&
               config.Outputs.Targets[1].Id == target.Id && !config.Outputs.Targets[1].DeviceEnabled,
             "Explicit adoption adds only a disabled physical Output, retaining the Desktop and saved dashboard assignment.");
         model.Remove(target, 1);
+        Check(model.HasPendingRemoval, "Explicit Remove must be the only remaining whole-dialog commit.");
         model.Refresh([device]);
         Check(model.Entries.Count == 0, "A removed attached device must not recreate its tab/record on the next notification.");
         model.ApplyTo(config);
@@ -140,7 +142,7 @@ internal static class DeviceSettingsStage23Tests
             "A configured connected device must have one editable tab after one passive capture.");
         var provider = (CheckBox)page.Controls.Find("DeviceProvider", true).Single();
         provider.Checked = true;
-        Check(dialog.DevicesChanged && !physical.ProviderEnabled && !physical.DeviceEnabled &&
+        Check(dialog.DevicesChanged && !dialog.HasPendingRemove && !physical.ProviderEnabled && !physical.DeviceEnabled &&
               !((Button)dialog.AcceptButton!).Enabled,
             "A pending configured-card edit must not silently fall through whole-dialog OK.");
         discovery = [];

@@ -39,6 +39,8 @@ internal sealed class DeviceSettingsModel
     }
 
     public bool IsDirty { get; private set; }
+    internal bool HasPendingRemoval => _originalConnections.Keys.Any(id =>
+        !_targets.Any(target => target.Id.Equals(id, StringComparison.OrdinalIgnoreCase)));
     public int ConfiguredCount => _targets.Count;
 
     public IReadOnlyList<DeviceSettingsEntry> Entries

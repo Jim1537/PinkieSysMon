@@ -92,11 +92,13 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private bool _refreshingDevices;
 
     public bool DevicesChanged => _devices.IsDirty;
+    public bool HasPendingRemove => _devices.HasPendingRemoval;
 
     public void ApplyOutputChanges(AppConfig config)
     {
         if (_devices.Entries.Any(e => e.IsConfigured && _devices.HasPendingConfiguredEdit(e.Target)))
             throw new InvalidOperationException("Save each edited device card before applying a pending Remove.");
+        if (!HasPendingRemove) return;
         if (_desktopCount + _devices.ConfiguredCount == 0)
             throw new InvalidOperationException("At least one Output must remain configured.");
         if (DevicesChanged)

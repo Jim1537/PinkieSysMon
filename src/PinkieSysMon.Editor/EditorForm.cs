@@ -846,7 +846,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         if (physical)
         {
             var deviceDialog = (PhysicalDeviceSettingsDialog)dialog;
-            if (!deviceDialog.DevicesChanged)
+            if (!deviceDialog.HasPendingRemove)
                 return;
             try { deviceDialog.ApplyOutputChanges(runtimeConfig); }
             catch (Exception ex)
