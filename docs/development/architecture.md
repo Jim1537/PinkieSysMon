@@ -56,6 +56,25 @@ Some metrics use a publication path outside the normal source scheduler. Their o
 
 **Source anchors:** [TelemetryEngine](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/Telemetry.cs), [MetricStore](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricStore.cs), [DashboardMetricUsage](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DashboardMetricUsage.cs).
 
+### Publication history primitive
+
+`MetricStore` can optionally receive a process-owned `MetricHistoryStore`. Both publication overloads then admit only their changed keys into history, once per publication, before exposing the replacement current-value snapshot. Equal values remain separate observations; a batch shares one monotonic timestamp. Snapshot reads and rendering do not append samples. The default Runtime and Editor composition paths do **not yet attach this service or configure Graph demand**; the Graph widget and its lifecycle integration remain tracked in [Issue #100](https://github.com/Jim1537/PinkieSysMon/issues/100).
+
+The service implements these contracts for its callers:
+
+| Concern | Contract |
+| --- | --- |
+| Demand and lifetime | Case-insensitive Metric IDs share one source buffer and the longest requested window. Zero demand owns no sample arrays. `PrepareDemand` allocates a candidate without changing admission; `Commit` adopts it; disposal abandons it. Only one prepared candidate is allowed at a time. Final removal releases ownership. |
+| Measurement meaning | Demand pins an immutable descriptor, effective publication cadence and owner generation. Callers must reconcile committed provider/catalog/Output changes. A kind, base unit, cadence or owner-generation change starts an empty epoch; an identical refresh or window-only change retains the epoch. This does not independently fence an in-flight provider capture: scheduler/lifecycle coordination must reject superseded work. |
+| Storage | RAM-only fixed-size records retain finite CLR numeric scalars, original DateTime/DateTimeOffset values, or explicit gaps. Provider-owned payload objects and strings are not retained. Unit/component conversion belongs to each consumer, using the descriptor returned with its query and the existing converters. Nothing is serialized. |
+| Bounds | Windows are 1–600 seconds; production capacity is 8192 records per metric. The 32 MiB active storage reservation charges actual record-array element size, a conservative 1024 bytes per series for ownership/collection overhead, and both possible Metric ID strings. IDs are limited to 1024 characters. Capacity failure rejects the whole proposed demand. One prepared candidate can temporarily reserve another 32 MiB; reader-owned scratch/results and other application resources are separate. These are storage reservations, not a total process-memory guarantee. |
+| Eviction and silence | Admission and committed demand changes prune expired records lazily, retaining at most one boundary predecessor. Count pressure evicts oldest records and queries report eviction affecting their visible interval. Querying after silence returns no expired series and never extends a value to now. Growing a window cannot recreate evicted observations. There is no maintenance timer. |
+| Continuity | Null, unsupported and nonfinite publications become gaps. Known-cadence observations connect only within an inclusive `2 × interval`; unknown cadence leaves isolated observations. `BreakContinuity` marks the next publication as a new run without inventing a record. Callers own pause/resume and policy boundaries. This display rule does not change provider freshness. |
+| Query ownership | `CopyTo` copies a consistent bounded frame into caller-owned reusable storage and returns its time window, pinned descriptor, epoch and truncation flag. It can include one predecessor only when in-window records exist, and excludes publications newer than the captured frame time. Consumers must exclude the predecessor from Auto extrema and must not connect across gaps. |
+| Lock order | Publication acquires MetricStore's writer gate, then the history gate. History never acquires MetricStore, provider, session or UI locks and calls no renderer/provider. Conversion and drawing take place after copying. Current-value snapshot readers remain lock-free. |
+
+**Source anchors:** [History store](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricHistoryStore.cs), [history regression fixtures](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/GraphHistoryTests.cs).
+
 ### Global Windows user-idle pause
 
 The opt-in Runtime-wide idle setting is **Edit → Editor settings → Runtime activity → Idle timeout (minutes)**. It persists as `Runtime.IdleTimeoutMinutes` in `config/app.json`; `0` (also the default for older files) **disables** idle pausing, while `1..1440` selects a timeout. It is not a dashboard/widget property. The saved number is not overwritten when a Windows power setting changes.

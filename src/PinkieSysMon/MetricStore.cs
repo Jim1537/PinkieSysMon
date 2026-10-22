@@ -4,6 +4,15 @@ internal sealed class MetricStore
 {
     private readonly object _writeSync = new();
     private Dictionary<string, object?> _snapshot = new(StringComparer.OrdinalIgnoreCase);
+    private readonly MetricHistoryStore? _history;
+
+    public MetricStore() { }
+
+    public MetricStore(MetricHistoryStore history)
+    {
+        ArgumentNullException.ThrowIfNull(history);
+        _history = history;
+    }
 
     public void Publish(IReadOnlyDictionary<string, object?> batch)
     {
@@ -15,6 +24,7 @@ internal sealed class MetricStore
             var next = new Dictionary<string, object?>(_snapshot, StringComparer.OrdinalIgnoreCase);
             foreach (var pair in batch)
                 next[pair.Key] = pair.Value;
+            _history?.Record(batch);
             Volatile.Write(ref _snapshot, next);
         }
     }
@@ -27,6 +37,7 @@ internal sealed class MetricStore
             {
                 [name] = value
             };
+            _history?.Record(name, value);
             Volatile.Write(ref _snapshot, next);
         }
     }
