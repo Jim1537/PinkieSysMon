@@ -103,12 +103,16 @@ internal static class Issue71AdoptionTests
     public static void ReconciliationUsesExactAdapter()
     {
         var device = Device("encrypted-jpeg", 'b') with { PnpNodeKey = "synthetic-node" };
-        var observation = new UsbDisplayObservation("synthetic-observation", UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product)!,
+        var observation = new UsbDisplayObservation("synthetic-observation", device.Candidate!.Family,
             UsbDisplayObservationStatus.Recognized, 1, [], [], []) { NodeKeys = ["synthetic-node"] };
         Check(UsbDisplayReconciliation.ReadOnlyObservations([observation], [device]).Count == 0,
-            "One exact TURZX interface/devnode must suppress its duplicate recognition-only tab.");
+            "One exact catalog product/interface/devnode must suppress its duplicate recognition-only tab.");
         Check(UsbDisplayReconciliation.ReadOnlyObservations([observation], [device with { Transport = "ly-bulk" }]).Count == 0,
-            "A different adapter cannot satisfy a TURZX observation even with an equal devnode key.");
+            "A protocol hint change must not prevent reconciliation of the same exact product/interface/devnode.");
+        var otherProduct = observation with { Family = UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product)! };
+        Check(otherProduct.Family.Product != device.Candidate.Family.Product &&
+            UsbDisplayReconciliation.ReadOnlyObservations([otherProduct], [device]).Single() == otherProduct,
+            "A different VID/PID must retain its informational row even with an equal devnode key and protocol hint.");
         var duplicate = device with { DeviceId = "usb-interface:" + new string('c', 64) };
         Check(UsbDisplayReconciliation.ReadOnlyObservations([observation], [device, duplicate]).Single().Status == UsbDisplayObservationStatus.Ambiguous,
             "Multiple interfaces on one node must remain ambiguous rather than deduplicating to an eligible device.");
