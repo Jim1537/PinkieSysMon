@@ -93,8 +93,8 @@ For saved enablement, disabling the final Output, global shutdown and normal res
 
 | Observation | Check or next action |
 | --- | --- |
-| No Device tab | Verify model/interface support and physical connection. Never-detected absent hardware has no placeholder tab. |
-| No eligible interface, or a display outside the recognition catalog | Follow the owning integration Issue shown on its tab, or [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Unlisted VID/PID pairs require a deliberate catalog update; there is no arbitrary WinUSB selector. |
+| No Device tab | Verify physical connection and whether the exact VID/PID is in the catalog. Never-detected absent hardware has no placeholder tab. |
+| No eligible interface, or a display outside the recognition catalog | For a recognition-only tab, follow its integration Issue. Otherwise [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Unlisted VID/PID pairs require a deliberate catalog update; there is no arbitrary WinUSB selector. |
 | Connected in Settings, but no display output | Check Enabled in Settings, Runtime's target state and Reload result, then the saved assignment. Passive detection does not acquire the transport. |
 | **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Follow the selected adapter's recovery policy; a new attempt does not establish that recovery succeeded. |
 | Ambiguous identity or a changed interface path | Resolve the actual binding using the selected adapter's identity rules linked from [Supported Devices](../supported-devices.md). No first-match fallback or automatic rebinding is performed. |
