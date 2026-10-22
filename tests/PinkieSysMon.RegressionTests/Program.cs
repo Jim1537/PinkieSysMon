@@ -623,8 +623,8 @@ internal static class Program
 
         var target = new OutputTargetConfig();
         var ambiguous = OutputDeviceSelection.Resolve(target, devices);
-        Assert(ambiguous.Status == OutputDeviceResolutionStatus.Ambiguous && ambiguous.Device is null,
-            "An unbound target must not silently select the first device when multiple compatible devices are present.");
+        Assert(ambiguous.Status == OutputDeviceResolutionStatus.Missing && ambiguous.Device is null,
+            "Even multiple compatible devices must leave an unbound physical Output unresolved until exact selection.");
 
         var single = OutputDeviceSelection.Resolve(target, [devices[0]]);
         Assert(single.Status == OutputDeviceResolutionStatus.Missing && single.Device is null,

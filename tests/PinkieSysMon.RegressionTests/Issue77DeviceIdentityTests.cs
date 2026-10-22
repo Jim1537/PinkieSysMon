@@ -83,9 +83,11 @@ internal static class Issue77DeviceIdentityTests
                 .All(e => e.Status == PhysicalDeviceInventoryStatus.Ambiguous),
             "Duplicate saved bindings must not select the first logical Output.");
         target.DeviceId = "";
-        Check(OutputDeviceSelection.Resolve(target, [first]).Status == OutputDeviceResolutionStatus.Found &&
-              OutputDeviceSelection.Resolve(target, [first, second]).Status == OutputDeviceResolutionStatus.Ambiguous &&
-              target.DeviceId == "", "Legacy single-device resolution remains compatible and never writes a binding.");
+        Check(OutputDeviceSelection.Resolve(target, [first]).Status == OutputDeviceResolutionStatus.Missing &&
+              OutputDeviceSelection.Resolve(target, [first, second]).Status == OutputDeviceResolutionStatus.Missing &&
+              OutputDeviceSelection.Resolve(target, []).Status == OutputDeviceResolutionStatus.Missing &&
+              target.DeviceId == "",
+            "An unbound physical Output must stay unresolved with zero, one or multiple devices and never gain an implicit binding.");
     }
 
     public static void RecognitionAndDispatchContract()

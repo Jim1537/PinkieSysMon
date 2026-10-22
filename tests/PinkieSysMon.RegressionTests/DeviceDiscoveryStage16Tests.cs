@@ -206,8 +206,17 @@ internal static class DeviceDiscoveryStage16Tests
             "Disconnected configured hardware must never be enabled by the menu.");
 
         known.DeviceId = string.Empty;
-        Check(!PhysicalDeviceInventory.CanOfferEnable(PhysicalDeviceInventory.Build([known], [device]).Single()),
-            "An unbound physical target cannot enable USB ownership without exact persisted identity.");
+        var unboundEntries = PhysicalDeviceInventory.Build([known], [device]);
+        Check(unboundEntries.Count == 2 &&
+              unboundEntries[0].ConfiguredTarget == known &&
+              unboundEntries[0].DiscoveredDevice is null &&
+              unboundEntries[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
+              !PhysicalDeviceInventory.CanOfferEnable(unboundEntries[0]) &&
+              unboundEntries[1].ConfiguredTarget is null &&
+              unboundEntries[1].DiscoveredDevice == device &&
+              unboundEntries[1].Status == PhysicalDeviceInventoryStatus.Unconfigured &&
+              !PhysicalDeviceInventory.CanOfferEnable(unboundEntries[1]),
+            "An unbound physical Output stays disconnected beside an unconfigured candidate; neither row may enable USB.");
         known.DeviceId = device.DeviceId;
 
         var twin = device with { DevicePath = "second-path" };
