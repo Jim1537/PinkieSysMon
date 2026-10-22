@@ -14,7 +14,7 @@ internal static class DeviceDiscoveryStage16Tests
         var target = Target();
 
         var devices = DeviceDiscovery.CreateTrofeoDescriptors([path, path.ToUpperInvariant(), unrelated]);
-        Check(devices.Count == 1 && devices[0].Transport == OutputTargetContract.TrofeoTransport,
+        Check(devices.Count == 1 && devices[0].Transport == OutputTargetContract.LyBulkTransport,
             "Discovery must filter unsupported interfaces and deduplicate repeated case-insensitive paths.");
         Check(!target.DeviceEnabled && !string.IsNullOrWhiteSpace(devices[0].DeviceId),
             "Passive discovery must never enable a disabled physical target.");
@@ -39,12 +39,12 @@ internal static class DeviceDiscoveryStage16Tests
     public static void DuplicateIdentity()
     {
         var target = Target();
-        target.DeviceId = "trofeo:" + new string('a', 64);
+        target.DeviceId = "usb-interface:" + new string('a', 64);
         var twins = new[]
         {
-            new OutputDeviceDescriptor(target.DeviceId, OutputTargetContract.TrofeoTransport,
+            new OutputDeviceDescriptor(target.DeviceId, OutputTargetContract.LyBulkTransport,
                 "Synthetic Trofeo A", "fake-path-A"),
-            new OutputDeviceDescriptor(target.DeviceId.ToUpperInvariant(), OutputTargetContract.TrofeoTransport,
+            new OutputDeviceDescriptor(target.DeviceId.ToUpperInvariant(), OutputTargetContract.LyBulkTransport,
                 "Synthetic Trofeo B", "fake-path-B")
         };
 
@@ -57,7 +57,7 @@ internal static class DeviceDiscoveryStage16Tests
         Check(unbound.Status == OutputDeviceResolutionStatus.Missing && unbound.Device is null,
             "An unbound target must require an exact binding even if multiple physical interfaces are present.");
 
-        target.DeviceId = "trofeo:" + new string('b', 64);
+        target.DeviceId = "usb-interface:" + new string('b', 64);
         var absent = OutputDeviceSelection.Resolve(target, twins);
         Check(absent.Status == OutputDeviceResolutionStatus.Missing && absent.Device is null,
             "A missing exact binding must never fall back to a similar attached interface.");
@@ -99,14 +99,14 @@ internal static class DeviceDiscoveryStage16Tests
     public static void DuplicateSerialFingerprint()
     {
         var first = new OutputDeviceDescriptor(
-            "trofeo:" + new string('a', 64),
-            OutputTargetContract.TrofeoTransport, "Synthetic A", "mock-a")
+            "usb-interface:" + new string('a', 64),
+            OutputTargetContract.LyBulkTransport, "Synthetic A", "mock-a")
         {
             PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("TWIN")
         };
         var second = new OutputDeviceDescriptor(
-            "trofeo:" + new string('b', 64),
-            OutputTargetContract.TrofeoTransport, "Synthetic B", "mock-b")
+            "usb-interface:" + new string('b', 64),
+            OutputTargetContract.LyBulkTransport, "Synthetic B", "mock-b")
         {
             PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("twin")
         };
@@ -135,10 +135,10 @@ internal static class DeviceDiscoveryStage16Tests
         other.Transport = OutputTargetContract.DesktopTransport;
         var device = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("known-stage16"),
-            OutputTargetContract.TrofeoTransport, "Known", "known-stage16");
+            OutputTargetContract.LyBulkTransport, "Known", "known-stage16");
         var newDevice = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("new-stage16"),
-            OutputTargetContract.TrofeoTransport, "New", "new-stage16");
+            OutputTargetContract.LyBulkTransport, "New", "new-stage16");
         known.DeviceId = device.DeviceId;
 
         var before = PhysicalDeviceInventory.Build([other, known], []);
@@ -163,6 +163,7 @@ internal static class DeviceDiscoveryStage16Tests
             "Passive inventory must not enable hardware or mutate a configured physical binding.");
 
         var legacy = Target();
+        legacy.DeviceId = string.Empty;
         var legacyObserved = PhysicalDeviceInventory.Build([legacy], [device]);
         Check(legacyObserved.Count == 2 &&
               legacyObserved[0].Status == PhysicalDeviceInventoryStatus.Disconnected &&
@@ -190,7 +191,7 @@ internal static class DeviceDiscoveryStage16Tests
         var known = Target();
         var device = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("stage17-physical-device"),
-            OutputTargetContract.TrofeoTransport, "Known", "stage17-physical-device");
+            OutputTargetContract.LyBulkTransport, "Known", "stage17-physical-device");
         known.DeviceId = device.DeviceId;
 
         var found = PhysicalDeviceInventory.Build([known], [device]);
@@ -243,7 +244,7 @@ internal static class DeviceDiscoveryStage16Tests
         };
         var config = new AppConfig { Outputs = new OutputConfig { Targets = [physical, desktop] } };
         var device = new OutputDeviceDescriptor(
-            physical.DeviceId, OutputTargetContract.TrofeoTransport, "Known device", "synthetic-path");
+            physical.DeviceId, OutputTargetContract.LyBulkTransport, "Known device", "synthetic-path");
         var model = new DeviceSettingsModel(config);
         var draft = model.Entries.Single().Target;
         var before = PhysicalDeviceInventory.Build(config.Outputs.Targets, [device]);
@@ -299,7 +300,7 @@ internal static class DeviceDiscoveryStage16Tests
         var known = Target();
         var device = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("stage16-captured-interface"),
-            OutputTargetContract.TrofeoTransport, "Captured", "stage16-captured-interface")
+            OutputTargetContract.LyBulkTransport, "Captured", "stage16-captured-interface")
         {
             PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("synthetic-captured-serial")
         };
@@ -329,13 +330,13 @@ internal static class DeviceDiscoveryStage16Tests
         var known = Target();
         var previous = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("old-stage16"),
-            OutputTargetContract.TrofeoTransport, "Known", "old-stage16")
+            OutputTargetContract.LyBulkTransport, "Known", "old-stage16")
         {
             PhysicalFingerprint = PassiveTrofeoIdentity.Fingerprint("same-serial")
         };
         var newPath = new OutputDeviceDescriptor(
             DeviceDiscovery.CreateStableDeviceId("other-port-stage16"),
-            OutputTargetContract.TrofeoTransport, "Other port", "other-port-stage16")
+            OutputTargetContract.LyBulkTransport, "Other port", "other-port-stage16")
         {
             PhysicalFingerprint = previous.PhysicalFingerprint
         };
@@ -369,11 +370,11 @@ internal static class DeviceDiscoveryStage16Tests
     }
 
     private static OutputTargetConfig Target() => new()
-    {
+    { Width = 1920, Height = 480, DeviceId = "usb-interface:27cf85e4d50c05e997fe537096c9740f78f410b8f8b1c3dfffcb95a5000d3848",
         Id = "stage16-physical",
         Name = "Stage16 synthetic physical output",
-        Kind = OutputTargetContract.TrofeoKind,
-        Transport = OutputTargetContract.TrofeoTransport,
+        Kind = OutputTargetContract.PhysicalKind,
+        Transport = OutputTargetContract.LyBulkTransport,
         DeviceEnabled = false
     };
 

@@ -162,7 +162,7 @@ internal static class FramePumpShutdownTests
     }
 
     private static OutputTargetConfig Target(int timeoutMs) => new()
-    {
+    { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:e912cbded0e8644fea777832da3443ec7f5a9ed35fa4a52b2eda150d97218dae",
         Id = "synthetic-physical", Name = "Synthetic physical", Dashboard = "Synthetic",
         DeviceEnabled = true, ProviderEnabled = true, RefreshIntervalMs = 50,
         Usb = new UsbConfig { TransferTimeoutMs = timeoutMs }

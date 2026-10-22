@@ -9,7 +9,7 @@ internal static class Issue71RecoveryTests
     {
         foreach (var failOpen in new[] { false, true })
         {
-            var device = Device("turzx", 'b');
+            var device = Device("encrypted-jpeg", 'b');
             var target = EnabledTarget();
             var present = 0; var opens = 0; var disposed = 0; var scans = 0;
             using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(),
@@ -41,7 +41,7 @@ internal static class Issue71RecoveryTests
 
     public static void RecoveryRequiresTrustworthyAbsenceAndExactReturn()
     {
-        var device = Device("turzx", 'b');
+        var device = Device("encrypted-jpeg", 'b');
         var phase = 0; var opens = 0; var scans = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
             (_, _, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
@@ -53,7 +53,7 @@ internal static class Issue71RecoveryTests
                     1 => throw new InvalidOperationException("Synthetic unavailable metadata"),
                     2 or 4 => [device, device],
                     3 => [],
-                    5 => [Device("turzx", 'c'), Device("trofeo", 'b')],
+                    5 => [Device("encrypted-jpeg", 'c'), Device("ly-bulk", 'd')],
                     _ => [device]
                 };
             });
@@ -77,7 +77,7 @@ internal static class Issue71RecoveryTests
             Check(SpinWait.SpinUntil(() => Volatile.Read(ref scans) > before, 3000), "Reattachment scan must run.");
             Thread.Sleep(50);
             Check(Volatile.Read(ref opens) == 1 && pump.SentFrames == 0,
-                "An ambiguous, different-unit or different-adapter result cannot satisfy exact reattachment.");
+                "An ambiguous or different-unit result with any protocol hint cannot satisfy exact reattachment.");
         }
         Volatile.Write(ref phase, 0);
         Check(SpinWait.SpinUntil(() => pump.SentFrames >= 1, 5000) && Volatile.Read(ref opens) == 2,
@@ -88,7 +88,7 @@ internal static class Issue71RecoveryTests
     {
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var device = Device("turzx", 'b'); var opens = 0; var scans = 0; var missing = 0;
+        var device = Device("encrypted-jpeg", 'b'); var opens = 0; var scans = 0; var missing = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
             (_, _, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
             turzxRecoveryDiscovery: () =>
@@ -151,7 +151,7 @@ internal static class Issue71RecoveryTests
 
     private static OutputTargetConfig EnabledTarget()
     {
-        var target = Target(Device("turzx", 'b'));
+        var target = Target(Device("encrypted-jpeg", 'b'));
         target.DeviceEnabled = true; target.RefreshIntervalMs = 10; target.Usb!.RetryIntervalMs = 500;
         return target;
     }
@@ -159,7 +159,7 @@ internal static class Issue71RecoveryTests
     private sealed class Frame(bool fail, Action? disposed = null) : IPhysicalFrameTransport
     {
         public int WireRotationDegrees => 90;
-        public PhysicalFrameProfile Profile => PhysicalFrameProfile.Turzx;
+        public PhysicalFrameProfile Profile => PhysicalFrameProfile.EncryptedJpeg;
         public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics)
         { if (fail) throw new Win32Exception(22, "Synthetic submit failure"); }
         public void RecordLifecycle(string state, string reason) { }

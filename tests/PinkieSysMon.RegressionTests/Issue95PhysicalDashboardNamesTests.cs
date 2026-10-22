@@ -25,9 +25,9 @@ internal static class Issue95PhysicalDashboardNamesTests
         }
 
         Check(OutputDefaultDashboardPolicy.NameForPhysicalGeometry(1920, 480) ==
-              OutputDefaultDashboardPolicy.TrofeoName &&
+              "device_1920x480_default" &&
               OutputDefaultDashboardPolicy.NameForPhysicalGeometry(1920, 720) ==
-              OutputDefaultDashboardPolicy.TurzxName,
+              "device_1920x720_default",
             "Existing physical board names must remain stable during generic onboarding.");
         foreach (var dimensions in new[] { (0, 480), (-1, 480), (1920, 0), (1920, -1) })
         {

@@ -28,16 +28,16 @@ internal static class Issue77DevicesUiTests
         var infoPage = infoPages.Single(page => Details(page).Text.Contains("1CBE:0123"));
         var unsupportedPage = infoPages.Single(page => Details(page).Text.Contains("1CBE:0080"));
         var details = Details(infoPage);
-        Check(details.Text.Contains("No matching usable TURZX interface was confirmed") &&
+        Check(details.Text.Contains("No matching eligible WinUSB interface was confirmed") &&
               !details.Text.Contains("Unsupported / protocol not available") &&
-              details.Text.Contains("Issue #71") && !details.Text.Contains("SYNTHETIC") &&
+              details.Text.Contains("catalog protocol hint") && !details.Text.Contains("SYNTHETIC") &&
               infoPages.All(page => page.Controls.Find("AddDevice", true).Length == 0 &&
                   page.Controls.Find("DeviceEnabled", true).Length == 0 && !Details(page).Text.Contains("SYNTHETIC")) &&
               !dialog.DevicesChanged && config.Outputs.Targets.Count == 1,
             "An integrated family without a proven exact interface stays read-only without private IDs, adoption or config mutation.");
-        Check(Details(unsupportedPage).Text.Contains("Unsupported / protocol not available") &&
-              !Details(unsupportedPage).Text.Contains("No matching usable TURZX interface"),
-            "An unsupported Turing size must retain its unsupported-family explanation rather than inherit the TURZX adapter.");
+        Check(Details(unsupportedPage).Text.Contains("No matching eligible WinUSB interface") &&
+              !Details(unsupportedPage).Text.Contains("Unsupported / protocol not available"),
+            "An unhinted catalog product must explain missing interface eligibility without a model/protocol whitelist.");
         tabs.SelectedTab = infoPage;
         recognitionFailure = true;
         dialog.RefreshDeviceDiscovery();

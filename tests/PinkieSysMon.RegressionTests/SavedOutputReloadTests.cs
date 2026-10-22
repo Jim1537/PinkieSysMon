@@ -71,7 +71,7 @@ internal static class SavedOutputReloadTests
         });
         var bytes = File.ReadAllBytes(f.Path);
         Check(f.Reload("c").Success && f.Session("c").Width == 640 &&
-              f.Session("c").Target is { Dashboard: OutputDefaultDashboardPolicy.TrofeoName, RefreshIntervalMs: 730, JpegQuality: 81,
+              f.Session("c").Target is { Dashboard: "device_1920x480_default", RefreshIntervalMs: 730, JpegQuality: 81,
                   Usb: { RetryIntervalMs: 2200, TransferTimeoutMs: 3300, DiagnosticJournalEnabled: true } } &&
               ReferenceEquals(f.Current.Renderer, previous.Renderer) && ReferenceEquals(f.Current.Usb, previous.Usb) &&
               f.Current.Display.RefreshIntervalMs == 1000 && f.Created.Count == 3 &&
@@ -80,7 +80,7 @@ internal static class SavedOutputReloadTests
               File.ReadAllBytes(f.Path).SequenceEqual(bytes),
             "Physical reload must use the per-device profile (not retired global selection), inherited common settings, consent, siblings and unchanged disk bytes.");
 
-        f.Edit(root => Target(root, "c")["DeviceId"] = "trofeo:" + new string('c', 64));
+        f.Edit(root => Target(root, "c")["DeviceId"] = "usb-interface:" + new string('c', 64));
         var commits = f.Session("c").Commits;
         Throws<InvalidOperationException>(() => f.Reload("c"));
         Check(f.Session("c").Commits == commits && f.Created.Count == 3,
@@ -239,15 +239,15 @@ internal static class SavedOutputReloadTests
             [
                 new() { Id = firstId, Name = "A", Kind = OutputTargetContract.DesktopKind, Dashboard = "Same", Desktop = new() },
                 new() { Id = "b", Name = "B", Kind = OutputTargetContract.DesktopKind, Dashboard = "Same", ProviderEnabled = true, Desktop = new() },
-                new() { Id = "c", Name = "C", Dashboard = "Hardware", DeviceEnabled = true, ProviderEnabled = true,
-                    DeviceId = "trofeo:" + new string('a', 64) },
-                new() { Id = "d", Name = "Disabled D", Dashboard = "Disabled", ProviderEnabled = true,
-                    DeviceId = "trofeo:" + new string('b', 64) }
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "c", Name = "C", Dashboard = "Hardware", DeviceEnabled = true, ProviderEnabled = true,
+                    DeviceId = "usb-interface:" + new string('a', 64) },
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "d", Name = "Disabled D", Dashboard = "Disabled", ProviderEnabled = true,
+                    DeviceId = "usb-interface:" + new string('b', 64) }
             ] } };
             Current.Save(Path);
             Edit(root => root["Future"] = new JsonObject { ["Keep"] = 42 });
             Board("Same", 320); Board("Hardware", 480); Board("Disabled", 500);
-            Board(OutputDefaultDashboardPolicy.TrofeoName, 640);
+            Board("device_1920x480_default", 640);
             Manager = new OutputSessionManager(Current, RuntimeConfigurationValidator.LoadAssignments(Current, Root), Metrics, log,
                 (app, target, board, store, logger) =>
                 {

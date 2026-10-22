@@ -47,17 +47,17 @@ internal static class TurzxRuntimeDiagnostic
             // Resolve assets/fonts and validate the encoded bound before any USB open.
             // Use the same explicit clock for bounded diagnostics and their real worker.
             using (var renderer = new DashboardRenderer(board, clock))
-            using (var preflight = renderer.RenderJpeg(metrics.Snapshot(), PhysicalFrameProfile.Turzx, 90))
+            using (var preflight = renderer.RenderJpeg(metrics.Snapshot(), PhysicalFrameProfile.EncryptedJpeg, 90))
                 write($"Preflight JPEG: {preflight.Length} bytes; wire raster 720x1920; aspect-preserving fit.");
             stage = "capture";
             var devices = (capture ?? TurzxDeviceDiscovery.Capture)();
             write($"Usable interfaces: {devices.Count}.");
             if (devices.Count != 1) { write("RUNTIME CHECK: INCOMPLETE (one exact interface required; no USB open)."); return 1; }
             var target = new OutputTargetConfig
-            {
-                Id = "turzx-runtime-check", Name = "TURZX runtime checkpoint", Kind = "turzx", Transport = "turzx",
+            { Width = 1920, Height = 720,
+                Id = "turzx-runtime-check", Name = "TURZX runtime checkpoint", Kind = "physical", Transport = "encrypted-jpeg",
                 DeviceId = devices[0].DeviceId, DeviceEnabled = true, Dashboard = CheckpointDashboardName, RefreshIntervalMs = refreshMs,
-                JpegQuality = 90, Usb = new UsbConfig { TransferTimeoutMs = 3000, RetryIntervalMs = 3000 }, Turzx = new()
+                JpegQuality = 90, Usb = new UsbConfig { TransferTimeoutMs = 3000, RetryIntervalMs = 3000 }, EncryptedJpeg = new()
             };
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
             var state = new CheckpointState();

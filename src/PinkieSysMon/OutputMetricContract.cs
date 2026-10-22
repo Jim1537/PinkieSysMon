@@ -61,7 +61,7 @@ internal static class OutputMetricContract
         Unavailable(new OutputTargetConfig
         {
             Id = outputId,
-            Kind = isPhysical ? OutputTargetContract.TrofeoKind : OutputTargetContract.DesktopKind
+            Kind = isPhysical ? OutputTargetContract.PhysicalKind : OutputTargetContract.DesktopKind
         });
 
     public static MetricDescriptor? DescribeKnownId(string id)

@@ -41,21 +41,17 @@ internal static class RuntimeUsbTestPreflight
                 StringComparison.OrdinalIgnoreCase))
             return RuntimeUsbTestPreflightStatus.BindingChanged;
 
-        // Only a catalog-proven implemented hint is authorized in this initial
-        // Runtime admission path. Additional protocols will need an explicit
-        // eligibility contract, never speculative handler cycling.
-        var catalog = UsbDisplayCatalog.Find(candidate.Family.Product);
-        if (catalog is null ||
-            !OutputTargetContract.HasIntegratedTransport(intent.Protocol) ||
-            !string.Equals(catalog.CandidateTransport, intent.Protocol,
-                StringComparison.OrdinalIgnoreCase))
+        // The catalog gates candidates, not the user's choice of implemented
+        // protocol. Native endpoint/alternate-setting validation precedes I/O.
+        if (UsbDisplayCatalog.Find(candidate.Family.Product) is null ||
+            !OutputTargetContract.HasIntegratedTransport(intent.Protocol))
             return RuntimeUsbTestPreflightStatus.UnsupportedProtocol;
 
         try
         {
             // Same canonical bounded #94 geometry generator used by the card.
             // This is an in-memory feasibility check, not a persisted board.
-            _ = AdaptiveDashboardFactory.Create(intent.Width, intent.Height, 0, string.Empty);
+            AdaptiveDashboardFactory.ValidateGeometry(intent.Width, intent.Height, 0);
         }
         catch (ArgumentOutOfRangeException)
         {

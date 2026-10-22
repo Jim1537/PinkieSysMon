@@ -7,7 +7,7 @@ internal static class OutputPerformanceMetricTests
 {
     public static void IdentityAndCatalog()
     {
-        var physical = MakeTarget("screen-a", OutputTargetContract.TrofeoKind);
+        var physical = MakeTarget("screen-a", OutputTargetContract.PhysicalKind);
         var desktop = MakeTarget("desktop-a", OutputTargetContract.DesktopKind);
         var physicalIds = OutputMetricContract.DescriptorsFor(physical);
         var desktopIds = OutputMetricContract.DescriptorsFor(desktop);
@@ -46,7 +46,7 @@ internal static class OutputPerformanceMetricTests
         Check(!MetricContract.Descriptors.Any(d => d.Id.StartsWith("system.output.screen-b.")),
             "The visible metric catalog must advertise only configured Output identities.");
 
-        MetricContract.ReplaceOutputDescriptors([physical, MakeTarget("screen-b", OutputTargetContract.TrofeoKind)]);
+        MetricContract.ReplaceOutputDescriptors([physical, MakeTarget("screen-b", OutputTargetContract.PhysicalKind)]);
         Check(MetricContract.Descriptors.Any(d => d.Id == idB) &&
               !MetricContract.Descriptors.Any(d => d.Id.StartsWith("system.output.desktop-a.")),
             "Replacing configured Outputs must withdraw obsolete descriptor identities.");
@@ -123,10 +123,12 @@ internal static class OutputPerformanceMetricTests
 
     private static OutputTargetConfig MakeTarget(string id, string kind) => new()
     {
-        Id = id, Name = id,
-        Kind = kind,
-        ProviderEnabled = true,
-        DeviceEnabled = kind == OutputTargetContract.TrofeoKind
+        Id = id, Name = id, Kind = kind,
+        Transport = kind == OutputTargetContract.PhysicalKind ? OutputTargetContract.LyBulkTransport : OutputTargetContract.DesktopTransport,
+        Width = kind == OutputTargetContract.PhysicalKind ? 800 : 0,
+        Height = kind == OutputTargetContract.PhysicalKind ? 600 : 0,
+        DeviceId = kind == OutputTargetContract.PhysicalKind ? DeviceDiscovery.CreateStableDeviceId("fixture-" + id) : "",
+        ProviderEnabled = true, DeviceEnabled = kind == OutputTargetContract.PhysicalKind
     };
 
     private static AppConfig Config() => new()
@@ -136,14 +138,14 @@ internal static class OutputPerformanceMetricTests
             Targets =
             [
                 new OutputTargetConfig
-                {
+                { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                     Id = "left", Name = "Left", ProviderEnabled = true, DeviceEnabled = true,
-                    DeviceId = "trofeo:" + new string('a', 64)
+                    DeviceId = "usb-interface:" + new string('a', 64)
                 },
                 new OutputTargetConfig
-                {
+                { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                     Id = "right", Name = "Right", ProviderEnabled = true, DeviceEnabled = true,
-                    DeviceId = "trofeo:" + new string('b', 64)
+                    DeviceId = "usb-interface:" + new string('b', 64)
                 }
             ]
         }

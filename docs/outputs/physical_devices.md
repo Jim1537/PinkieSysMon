@@ -2,7 +2,9 @@
 
 A **physical Output** assigns a saved dashboard to a supported hardware display.
 
-When a supported integrated device is **newly added** in Settings, its initial assignment is an ordinary editable on-demand board: `device_1920x480_default` for Trofeo or `device_1920x720_default` for TURZX (0° orientation). The saved board is created only after **OK**; an existing valid board of that name is reused without overwriting edits, and an explicit alternative saved assignment wins. **Cancel**, passive discovery and reconnect create no files. Unrecognized or unsupported families are never adopted by this mechanism. See the [supported model inventory](../supported-devices.md) for verified native dimensions. This guide covers discovery, explicit adoption, Settings and daily management. The [Supported Devices inventory](../supported-devices.md) defines which models are implemented; a similar USB connector, resolution or appearance does not establish compatibility.
+A saved physical Output uses the user's name, exact USB interface binding, selected implemented protocol and explicit screen width/height. The first working board is `device_<width>x<height>_default`, at 0° orientation, generated through the shared adaptive dashboard factory. An existing valid board is reused without overwriting edits. Ordinary frames use the assigned dashboard's Canvas; screen dimensions are not a model-size whitelist or an automatic fitting instruction.
+
+**Onboarding integration is pending:** candidate fields now use this generic model, but the live Runtime Test/visual confirmation/Save transaction is not available yet. The candidate's **Test** and **Save Configuration** actions stay disabled; the old **Add Device** and candidate **Enabled** shortcuts cannot bypass confirmation. The continuation and acceptance gates are tracked in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). The configured-Output controls below operate on the new format. Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 
@@ -10,48 +12,41 @@ For Windows panels without display hardware, use [Desktop](desktop.md). A config
 
 ### Step 1. Prepare the device and dashboard
 
-1. Check the [supported model](../supported-devices.md) and its linked integration reference. Adapter availability and acceptance differ by model; this common workflow does not promise support for arbitrary USB displays or future adapters.
+1. Check the [observed hardware inventory](../supported-devices.md) and protocol references. Candidate admission requires an exact VID/PID in the maintained USB catalog plus eligible Windows metadata; inclusion does not prove firmware compatibility.
 2. Connect the supported hardware through its required Windows interface. PinkieSysMon's current direct USB output is separate from Windows extended/mirrored monitors.
 3. Close vendor display-control software and other applications that could control the same hardware before enabling PinkieSysMon output.
-4. In the Dashboard Editor, open or create and **save** the desired dashboard. Configure its Canvas and widgets using the [widget/property guides](../README.md#available-widgets) and the model's geometry requirements linked from the supported-device inventory.
+4. In the Dashboard Editor, open or create and **save** the desired dashboard. Configure its Canvas and widgets using the [widget/property guides](../README.md#available-widgets) for the dimensions you intend to display.
 
 Adopting an Output creates an application configuration record. It does not create hardware, author a dashboard or install a generic display driver.
 
 ### Step 2. Find the Device tab
 
-Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Type** and status.
+Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Protocol**, user dimensions and status.
 
 | Settings state | Meaning and available actions |
 | --- | --- |
 | **Connected**, configured | A saved Output resolves to one present device. Its settings are editable. This is passive presence, not proof of a Runtime connection or delivered frames. |
-| **Connected**, **Not configured** | A newly detected disabled candidate. Edit it, then explicitly adopt it with **Add Device**, or through confirmed **Enabled** consent. |
+| **Connected**, **Not configured** | An unsaved candidate with editable name, dimensions and protocol. Onboarding is pending; neither Save Configuration nor Enabled may adopt it without Test confirmation. |
 | **Disconnected** | Saved values remain visible, but settings and Add are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
-| **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Add are disabled; do not assume that one matching device was chosen. |
-| **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Add are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
-| **Recognized**, **Unsupported / protocol not available** | A researched USB display family has no integrated adapter. Its tab shows the generic family and non-secret USB VID:PID, with no Add, Enabled or adapter options. |
-| **No matching usable … interface was confirmed** | Windows recognizes an adapter family, but an exact supported-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
+| **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Save are disabled; do not assume that one matching device was chosen. |
+| **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Save are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
+| **No matching eligible WinUSB interface was confirmed** | Windows recognizes a catalog product, but an exact eligible-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
 
 Unrelated USB products are excluded. Hardware that has never been detected and has no saved record creates no tab. Settings refreshes presence on opening and Windows device-change notifications; disconnect/reconnect retains existing draft values. Presence alone never saves a device or opens its transport. See the [inventory mechanism](#passive-inventory-and-explicit-adoption).
 
 ### Step 3. Configure and adopt the Output
 
-1. Select the intended **Device #N** tab with an unambiguous **Connected** state.
-2. Set **Display name** and select the saved **Dashboard**. Renaming the Output does not rename the dashboard or change its hardware binding.
-3. Set **Refresh interval (ms)** for this Output. This is the requested frame interval, not a guaranteed FPS or a sensor-polling interval.
-4. Choose **Provider Enabled** if dashboards should use this Output's status/performance metrics. Its [metric contract](../telemetry/system.md#runtime-and-output-performance-metrics) is independent of hardware enablement and the global System provider.
-5. For a **Not configured** candidate, click **Add Device** to include it in the Settings draft **without enabling hardware**. Changing fields alone does not adopt an unsaved candidate.
+For a candidate, enter **Display name**, **Width**, **Height** and **Protocol**. A unique passive catalog hint can suggest a protocol; an unhinted interface requires an explicit choice. Neither hint nor name proves compatibility. No device dimensions are inferred. The required sequence is a clean Runtime Test, positive changing-seconds confirmation and separate Save Configuration, leaving the saved Output disabled. This sequence is not yet connected to the live Runtime/UI; current candidate controls do not persist it.
 
-Model-dependent controls belong to the selected adapter. See [Trofeo settings](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) or [TURZX settings and capability limits](../development/devices/turzx-12.3.md#application-configuration) for JPEG/USB options, inheritance and supported hardware controls. Retry delay and per-operation timeout are different settings. A diagnostic journal adds disk I/O; it does not repair a USB fault.
-
-Hover over a control or its help icon for its effect and dependencies. These device settings belong to the selected Device tab, rather than Editor settings or Desktop.
+For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding when available. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
 
 ### Step 4. Grant device-use consent and apply
 
-To permit hardware output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. Confirmed enabling of a new candidate also adopts it, so a separate Add Device click is not required in that route.
+To permit hardware output for an already configured Output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. An unconfigured candidate cannot be enabled or adopted through this switch.
 
 Click **OK** to validate/save the draft and apply it through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). A newly enabled device is rechecked after consent and immediately before saving. If it has disappeared or become ambiguous, enabling fails instead of selecting replacement hardware.
 
-**Cancel** discards the draft, including adoption, device enablement and removals. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
+**Cancel** discards the draft, including configured-device edits, enablement and removals. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
 
 | Switch | What it permits |
 | --- | --- |
@@ -78,7 +73,7 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 | --- | --- |
 | Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The configured device's tray **Enabled** switch also offers disabling. |
 | Physically disconnect | Leave the saved Output configured. An enabled session follows its adapter's binding/recovery policy; disconnecting does not revoke saved enablement or remove its record. |
-| **Remove** and confirm | Delete the selected saved Output record (or dismiss an unsaved candidate), stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
+| **Remove** and confirm | Delete the selected saved Output record, stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
 
@@ -93,7 +88,7 @@ For saved enablement, disabling the final Output, global shutdown and normal res
 | Observation | Check or next action |
 | --- | --- |
 | No Device tab | Verify model/interface support and physical connection. Never-detected absent hardware has no placeholder tab. |
-| Unsupported family, or a display outside the recognition catalog | Follow the owning integration Issue shown on its tab, or [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Detection does not permit trying a different adapter. |
+| No eligible interface, or a display outside the recognition catalog | Follow the owning integration Issue shown on its tab, or [request device support](https://github.com/Jim1537/PinkieSysMon/issues). Unlisted VID/PID pairs require a deliberate catalog update; there is no arbitrary WinUSB selector. |
 | Connected in Settings, but no display output | Check Enabled in Settings, Runtime's target state and Reload result, then the saved assignment. Passive detection does not acquire the transport. |
 | **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Follow the selected adapter's recovery policy; a new attempt does not establish that recovery succeeded. |
 | Ambiguous identity or a changed interface path | Resolve the actual binding using the selected adapter's identity rules linked from [Supported Devices](../supported-devices.md). No first-match fallback or automatic rebinding is performed. |
@@ -111,17 +106,29 @@ The selected adapter's native completion limits still apply to a stalled USB ope
 
 | Common physical-Output responsibilities | Adapter-specific responsibilities |
 | --- | --- |
-| Named saved Output, dashboard assignment and independent consent/provider policy | Supported model, native geometry, transport key and configuration options |
-| Passive inventory and explicit candidate adoption | Windows interface discovery and hardware identity derivation |
+| Named saved Output, dashboard assignment and independent consent/provider policy | Protocol key, wire rotation, endpoints, payload bounds and protocol options |
+| Passive inventory and explicit candidate adoption | Native endpoint/interface checks before protocol commands |
 | Detached editing, validation, removal and session coordination | Open/handshake, encoding, framing, ACK and native I/O lifetime |
 
-`DeviceSettingsModel` and `PhysicalDeviceInventory` classify physical records through `OutputTargetContract.IsPhysicalKind`. Trofeo and [TURZX](../development/devices/turzx-12.3.md) route enabled records to their respective adapters through the common factory; each adapter retains its own capability and recovery limits. This is not an open-ended plug-in compatibility promise. Exact interface IDs, path-derived bindings and fingerprints remain with the model-specific references in [Supported Devices](../supported-devices.md). There is no automatic selection of a sole detected device: a saved physical Output without an exact interface binding remains disconnected, and the observed device remains an unconfigured candidate.
+`DeviceSettingsModel` and `PhysicalDeviceInventory` classify all physical records with `OutputTargetContract.PhysicalKind`. The shared session factory creates `FramePump` for either implemented protocol; the transport factory selects its existing wire implementation by `Transport`. Commercial model names and catalog hints never select a saved session. Each worker retains independent renderer, transport, cancellation and metrics ownership. A missing exact binding remains disconnected even when a single device is present.
 
 ### Configuration and identity
 
-Physical Outputs use local `Outputs.Targets` records. Their `Id` identifies the application Output; `Name` is its label; `DeviceId` identifies the adapter's hardware binding. Neither the display name nor Settings tab number is a substitute for either identity. A hardware path/fingerprint observation is not the Output metric identity.
+Physical Outputs use local `Outputs.Targets` records:
 
-`Dashboard`, `RefreshIntervalMs` and `ProviderEnabled` belong to each Output. Physical records additionally own explicit `DeviceEnabled`, `Transport`, `DeviceId` and the current adapter's `JpegQuality`/`Usb` overrides; they must not contain Desktop configuration. `OutputTargetContract` rejects invalid or duplicate identities/bindings. The selected adapter owns normalization, inherited values, bounds and capability limits; use its integration reference from Supported Devices.
+| Field | Contract |
+| --- | --- |
+| `Kind` | `physical`; Desktop remains `desktop`. Old model kinds and protocol aliases are not read or migrated. |
+| `Transport` | One selected protocol: `ly-bulk` or `encrypted-jpeg`. No model/size dispatch key. |
+| `Id` / `Name` | Stable logical Output ID / editable user label. Neither is hardware identity. |
+| `DeviceId` | `usb-interface:` plus SHA-256 of the trimmed, uppercased exact interface path. No raw path is persisted and no serial/port-change rebinding is guessed. |
+| `Width` / `Height` | Explicit required user geometry, validated through the shared adaptive generator's geometry limits; used for first-board assignment. |
+| `Dashboard` | Independent ordinary saved document reference. Missing/corrupt explicit assignments are not replaced. |
+| `DeviceEnabled` / `ProviderEnabled` | Independent hardware-use and metric-publication switches. Confirmed candidate conversion starts both false. |
+| `RefreshIntervalMs`, `JpegQuality`, `Usb` | Per-Output cadence, encoding and USB options; absent overrides use application defaults. |
+| `EncryptedJpeg` | Options owned only by the [encrypted JPEG protocol](../development/devices/turzx-12.3.md#application-configuration). |
+
+Duplicate interface bindings are rejected even when the Outputs choose different protocols. Connection equality includes protocol, exact binding and both dimensions, so selected reload cannot silently apply changed wire settings. Editor copies and JSON transactions retain these fields independently. Desktop records reject physical bindings, dimensions and USB/JPEG options.
 
 Provider descriptors and unavailable values are defined by the [Output metric owner](../telemetry/system.md#runtime-and-output-performance-metrics). The shared [application/dashboard persistence boundary](../development/architecture.md#persistence-and-schema-boundary) prevents Output edits from becoming dashboard-schema changes.
 
@@ -142,11 +149,13 @@ If an intermittent failure recurs during normal use, preserve the main log and i
 
 ### Passive inventory and explicit adoption
 
-`PhysicalDeviceDiscovery` combines independent Trofeo/TURZX Windows metadata scans without opening a WinUSB transport. A partial failure carries healthy descriptors and explicitly unavailable transport families. Settings revokes stale editable presence only for failed families; Runtime inventory marks their configured records Discovery unavailable. The other family remains usable. Tray enablement captures only the selected adapter's interfaces. `PhysicalDeviceInventory.Build` retains configured devices as Connected/Disconnected/Ambiguous and identifies unconfigured candidates. Duplicate configured identities and discovered physical-identity claims fail closed. A changed path is not rebound merely because an optional fingerprint matches.
+`PhysicalDeviceDiscovery` projects the catalog-scoped `CatalogUsbInterfaceDiscovery` snapshot. Only exact listed VID/PID, healthy WinUSB devnodes, registered interface classes and independent exact interface/devnode correlation produce candidates. Composite functions retain their physical parent's identity. Duplicate paths, node claims and available serial-backed fingerprints fail closed; a fingerprint never replaces the persisted interface binding. Names come from passive PnP metadata or a neutral Device #N suggestion.
+
+Incomplete metadata is distinct from absence. Inventory retains proven healthy entries while unavailable unresolved entries lose editable status. Active acquisition revalidates the selected binding against a fresh catalog snapshot. Recovery cannot infer unplugging from an incomplete snapshot. Discovery opens no WinUSB transport and issues no protocol commands.
 
 Runtime captures inventory at startup and successful configuration reload and refreshes it when the Runtime tray root menu is opened. Tray enablement has a [separate validation sequence](#tray-enabled-transaction). This menu inventory retains its snapshot in memory, with no periodic refresh or live hotplug subscription. An active worker may separately observe passive metadata under its adapter's [recovery policy](#session-lifecycle-and-evidence-limits); that observation does not refresh the menu inventory. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
 
-The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates, removed bindings and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Add explicitly adopts a disabled candidate; a confirmed enabled transition also adopts it. A removed binding is suppressed within the dialog, while reopening can offer it as a new unsaved candidate.
+The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates, removed bindings and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Candidate conversion requires the exact latest clean released Test plus positive visual confirmation; consent alone cannot adopt it. A removed binding is suppressed within the dialog, while reopening can offer it as a new unsaved candidate.
 
 ### Passive USB family recognition
 
@@ -159,11 +168,11 @@ The [discovery implementation](https://github.com/Jim1537/PinkieSysMon/blob/main
 | Errors and bounds | List size and termination are checked; buffer-growth races retry at most three size/list pairs. A CM list/lookup failure is an unavailable scan, not a successful empty result. A node removed during lookup is omitted; missing driver/class/parent metadata remains an explicit gap. |
 | Grouping | Case aliases are deduplicated. Function devnodes join an observed matching non-function parent only through the actual PnP relation. Equal product pairs or similar instance tokens do not merge separate units. Conflicting copies of one devnode are ambiguous. |
 | Identity and privacy | A namespaced SHA-256 observation key correlates one devnode/group within snapshots. It is not a hardware serial, persisted Output binding or automatic rebind mechanism. Observations expose no raw instance IDs or interface paths. |
-| Eligibility | Recognition results have no openable path and create no Output configuration, provider or session. A catalog candidate handler, driver/setup class or zero problem code does not authorize transport dispatch. Only the existing adapter's independent interface discovery can supply a usable descriptor. |
+| Eligibility | Recognition results have no openable path and create no Output configuration, provider or session. A catalog candidate handler, driver/setup class or zero problem code does not authorize transport dispatch. Only the catalog-scoped interface discovery described above can supply a usable descriptor. |
 
 `UsbDisplayReconciliation` suppresses an informational duplicate only when exactly one independently discovered supported interface maps to an observed devnode/member and the identities are unambiguous. Equal USB products or serial text cannot establish this match. `RecognizedDeviceSettingsModel` retains informational tabs and their Disconnected/Discovery unavailable states only while the dialog is open; it has no configuration or consent API. The two discovery paths fail independently, so a family-scan failure cannot disable otherwise valid supported-interface settings.
 
-Supported-device Settings, consent, Runtime inventory and transport dispatch retain the adapter's discovery path described [above](#passive-inventory-and-explicit-adoption). Recognition expands visibility, not hardware enablement. A TURZX recognition-only entry points to [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) when no exact usable interface is confirmed; a proven matching interface instead receives the normal Device tab. Recognition supplies no geometry, encoding, brightness or USB defaults. Deterministic tests exercise metadata fakes, reconciliation and detached drafts; native Windows discovery, visual behavior and physical compatibility require separate observations.
+Settings, consent, Runtime inventory and transport dispatch use the common discovery path described [above](#passive-inventory-and-explicit-adoption). A recognition-only entry explains that no eligible interface was confirmed, regardless of the catalog's protocol hint; a proven matching interface receives the normal candidate tab. Recognition supplies no geometry, encoding, brightness or USB defaults. Deterministic tests exercise metadata fakes, reconciliation and detached drafts; native Windows discovery, visual behavior and physical compatibility require separate observations.
 
 ### Draft validation and application
 

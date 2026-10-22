@@ -300,8 +300,8 @@ internal static class SavedConfigurationReloadTests
                 new() { Id = "a", Name = "A", Kind = OutputTargetContract.DesktopKind, Dashboard = "Same", Desktop = new() },
                 new() { Id = "e", Name = "E", Kind = OutputTargetContract.DesktopKind, Dashboard = "Same", Desktop = new() },
                 new() { Id = "b", Name = "Disabled B", Kind = OutputTargetContract.DesktopKind, Dashboard = "MissingDisabled", Desktop = new() { BoardEnabled = false } },
-                new() { Id = "c", Name = "C", Dashboard = "Hardware", DeviceEnabled = true, DeviceId = "trofeo:" + new string('a', 64) },
-                new() { Id = "d", Name = "Disabled D", Dashboard = "BrokenDisabled", ProviderEnabled = true, DeviceId = "trofeo:" + new string('b', 64) }
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "c", Name = "C", Dashboard = "Hardware", DeviceEnabled = true, DeviceId = "usb-interface:" + new string('a', 64) },
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "d", Name = "Disabled D", Dashboard = "BrokenDisabled", ProviderEnabled = true, DeviceId = "usb-interface:" + new string('b', 64) }
             ] } };
             app.Save(AppPath);
             Edit(root => root["Future"] = new JsonObject { ["Keep"] = 42 });

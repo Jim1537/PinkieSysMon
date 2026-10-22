@@ -51,7 +51,8 @@ internal static class PhysicalDeviceInventory
         catch (PhysicalDeviceDiscoveryException error)
         {
             return Build(configuredTargets, error.Devices).Select(entry =>
-                entry.ConfiguredTarget is { } target && error.UnavailableTransports.Contains(target.Transport)
+                entry.ConfiguredTarget is { } target && entry.DiscoveredDevice is null &&
+                error.UnavailableTransports.Contains(target.Transport)
                     ? entry with { Status = PhysicalDeviceInventoryStatus.DiscoveryUnavailable, DiscoveredDevice = null }
                     : entry).ToArray();
         }
@@ -67,10 +68,7 @@ internal static class PhysicalDeviceInventory
         var targets = configuredTargets
             .Where(target => OutputTargetContract.IsPhysicalKind(target.Kind))
             .ToArray();
-        var candidates = discoveredDevices
-            .Where(device => device.Transport.Equals(OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
-                device.Transport.Equals(OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        var candidates = discoveredDevices.ToArray();
 
         var duplicateConfiguredIds = targets
             .Where(target => !string.IsNullOrWhiteSpace(target.DeviceId))

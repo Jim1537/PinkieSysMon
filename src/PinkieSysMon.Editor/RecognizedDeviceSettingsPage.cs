@@ -30,12 +30,9 @@ internal sealed class RecognizedDeviceSettingsPage : TabPage
                 _ => "Recognized"
             }
         };
-        var support = observation.Family.CandidateTransport is not null
-            ? $"No matching usable {(observation.Family.CandidateTransport == OutputTargetContract.TrofeoTransport ? "Trofeo" : "TURZX")} interface was confirmed. Control is unavailable."
-            : "Unsupported / protocol not available in PinkieSysMon.";
-        var next = observation.Family.IntegrationIssue is { } issue
-            ? $"Transport integration is tracked in Issue #{issue}."
-            : "For support requests, include the product/model and USB product ID shown here.";
+        var support = "No matching eligible WinUSB interface was confirmed. Control is unavailable.";
+        var next = "A catalog protocol hint is only a suggestion; an eligible interface permits explicit protocol selection. " +
+            "For support requests, include the product/model and USB product ID shown here.";
         _details.Text = $"{observation.Family.Name}\n\n" +
             $"USB VID:PID: {observation.Family.Product}\nStatus: {status}\n\n" +
             support + "\nNot configured. This read-only entry cannot be added or enabled.\n\n" +

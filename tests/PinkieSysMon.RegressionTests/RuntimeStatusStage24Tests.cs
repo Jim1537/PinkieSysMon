@@ -29,7 +29,7 @@ internal static class RuntimeStatusStage24Tests
                   desktop.DeviceEnabled is null && desktop.ProviderEnabled == false && desktop.Lock == true &&
                   desktop.IsVisible == true && desktop.RefreshIntervalMs == 250,
                 "Desktop status must expose its actual assignment, independent switches, cadence and observed visibility.");
-            Check(physical.Kind == OutputTargetContract.TrofeoKind && physical.Dashboard == "Second" &&
+            Check(physical.Kind == OutputTargetContract.PhysicalKind && physical.Dashboard == "Second" &&
                   physical.OutputEnabled == false && physical.DeviceEnabled == false && physical.ProviderEnabled == true &&
                   physical.BoardEnabled is null && physical.Lock is null && physical.IsVisible is null &&
                   !physical.IsActive && !physical.IsConnected && created.All(s => s.TargetId != "device-b"),
@@ -107,7 +107,7 @@ internal static class RuntimeStatusStage24Tests
             new() { Id = "desktop-a", Name = "Panel", Kind = OutputTargetContract.DesktopKind,
                 Transport = OutputTargetContract.DesktopTransport, Dashboard = "First", RefreshIntervalMs = 250,
                 Desktop = new DesktopOutputConfig { BoardEnabled = true, Lock = true } },
-            new() { Id = "device-b", Name = "Disabled device", Kind = OutputTargetContract.TrofeoKind,
+            new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:10423266a6a6e5322f48bd28d5a04daa8f9888ca9f859fb1d13b4f402c3ffc20", Id = "device-b", Name = "Disabled device", Kind = OutputTargetContract.PhysicalKind,
                 Dashboard = "Second", DeviceEnabled = false, ProviderEnabled = true }
         ];
         return config;

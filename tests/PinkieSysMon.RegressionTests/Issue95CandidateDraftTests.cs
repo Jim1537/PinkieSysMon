@@ -21,8 +21,8 @@ internal static class Issue95CandidateDraftTests
     public static void EditableParametersAndRuntimeIntent()
     {
         var hardware = Candidate("0416:5408", "PONY");
-        var draft = new CatalogUsbCandidateDraft(hardware, "Demo", [OutputTargetContract.TrofeoTransport]);
-        Check(draft.Protocol == OutputTargetContract.TrofeoTransport && !draft.CanTest,
+        var draft = new CatalogUsbCandidateDraft(hardware, "Demo", [OutputTargetContract.LyBulkTransport]);
+        Check(draft.Protocol == OutputTargetContract.LyBulkTransport && !draft.CanTest,
             "An evidence-backed protocol hint is not a geometry preset.");
         draft.Width = 1920;
         draft.Height = 480;
@@ -32,7 +32,7 @@ internal static class Issue95CandidateDraftTests
               test.InterfaceId == hardware.Id &&
               test.PnpNodeKey == hardware.PnpNodeKey &&
               test.Width == 1920 && test.Height == 480 &&
-              test.Protocol == OutputTargetContract.TrofeoTransport,
+              test.Protocol == OutputTargetContract.LyBulkTransport,
             "A test intent must bind the exact physical instance and user parameters.");
         Check(!draft.CanTest, "A second test cannot begin during an active attempt.");
         CheckThrows(() => draft.Width = 800, "Inputs must be frozen while a test is running.");
@@ -61,14 +61,14 @@ internal static class Issue95CandidateDraftTests
         Check(draft.Protocol is null && !draft.CanTest,
             "Catalog recognition without an eligible implemented handler is informational.");
         var manual = new CatalogUsbCandidateDraft(unhinted, "Unidentified", [
-            OutputTargetContract.TrofeoTransport, OutputTargetContract.TurzxTransport]);
+            OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport]);
         manual.Width = 640; manual.Height = 640;
         Check(!manual.CanTest, "Ambiguous protocol applicability requires explicit user choice.");
-        manual.Protocol = OutputTargetContract.TurzxTransport;
+        manual.Protocol = OutputTargetContract.EncryptedJpegTransport;
         Check(manual.CanTest, "A user-selected eligible implemented protocol may form a trial request.");
         manual.Protocol = "arbitrary";
         Check(!manual.CanTest, "An unimplemented or inapplicable protocol must never be tested.");
-        manual.Protocol = OutputTargetContract.TurzxTransport;
+        manual.Protocol = OutputTargetContract.EncryptedJpegTransport;
         manual.Name = "  ";
         Check(!manual.CanTest, "Candidate name is mandatory.");
         manual.Name = "Okay";
@@ -79,7 +79,7 @@ internal static class Issue95CandidateDraftTests
         Check(!manual.CanTest, "The test must respect the existing safe raster budget.");
         manual.Width = 640; manual.Height = 640;
 
-        var binding = new CatalogUsbCandidateDraft(known, "Known", [OutputTargetContract.TurzxTransport]);
+        var binding = new CatalogUsbCandidateDraft(known, "Known", [OutputTargetContract.EncryptedJpegTransport]);
         binding.Width = 1920; binding.Height = 720;
         CheckThrows(() => binding.BeginTest(Snapshot(sameProduct), new HashSet<string>()),
             "Same VID/PID on a different device must not satisfy the selected binding.");
@@ -96,7 +96,7 @@ internal static class Issue95CandidateDraftTests
     public static void OnlyCleanRuntimeAndPositiveVisualAllowSave()
     {
         var hardware = Candidate("0416:5408", "TEST-GOOD");
-        var draft = new CatalogUsbCandidateDraft(hardware, "Display", [OutputTargetContract.TrofeoTransport])
+        var draft = new CatalogUsbCandidateDraft(hardware, "Display", [OutputTargetContract.LyBulkTransport])
         { Width = 1920, Height = 480 };
         var first = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
         Check(!draft.CanSaveConfiguration &&
@@ -136,7 +136,7 @@ internal static class Issue95CandidateDraftTests
     public static void TechnicalFailureAndNativeCleanupFailClosed()
     {
         var hardware = Candidate("0416:5408", "TEST-FAIL");
-        var draft = new CatalogUsbCandidateDraft(hardware, "Demo", [OutputTargetContract.TrofeoTransport])
+        var draft = new CatalogUsbCandidateDraft(hardware, "Demo", [OutputTargetContract.LyBulkTransport])
         { Width = 640, Height = 640 };
         var pending = draft.BeginTest(Snapshot(hardware), new HashSet<string>());
         Check(draft.MarkDispatchAttempted(pending) &&

@@ -271,9 +271,9 @@ internal static class OutputTelemetryDemandTests
     };
 
     private static OutputTargetConfig Physical(string id, bool enabled) => new()
-    {
+    { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
         Id = id, Name = id, Dashboard = "Default",
-        DeviceId = "trofeo:" + new string(id[0], 64),
+        DeviceId = "usb-interface:" + new string(id[0], 64),
         DeviceEnabled = enabled
     };
 

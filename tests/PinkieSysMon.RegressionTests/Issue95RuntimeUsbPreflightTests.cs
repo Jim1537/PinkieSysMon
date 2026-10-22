@@ -17,7 +17,7 @@ internal static class Issue95RuntimeUsbPreflightTests
 
     private static CatalogUsbTrialIntent Intent(
         string id = InterfaceA, string node = NodeA,
-        string protocol = OutputTargetContract.TrofeoTransport,
+        string protocol = OutputTargetContract.LyBulkTransport,
         int width = 1920, int height = 480) =>
         new(Guid.NewGuid(), id, node, protocol, width, height, 0);
 
@@ -60,18 +60,18 @@ internal static class Issue95RuntimeUsbPreflightTests
     {
         var known = Candidate(InterfaceA, NodeA);
         var snapshot = new CatalogUsbCandidateSnapshot([known], []);
-        Check(Check(Intent(protocol: OutputTargetContract.TurzxTransport), snapshot) ==
-              RuntimeUsbTestPreflightStatus.UnsupportedProtocol,
-            "A different implemented handler requires evidence, not a name or VID guess.");
+        Check(Check(Intent(protocol: OutputTargetContract.EncryptedJpegTransport), snapshot) ==
+              RuntimeUsbTestPreflightStatus.Admitted,
+            "An explicit implemented protocol choice is independent of a passive catalog hint.");
         Check(Check(Intent(width: 1, height: 1), snapshot) ==
               RuntimeUsbTestPreflightStatus.InvalidGeometry,
             "The same #94 generator limits must apply at Runtime admission.");
         var unhinted = Candidate(InterfaceB, NodeB, product: 0x5409);
         Check(Check(Intent(InterfaceB, NodeB), new([unhinted], [])) ==
-              RuntimeUsbTestPreflightStatus.UnsupportedProtocol,
-            "An informational-only catalog entry is not authorization to open a handler.");
+              RuntimeUsbTestPreflightStatus.Admitted,
+            "An eligible exact catalog interface may be tested with an explicitly chosen protocol even without a hint.");
         var knownSecondProtocol = Candidate(InterfaceB, NodeB, 0x1CBE, 0x0123);
-        Check(Check(Intent(InterfaceB, NodeB, OutputTargetContract.TurzxTransport, 1920, 720),
+        Check(Check(Intent(InterfaceB, NodeB, OutputTargetContract.EncryptedJpegTransport, 1920, 720),
                   new([knownSecondProtocol], [])) == RuntimeUsbTestPreflightStatus.Admitted,
             "An independently mapped implemented protocol must have its own eligible admission.");
     }

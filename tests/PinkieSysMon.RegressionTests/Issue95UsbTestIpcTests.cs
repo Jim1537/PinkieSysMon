@@ -11,7 +11,7 @@ internal static class Issue95UsbTestIpcTests
     public static void RoundtripAndCorrelation()
     {
         var intent = new CatalogUsbTrialIntent(Attempt, InterfaceId, NodeKey,
-            OutputTargetContract.TrofeoTransport, 1920, 480, 7);
+            OutputTargetContract.LyBulkTransport, 1920, 480, 7);
         var line = CatalogUsbTestIpcProtocol.BuildBegin(Client, intent);
         Check(line.Length <= CatalogUsbTestIpcProtocol.MaxCommandLength &&
               RuntimeIpcProtocol.ParseCommand(line) is
@@ -42,7 +42,7 @@ internal static class Issue95UsbTestIpcTests
     {
         var valid = CatalogUsbTestIpcProtocol.BuildBegin(Client,
             new CatalogUsbTrialIntent(Attempt, InterfaceId, NodeKey,
-                OutputTargetContract.TurzxTransport, 1280, 320, 0));
+                OutputTargetContract.EncryptedJpegTransport, 1280, 320, 0));
         var invalid = new[]
         {
             "USB_TEST_BEGIN",
@@ -56,7 +56,7 @@ internal static class Issue95UsbTestIpcTests
             valid.Replace(NodeKey, "usb-pnp:not-hex", StringComparison.Ordinal),
             valid.Replace("\"Width\":1280", "\"Width\":0", StringComparison.Ordinal),
             valid.Replace("\"Revision\":0", "\"Revision\":-1", StringComparison.Ordinal),
-            valid.Replace("\"Protocol\":\"turzx\"", "\"Protocol\":\"not-implemented\"", StringComparison.OrdinalIgnoreCase),
+            valid.Replace("\"Protocol\":\"encrypted-jpeg\"", "\"Protocol\":\"not-implemented\"", StringComparison.OrdinalIgnoreCase),
             valid.Replace("\"Height\":320", "\"Height\":320,\"Injected\":true", StringComparison.Ordinal)
         };
         foreach (var input in invalid)

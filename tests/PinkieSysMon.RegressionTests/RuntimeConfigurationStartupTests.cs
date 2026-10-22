@@ -102,12 +102,12 @@ internal static class RuntimeConfigurationStartupTests
                     [
                         new OutputTargetConfig { Id = "desktop", Name = "Desktop",
                             Kind = OutputTargetContract.DesktopKind, Dashboard = "PanelA" },
-                        new OutputTargetConfig { Id = "usb-off", Name = "Disabled",
+                        new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "usb-off", Name = "Disabled",
                             Dashboard = "Hardware", DeviceEnabled = false,
-                            DeviceId = "trofeo:" + new string('b', 64) },
-                        new OutputTargetConfig { Id = "usb-on", Name = "Enabled",
+                            DeviceId = "usb-interface:" + new string('b', 64) },
+                        new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "usb-on", Name = "Enabled",
                             Dashboard = "Hardware", DeviceEnabled = true,
-                            DeviceId = "trofeo:" + new string('a', 64) }
+                            DeviceId = "usb-interface:" + new string('a', 64) }
                     ]
                 }
             };

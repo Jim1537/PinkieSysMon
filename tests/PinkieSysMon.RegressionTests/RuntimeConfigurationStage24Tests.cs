@@ -163,10 +163,12 @@ internal static class RuntimeConfigurationStage24Tests
         Check(File.ReadAllBytes(f.ConfigPath).SequenceEqual(bytes) && a.Width == 300,
             "An already changed requested field must not be overwritten from stale Runtime state.");
         changed.Outputs.Targets[0].Dashboard = "A";
-        changed.Outputs.Targets[0].Kind = OutputTargetContract.TrofeoKind;
-        changed.Outputs.Targets[0].Transport = OutputTargetContract.TrofeoTransport;
-        changed.Outputs.Targets[0].DeviceId = "trofeo:" + new string('a', 64);
+        changed.Outputs.Targets[0].Kind = OutputTargetContract.PhysicalKind;
+        changed.Outputs.Targets[0].Transport = OutputTargetContract.LyBulkTransport;
+        changed.Outputs.Targets[0].DeviceId = "usb-interface:" + new string('a', 64);
         changed.Outputs.Targets[0].Desktop = null;
+        changed.Outputs.Targets[0].Width = 800;
+        changed.Outputs.Targets[0].Height = 600;
         changed.Save(f.ConfigPath);
         bytes = File.ReadAllBytes(f.ConfigPath);
         Failure<InvalidOperationException>(() => f.Execute(new(RuntimeIpcCommandKind.SetDesktopLock, "desktop-a", Value: false)));
@@ -257,8 +259,8 @@ internal static class RuntimeConfigurationStage24Tests
                     Transport = OutputTargetContract.DesktopTransport, Dashboard = "A", Desktop = new() },
                 new() { Id = "desktop-b", Name = "B", Kind = OutputTargetContract.DesktopKind,
                     Transport = OutputTargetContract.DesktopTransport, Dashboard = "B", ProviderEnabled = true, Desktop = new() },
-                new() { Id = "device-c", Name = "Disabled C", Dashboard = "C", ProviderEnabled = true,
-                    DeviceId = "trofeo:" + new string('c', 64) }
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "device-c", Name = "Disabled C", Dashboard = "C", ProviderEnabled = true,
+                    DeviceId = "usb-interface:" + new string('c', 64) }
             ] } };
             Current.Save(ConfigPath);
             Board("A", 300); Board("B", 400); Board("C", 500); Board("New", 600);

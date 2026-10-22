@@ -34,8 +34,8 @@ internal static class OutputEnabledContractTests
                             "Lock": false, "X": -100, "Y": 240, "ZOrder": 2 }
                         },
                         {
-                          "Id": "device", "Name": "Device", "Kind": "trofeo",
-                          "DeviceId": "trofeo:{{new string('a', 64)}}",
+                          "Id": "device", "Name": "Device", "Kind": "physical", "Transport": "ly-bulk", "Width": 1920, "Height": 480,
+                          "DeviceId": "usb-interface:{{new string('a', 64)}}",
                           "ProviderEnabled": {{(!providerEnabled).ToString().ToLowerInvariant()}},
                           "DeviceEnabled": {{deviceEnabled.ToString().ToLowerInvariant()}}
                         }
@@ -57,7 +57,7 @@ internal static class OutputEnabledContractTests
                       panel.Dashboard == OutputDefaultDashboardPolicy.DesktopName &&
                       device.Dashboard == OutputDefaultDashboardPolicy.PhysicalProfile(device).Name &&
                       panel.RefreshIntervalMs == 740 && device.RefreshIntervalMs == 740 &&
-                      device.DeviceId == "trofeo:" + new string('a', 64) && device.JpegQuality == 81 &&
+                      device.DeviceId == "usb-interface:" + new string('a', 64) && device.JpegQuality == 81 &&
                       device.Usb is { RetryIntervalMs: 850, TransferTimeoutMs: 950, DiagnosticJournalEnabled: true } &&
                       panel.ProviderEnabled == providerEnabled && device.ProviderEnabled == !providerEnabled,
                     "Enablement policy must preserve identity, placement, publication and inherited settings.");

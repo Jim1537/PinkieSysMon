@@ -219,7 +219,7 @@ internal static class RuntimeTrayMenuTests
 
     private static OutputSessionStatus Physical(string id) => new(id, id, true, true, "CONNECTED", 37, 12.5, 1536)
     {
-        Kind = OutputTargetContract.TrofeoKind, Dashboard = "Board", OutputEnabled = true,
+        Kind = OutputTargetContract.PhysicalKind, Dashboard = "Board", OutputEnabled = true,
         DeviceEnabled = true, RefreshIntervalMs = 250
     };
 

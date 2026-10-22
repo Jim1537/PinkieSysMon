@@ -9,15 +9,12 @@ internal static class UsbDisplayReconciliation
         IReadOnlyList<UsbDisplayObservation> observations,
         IReadOnlyList<OutputDeviceDescriptor> supportedDevices)
     {
-        var candidates = supportedDevices.Where(device =>
-            OutputTargetContract.HasIntegratedTransport(device.Transport)).ToArray();
+        var candidates = supportedDevices.ToArray();
         var ambiguousIds = OutputDeviceSelection.FindAmbiguousDeviceIds(candidates);
         return observations.Select(observation =>
         {
-            if (!OutputTargetContract.HasIntegratedTransport(observation.Family.CandidateTransport))
-                return observation;
             var matches = candidates.Where(device =>
-                device.Transport.Equals(observation.Family.CandidateTransport, StringComparison.OrdinalIgnoreCase) &&
+                (ProductOf(device) is not { } product || product == observation.Family.Product) &&
                 device.PnpNodeKey is { } key &&
                 observation.NodeKeys.Contains(key, StringComparer.OrdinalIgnoreCase)).ToArray();
             var overlaps = matches.Any(device => observations.Count(other =>
@@ -28,4 +25,13 @@ internal static class UsbDisplayReconciliation
                 ? null : observation;
         }).OfType<UsbDisplayObservation>().OrderBy(o => o.ObservationId, StringComparer.Ordinal).ToArray();
     }
+    private static UsbProductId? ProductOf(OutputDeviceDescriptor device)
+    {
+        if (device.Candidate is { } candidate) return candidate.Family.Product;
+        var parts = device.DevicePath.Split('#');
+        return parts.Length == 4 && Guid.TryParse(parts[3], out var registered) &&
+            CatalogUsbInterfaceDiscovery.TryParseExactInterface(device.DevicePath, registered, out var product)
+            ? product : null;
+    }
+
 }

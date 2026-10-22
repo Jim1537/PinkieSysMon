@@ -27,7 +27,7 @@ internal static class TurzxPassiveDiagnosticTests
             text.Contains("Registered interface classes observed: 1") && text.Contains("Distinct enumerated interface paths: 1") &&
             text.Contains("USB transport opened: NO") && api.Lookups == 2,
             "Aggregate counts must include final revalidation without double-counting one devnode.");
-        Check(!text.Contains("SYNTHETIC") && !text.Contains("turzx:") && !text.Contains(FakeApi.Class.ToString()),
+        Check(!text.Contains("SYNTHETIC") && !text.Contains("usb-interface:") && !text.Contains(FakeApi.Class.ToString()),
             "The diagnostic must not print raw paths, instance tokens, binding hashes or interface classes.");
     }
 

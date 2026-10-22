@@ -35,10 +35,10 @@ internal static class BlockedTransportStage27Tests
                     Targets =
                     [
                         new OutputTargetConfig
-                        {
+                        { Width = 1920, Height = 480, DeviceId = "usb-interface:23e0da38aeb26d7245ad443bd1d49c63e272c642e848bd058a7297d41ee780df",
                             Id = "trofeo-1", Name = "Blocked physical",
-                            Kind = OutputTargetContract.TrofeoKind,
-                            Transport = OutputTargetContract.TrofeoTransport,
+                            Kind = OutputTargetContract.PhysicalKind,
+                            Transport = OutputTargetContract.LyBulkTransport,
                             Dashboard = "Physical", DeviceEnabled = true,
                             ProviderEnabled = true, RefreshIntervalMs = 50
                         },
@@ -74,7 +74,7 @@ internal static class BlockedTransportStage27Tests
             FakeWindow? panel = null;
             using var manager = new OutputSessionManager(config, boards, metrics, log,
                 (app, target, board, store, logger) =>
-                    target.Kind == OutputTargetContract.TrofeoKind
+                    target.Kind == OutputTargetContract.PhysicalKind
                         ? new FramePump(app, target, board, store, logger,
                             (device, timeout, journal, transportLog, token) => transport)
                         : new DesktopOutputSession(app, target, board, store, logger,

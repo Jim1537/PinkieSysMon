@@ -24,6 +24,7 @@ internal static class DeviceSettingsStage23Tests
               ReferenceEquals(model.Entries.Single().Target, target),
             "A detected draft must retain its identity/settings through absence within the open dialog.");
         model.Refresh([device]);
+        Issue95GenericOutputTests.Confirm(model, target, device);
         model.Add(target);
         model.ValidateForApply([device]);
         model.ApplyTo(config);
@@ -49,6 +50,7 @@ internal static class DeviceSettingsStage23Tests
         var desktopModel = new DesktopSettingsModel(config);
         Check(!desktopModel.CanRemove(desktopModel.Desktops.Single()),
             "A lone Desktop must remain protected before device adoption.");
+        Issue95GenericOutputTests.Confirm(reopened, reopened.Entries.Single().Target, device);
         reopened.Add(reopened.Entries.Single().Target);
         reopened.ApplyTo(config);
         Check(config.Outputs.Targets.Count == 2 && !config.Outputs.Targets[1].DeviceEnabled,
@@ -58,7 +60,7 @@ internal static class DeviceSettingsStage23Tests
             "After a separately saved device adoption, the Desktop dialog can remove its final panel.");
         nextDesktopDialog.Remove(nextDesktopDialog.Desktops.Single());
         nextDesktopDialog.ApplyTo(config);
-        Check(config.Outputs.Targets.Count == 1 && config.Outputs.Targets[0].Kind == OutputTargetContract.TrofeoKind,
+        Check(config.Outputs.Targets.Count == 1 && config.Outputs.Targets[0].Kind == OutputTargetContract.PhysicalKind,
             "Separate device and Desktop apply operations must retain one configured Output.");
     }
 
@@ -210,14 +212,13 @@ internal static class DeviceSettingsStage23Tests
         });
     }
 
-    private static OutputDeviceDescriptor Device(string suffix) => new(
-        DeviceDiscovery.CreateStableDeviceId("stage23-synthetic-" + suffix),
-        OutputTargetContract.TrofeoTransport, "Synthetic Trofeo", "stage23-synthetic-" + suffix);
+    private static OutputDeviceDescriptor Device(string suffix) =>
+        Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, suffix[0]);
 
     private static OutputTargetConfig Target(OutputDeviceDescriptor device, string suffix) => new()
-    {
+    { Width = 1920, Height = 480,
         Id = "stage23-" + suffix, Name = "Synthetic " + suffix,
-        Kind = OutputTargetContract.TrofeoKind, Transport = device.Transport, DeviceId = device.DeviceId,
+        Kind = OutputTargetContract.PhysicalKind, Transport = device.Transport, DeviceId = device.DeviceId,
         Dashboard = "Default", RefreshIntervalMs = 1000, JpegQuality = 92, Usb = new UsbConfig()
     };
 

@@ -141,7 +141,7 @@ internal static class Issue77UsbDiscoveryTests
         Check(!observed[0].ToString().Contains("SYNTHETIC", StringComparison.Ordinal) &&
               !Node(alive).ToString()!.Contains("SYNTHETIC", StringComparison.Ordinal) &&
               observed[0].ObservationId.StartsWith("usb-pnp:", StringComparison.Ordinal) &&
-              !observed[0].ObservationId.StartsWith("trofeo:", StringComparison.Ordinal),
+              !observed[0].ObservationId.StartsWith("usb-interface:", StringComparison.Ordinal),
             "Public observation text cannot expose raw instance tokens or impersonate persisted Trofeo identity.");
         var reobserved = UsbDisplayDiscovery.BuildObservations([Node(alive.ToLowerInvariant())]);
         Check(reobserved[0].ObservationId == observed[0].ObservationId &&

@@ -11,20 +11,21 @@ internal static class Issue71SettingsTests
 {
     public static void ConnectedSettingsControls()
     {
-        var device = Issue71AdoptionTests.Device("turzx", 'b');
+        var device = Issue71AdoptionTests.Device("encrypted-jpeg", 'b');
         var config = new AppConfig();
         using (var dialog = new PhysicalDeviceSettingsDialog(config, ["Default"], () => [device]))
         {
             var page = dialog.Controls.OfType<TabControl>().Single().TabPages.OfType<DeviceSettingsPage>().Single();
             if (!page.Controls.Find("DeviceFields", true).Single().Enabled || dialog.DevicesChanged ||
                 page.Controls.Find("DeviceJournal", true).Length != 0 ||
-                page.Controls.Find("DeviceKeepBrightness", true).Single() is not Label)
+                page.Controls.Find("DeviceWidth", true).Length != 1 ||
+                page.Controls.Find("DeviceTest", true).Single().Enabled)
                 throw new InvalidOperationException("A connected TURZX candidate exposes supported fields without dirtying Settings or offering unsupported commands.");
             var title = string.Join(" ", Descendants(page).OfType<Label>().Select(label => label.Text));
-            if (!title.Contains("TURZX 12.3-inch") || title.Contains("integration pending"))
+            if (!title.Contains("Physical USB display"))
                 throw new InvalidOperationException("The integrated candidate must have its own accurate model label.");
-            if (!page.Controls.Find("AddDevice", true).Single().Enabled)
-                throw new InvalidOperationException("A connected candidate must offer explicit adoption.");
+            if (page.Controls.Find("AddDevice", true).Single().Enabled)
+                throw new InvalidOperationException("A candidate cannot bypass Runtime Test through the old Add Device action.");
         }
         if (config.Outputs.Targets.Count != 1 || config.Outputs.Targets[0].Kind != "desktop")
             throw new InvalidOperationException("Closing an uncommitted device dialog cannot adopt hardware into configuration.");
@@ -32,8 +33,8 @@ internal static class Issue71SettingsTests
 
     public static void DefaultPhysicalFactoryAndSiblingIsolation()
     {
-        var turzx = Issue71AdoptionTests.Target(Issue71AdoptionTests.Device("turzx", 'b'));
-        var trofeo = Issue71AdoptionTests.Target(Issue71AdoptionTests.Device("trofeo", 'a'));
+        var turzx = Issue71AdoptionTests.Target(Issue71AdoptionTests.Device("encrypted-jpeg", 'b'));
+        var trofeo = Issue71AdoptionTests.Target(Issue71AdoptionTests.Device("ly-bulk", 'a'));
         turzx.DeviceEnabled = trofeo.DeviceEnabled = true;
         var config = new AppConfig { Outputs = new() { Targets = [turzx, trofeo] } };
         OutputTargetContract.ValidateAndNormalize(config.Outputs.Targets);
@@ -48,13 +49,13 @@ internal static class Issue71SettingsTests
         {
             using var manager = new OutputSessionManager(config, boards, new MetricStore(), new FileLogger(Path.Combine(root, "worker.log")),
                 physicalTransportFactory: (target, _, _, _, _) => frames.GetOrAdd(target.Id,
-                    _ => new RecordedFrames(target.Kind == "turzx" ? PhysicalFrameProfile.Turzx : new PhysicalFrameProfile(180))));
+                    _ => new RecordedFrames(target.Transport == "encrypted-jpeg" ? PhysicalFrameProfile.EncryptedJpeg : new PhysicalFrameProfile(180))));
             manager.Start();
             if (!SpinWait.SpinUntil(() => manager.GetStatuses().All(s => s.SentFrames >= 2), 5000))
                 throw new InvalidOperationException("The production manager factory must start both independent physical workers.");
             var own = frames[turzx.Id]; var sibling = frames[trofeo.Id];
             using (var image = SKBitmap.Decode(own.Images.First()))
-                if (image.Width != 720 || image.Height != 1920 || image.GetPixel(360, 960).Red < 240)
+                if (image.Width != 480 || image.Height != 1920 || image.GetPixel(360, 960).Red < 240)
                     throw new InvalidOperationException("Default TURZX dispatch must use its own profile and assigned red board.");
             using (var image = SKBitmap.Decode(sibling.Images.First()))
                 if (image.Width != 1920 || image.Height != 480 || image.GetPixel(960, 240).Blue < 240)
@@ -97,11 +98,11 @@ internal static class Issue71SettingsTests
         if (page.Controls.Find("DeviceFields", true).Single().Enabled || dialog.DevicesChanged)
             throw new InvalidOperationException("An absent TURZX record must remain read-only without dirtying Settings.");
         var text = string.Join(" ", Descendants(page).OfType<Label>().Select(label => label.Text));
-        if (!text.Contains("TURZX 12.3-inch") || text.Contains("Trofeo Vision 9.16 adapter"))
-            throw new InvalidOperationException("An absent TURZX record must not inherit Trofeo's model label.");
+        if (!text.Contains("Physical USB display") || !text.Contains(OutputTargetContract.EncryptedJpegTransport))
+            throw new InvalidOperationException("An absent physical record must retain its generic type and independently selected protocol.");
         using var tray = new RuntimeTrayMenu(() => { }, _ => { }, () => { }, (_, _) => { });
         var status = new OutputSessionStatus(target.Id, target.Name, false, false, "DISABLED", 0, 0, 0)
-        { Kind = "turzx", Dashboard = "Default", OutputEnabled = false };
+        { Kind = "physical", Dashboard = "Default", OutputEnabled = false };
         tray.RefreshOutputs([status], ["Default"], new HashSet<string>(), new Dictionary<string, int>());
         var menu = tray.Menu.Items.OfType<ToolStripMenuItem>().Single(item => Equals(item.Tag, target.Id));
         if (menu.DropDownItems.OfType<ToolStripMenuItem>().First().Enabled ||
@@ -119,7 +120,7 @@ internal static class Issue71SettingsTests
             // still fail before constructing a physical worker or opening USB.
             var target = Target();
             target.DeviceEnabled = true;
-            target.Transport = "trofeo";
+            target.Transport = "unimplemented";
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
             using var manager = new OutputSessionManager(config, new C.DashboardDefinition(),
                 new MetricStore(), new FileLogger(Path.Combine(path, "test.log")));
@@ -136,8 +137,8 @@ internal static class Issue71SettingsTests
     }
 
     private static OutputTargetConfig Target() => new()
-    { Id = "turzx-settings-test", Name = "TURZX", Kind = "turzx", Transport = "turzx",
-        DeviceId = "turzx:" + new string('a', 64), Dashboard = "Default", Turzx = new() };
+    { Width = 1920, Height = 720, Id = "turzx-settings-test", Name = "TURZX", Kind = "physical", Transport = "encrypted-jpeg",
+        DeviceId = "usb-interface:" + new string('a', 64), Dashboard = "Default", EncryptedJpeg = new() };
     private static IEnumerable<Control> Descendants(Control control) => control.Controls.Cast<Control>()
         .SelectMany(child => new[] { child }.Concat(Descendants(child)));
 }

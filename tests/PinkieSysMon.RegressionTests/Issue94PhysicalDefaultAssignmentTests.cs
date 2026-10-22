@@ -12,15 +12,15 @@ internal static class Issue94PhysicalDefaultAssignmentTests
         {
             var initialIds = Ids(config);
             var trofeo = new OutputTargetConfig
-            {
-                Id = "new-trofeo", Name = "Synthetic Trofeo", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceId = "trofeo:" + new string('a', 64),
+            { Width = 1920, Height = 480,
+                Id = "new-trofeo", Name = "Synthetic Trofeo", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceId = "usb-interface:" + new string('a', 64),
                 Dashboard = "device_1920x480_default"
             };
             var turzx = new OutputTargetConfig
-            {
-                Id = "new-turzx", Name = "Synthetic TURZX", Kind = OutputTargetContract.TurzxKind,
-                Transport = OutputTargetContract.TurzxTransport, DeviceId = "turzx:" + new string('b', 64),
+            { Width = 1920, Height = 720,
+                Id = "new-turzx", Name = "Synthetic TURZX", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.EncryptedJpegTransport, DeviceId = "usb-interface:" + new string('b', 64),
                 Dashboard = "device_1920x720_default"
             };
             config.Outputs.Targets.Add(trofeo);
@@ -44,9 +44,9 @@ internal static class Issue94PhysicalDefaultAssignmentTests
             var edited = File.ReadAllBytes(Board(root, trofeo.Dashboard!));
             var secondIds = Ids(config);
             config.Outputs.Targets.Add(new OutputTargetConfig
-            {
-                Id = "another-trofeo", Name = "Another Synthetic", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceId = "trofeo:" + new string('c', 64),
+            { Width = 1920, Height = 480,
+                Id = "another-trofeo", Name = "Another Synthetic", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceId = "usb-interface:" + new string('c', 64),
                 Dashboard = "device_1920x480_default"
             });
             using (var pending = InitialOutputDashboardProvisioning.Prepare(
@@ -57,9 +57,9 @@ internal static class Issue94PhysicalDefaultAssignmentTests
 
             var unusedIds = Ids(config);
             config.Outputs.Targets.Add(new OutputTargetConfig
-            {
-                Id = "manual", Name = "Manual Synthetic", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceId = "trofeo:" + new string('d', 64),
+            { Width = 1920, Height = 480,
+                Id = "manual", Name = "Manual Synthetic", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceId = "usb-interface:" + new string('d', 64),
                 Dashboard = "Existing"
             });
             using (var pending = InitialOutputDashboardProvisioning.Prepare(
@@ -76,9 +76,9 @@ internal static class Issue94PhysicalDefaultAssignmentTests
         {
             var ids = Ids(config);
             config.Outputs.Targets.Add(new OutputTargetConfig
-            {
-                Id = "new", Name = "Synthetic Trofeo", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceId = "trofeo:" + new string('a', 64),
+            { Width = 1920, Height = 480,
+                Id = "new", Name = "Synthetic Trofeo", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceId = "usb-interface:" + new string('a', 64),
                 Dashboard = "device_1920x480_default"
             });
             using (InitialOutputDashboardProvisioning.Prepare(root, appPath, oldBytes, ids, config))
@@ -99,7 +99,7 @@ internal static class Issue94PhysicalDefaultAssignmentTests
                 Name = "Unprofiled integrated future device", Kind = "future", Transport = "future"
             };
             try { _ = OutputDefaultDashboardPolicy.PhysicalProfile(unknown); }
-            catch (InvalidOperationException) { return; }
+            catch (InvalidDataException) { return; }
             throw new InvalidOperationException("Unknown native geometry must not be guessed.");
         });
     }

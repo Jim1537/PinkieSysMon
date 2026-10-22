@@ -60,8 +60,8 @@ internal static class TurzxTransportDiagnostic
             write($"Usable interfaces: {devices.Count}");
             if (devices.Count != 1) { write("TRANSPORT CHECK: INCOMPLETE (expected one exact interface; no USB open)."); return 1; }
             var target = new OutputTargetConfig
-            {
-                Id = "transport-check", Name = "TURZX transport check", Kind = "turzx", Transport = "turzx",
+            { Width = 1920, Height = 720,
+                Id = "transport-check", Name = "TURZX transport check", Kind = "physical", Transport = "encrypted-jpeg",
                 DeviceId = devices[0].DeviceId, DeviceEnabled = true
             };
             // Encode before opening: an image/encoder failure must not leave a

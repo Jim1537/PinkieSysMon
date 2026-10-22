@@ -78,8 +78,11 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         diagnostics?.Stage("discovery");
         ArgumentNullException.ThrowIfNull(target);
         ioCancellation.ThrowIfCancellationRequested();
+        if (!target.DeviceEnabled || !OutputTargetContract.IsPhysicalKind(target.Kind) ||
+            target.Transport != OutputTargetContract.LyBulkTransport)
+            throw new InvalidOperationException("Only an enabled LY bulk Output may acquire this protocol.");
 
-        var discoveredDevices = DeviceDiscovery.EnumerateTrofeoDevices();
+        var discoveredDevices = PhysicalDeviceDiscovery.CaptureForTarget(target);
         var resolution = OutputDeviceSelection.Resolve(target, discoveredDevices);
         if (resolution.Status == OutputDeviceResolutionStatus.Missing)
             return null;
@@ -132,6 +135,8 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Initialize failed");
 
         _ioCancellation.ThrowIfCancellationRequested();
+        diagnostics?.Stage("interface-validation");
+        ValidateBulkInterface();
         diagnostics?.Stage("configure-out-pipe");
         ConfigurePipe(PipeOut, transferTimeoutMs);
         diagnostics?.Stage("configure-in-pipe");
@@ -159,6 +164,53 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             $"Output target '{_target.Name}' connected to {_device.DisplayName} [{_device.ShortId}]. " +
             $"PM={ProtocolPm}, SUB={ProtocolSub}, wireRotation={WireRotationDegrees}.");
     }
+
+    // Before any protocol command, verify the selected interface actually
+    // exposes the established bulk endpoints. No alternate interface probing.
+    private void ValidateBulkInterface()
+    {
+        if (!WinUsb_GetCurrentAlternateSetting(_interfaceHandle, out var alternate) ||
+            !WinUsb_QueryInterfaceSettings(_interfaceHandle, 0, out var descriptor))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "LY interface metadata failed.");
+        if (alternate != 0 || descriptor.Length != 9 || descriptor.DescriptorType != 4 ||
+            descriptor.Number != 0 || descriptor.AlternateSetting != 0 || descriptor.EndpointCount is < 2 or > 32)
+            throw new IOException("LY bulk protocol requires interface 0 / alternate setting 0.");
+        var pipes = new List<TurzxNativePipe>();
+        for (byte index = 0; index < descriptor.EndpointCount; index++)
+        {
+            if (!WinUsb_QueryPipe(_interfaceHandle, 0, index, out var pipe))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "LY pipe metadata failed.");
+            pipes.Add(pipe);
+        }
+        ValidateBulkPipes(pipes);
+    }
+
+    internal static void ValidateBulkPipes(IReadOnlyList<TurzxNativePipe> pipes)
+    {
+        foreach (var endpoint in new[] { PipeOut, PipeIn })
+        {
+            var matches = pipes.Where(pipe => pipe.Id == endpoint).ToArray();
+            if (matches.Length != 1 || matches[0].Type != 2 || matches[0].MaximumPacketSize == 0)
+                throw new IOException("LY requires one bulk OUT 09 and one bulk IN 81 endpoint.");
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct InterfaceDescriptor
+    {
+        public byte Length, DescriptorType, Number, AlternateSetting, EndpointCount,
+            InterfaceClass, InterfaceSubClass, InterfaceProtocol, InterfaceString;
+    }
+
+    [DllImport("winusb.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool WinUsb_GetCurrentAlternateSetting(IntPtr handle, out byte alternate);
+    [DllImport("winusb.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool WinUsb_QueryInterfaceSettings(IntPtr handle, byte index, out InterfaceDescriptor descriptor);
+    [DllImport("winusb.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool WinUsb_QueryPipe(IntPtr handle, byte alternate, byte index, out TurzxNativePipe pipe);
 
     private void ConfigurePipe(byte pipeId, int timeoutMs)
     {

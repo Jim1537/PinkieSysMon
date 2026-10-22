@@ -11,17 +11,21 @@ internal interface IUsbInterfaceDiscoveryApi : IUsbPnpDiscoveryApi
     IReadOnlyList<Guid> ReadInterfaceClasses(string instanceId);
     IReadOnlyList<string> EnumerateInterfaces(Guid interfaceClass, string instanceId);
     string? ReadInterfaceInstanceId(string interfacePath);
+    string? ReadPhysicalFingerprint(string instanceId) => null;
+    string? ReadDisplayName(string instanceId) => null;
 }
 
 // A catalog-matched, passive candidate is not a configured Output or
 // permission to send a frame. Never expose the raw native path in ToString.
 internal sealed class CatalogUsbInterfaceCandidate(
-    string id, UsbDisplayFamily family, string interfacePath, string pnpNodeKey)
+    string id, UsbDisplayFamily family, string interfacePath, string pnpNodeKey, string? displayName = null)
 {
     internal string Id { get; } = id;
+    internal string DisplayName { get; } = string.IsNullOrWhiteSpace(displayName) ? "USB display" : displayName;
     internal UsbDisplayFamily Family { get; } = family;
     internal string InterfacePath { get; } = interfacePath;
     internal string PnpNodeKey { get; } = pnpNodeKey;
+    internal string? PhysicalFingerprint { get; init; }
     internal string? SuggestedTransport => Family.CandidateTransport;
 
     public override string ToString() => $"{Family.Name} [{Id[^8..]}]";
@@ -54,7 +58,17 @@ internal static class CatalogUsbInterfaceDiscovery
         foreach (var node in nodes)
         {
             if (!TryEligibleNode(node, out var product))
+            {
+                // A healthy composite parent is represented by its WinUSB
+                // function; USBCCGP on that parent is not a metadata failure.
+                var representedParent = node.MetadataAvailable && node.ProblemCode == 0 &&
+                    nodes.Any(child => string.Equals(child.ParentInstanceId, node.InstanceId,
+                        StringComparison.OrdinalIgnoreCase) && TryEligibleNode(child, out var childProduct) &&
+                        childProduct == product);
+                if (!representedParent)
+                    unavailable.Add(UsbDisplayDiscovery.CreateObservationId(node.InstanceId));
                 continue;
+            }
 
             // A WinUSB function of a composite device belongs to its actually
             // observed parent, never another unit with an equal VID/PID. The
@@ -107,7 +121,8 @@ internal static class CatalogUsbInterfaceDiscovery
 
                     perNode.Add(new CatalogUsbInterfaceCandidate(
                         StableInterfaceId(path), UsbDisplayCatalog.Find(product)!, path,
-                        UsbDisplayDiscovery.CreateObservationId(physicalId)));
+                        UsbDisplayDiscovery.CreateObservationId(physicalId), api.ReadDisplayName(physicalId))
+                        { PhysicalFingerprint = api.ReadPhysicalFingerprint(physicalId) });
                 }
             }
             catch (Exception error) when (error is InvalidOperationException or
@@ -117,6 +132,8 @@ internal static class CatalogUsbInterfaceDiscovery
                 unavailable.Add(UsbDisplayDiscovery.CreateObservationId(physicalId));
                 continue;
             }
+            if (perNode.Count == 0)
+                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(physicalId));
             candidates.AddRange(perNode);
         }
         return new CatalogUsbCandidateSnapshot(
@@ -200,7 +217,7 @@ internal static class CatalogUsbInterfaceDiscovery
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return "usb-interface:" + Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes(path.ToUpperInvariant()))).ToLowerInvariant();
+            Encoding.UTF8.GetBytes(path.Trim().ToUpperInvariant()))).ToLowerInvariant();
     }
 }
 
@@ -252,7 +269,9 @@ internal static class CatalogUsbCandidateSelection
         // One PnP node advertising multiple distinct WinUSB interfaces is not
         // silently resolved by selecting the first or ignoring its sibling.
         if (candidates.Count(candidate => candidate.PnpNodeKey.Equals(
-                selected.PnpNodeKey, StringComparison.OrdinalIgnoreCase)) != 1)
+                selected.PnpNodeKey, StringComparison.OrdinalIgnoreCase)) != 1 ||
+            selected.PhysicalFingerprint is { } fingerprint && candidates.Count(candidate =>
+                string.Equals(candidate.PhysicalFingerprint, fingerprint, StringComparison.OrdinalIgnoreCase)) != 1)
             return new(CatalogUsbCandidateResolutionStatus.Ambiguous, null);
 
         return new(CatalogUsbCandidateResolutionStatus.Found, selected);

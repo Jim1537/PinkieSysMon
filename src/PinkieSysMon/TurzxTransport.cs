@@ -35,7 +35,7 @@ internal sealed class TurzxTransport : IDisposable
 
     public static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token,
         PhysicalHandshakeDiagnostics? diagnostics = null) =>
-        TryOpen(target, timeoutMs, token, TurzxDeviceDiscovery.Capture, OpenConnection, diagnostics: diagnostics);
+        TryOpen(target, timeoutMs, token, () => PhysicalDeviceDiscovery.CaptureForTarget(target), OpenConnection, diagnostics: diagnostics);
 
     private static ITurzxUsbConnection OpenConnection(OutputDeviceDescriptor device, int timeoutMs)
     {
@@ -55,8 +55,8 @@ internal sealed class TurzxTransport : IDisposable
         if (replyMode is not (TurzxReplyMode.JpegStream or TurzxReplyMode.PrimaryOnly))
             throw new ArgumentOutOfRangeException(nameof(replyMode));
         token.ThrowIfCancellationRequested();
-        if (!target.DeviceEnabled || !string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase))
+        if (!target.DeviceEnabled || !string.Equals(target.Kind, OutputTargetContract.PhysicalKind, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(target.Transport, OutputTargetContract.EncryptedJpegTransport, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Only an explicitly enabled TURZX target can acquire this transport.");
         TurzxUsbConnection.ValidateTimeout(timeoutMs);
         var resolution = OutputDeviceSelection.Resolve(target, discover());
@@ -66,8 +66,8 @@ internal sealed class TurzxTransport : IDisposable
         var device = resolution.Device;
         var parts = device.DevicePath.Split('#');
         if (parts.Length != 4 || !Guid.TryParse(parts[3], out var deviceClass) ||
-            !TurzxDeviceDiscovery.IsExactInterface(device.DevicePath, deviceClass) ||
-            !device.DeviceId.Equals(TurzxDeviceDiscovery.CreateStableDeviceId(device.DevicePath), StringComparison.OrdinalIgnoreCase))
+            !CatalogUsbInterfaceDiscovery.TryParseExactInterface(device.DevicePath, deviceClass, out _) ||
+            !device.DeviceId.Equals(CatalogUsbInterfaceDiscovery.StableInterfaceId(device.DevicePath), StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("TURZX interface descriptor does not match its exact binding.");
         token.ThrowIfCancellationRequested();
         diagnostics?.Stage("native-open");
@@ -119,7 +119,7 @@ internal sealed class TurzxTransport : IDisposable
     {
         if (ReplyMode == TurzxReplyMode.JpegStream)
             throw new NotSupportedException("Brightness sequencing is not verified for the TURZX JPEG stream.");
-        var value = TurzxOutputConfig.ToControllerBrightness(percent);
+        var value = EncryptedJpegOutputConfig.ToControllerBrightness(percent);
         return Execute(token, linked =>
         {
             RequireSynchronized();

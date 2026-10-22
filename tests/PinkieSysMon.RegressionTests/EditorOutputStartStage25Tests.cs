@@ -124,7 +124,7 @@ internal static class EditorOutputStartStage25Tests
         Check(deviceError.Run("A", "a")?.Success == false,
             "Runtime-reported Output error must not become a green Start result.");
         var waiting = new Runtime { StartedState = "WAITING" };
-        waiting.Set("a", o => o with { Kind = OutputTargetContract.TrofeoKind, DeviceEnabled = true, BoardEnabled = null });
+        waiting.Set("a", o => o with { Kind = OutputTargetContract.PhysicalKind, DeviceEnabled = true, BoardEnabled = null });
         var pending = waiting.Run("A", "a");
         Check(pending is { Success: true } && pending.Message.Contains("state: WAITING", StringComparison.Ordinal),
             "A started lifecycle waiting for a device must report that state without claiming a connected display.");
@@ -187,9 +187,9 @@ internal static class EditorOutputStartStage25Tests
     {
         var targets = new[]
         {
-            new OutputTargetConfig { Id = "usb-2", Name = "Z Device", Kind = OutputTargetContract.TurzxKind },
+            new OutputTargetConfig { Id = "usb-2", Name = "Z Device", Kind = OutputTargetContract.PhysicalKind },
             new OutputTargetConfig { Id = "desktop-2", Name = "A Desktop", Kind = OutputTargetContract.DesktopKind },
-            new OutputTargetConfig { Id = "usb-1", Name = "A Device", Kind = OutputTargetContract.TrofeoKind },
+            new OutputTargetConfig { Id = "usb-1", Name = "A Device", Kind = OutputTargetContract.PhysicalKind },
             new OutputTargetConfig { Id = "desktop-1", Name = "Z Desktop", Kind = OutputTargetContract.DesktopKind }
         };
         var groups = ScreenMenuContract.GroupTargets(targets);
@@ -221,11 +221,11 @@ internal static class EditorOutputStartStage25Tests
               ScreenMenuContract.TargetsRequireRebuild(displayed, targets.Skip(1).ToArray()),
             "Adding or removing an Output must rebuild its grouped menu immediately.");
         var switched = targets.Select(t => t.Id == "desktop-2"
-            ? new OutputTargetConfig { Id = t.Id, Name = t.Name, Kind = OutputTargetContract.TurzxKind }
+            ? new OutputTargetConfig { Id = t.Id, Name = t.Name, Kind = OutputTargetContract.PhysicalKind }
             : t).ToArray();
         Check(ScreenMenuContract.TargetsRequireRebuild(displayed, switched),
             "Changing an Output's kind without changing its ID must move it to the correct group.");
-        foreach (var kind in new[] { OutputTargetContract.DesktopKind, OutputTargetContract.TrofeoKind })
+        foreach (var kind in new[] { OutputTargetContract.DesktopKind, OutputTargetContract.PhysicalKind })
         {
             var selected = targets.Where(t => kind == OutputTargetContract.DesktopKind
                 ? t.Kind == OutputTargetContract.DesktopKind
@@ -283,7 +283,7 @@ internal static class EditorOutputStartStage25Tests
             "Cross-kind configuration order changes must retain the established Desktop-first menu order.");
         Check(!ScreenMenuContract.TargetsRequireRebuild(
                 [new ScreenMenuTargetIdentity("A", OutputTargetContract.DesktopKind),
-                 new ScreenMenuTargetIdentity("c", OutputTargetContract.TrofeoKind)], config.Outputs.Targets),
+                 new ScreenMenuTargetIdentity("c", OutputTargetContract.PhysicalKind)], config.Outputs.Targets),
             "Output IDs must retain case-insensitive matching for existing Editor menu entries.");
 
         var offline = EditorOutputStartWorkflow.FromConfiguration(config);
@@ -315,7 +315,7 @@ internal static class EditorOutputStartStage25Tests
             Output("a", "A", true), Output("b", "B", true),
             new("c", "C", false, false, "DISABLED")
             {
-                Kind = OutputTargetContract.TrofeoKind, Dashboard = "C", OutputEnabled = false, ProviderEnabled = true, DeviceEnabled = false
+                Kind = OutputTargetContract.PhysicalKind, Dashboard = "C", OutputEnabled = false, ProviderEnabled = true, DeviceEnabled = false
             }
         ];
         public string[] Mutations => Calls.Where(c => c is "LAUNCH" or "ALL" ||

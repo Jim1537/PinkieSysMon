@@ -189,10 +189,10 @@ internal static class DesktopZOrderStage14Tests
                 Desktop("d2", 10),
                 Desktop("d3", 30),
                 new OutputTargetConfig
-                {
+                { Width = 1920, Height = 480, DeviceId = "usb-interface:f7ebbc369634a2a767f095d6e3348a2529983e0bf2eefda38f4485a602796dd7",
                     Id = "usb-off", Name = "Disabled Trofeo",
-                    Kind = OutputTargetContract.TrofeoKind,
-                    Transport = OutputTargetContract.TrofeoTransport,
+                    Kind = OutputTargetContract.PhysicalKind,
+                    Transport = OutputTargetContract.LyBulkTransport,
                     DeviceEnabled = false
                 }
             ]

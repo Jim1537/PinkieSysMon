@@ -5,7 +5,7 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class TurzxTransportDiagnosticTests
 {
-    private static readonly OutputDeviceDescriptor Device = new("turzx:" + new string('a', 64), "turzx", "Synthetic", "PRIVATE-PATH");
+    private static readonly OutputDeviceDescriptor Device = new("usb-interface:" + new string('a', 64), "encrypted-jpeg", "Synthetic", "PRIVATE-PATH");
     private static readonly byte[] Png = [137, 80, 78, 71, 13, 10, 26, 10];
 
     public static void ExplicitConsentAndArguments()
@@ -115,7 +115,7 @@ internal static class TurzxTransportDiagnosticTests
     private static OutputDeviceDescriptor CaptureDevice()
     {
         const string path = @"\\?\usb#vid_1cbe&pid_0123#SYNTHETIC-CAPTURE#{9374A242-8D16-42BB-A6C4-3BAA15E51317}";
-        return new(TurzxDeviceDiscovery.CreateStableDeviceId(path), "turzx", "Synthetic", path);
+        return new(TurzxDeviceDiscovery.CreateStableDeviceId(path), "encrypted-jpeg", "Synthetic", path);
     }
 
     private sealed class CaptureConnection : ITurzxUsbConnection
@@ -149,7 +149,7 @@ internal static class TurzxTransportDiagnosticTests
             var args = action == "brightness" ? new[] { TurzxTransportDiagnostic.Argument, action, "25", "--consent", "YES" } : [TurzxTransportDiagnostic.Argument, action, "--consent", "YES"];
             var result = TurzxTransportDiagnostic.TryRun(args, output.Add, () => [Device], target =>
             {
-                Check(target.DeviceEnabled && target.Kind == "turzx" && target.DeviceId == Device.DeviceId, "Consent must create only the exact in-memory enabled test target.");
+                Check(target.DeviceEnabled && target.Kind == "physical" && target.DeviceId == Device.DeviceId, "Consent must create only the exact in-memory enabled test target.");
                 var transport = new TurzxTransport(io, () => 0, _ => { }, TurzxReplyMode.PrimaryOnly); transport.Synchronize(); return transport;
             }, format => format == TurzxImageFormat.Png ? Png : [255, 216, 255, 255, 217]);
             Check(result == (action == "brightness" ? 3 : 0) && io.Writes == 2 && io.Reads == 2 && io.Disposed,

@@ -157,10 +157,10 @@ internal static class OutputProviderStage07Tests
     };
 
     private static OutputTargetConfig Physical(string id, string name, bool enabled, bool deviceEnabled) => new()
-    {
-        Id = id, Name = name, Kind = OutputTargetContract.TrofeoKind,
-        Transport = OutputTargetContract.TrofeoTransport,
-        DeviceId = "trofeo:" + new string(id.EndsWith("-a", StringComparison.OrdinalIgnoreCase) ? 'a' :
+    { Width = 1920, Height = 480,
+        Id = id, Name = name, Kind = OutputTargetContract.PhysicalKind,
+        Transport = OutputTargetContract.LyBulkTransport,
+        DeviceId = "usb-interface:" + new string(id.EndsWith("-a", StringComparison.OrdinalIgnoreCase) ? 'a' :
             id.EndsWith("-b", StringComparison.OrdinalIgnoreCase) ? 'b' : 'c', 64),
         ProviderEnabled = enabled, DeviceEnabled = deviceEnabled
     };

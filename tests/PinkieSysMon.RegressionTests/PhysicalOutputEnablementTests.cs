@@ -38,7 +38,9 @@ internal static class PhysicalOutputEnablementTests
         using (var f = new Fixture(start: false, single: true))
         {
             f.Target().DeviceId = string.Empty;
-            f.Current.Save(f.ConfigPath);
+            var before = File.ReadAllBytes(f.ConfigPath);
+            Failure<InvalidDataException>(() => f.Current.Save(f.ConfigPath));
+            Check(before.SequenceEqual(File.ReadAllBytes(f.ConfigPath)), "An unbound physical record cannot be persisted.");
             f.Observed = [Device('a')];
             Failure<InvalidOperationException>(() => f.Prepare(true));
             Check(f.ConsentCalls == 0 && f.Created.Count == 0,
@@ -313,9 +315,9 @@ internal static class PhysicalOutputEnablementTests
         }
     }
 
-    private static string Binding(char token) => "trofeo:" + new string(token, 64);
+    private static string Binding(char token) => "usb-interface:" + new string(token, 64);
     private static OutputDeviceDescriptor Device(char token) =>
-        new(Binding(token), OutputTargetContract.TrofeoTransport, "Synthetic device", "synthetic-interface-" + token);
+        new(Binding(token), OutputTargetContract.LyBulkTransport, "Synthetic device", "synthetic-interface-" + token);
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
@@ -351,10 +353,10 @@ internal static class PhysicalOutputEnablementTests
             _log = new FileLogger(Path.Combine(Root, "test.log"));
             Current = new AppConfig { Outputs = new OutputConfig { Targets =
             [
-                new() { Id = "device-a", Name = "Physical A", DeviceId = Binding('a'), Dashboard = "A", RefreshIntervalMs = 250 },
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "device-a", Name = "Physical A", DeviceId = Binding('a'), Dashboard = "A", RefreshIntervalMs = 250 },
                 new() { Id = "desktop-b", Name = "Desktop B", Kind = OutputTargetContract.DesktopKind,
                     Transport = OutputTargetContract.DesktopTransport, Dashboard = "B", Desktop = new() },
-                new() { Id = "device-c", Name = "Physical C", DeviceId = Binding('c'), Dashboard = "C", DeviceEnabled = true }
+                new() { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "device-c", Name = "Physical C", DeviceId = Binding('c'), Dashboard = "C", DeviceEnabled = true }
             ] } };
             if (single) Current.Outputs.Targets.RemoveRange(1, 2);
             Current.Save(ConfigPath);

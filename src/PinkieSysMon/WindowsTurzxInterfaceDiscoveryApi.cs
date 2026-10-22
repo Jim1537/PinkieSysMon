@@ -16,6 +16,9 @@ internal sealed class WindowsTurzxInterfaceDiscoveryApi : ITurzxInterfaceDiscove
     private const int AccessDenied = 5;
     private const uint MaximumPropertyBytes = 4096;
 
+    public string? ReadPhysicalFingerprint(string instanceId) => PassiveUsbInterfaceIdentity.TryReadPhysicalFingerprint(instanceId);
+    public string? ReadDisplayName(string instanceId) => PassiveUsbInterfaceIdentity.TryReadDisplayName(instanceId);
+
     public uint GetListSize(out uint characters) => _pnp.GetListSize(out characters);
     public uint GetList(char[] buffer) => _pnp.GetList(buffer);
     public UsbPnpNode? ReadNode(string instanceId) => _pnp.ReadNode(instanceId);

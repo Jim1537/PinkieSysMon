@@ -13,9 +13,9 @@ internal static class DesktopSessionStage09Tests
         {
             var config = Config(boardEnabled: true, providerEnabled: true);
             config.Outputs.Targets.Add(new OutputTargetConfig
-            {
-                Id = "physical-disabled", Name = "Offline USB", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceEnabled = false
+            { Width = 1920, Height = 480, DeviceId = "usb-interface:eef7908b6de3d06a3f4a29f91d3416aebb05dfc8654088f659d12140636a1732",
+                Id = "physical-disabled", Name = "Offline USB", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceEnabled = false
             });
             var board = Dashboard(directory, orientation: 0, "#FFFF0000");
             var store = new MetricStore();

@@ -46,7 +46,7 @@ internal static class TurzxDeviceDiscovery
                     !node.InstanceId.Equals(current.InstanceId, StringComparison.OrdinalIgnoreCase))
                     continue;
                 devices.Add(new OutputDeviceDescriptor(CreateStableDeviceId(path),
-                    OutputTargetContract.TurzxTransport, ModelName, path)
+                    OutputTargetContract.EncryptedJpegTransport, ModelName, path)
                 { PnpNodeKey = UsbDisplayDiscovery.CreateObservationId(node.InstanceId) });
             }
             // Missing registry access/registration, driver problems or an
@@ -81,8 +81,6 @@ internal static class TurzxDeviceDiscovery
 
     internal static string CreateStableDeviceId(string interfacePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(interfacePath);
-        return "turzx:" + Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes(interfacePath.Trim().ToUpperInvariant()))).ToLowerInvariant();
+        return CatalogUsbInterfaceDiscovery.StableInterfaceId(interfacePath);
     }
 }

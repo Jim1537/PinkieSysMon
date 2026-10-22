@@ -13,7 +13,7 @@ internal static class Issue95RuntimeUsbTestSessionTests
         new(client, new CatalogUsbTrialIntent(attempt,
             "usb-interface:" + new string('a', 64),
             "usb-pnp:" + new string('b', 64),
-            OutputTargetContract.TrofeoTransport, 1920, 480, 1));
+            OutputTargetContract.LyBulkTransport, 1920, 480, 1));
 
     private static RuntimeUsbTestSessionGate Gate() =>
         new(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(40));

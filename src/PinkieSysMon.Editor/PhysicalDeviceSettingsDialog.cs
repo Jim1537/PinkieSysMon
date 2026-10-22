@@ -165,7 +165,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 page = new DeviceSettingsPage(entry.Target, _dashboardChoices,
                     () => _devices.MarkChanged(entry.Target),
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
-                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot);
+                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target));
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
             }
@@ -216,8 +216,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             var confirmed = false;
             if (enabled)
             {
-                if (target.Kind == OutputTargetContract.TurzxKind)
-                    TurzxOutputConfig.ValidateFrameOptions(target.Turzx?.BrightnessPercent, target.Usb?.DiagnosticJournalEnabled == true);
+                if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
+                    EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent, target.Usb?.DiagnosticJournalEnabled == true);
                 if (!_devices.CanEnable(target))
                     throw new InvalidOperationException("This device needs an explicit, unambiguous connected identity before it can be enabled.");
                 confirmed = MessageBox.Show(this,
@@ -265,15 +265,17 @@ internal sealed class DeviceSettingsPage : TabPage
         Name = "DeviceFields", Dock = DockStyle.Top, AutoSize = true,
         ColumnCount = 3, Padding = new Padding(12)
     };
-    private readonly Button _add = new() { Text = "Add Device", Name = "AddDevice", AutoSize = true };
+    private readonly Button _add = new() { Text = "Save Configuration", Name = "AddDevice", AutoSize = true };
     private readonly Button _remove = new() { Text = "Remove", Name = "RemoveDevice", AutoSize = true };
     private readonly CheckBox _enabled = new() { Text = EditorSettingsHelp.OutputEnabledCaption, Name = "DeviceEnabled", AutoSize = true };
     private bool _binding;
+    private readonly CatalogUsbCandidateDraft? _candidate;
 
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
         Action changed, Func<bool, bool> enable, Action add, Action remove,
-        string? applicationRoot = null)
+        string? applicationRoot = null, CatalogUsbCandidateDraft? candidate = null)
     {
+        _candidate = candidate;
         _help = new EditorSettingsHelp(applicationRoot);
         AutoScroll = true;
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
@@ -305,19 +307,53 @@ internal sealed class DeviceSettingsPage : TabPage
             return control;
         }
 
+        void AddButtons()
+        {
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(12, 4, 12, 4) };
+            buttons.Controls.Add(_add);
+            buttons.Controls.Add(_remove);
+            _help.Bind(_add, EditorSettingsHelp.AddDevice);
+            _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
+            _add.Click += (_, _) => add();
+            _remove.Click += (_, _) => remove();
+            Controls.Add(buttons);
+            Controls.Add(_fields);
+            Controls.Add(_status);
+        }
+
         var name = new TextBox { Text = target.Name, Name = "DeviceName", Dock = DockStyle.Fill };
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
         Row("Display name", name, EditorSettingsHelp.DisplayName);
-        var isTurzx = target.Kind == OutputTargetContract.TurzxKind;
-        Row("Type", new Label { Text = isTurzx ? "TURZX 12.3-inch" :
-            "Trofeo Vision 9.16 adapter (LY)", AutoSize = true }, EditorSettingsHelp.DeviceType);
-        var family = isTurzx ? UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123))! :
-            UsbDisplayCatalog.Families.Single(f => f.CandidateTransport == OutputTargetContract.TrofeoTransport);
-        Row("USB product / transport", new Label { Text = isTurzx ? $"{family.Product} / turzx" :
-            $"{family.Product} / Trofeo (LY)", AutoSize = true },
-            isTurzx ? "TURZX uses its own JPEG transport and physical geometry. Current device brightness is preserved." :
-            "The Trofeo adapter uses its own native geometry, JPEG encoding and USB settings. " +
-            "Other recognized USB families cannot use this adapter.");
+        var isTurzx = target.Transport == OutputTargetContract.EncryptedJpegTransport;
+        Row("Type", new Label { Text = "Physical USB display", AutoSize = true }, EditorSettingsHelp.DeviceType);
+        if (candidate is not null)
+        {
+            var protocol = new ComboBox { Name = "DeviceProtocol", DropDownStyle = ComboBoxStyle.DropDownList };
+            protocol.Items.AddRange([OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport]);
+            protocol.SelectedItem = candidate.Protocol;
+            protocol.SelectedIndexChanged += (_, _) => Change(() =>
+            {
+                target.Transport = protocol.SelectedItem as string ?? string.Empty;
+                target.EncryptedJpeg = target.Transport == OutputTargetContract.EncryptedJpegTransport ? new() : null;
+                target.Usb!.DiagnosticJournalEnabled = false;
+            });
+            Row("Protocol", protocol, "Select the implemented wire protocol. A catalog hint does not establish compatibility.");
+            Row("Width", Number("DeviceWidth", target.Width, 0, int.MaxValue, value => target.Width = value),
+                "Required screen width at zero rotation. No model dimensions are inferred.");
+            Row("Height", Number("DeviceHeight", target.Height, 0, int.MaxValue, value => target.Height = value),
+                "Required screen height at zero rotation. Runtime Test validates this geometry.");
+            Row("Test", new Button { Name = "DeviceTest", Text = "Test", Enabled = false, AutoSize = true },
+                "Runtime USB Test integration is pending. This candidate cannot yet be saved or enabled.");
+            AddButtons();
+            return;
+        }
+        else
+        {
+            Row("Protocol", new Label { Text = target.Transport, AutoSize = true },
+                "Confirmed protocol. To change protocol or geometry, Remove and repeat Test / Save Configuration.");
+            Row("Screen size", new Label { Text = $"{target.Width} × {target.Height}", AutoSize = true },
+                "User-confirmed dimensions used for the first working dashboard. Ordinary frames use the assigned dashboard canvas.");
+        }
         var dashboard = new ComboBox { Name = "DeviceDashboard", Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList };
         dashboard.Items.AddRange(dashboards.Cast<object>().ToArray());
@@ -355,12 +391,12 @@ internal sealed class DeviceSettingsPage : TabPage
         if (isTurzx)
         {
             Control brightness = new Label { Name = "DeviceKeepBrightness", Text = "Device setting (unchanged)", AutoSize = true };
-            if (target.Turzx?.BrightnessPercent is not null)
+            if (target.EncryptedJpeg?.BrightnessPercent is not null)
             {
                 var clear = new Button { Name = "DeviceKeepBrightness", Text = "Use current device setting", AutoSize = true };
                 clear.Click += (_, _) => Change(() =>
                 {
-                    target.Turzx ??= new(); target.Turzx.BrightnessPercent = null; clear.Enabled = false;
+                    target.EncryptedJpeg ??= new(); target.EncryptedJpeg.BrightnessPercent = null; clear.Enabled = false;
                 });
                 brightness = clear;
             }
@@ -382,16 +418,7 @@ internal sealed class DeviceSettingsPage : TabPage
             Row("USB diagnostics", journal, EditorSettingsHelp.UsbJournal);
         }
 
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(12, 4, 12, 4) };
-        buttons.Controls.Add(_add);
-        buttons.Controls.Add(_remove);
-        _help.Bind(_add, EditorSettingsHelp.AddDevice);
-        _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
-        _add.Click += (_, _) => add();
-        _remove.Click += (_, _) => remove();
-        Controls.Add(buttons);
-        Controls.Add(_fields);
-        Controls.Add(_status);
+        AddButtons();
     }
 
     protected override void Dispose(bool disposing)
@@ -414,11 +441,13 @@ internal sealed class DeviceSettingsPage : TabPage
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
             (entry.IsConfigured ? "Changes are saved and applied after OK." :
-                "Not configured. Use Add Device to save this device's settings after OK.");
+                "Not configured. Enter screen size and protocol. Runtime Test integration is pending; saving is unavailable.");
         _fields.Enabled = entry.CanEdit;
         _add.Visible = !entry.IsConfigured;
-        _add.Enabled = entry.CanEdit;
-        _remove.Enabled = canRemove;
+        _add.Enabled = entry.CanEdit && _candidate?.CanSaveConfiguration == true;
+        _enabled.Enabled = entry.IsConfigured;
+        _remove.Visible = entry.IsConfigured;
+        _remove.Enabled = entry.IsConfigured && canRemove;
         var wasBinding = _binding;
         _binding = true;
         try { _enabled.Checked = OutputTargetContract.IsEnabled(entry.Target); }

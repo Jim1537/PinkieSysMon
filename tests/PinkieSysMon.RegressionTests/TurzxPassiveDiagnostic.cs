@@ -34,8 +34,8 @@ internal static class TurzxPassiveDiagnostic
                 return 1;
             }
             var target = new OutputTargetConfig
-            {
-                Id = "passive-check", Name = "Passive check", Kind = "turzx", Transport = "turzx",
+            { Width = 1920, Height = 720,
+                Id = "passive-check", Name = "Passive check", Kind = "physical", Transport = "encrypted-jpeg",
                 DeviceId = devices[0].DeviceId, DeviceEnabled = false
             };
             if (OutputDeviceSelection.Resolve(target, devices).Status != OutputDeviceResolutionStatus.Found)

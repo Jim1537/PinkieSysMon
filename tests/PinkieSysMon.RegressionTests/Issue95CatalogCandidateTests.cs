@@ -50,7 +50,7 @@ internal static class Issue95CatalogCandidateTests
         var candidates = CatalogUsbInterfaceDiscovery.Capture(api);
         Check(candidates.Count == 2 && candidates[0].Id != candidates[1].Id &&
               candidates[0].PnpNodeKey == candidates[1].PnpNodeKey &&
-              candidates.All(c => c.SuggestedTransport == OutputTargetContract.TurzxTransport),
+              candidates.All(c => c.SuggestedTransport == OutputTargetContract.EncryptedJpegTransport),
             "Two interfaces on one known unit remain separate and ambiguous, never first-selected.");
 
         api.InterfaceInstanceId = _ => NodeId("1CBE:0123", "ANOTHER");

@@ -66,12 +66,12 @@ internal sealed class FramePump : IOutputSession
         ArgumentNullException.ThrowIfNull(dashboard);
 
         if (maximumFrames is < 1) throw new ArgumentOutOfRangeException(nameof(maximumFrames));
-        if (target.Transport == OutputTargetContract.TurzxTransport)
+        if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
             TurzxFrameTransport.ValidateOptions(target, (target.Usb ?? config.Usb).DiagnosticJournalEnabled);
         _maximumFrames = maximumFrames;
-        _turzxRecoveryDiscovery = turzxRecoveryDiscovery ?? TurzxDeviceDiscovery.CaptureForRecovery;
         _config = config;
         _target = target;
+        _turzxRecoveryDiscovery = turzxRecoveryDiscovery ?? (() => PhysicalDeviceDiscovery.CaptureForTarget(_target));
         _targetId = target.Id;
         _targetName = target.Name;
         _metrics = metrics;
@@ -472,7 +472,7 @@ internal sealed class FramePump : IOutputSession
             _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
             lock (_sync)
             {
-                if (_target.Transport == OutputTargetContract.TurzxTransport)
+                if (_target.Transport == OutputTargetContract.EncryptedJpegTransport)
                 {
                     _transportCleanupFailed = true;
                     _transportFaulted = true;
@@ -562,7 +562,7 @@ internal sealed class FramePump : IOutputSession
                 if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
                 {
                     SetUsbStateLocked("ERROR");
-                    _transportFaulted = target.Transport == OutputTargetContract.TurzxTransport;
+                    _transportFaulted = target.Transport == OutputTargetContract.EncryptedJpegTransport;
                     _transportAbsenceObserved = false;
                     Volatile.Write(ref _isConnected, false);
                     _nextUsbAttemptAtMs = Environment.TickCount64 + retryMs;
@@ -756,7 +756,7 @@ internal sealed class FramePump : IOutputSession
                         _lastFps = 0;
                         if (!_transportRetirePending && !_suspended)
                         {
-                            _transportFaulted = _target.Transport == OutputTargetContract.TurzxTransport;
+                            _transportFaulted = _target.Transport == OutputTargetContract.EncryptedJpegTransport;
                             _transportAbsenceObserved = false;
                             SetUsbStateLocked(_transportFaulted ? "ERROR" : "WAITING");
                             _nextUsbAttemptAtMs = Environment.TickCount64 + (_target.Usb ?? _config.Usb).RetryIntervalMs;

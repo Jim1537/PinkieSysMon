@@ -15,7 +15,7 @@ internal static class PassiveUsbInterfaceIdentity
     {
         var id = TryReadInstanceId(interfacePath);
         return id is not null && UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) &&
-               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.TrofeoTransport
+               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.LyBulkTransport
             ? UsbDisplayDiscovery.CreateObservationId(id) : null;
     }
 
@@ -41,7 +41,7 @@ internal static class PassiveUsbInterfaceIdentity
     {
         var id = DecodeInstanceId(type, buffer, length);
         return id is not null && UsbDisplayCatalog.TryParseInstanceId(id, out var product, out _) &&
-               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.TrofeoTransport
+               UsbDisplayCatalog.Find(product)?.CandidateTransport == OutputTargetContract.LyBulkTransport
             ? UsbDisplayDiscovery.CreateObservationId(id) : null;
     }
 
@@ -54,6 +54,45 @@ internal static class PassiveUsbInterfaceIdentity
         var id = Encoding.Unicode.GetString(buffer, 0, checked((int)length - 2));
         return UsbDisplayCatalog.TryParseInstanceId(id, out _, out _) ? id : null;
     }
+
+    internal static string? TryReadPhysicalFingerprint(string instanceId)
+    {
+        if (!UsbDisplayCatalog.TryParseInstanceId(instanceId, out var product, out var function) || function)
+            return null;
+        var bytes = ReadRegistryProperty(instanceId, 0x10, 4, sizeof(uint)); // CM_DRP_CAPABILITIES / REG_DWORD
+        return bytes is not null && bytes.Length == sizeof(uint) && (BitConverter.ToUInt32(bytes) & 0x10) != 0
+            ? Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(
+                "usb-serial-v1\n" + product + "\n" + instanceId.Split('\\')[2].ToUpperInvariant()))).ToLowerInvariant()
+            : null;
+    }
+
+    internal static string? TryReadDisplayName(string instanceId)
+    {
+        var bytes = ReadRegistryProperty(instanceId, 0x0D, 1, 1024) ?? // CM_DRP_FRIENDLYNAME / REG_SZ
+            ReadRegistryProperty(instanceId, 0x01, 1, 1024); // CM_DRP_DEVICEDESC
+        if (bytes is null || bytes.Length < 2 || bytes.Length % 2 != 0) return null;
+        var name = Encoding.Unicode.GetString(bytes).TrimEnd('\0').Trim();
+        return name.Length == 0 || name.Any(char.IsControl) ? null : name;
+    }
+
+    private static byte[]? ReadRegistryProperty(string instanceId, uint property, uint expectedType, int capacity)
+    {
+        try
+        {
+            if (CM_Locate_DevNodeW(out var node, instanceId, 0) != 0) return null;
+            var buffer = new byte[capacity]; uint length = (uint)capacity;
+            return CM_Get_DevNode_Registry_PropertyW(node, property, out var type, buffer, ref length, 0) == 0 &&
+                type == expectedType && length <= capacity ? buffer[..checked((int)length)] : null;
+        }
+        catch (DllNotFoundException) { return null; }
+        catch (EntryPointNotFoundException) { return null; }
+    }
+
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint CM_Locate_DevNodeW(out uint node, string deviceId, uint flags);
+    [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint CM_Get_DevNode_Registry_PropertyW(uint node, uint property,
+        out uint dataType, [Out] byte[] buffer, ref uint length, uint flags);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct DevicePropertyKey(Guid formatId, uint propertyId)

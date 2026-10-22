@@ -32,8 +32,8 @@ internal static class OutputConfigurationModelTests
                             Desktop = new DesktopOutputConfig { BoardEnabled = true }
                         },
                         new OutputTargetConfig
-                        {
-                            Id = "trofeo-one", Name = "Trofeo", Kind = "trofeo",
+                        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:e8b665a4ed16b8fa9dd095545b40a6209e3ceb9f93e67ac1487e68c36de104e8",
+                            Id = "trofeo-one", Name = "Trofeo", Kind = "physical",
                             Dashboard = "Diagnostics", RefreshIntervalMs = 250,
                             ProviderEnabled = true, DeviceEnabled = false,
                             JpegQuality = 67,
@@ -149,7 +149,7 @@ internal static class OutputConfigurationModelTests
             Invalid(() => invalidRefresh.Save(path), "Refresh interval below minimum must fail.");
 
             var deviceInDesktop = MakeValid();
-            deviceInDesktop.Outputs.Targets[0].DeviceId = "trofeo:abc";
+            deviceInDesktop.Outputs.Targets[0].DeviceId = "usb-interface:abc";
             Invalid(() => deviceInDesktop.Save(path), "Desktop device binding must fail.");
 
             var jpegInDesktop = MakeValid();
@@ -170,22 +170,22 @@ internal static class OutputConfigurationModelTests
             var sharedDevice = new AppConfig();
             sharedDevice.Outputs.Targets =
             [
-                new OutputTargetConfig { Id = "physical-a", DeviceId = "trofeo:" + new string('a', 64) },
-                new OutputTargetConfig { Id = "physical-b", DeviceId = "trofeo:" + new string('a', 64) }
+                new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "physical-a", DeviceId = "usb-interface:" + new string('a', 64) },
+                new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "physical-b", DeviceId = "usb-interface:" + new string('a', 64) }
             ];
             Invalid(() => sharedDevice.Save(path), "A device must not be bound to two outputs.");
 
             var invalidPhysicalIdentity = new AppConfig();
             invalidPhysicalIdentity.Outputs.Targets =
             [
-                new OutputTargetConfig { Id = "device", DeviceId = "trofeo:abc" }
+                new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "device", DeviceId = "usb-interface:abc" }
             ];
             Invalid(() => invalidPhysicalIdentity.Save(path),
                 "Malformed persisted physical identity must be rejected.");
 
             var mixed = MakeValid();
             mixed.Outputs.Targets.Add(new OutputTargetConfig
-            {
+            { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:08e31fd41ce5a767787306f54acc3c2b83ac5f4472299dd6551adae14ef76ec2",
                 Id = "device", Name = "Device", Dashboard = "Hardware"
             });
             mixed.Save(path);

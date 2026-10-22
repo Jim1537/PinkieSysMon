@@ -7,7 +7,7 @@ internal readonly record struct PhysicalFrameProfile(
     int RotationDegrees, int? NativeWidth = null, int? NativeHeight = null,
     int MaximumImageBytes = int.MaxValue)
 {
-    public static PhysicalFrameProfile Turzx { get; } = new(90, 1920, 720, TurzxWireProtocol.MaximumImageBytes);
+    public static PhysicalFrameProfile EncryptedJpeg { get; } = new(90, MaximumImageBytes: TurzxWireProtocol.MaximumImageBytes);
 
     public Size PhysicalSize(int dashboardWidth, int dashboardHeight)
     {

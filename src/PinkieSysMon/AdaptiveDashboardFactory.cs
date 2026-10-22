@@ -17,7 +17,7 @@ internal static class AdaptiveDashboardFactory
     // This is a per-generated-dashboard safety budget, not a transport capability.
     internal const long MaximumPixels = 4_194_304;
 
-    public static CanonicalDashboardDefinition Create(int width, int height, int orientation, string baseDirectory)
+    internal static void ValidateGeometry(int width, int height, int orientation)
     {
         if (orientation is not (0 or 90 or 180 or 270))
             throw new ArgumentOutOfRangeException(nameof(orientation), orientation,
@@ -34,6 +34,13 @@ internal static class AdaptiveDashboardFactory
             throw new ArgumentOutOfRangeException(nameof(width),
                 $"Canvas {width}x{height} at {orientation}° leaves only {logical.Width}x{logical.Height} logical pixels. " +
                 "At least 240x180 logical pixels are needed for the clock, computer name and title.");
+
+    }
+
+    public static CanonicalDashboardDefinition Create(int width, int height, int orientation, string baseDirectory)
+    {
+        ValidateGeometry(width, height, orientation);
+        var logical = FrameGeometry.GetLogicalSize(width, height, orientation);
 
         var w = (float)logical.Width;
         var h = (float)logical.Height;

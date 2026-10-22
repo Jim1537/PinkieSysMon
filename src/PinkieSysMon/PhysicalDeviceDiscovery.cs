@@ -16,15 +16,40 @@ internal sealed class PhysicalDeviceDiscoveryException(
 
 internal static class PhysicalDeviceDiscovery
 {
-    public static IReadOnlyList<OutputDeviceDescriptor> Capture() =>
-        Capture(DeviceDiscovery.EnumerateTrofeoDevices, TurzxDeviceDiscovery.Capture);
-
-    public static IReadOnlyList<OutputDeviceDescriptor> CaptureTransport(string transport) => transport switch
+    public static IReadOnlyList<OutputDeviceDescriptor> Capture()
     {
-        OutputTargetContract.TrofeoTransport => DeviceDiscovery.EnumerateTrofeoDevices(),
-        OutputTargetContract.TurzxTransport => TurzxDeviceDiscovery.Capture(),
-        _ => throw new InvalidOperationException("Unsupported physical discovery transport.")
-    };
+        var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
+        var devices = Project(snapshot);
+        if (snapshot.UnavailableNodeKeys.Count != 0)
+            throw new PhysicalDeviceDiscoveryException(devices,
+                new HashSet<string>([OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport]),
+                [new InvalidOperationException("Some catalog interface metadata is unavailable.")]);
+        return devices;
+    }
+
+    internal static IReadOnlyList<OutputDeviceDescriptor> CaptureForTarget(OutputTargetConfig target)
+    {
+        var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
+        var devices = Project(snapshot);
+        if (snapshot.UnavailableNodeKeys.Count != 0 &&
+            OutputDeviceSelection.Resolve(target, devices).Status == OutputDeviceResolutionStatus.Missing)
+            throw new InvalidOperationException("Selected physical interface metadata cannot be established.");
+        return devices;
+    }
+
+    public static IReadOnlyList<OutputDeviceDescriptor> CaptureTransport(string transport)
+    {
+        if (!OutputTargetContract.HasIntegratedTransport(transport))
+            throw new InvalidOperationException("Unsupported physical discovery protocol.");
+        // A hint is not an admission gate for the explicitly selected protocol.
+        return Capture();
+    }
+
+    internal static IReadOnlyList<OutputDeviceDescriptor> Project(CatalogUsbCandidateSnapshot snapshot) =>
+        snapshot.Candidates.Select(candidate => new OutputDeviceDescriptor(
+            candidate.Id, candidate.SuggestedTransport ?? string.Empty,
+            candidate.DisplayName, candidate.InterfacePath)
+        { PnpNodeKey = candidate.PnpNodeKey, Candidate = candidate, PhysicalFingerprint = candidate.PhysicalFingerprint }).ToArray();
 
     internal static IReadOnlyList<OutputDeviceDescriptor> Capture(
         Func<IReadOnlyList<OutputDeviceDescriptor>> trofeo,
@@ -49,8 +74,8 @@ internal static class PhysicalDeviceDiscovery
                 failures.Add(error);
             }
         }
-        Read(OutputTargetContract.TrofeoTransport, trofeo);
-        Read(OutputTargetContract.TurzxTransport, turzx);
+        Read(OutputTargetContract.LyBulkTransport, trofeo);
+        Read(OutputTargetContract.EncryptedJpegTransport, turzx);
         if (failures.Count != 0)
             throw new PhysicalDeviceDiscoveryException(devices.AsReadOnly(), unavailable, failures.AsReadOnly());
         return devices.AsReadOnly();

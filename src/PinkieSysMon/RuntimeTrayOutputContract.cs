@@ -13,7 +13,7 @@ internal static class RuntimeTrayOutputContract
         {
             OutputTargetContract.DesktopKind => output.IsVisible == true &&
                 output.UsbState.Equals("DISPLAYING", StringComparison.OrdinalIgnoreCase),
-            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
+            OutputTargetContract.PhysicalKind => output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
             _ => false
         };
         if (!output.OutputEnabled || !output.IsActive || !output.IsConnected || !ready || output.SentFrames <= 0)

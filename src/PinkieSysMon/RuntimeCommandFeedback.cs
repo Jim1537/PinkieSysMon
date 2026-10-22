@@ -199,7 +199,7 @@ internal sealed class RuntimeCommandFeedback(
         (!output.IsConnected || (output.Kind switch
         {
             OutputTargetContract.DesktopKind => output.IsVisible != true || !output.UsbState.Equals("DISPLAYING", StringComparison.OrdinalIgnoreCase),
-            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => !output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
+            OutputTargetContract.PhysicalKind or OutputTargetContract.PhysicalKind => !output.UsbState.Equals("CONNECTED", StringComparison.OrdinalIgnoreCase),
             _ => true
         }));
 
@@ -208,14 +208,14 @@ internal sealed class RuntimeCommandFeedback(
         (output.Kind switch
         {
             OutputTargetContract.DesktopKind => $"Lock={output.Lock?.ToString() ?? "unknown"}, ",
-            OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => string.Empty,
+            OutputTargetContract.PhysicalKind or OutputTargetContract.PhysicalKind => string.Empty,
             _ => "Output kind unknown, "
         }) +
         $"state {output.UsbState}, " + (output.IsActive
             ? output.Kind switch
             {
                 OutputTargetContract.DesktopKind => output.IsVisible == true ? "panel visible" : "panel visibility not confirmed",
-                OutputTargetContract.TrofeoKind or OutputTargetContract.TurzxKind => output.IsConnected ? "transport connected; frame delivery not verified" : "transport not connected",
+                OutputTargetContract.PhysicalKind or OutputTargetContract.PhysicalKind => output.IsConnected ? "transport connected; frame delivery not verified" : "transport not connected",
                 _ => "presentation type not confirmed"
             }
             : "session inactive");

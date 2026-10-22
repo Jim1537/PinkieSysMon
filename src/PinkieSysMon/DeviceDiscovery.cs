@@ -17,6 +17,7 @@ internal sealed record OutputDeviceDescriptor(
     // Hash of the interface's exact devnode ID. Snapshot correlation only;
     // never serialized into OutputTargetConfig or used for automatic rebinding.
     public string? PnpNodeKey { get; init; }
+    public CatalogUsbInterfaceCandidate? Candidate { get; init; }
 
     public string ShortId
     {
@@ -64,21 +65,14 @@ internal static class OutputDeviceSelection
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(discoveredDevices);
 
-        var matchesModel = string.Equals(target.Kind, OutputTargetContract.TrofeoKind, StringComparison.OrdinalIgnoreCase) &&
-                           string.Equals(target.Transport, OutputTargetContract.TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(target.Kind, OutputTargetContract.TurzxKind, StringComparison.OrdinalIgnoreCase) &&
-                           string.Equals(target.Transport, OutputTargetContract.TurzxTransport, StringComparison.OrdinalIgnoreCase);
-        if (!matchesModel)
-        {
-            return new OutputDeviceResolution(
-                OutputDeviceResolutionStatus.UnsupportedTransport,
-                null,
-                $"Output target '{target.Name}' uses unsupported transport '{target.Transport}'.");
-        }
+        if (!OutputTargetContract.IsPhysicalKind(target.Kind) ||
+            !OutputTargetContract.HasIntegratedTransport(target.Transport))
+            return new(OutputDeviceResolutionStatus.UnsupportedTransport, null,
+                $"Output '{target.Name}' requires an implemented physical protocol.");
 
-        var candidates = discoveredDevices
-            .Where(device => device.Transport.Equals(target.Transport, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        // Transport on a discovery descriptor is only a passive suggestion.
+        // A user's confirmed protocol is independent of the catalog hint.
+        var candidates = discoveredDevices.ToArray();
 
         // One claimed physical serial on two interfaces is ambiguous regardless
         // of whether the legacy per-path ID uniquely matches one of them.
@@ -204,7 +198,7 @@ internal static class DeviceDiscovery
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(path => new OutputDeviceDescriptor(
                 CreateStableDeviceId(path),
-                OutputTargetContract.TrofeoTransport,
+                OutputTargetContract.LyBulkTransport,
                 OutputTargetContract.DefaultTargetName,
                 path))
             .OrderBy(device => device.DeviceId, StringComparer.OrdinalIgnoreCase)
@@ -213,10 +207,7 @@ internal static class DeviceDiscovery
 
     internal static string CreateStableDeviceId(string interfacePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(interfacePath);
-        var canonicalPath = interfacePath.Trim().ToUpperInvariant();
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalPath));
-        return $"trofeo:{Convert.ToHexString(digest).ToLowerInvariant()}";
+        return CatalogUsbInterfaceDiscovery.StableInterfaceId(interfacePath);
     }
 
     private static IEnumerable<string> ParseMultiSz(char[] buffer)

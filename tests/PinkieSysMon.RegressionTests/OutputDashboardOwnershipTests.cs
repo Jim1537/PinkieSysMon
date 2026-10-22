@@ -120,12 +120,12 @@ internal static class OutputDashboardOwnershipTests
         Outputs = new OutputConfig
         {
             Targets = assignments.Select(item => new OutputTargetConfig
-            {
+            { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                 Id = item.Id,
                 Name = item.Id.ToUpperInvariant(),
                 Dashboard = item.Dashboard,
                 DeviceEnabled = true,
-                DeviceId = "trofeo:" + new string(item.Id[0], 64)
+                DeviceId = "usb-interface:" + new string(item.Id[0], 64)
             }).ToList()
         }
     };

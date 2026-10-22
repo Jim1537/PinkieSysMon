@@ -123,10 +123,10 @@ internal static class RuntimeIdleTests
                             Desktop = new DesktopOutputConfig { BoardEnabled = true, Lock = true, X = 42, Y = 91 }
                         },
                         new OutputTargetConfig
-                        {
+                        { Width = 1920, Height = 480, DeviceId = "usb-interface:9e87dbc43e246e24d9f8769ab80c26b06d4399d68e60e8d8b427fb0aae5c5db0",
                             Id = "usb-1", Name = "Idle USB",
-                            Kind = OutputTargetContract.TrofeoKind,
-                            Transport = OutputTargetContract.TrofeoTransport,
+                            Kind = OutputTargetContract.PhysicalKind,
+                            Transport = OutputTargetContract.LyBulkTransport,
                             DeviceEnabled = true, Dashboard = "Default", RefreshIntervalMs = 50
                         }
                     ]
@@ -214,9 +214,9 @@ internal static class RuntimeIdleTests
         Sandbox((root, log) =>
         {
             var target = new OutputTargetConfig
-            {
-                Id = "usb-first", Name = "Long interval USB", Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport, DeviceEnabled = true,
+            { Width = 1920, Height = 480, DeviceId = "usb-interface:a9bae758b2abd3a9e76813a1a88dda24b98f7a07647bdef5ab828448584ad1cd",
+                Id = "usb-first", Name = "Long interval USB", Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport, DeviceEnabled = true,
                 Dashboard = "Default", RefreshIntervalMs = 600_000
             };
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
@@ -261,10 +261,10 @@ internal static class RuntimeIdleTests
                 Widgets = []
             };
             var target = new OutputTargetConfig
-            {
+            { Width = 1920, Height = 480, DeviceId = "usb-interface:36106f94df38f34ceeb03a7762940ae1efa48a13678173ccae3e7f2adc458612",
                 Id = "blocked-idle", Name = "Blocked idle",
-                Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport,
+                Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport,
                 DeviceEnabled = true, Dashboard = "Default", RefreshIntervalMs = 40
             };
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };

@@ -7,7 +7,7 @@ internal static class PhysicalHandshakeDiagnosticTests
 {
     public static void CommonContextAndBounds()
     {
-        foreach (var kind in new[] { OutputTargetContract.TrofeoKind, OutputTargetContract.TurzxKind })
+        foreach (var kind in new[] { OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport })
         {
             var trace = new PhysicalHandshakeDiagnostics();
             var bytes = Enumerable.Range(0, 600).Select(i => (byte)i).ToArray();
@@ -21,7 +21,7 @@ internal static class PhysicalHandshakeDiagnosticTests
             using var json = Parse(line);
             var root = json.RootElement;
             Check(!line.Contains('\n') && root.GetProperty("targetName").GetString() == target.Name, "User metadata must remain escaped in one log entry.");
-            Check(root.GetProperty("runtime").GetString() == RuntimeVersion.Current && root.GetProperty("kind").GetString() == kind &&
+            Check(root.GetProperty("runtime").GetString() == RuntimeVersion.Current && root.GetProperty("kind").GetString() == OutputTargetContract.PhysicalKind &&
                 root.GetProperty("transport").GetString() == target.Transport && root.GetProperty("timeoutMs").GetInt32() == 1700 &&
                 root.GetProperty("stage").GetString() == "validation" && root.GetProperty("elapsedMs").GetDouble() >= 0 &&
                 root.GetProperty("attemptId").GetString()!.Length == 32, "Both adapters must receive the same attempt context.");
@@ -39,7 +39,7 @@ internal static class PhysicalHandshakeDiagnosticTests
     public static void ObserverPreservesErrorsAndQuietPaths()
     {
         var reports = new List<string>();
-        var target = Target(OutputTargetContract.TrofeoKind);
+        var target = Target(OutputTargetContract.LyBulkTransport);
         Check(PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => null, reports.Add) is null && reports.Count == 0, "Missing binding is quiet.");
         Check(PhysicalHandshakeDiagnostics.Observe(target, 1000, default, _ => 42, reports.Add) == 42 && reports.Count == 0, "Healthy opening is quiet.");
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
@@ -66,7 +66,7 @@ internal static class PhysicalHandshakeDiagnosticTests
                     packet.Where((_, i) => i is not (0 or 1 or 8)).All(value => value == 0), "Trofeo handshake packet remains exact.");
             }, requested => { reads++; Check(requested == 512, "Trofeo keeps its read size."); return reply; }, trace));
             Check(error is InvalidDataException && writes == 1 && reads == 1, "Malformed Trofeo replies retain validation and single exchange.");
-            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.TrofeoKind), 1000, error));
+            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.LyBulkTransport), 1000, error));
             var operation = json.RootElement.GetProperty("operations")[1];
             Check(operation.GetProperty("ActualBytes").GetInt32() == size && operation.GetProperty("ResponseHex").GetString() == Convert.ToHexString(reply) &&
                 json.RootElement.GetProperty("stage").GetString() == "handshake-validation", "Capture only actual Trofeo reply bytes, including completed empty reads.");
@@ -82,7 +82,7 @@ internal static class PhysicalHandshakeDiagnosticTests
             var trace = new PhysicalHandshakeDiagnostics(); var reads = 0;
             var error = new Win32Exception(31);
             Check(ReferenceEquals(Capture(() => TrofeoTransport.Handshake(_ => { if (failWrite) throw error; }, _ => { reads++; throw error; }, trace)), error) && reads == (failWrite ? 0 : 1), "Trofeo I/O errors retain identity and ordering.");
-            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.TrofeoKind), 1000, error));
+            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.LyBulkTransport), 1000, error));
             var operations = json.RootElement.GetProperty("operations");
             var pending = operations[operations.GetArrayLength() - 1];
             Check(pending.GetProperty("ActualBytes").ValueKind == JsonValueKind.Null && pending.GetProperty("ResponseHex").ValueKind == JsonValueKind.Null, "No Trofeo completion means unknown count and no fabricated bytes.");
@@ -99,7 +99,7 @@ internal static class PhysicalHandshakeDiagnosticTests
             using var transport = New(usb);
             var error = Capture(() => transport.Synchronize(diagnostics: trace));
             Check(error is InvalidDataException && usb.Writes == 1 && usb.Reads == 1, "Malformed TURZX primary replies keep strict validation without a follow-up or retry.");
-            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.TurzxKind), 1000, error));
+            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.EncryptedJpegTransport), 1000, error));
             var operation = json.RootElement.GetProperty("operations")[1];
             Check(operation.GetProperty("ActualBytes").GetInt32() == size && operation.GetProperty("ResponseHex").GetString() == Convert.ToHexString(reply) &&
                 json.RootElement.GetProperty("stage").GetString() == "sync-primary-validation", "Short primary replies retain exact bytes and stage.");
@@ -115,7 +115,7 @@ internal static class PhysicalHandshakeDiagnosticTests
             using var transport = New(usb);
             var error = Capture(() => transport.Synchronize(diagnostics: trace));
             Check(usb.Writes == 1 && usb.Reads == (failure == "short-write" ? 0 : 2), "Diagnostics must not add I/O or retry uncertain boundaries.");
-            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.TurzxKind), 1000, error));
+            using var json = Parse(trace.FormatFailure(Target(OutputTargetContract.EncryptedJpegTransport), 1000, error));
             var operations = json.RootElement.GetProperty("operations");
             if (failure == "short-write")
             {
@@ -136,7 +136,7 @@ internal static class PhysicalHandshakeDiagnosticTests
         using var usb = new Connection(Reply(), [], Reply(), []);
         using var transport = New(usb);
         transport.Synchronize(diagnostics: trace);
-        var target = Target(OutputTargetContract.TurzxKind);
+        var target = Target(OutputTargetContract.EncryptedJpegTransport);
         var marker = new IOException("fixture");
         using var before = Parse(trace.FormatFailure(target, 1000, marker));
         transport.SendImage(TurzxImageFormat.Jpeg, new byte[] { 255, 216, 255, 0, 255, 217 });
@@ -151,7 +151,7 @@ internal static class PhysicalHandshakeDiagnosticTests
         var directory = Path.Combine(Path.GetTempPath(), "pinkie-handshake-" + Guid.NewGuid().ToString("N"));
         var path = Path.Combine(directory, "runtime.log");
         var log = new FileLogger(path);
-        var target = Target(OutputTargetContract.TurzxKind);
+        var target = Target(OutputTargetContract.EncryptedJpegTransport);
         target.DeviceEnabled = false;
         Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, false, log, default)) is InvalidOperationException && !File.Exists(path), "Disabled Output is rejected before diagnostics and I/O.");
         target.DeviceEnabled = true;
@@ -164,9 +164,9 @@ internal static class PhysicalHandshakeDiagnosticTests
     }
 
     private static OutputTargetConfig Target(string kind) => new()
-    {
-        Id = "fixture-output", Name = "Fixture", Kind = kind, DeviceEnabled = true,
-        Transport = kind == OutputTargetContract.TurzxKind ? OutputTargetContract.TurzxTransport : OutputTargetContract.TrofeoTransport
+    { Width = 1920, Height = 720, DeviceId = "usb-interface:29036e174e6a0c5fa63fbb611a35df503a42793c6f82c1e28d2bfc0b82f5801d",
+        Id = "fixture-output", Name = "Fixture", Kind = OutputTargetContract.PhysicalKind, DeviceEnabled = true,
+        Transport = kind
     };
     private static byte[] Reply() { var bytes = new byte[512]; bytes[1] = 0xC8; return bytes; }
     private static TurzxTransport New(Connection usb) => new(usb, () => 1, _ => { });

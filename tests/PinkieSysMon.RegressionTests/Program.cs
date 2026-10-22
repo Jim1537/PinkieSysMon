@@ -27,6 +27,10 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue95 LY endpoint admission", Issue95GenericOutputTests.LyEndpointAdmission),
+            ("Issue95 generic Output round trip and ownership", Issue95GenericOutputTests.NewFormatRoundTripAndOwnership),
+            ("Issue95 required geometry protocol and binding", Issue95GenericOutputTests.RequiredGeometryProtocolAndBinding),
+            ("Issue95 candidate confirmation and copy isolation", Issue95GenericOutputTests.CandidateCannotBypassConfirmation),
             ("Physical handshake context and bounded evidence", PhysicalHandshakeDiagnosticTests.CommonContextAndBounds),
             ("Physical handshake quiet paths and original error identity", PhysicalHandshakeDiagnosticTests.ObserverPreservesErrorsAndQuietPaths),
             ("Physical handshake Trofeo actual handshake replies", PhysicalHandshakeDiagnosticTests.TrofeoHandshakeReplies),
@@ -604,7 +608,7 @@ internal static class Program
 
         var devices = DeviceDiscovery.CreateTrofeoDescriptors([pathA, pathA.ToUpperInvariant(), pathB, unrelated]);
         Assert(devices.Count == 2, "Trofeo discovery must enumerate every unique compatible interface instead of returning the first match.");
-        Assert(devices.All(device => device.Transport == OutputTargetContract.TrofeoTransport),
+        Assert(devices.All(device => device.Transport == OutputTargetContract.LyBulkTransport),
             "Discovered Trofeo devices must expose the Trofeo transport identity.");
         Assert(devices.Select(device => device.DeviceId).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 2,
             "Each physical interface must receive a distinct stable DeviceId.");
@@ -621,7 +625,7 @@ internal static class Program
         const string pathB = @"\\?\usb#vid_0416&pid_5408#SERIAL_B#{dee824ef-729b-4a0e-9c14-b7117d33a817}";
         var devices = DeviceDiscovery.CreateTrofeoDescriptors([pathA, pathB]);
 
-        var target = new OutputTargetConfig();
+        var target = new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport };
         var ambiguous = OutputDeviceSelection.Resolve(target, devices);
         Assert(ambiguous.Status == OutputDeviceResolutionStatus.Missing && ambiguous.Device is null,
             "Even multiple compatible devices must leave an unbound physical Output unresolved until exact selection.");
@@ -635,7 +639,7 @@ internal static class Program
         Assert(explicitMatch.Status == OutputDeviceResolutionStatus.Found && explicitMatch.Device?.DeviceId == devices[1].DeviceId,
             "An explicitly bound output target must resolve only its configured physical device.");
 
-        target.DeviceId = "trofeo:" + new string('0', 64);
+        target.DeviceId = "usb-interface:" + new string('0', 64);
         var missing = OutputDeviceSelection.Resolve(target, devices);
         Assert(missing.Status == OutputDeviceResolutionStatus.Missing && missing.Device is null,
             "A missing explicitly configured output device must not fall back to another compatible device.");
@@ -661,8 +665,8 @@ internal static class Program
 
             config.Outputs.Targets =
             [
-                new OutputTargetConfig { Id = "physical-1", Name = "Legacy Trofeo",
-                    DeviceId = "trofeo:" + new string('a', 64) }
+                new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "physical-1", Name = "Legacy Trofeo",
+                    DeviceId = "usb-interface:" + new string('a', 64) }
             ];
             config.Save(path);
             var reloaded = AppConfig.Load(path, log);
@@ -1228,7 +1232,7 @@ internal static class Program
         var replacement = new BlockingTrofeoTestTransport();
         var opens = 0;
         var config = new AppConfig();
-        var target = new OutputTargetConfig();
+        var target = new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport };
         var pump = new FramePump(
             config, target, new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") }, new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
@@ -1279,7 +1283,7 @@ internal static class Program
 
         var config = new AppConfig();
         var target = new OutputTargetConfig
-        {
+        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:9db7b64ace1096dfd3006978c56ad9c802a669f230c9f3d8e240ad1deb08227a",
             Usb = new UsbConfig
             {
                 RetryIntervalMs = 700,
@@ -1307,7 +1311,7 @@ internal static class Program
 
             var newConfig = new AppConfig();
             var changedTarget = new OutputTargetConfig
-            {
+            { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:6edd1ff49a5e145027e2897c97cd4c97bb1a85b62b065462ad82d300f93becdc",
                 Usb = new UsbConfig
                 {
                     RetryIntervalMs = 1500,
@@ -1435,17 +1439,17 @@ internal static class Program
                     Targets =
                     [
                         new OutputTargetConfig
-                        {
+                        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                             Id = "screen-b",
                             Name = "Right Trofeo",
-                            DeviceId = "trofeo:" + new string('b', 64),
+                            DeviceId = "usb-interface:" + new string('b', 64),
                             DeviceEnabled = true
                         },
                         new OutputTargetConfig
-                        {
+                        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                             Id = "screen-c",
                             Name = "Aux Trofeo",
-                            DeviceId = "trofeo:" + new string('c', 64),
+                            DeviceId = "usb-interface:" + new string('c', 64),
                             DeviceEnabled = true
                         }
                     ]
@@ -1699,17 +1703,17 @@ internal static class Program
                     Targets =
                     [
                         new OutputTargetConfig
-                        {
+                        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                             Id = "screen-b",
                             Name = "Right Trofeo",
-                            DeviceId = "trofeo:" + new string('b', 64),
+                            DeviceId = "usb-interface:" + new string('b', 64),
                             DeviceEnabled = true
                         },
                         new OutputTargetConfig
-                        {
+                        { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                             Id = "screen-c",
                             Name = "Aux Trofeo",
-                            DeviceId = "trofeo:" + new string('c', 64),
+                            DeviceId = "usb-interface:" + new string('c', 64),
                             DeviceEnabled = true
                         }
                     ]
@@ -2266,11 +2270,11 @@ internal static class Program
         original.Desktop.Lock = true;
         original.RefreshIntervalMs = 500;
         var physical = new OutputTargetConfig
-        {
+        { Width = 1920, Height = 480, DeviceId = "usb-interface:857aa06d11e4955e39fabdc4ac52f49f61d034e95b9a5b34ebdc113c9f678f7d",
             Id = "stage22-physical",
             Name = "Disabled hardware",
-            Kind = OutputTargetContract.TrofeoKind,
-            Transport = OutputTargetContract.TrofeoTransport,
+            Kind = OutputTargetContract.PhysicalKind,
+            Transport = OutputTargetContract.LyBulkTransport,
             DeviceEnabled = false,
             Dashboard = "Default"
         };
@@ -2308,7 +2312,7 @@ internal static class Program
             "Dragging Desktop entries must reorder the separate output Z-order deterministically.");
         model.ApplyTo(config);
         Assert(config.Outputs.Targets.Count == 3 &&
-               ReferenceEquals(config.Outputs.Targets.Single(t => t.Kind == OutputTargetContract.TrofeoKind), physical) &&
+               ReferenceEquals(config.Outputs.Targets.Single(t => t.Kind == OutputTargetContract.PhysicalKind), physical) &&
                config.Outputs.Targets.Where(t => t.Kind == OutputTargetContract.DesktopKind).Select(t => t.Id)
                    .SequenceEqual(new[] { added.Id, original.Id }) &&
                config.Outputs.Targets[0].RefreshIntervalMs == 333 &&
@@ -2549,18 +2553,18 @@ internal static class Program
             Targets =
             [
                 new OutputTargetConfig
-                {
+                { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                     Id = "screen-a",
                     Name = "Left Trofeo",
-                    DeviceId = "trofeo:" + new string('a', 64),
+                    DeviceId = "usb-interface:" + new string('a', 64),
                     DeviceEnabled = true,
                     ProviderEnabled = true
                 },
                 new OutputTargetConfig
-                {
+                { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480,
                     Id = "screen-b",
                     Name = "Right Trofeo",
-                    DeviceId = "trofeo:" + new string('b', 64),
+                    DeviceId = "usb-interface:" + new string('b', 64),
                     DeviceEnabled = true,
                     ProviderEnabled = true
                 }

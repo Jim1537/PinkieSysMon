@@ -59,28 +59,28 @@ internal static class Issue94FreshBootstrapTests
             var config = AppConfig.Load(path, new FileLogger(Path.Combine(root, "test.log")));
             var ids = Ids(config);
             var physical = new OutputTargetConfig
-            {
+            { Width = 1920, Height = 480,
                 Id = "new-physical", Name = "Trofeo",
-                Kind = OutputTargetContract.TrofeoKind,
-                Transport = OutputTargetContract.TrofeoTransport,
-                DeviceId = "trofeo:" + new string('a', 64),
-                Dashboard = OutputDefaultDashboardPolicy.TrofeoName
+                Kind = OutputTargetContract.PhysicalKind,
+                Transport = OutputTargetContract.LyBulkTransport,
+                DeviceId = "usb-interface:" + new string('a', 64),
+                Dashboard = "device_1920x480_default"
             };
             config.Outputs.Targets.Add(physical);
             Check(!File.Exists(Board(root, OutputDefaultDashboardPolicy.DesktopName)) &&
-                  !File.Exists(Board(root, OutputDefaultDashboardPolicy.TrofeoName)),
+                  !File.Exists(Board(root, "device_1920x480_default")),
                 "Draft adoption and Cancel must not create dashboard files.");
             using (var pending = InitialOutputDashboardProvisioning.Prepare(root, path, original, ids, config))
             {
                 Check(File.Exists(Board(root, OutputDefaultDashboardPolicy.DesktopName)) &&
-                      File.Exists(Board(root, OutputDefaultDashboardPolicy.TrofeoName)) &&
+                      File.Exists(Board(root, "device_1920x480_default")) &&
                       RuntimeConfigurationValidator.LoadAssignments(config, root).Count == 2 &&
                       !physical.DeviceEnabled,
                     "First physical Settings OK provisions the pending Desktop and native board without USB.");
                 // Simulated settings validation/apply failure: no Commit().
             }
             Check(!File.Exists(Board(root, OutputDefaultDashboardPolicy.DesktopName)) &&
-                  !File.Exists(Board(root, OutputDefaultDashboardPolicy.TrofeoName)) &&
+                  !File.Exists(Board(root, "device_1920x480_default")) &&
                   File.ReadAllBytes(path).SequenceEqual(original),
                 "Failed first-time transaction removes only its own unchanged files.");
         });

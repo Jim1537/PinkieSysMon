@@ -141,8 +141,8 @@ internal static class Issue71TransportTests
     public static void ExactOpenAndFailureCleanup()
     {
         var path = @"\\?\usb#vid_1cbe&pid_0123#SYNTHETIC#{11111111-2222-3333-4444-555555555555}";
-        var device = new OutputDeviceDescriptor(TurzxDeviceDiscovery.CreateStableDeviceId(path), "turzx", "Synthetic", path);
-        var target = new OutputTargetConfig { Id = "turzx-test", Name = "Synthetic", Kind = "turzx", Transport = "turzx", DeviceId = device.DeviceId, DeviceEnabled = true };
+        var device = new OutputDeviceDescriptor(TurzxDeviceDiscovery.CreateStableDeviceId(path), "encrypted-jpeg", "Synthetic", path);
+        var target = new OutputTargetConfig { Width = 1920, Height = 720, Id = "turzx-test", Name = "Synthetic", Kind = "physical", Transport = "encrypted-jpeg", DeviceId = device.DeviceId, DeviceEnabled = true };
         var opens = 0;
         ITurzxUsbConnection Open(OutputDeviceDescriptor selected, int timeout) { opens++; Check(selected == device && timeout == 3000, "Only the exact selected device and effective timeout reach open."); return new FakeConnection(Reply(), []); }
         using (var transport = TurzxTransport.TryOpen(target, 3000, default, () => [device], Open, _ => { })) Check(transport is not null && opens == 1, "Exact binding must synchronize before returning an open transport.");
@@ -150,9 +150,9 @@ internal static class Issue71TransportTests
         Throws<OutputDeviceResolutionException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device, device], Open));
         target.DeviceEnabled = false;
         Throws<InvalidOperationException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], Open));
-        target.DeviceEnabled = true; target.Kind = "trofeo";
+        target.DeviceEnabled = true; target.Kind = "desktop";
         Throws<InvalidOperationException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], Open));
-        target.Kind = "turzx";
+        target.Kind = "physical";
         Throws<InvalidDataException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device with { DevicePath = path.Replace("pid_0123", "pid_0124") }], Open));
         var failed = new FakeConnection(Array.Empty<byte>());
         Throws<InvalidDataException>(() => TurzxTransport.TryOpen(target, 3000, default, () => [device], (_, _) => failed));

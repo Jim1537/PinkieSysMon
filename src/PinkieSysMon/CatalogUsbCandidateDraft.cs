@@ -34,16 +34,30 @@ internal sealed class CatalogUsbCandidateDraft
     internal CatalogUsbCandidateDraft(CatalogUsbInterfaceCandidate candidate,
         string suggestedName, IEnumerable<string> applicableImplementedProtocols)
     {
-        ArgumentNullException.ThrowIfNull(candidate);
-        ArgumentNullException.ThrowIfNull(applicableImplementedProtocols);
         InterfaceId = candidate.Id;
         PnpNodeKey = candidate.PnpNodeKey;
         _name = suggestedName;
-        _applicable = applicableImplementedProtocols
-            .Where(OutputTargetContract.HasIntegratedTransport)
+        ArgumentNullException.ThrowIfNull(applicableImplementedProtocols);
+        _applicable = applicableImplementedProtocols.Where(OutputTargetContract.HasIntegratedTransport)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        _protocol = candidate.SuggestedTransport is { } hint && _applicable.Contains(hint)
-            ? hint : null;
+        _protocol = candidate.SuggestedTransport is { } hint && _applicable.Contains(hint) ? hint : null;
+    }
+
+    internal OutputTargetConfig CreateConfirmedOutput(string id)
+    {
+        if (!CanSaveConfiguration)
+            throw new InvalidOperationException("A clean Runtime Test and positive visual confirmation are required.");
+        var target = new OutputTargetConfig
+        {
+            Id = id, Name = Name.Trim(), Kind = OutputTargetContract.PhysicalKind,
+            Transport = Protocol!, DeviceId = InterfaceId, Width = Width, Height = Height,
+            Dashboard = OutputDefaultDashboardPolicy.NameForPhysicalGeometry(Width, Height),
+            DeviceEnabled = false, ProviderEnabled = false,
+            RefreshIntervalMs = 1000, JpegQuality = 92, Usb = new(),
+            EncryptedJpeg = Protocol == OutputTargetContract.EncryptedJpegTransport ? new() : null
+        };
+        OutputTargetContract.ValidateAndNormalize([target]);
+        return target;
     }
 
     internal string InterfaceId { get; }
@@ -95,7 +109,7 @@ internal sealed class CatalogUsbCandidateDraft
             {
                 // Reuse the actual #94 geometry/layout limit rather than
                 // inventing a second resolution/model restriction.
-                _ = AdaptiveDashboardFactory.Create(Width, Height, 0, string.Empty);
+                AdaptiveDashboardFactory.ValidateGeometry(Width, Height, 0);
                 return true;
             }
             catch (ArgumentOutOfRangeException) { return false; }

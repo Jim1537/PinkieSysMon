@@ -165,12 +165,12 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string Stacking = "Select a panel to edit only its settings. Drag list entries to reorder panels.\nEarlier entries are behind later entries; dashboard widget layers are separate.";
     public const string CreateDesktop = "Add a new virtual Desktop Output to this Settings draft.\nIt takes effect after OK; Cancel discards it.";
     public const string RemoveDesktop = "Remove the selected Desktop Output after OK, keeping its dashboard files.\nAt least one Output must remain.";
-    public const string DeviceType = "The detected physical display model.\nRenaming the Output does not change its hardware binding.";
+    public const string DeviceType = "The generic physical Output and its explicitly selected protocol.\nRenaming the Output does not change its hardware binding.";
     public const string DeviceEnabled = "Allow Runtime to open this USB display and send dashboard frames after OK.\nClose other display-control software first; enabling requires confirmation.\nOff unloads this Output; Provider Enabled is independent.";
     public const string JpegQuality = "JPEG quality for this USB display, from 10 to 100.\nHigher values usually create larger frames and use more USB bandwidth.";
     public const string UsbRetry = "Wait this many milliseconds before another connection attempt after\na missing device or failed USB connection/transfer. It is not a transfer timeout.";
     public const string UsbTimeout = "Time limit requested for each USB read/write operation, in milliseconds.\nHigher values allow slower transfers but delay error recovery.";
     public const string UsbJournal = "Write a rotating USB event journal in the application's logs folder.\nUse for troubleshooting: it adds disk I/O and does not fix USB faults.";
-    public const string AddDevice = "Include this detected device in the Settings draft without enabling USB.\nIt is saved after OK; discovery alone does not save it.";
+    public const string AddDevice = "Save requires a clean Runtime Test and positive visual confirmation.\nA confirmed new Output remains disabled. Runtime onboarding integration is pending.";
     public const string RemoveDevice = "Remove this saved physical Output after OK, keeping its dashboard files.\nAt least one Output must remain; attached hardware is not automatically re-added.";
 }

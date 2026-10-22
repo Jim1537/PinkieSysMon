@@ -16,7 +16,7 @@ internal static class OutputLifecycleTestConfiguration
             target.Desktop ??= new DesktopOutputConfig();
             target.Desktop.BoardEnabled = enabled;
         }
-        else if (target.Kind == OutputTargetContract.TrofeoKind)
+        else if (target.Kind == OutputTargetContract.PhysicalKind)
             target.DeviceEnabled = enabled;
         else
             throw new InvalidOperationException("Unsupported lifecycle fixture Output kind.");

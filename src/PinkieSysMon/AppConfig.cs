@@ -121,11 +121,16 @@ internal sealed class OutputTargetConfig
 {
     public string Id { get; set; } = OutputTargetContract.DefaultTargetId;
     public string Name { get; set; } = OutputTargetContract.DefaultTargetName;
-    public string Kind { get; set; } = OutputTargetContract.TrofeoKind;
-    public string Transport { get; set; } = OutputTargetContract.TrofeoTransport;
+    public string Kind { get; set; } = OutputTargetContract.PhysicalKind;
+    public string Transport { get; set; } = string.Empty;
     public string DeviceId { get; set; } = string.Empty;
 
-    // Null values on old app.json files inherit the previous global settings.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Width { get; set; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Height { get; set; }
+
+    // Missing per-Output cadence/encoding options use the application defaults.
     public string? Dashboard { get; set; }
     public int? RefreshIntervalMs { get; set; }
     public bool ProviderEnabled { get; set; }
@@ -134,7 +139,7 @@ internal sealed class OutputTargetConfig
     public UsbConfig? Usb { get; set; }
     public DesktopOutputConfig? Desktop { get; set; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public TurzxOutputConfig? Turzx { get; set; }
+    public EncryptedJpegOutputConfig? EncryptedJpeg { get; set; }
 }
 
 internal sealed class DesktopOutputConfig
@@ -148,26 +153,22 @@ internal sealed class DesktopOutputConfig
 
 internal static class OutputTargetContract
 {
-    public const string TrofeoKind = "trofeo";
+    public const string PhysicalKind = "physical";
     public const string DesktopKind = "desktop";
-    public const string TurzxKind = "turzx";
-    public const string TrofeoTransport = "trofeo";
+    public const string LyBulkTransport = "ly-bulk";
+    public const string EncryptedJpegTransport = "encrypted-jpeg";
     public const string DesktopTransport = "desktop";
-    public const string TurzxTransport = "turzx";
 
     public static bool IsPhysicalKind(string? kind) =>
-        string.Equals(kind, TrofeoKind, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(kind, TurzxKind, StringComparison.OrdinalIgnoreCase);
+        string.Equals(kind, PhysicalKind, StringComparison.OrdinalIgnoreCase);
 
-    // A known configuration/identity is not an installed Runtime transport.
     public static bool HasIntegratedTransport(string? transport) =>
-        string.Equals(transport, TrofeoTransport, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(transport, TurzxTransport, StringComparison.OrdinalIgnoreCase);
+        string.Equals(transport, LyBulkTransport, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(transport, EncryptedJpegTransport, StringComparison.OrdinalIgnoreCase);
     public const string DefaultTargetId = "screen-1";
-    public const string DefaultTargetName = "Thermalright Trofeo Vision 9.16";
+    public const string DefaultTargetName = "Physical display";
 
-    // A new installation has a virtual output, not an implicitly enabled USB device.
-    // Explicit older Trofeo entries remain readable, but DeviceEnabled is opt-in.
+    // New installations contain no physical bindings or model presets.
     public static List<OutputTargetConfig> CreateDefaults() =>
     [
         new OutputTargetConfig
@@ -194,7 +195,8 @@ internal static class OutputTargetContract
     public static bool ConnectionEquals(OutputTargetConfig left, OutputTargetConfig right) =>
         left.Kind.Equals(right.Kind, StringComparison.OrdinalIgnoreCase) &&
         left.Transport.Equals(right.Transport, StringComparison.OrdinalIgnoreCase) &&
-        left.DeviceId.Equals(right.DeviceId, StringComparison.OrdinalIgnoreCase);
+        left.DeviceId.Equals(right.DeviceId, StringComparison.OrdinalIgnoreCase) &&
+        left.Width == right.Width && left.Height == right.Height;
 
     // One logical setting backed by the existing kind-specific configuration fields.
     // Provider publication and observed session state do not grant output ownership.
@@ -204,23 +206,21 @@ internal static class OutputTargetContract
         return target.Kind switch
         {
             DesktopKind => target.Desktop?.BoardEnabled == true,
-            TrofeoKind or TurzxKind => target.DeviceEnabled,
+            PhysicalKind => target.DeviceEnabled,
             _ => false
         };
     }
 
     public static void ValidateAndNormalize(
         List<OutputTargetConfig> targets,
-        int legacyRefreshIntervalMs = 1000,
-        int legacyJpegQuality = 92,
-        UsbConfig? legacyUsb = null)
+        int defaultRefreshIntervalMs = 1000,
+        int defaultJpegQuality = 92,
+        UsbConfig? defaultUsb = null)
     {
         ArgumentNullException.ThrowIfNull(targets);
         if (targets.Count == 0)
             throw new InvalidDataException("Outputs.Targets must contain at least one target.");
 
-        var physicalCount = targets.Count(t =>
-            t is not null && IsPhysicalKind(t.Kind));
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var explicitBindings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -239,27 +239,31 @@ internal static class OutputTargetContract
                 throw new InvalidDataException("Output target Id must not be empty.");
             if (!ids.Add(target.Id))
                 throw new InvalidDataException($"Duplicate output target Id '{target.Id}'.");
-            if (target.Name.Length == 0)
+            if (target.Name.Length == 0 || target.Name.Any(char.IsControl))
                 throw new InvalidDataException($"Output target '{target.Id}' Name must not be empty.");
-            if (target.Kind is not (TrofeoKind or TurzxKind or DesktopKind))
+            if (target.Kind is not (PhysicalKind or DesktopKind))
                 throw new InvalidDataException($"Unsupported output Kind '{target.Kind}'.");
+
+            if (target.Kind == PhysicalKind)
+                ValidatePhysicalConnection(target);
 
             target.Dashboard ??= OutputDefaultDashboardPolicy.NameFor(target);
             target.Dashboard = target.Dashboard.Trim();
             if (!WindowsPathComponentValidator.IsSafe(target.Dashboard))
                 throw new InvalidDataException($"Output target '{target.Id}' has invalid Dashboard reference '{target.Dashboard}'.");
 
-            target.RefreshIntervalMs ??= legacyRefreshIntervalMs;
+            target.RefreshIntervalMs ??= defaultRefreshIntervalMs;
             if (target.RefreshIntervalMs < 10)
                 throw new InvalidDataException($"Output target '{target.Id}' RefreshIntervalMs must be at least 10 ms.");
 
             if (target.Kind == DesktopKind)
             {
-                // The legacy transport initializer is 'trofeo' even when Kind is Desktop.
-                if (target.Transport is not (TrofeoTransport or DesktopTransport))
+                // Desktop has no physical protocol selector.
+                if (target.Transport is not ("" or DesktopTransport))
                     throw new InvalidDataException($"Desktop output '{target.Id}' has unsupported transport '{target.Transport}'.");
                 if (target.DeviceId.Length != 0 || target.DeviceEnabled ||
-                    target.JpegQuality is not null || target.Usb is not null || target.Turzx is not null)
+                    target.JpegQuality is not null || target.Usb is not null || target.EncryptedJpeg is not null ||
+                    target.Width != 0 || target.Height != 0)
                     throw new InvalidDataException($"Desktop output '{target.Id}' must not own device/USB/JPEG configuration.");
 
                 target.Transport = DesktopTransport;
@@ -267,56 +271,55 @@ internal static class OutputTargetContract
                 continue;
             }
 
-            var turzx = target.Kind == TurzxKind;
-            var expectedTransport = turzx ? TurzxTransport : TrofeoTransport;
-            if (target.Transport != expectedTransport)
-                throw new InvalidDataException($"Output target '{target.Id}' uses a mismatched transport '{target.Transport}'.");
-            if (target.Desktop is not null || (!turzx && target.Turzx is not null))
-                throw new InvalidDataException($"Output target '{target.Id}' contains options for another adapter.");
-            var identityPrefix = expectedTransport + ":";
-            if ((turzx || target.DeviceId.Length > 0) &&
-                (target.DeviceId.Length != identityPrefix.Length + 64 ||
-                 !target.DeviceId.StartsWith(identityPrefix, StringComparison.OrdinalIgnoreCase) ||
-                 !target.DeviceId.AsSpan(identityPrefix.Length).ToString().All(Uri.IsHexDigit)))
-                throw new InvalidDataException($"Output target '{target.Id}' has an invalid {expectedTransport} DeviceId.");
-            if (turzx)
+            var encryptedJpeg = target.Transport == EncryptedJpegTransport;
+            if (target.Desktop is not null || (!encryptedJpeg && target.EncryptedJpeg is not null))
+                throw new InvalidDataException($"Output target '{target.Id}' contains options for another protocol.");
+            if (encryptedJpeg)
             {
-                target.Turzx ??= new TurzxOutputConfig();
-                if (target.Turzx.BrightnessPercent is < 0 or > 100)
+                target.EncryptedJpeg ??= new EncryptedJpegOutputConfig();
+                if (target.EncryptedJpeg.BrightnessPercent is < 0 or > 100)
                     throw new InvalidDataException($"Output target '{target.Id}' BrightnessPercent must be null or 0..100.");
             }
-            if (target.DeviceEnabled && !HasIntegratedTransport(target.Transport))
-                throw new InvalidDataException($"Output target '{target.Id}' cannot be enabled: its transport is not integrated.");
+            // Protocol selection never partitions ownership of one interface.
+            if (!explicitBindings.Add(target.DeviceId))
+                throw new InvalidDataException($"Multiple Outputs are bound to the same physical interface.");
 
-            if (physicalCount > 1 && target.DeviceId.Length == 0)
-                throw new InvalidDataException(
-                    $"Output target '{target.Id}' must have an explicit DeviceId when multiple physical targets are configured.");
-
-            if (target.DeviceId.Length > 0 &&
-                !explicitBindings.Add($"{target.Transport}\n{target.DeviceId}"))
-                throw new InvalidDataException(
-                    $"Multiple output targets are bound to the same physical device '{target.DeviceId}'.");
-
-            target.JpegQuality ??= legacyJpegQuality;
+            target.JpegQuality ??= defaultJpegQuality;
             if (target.JpegQuality is < 10 or > 100)
                 throw new InvalidDataException($"Output target '{target.Id}' JpegQuality must be in the range 10..100.");
 
-            var defaults = legacyUsb ?? new UsbConfig();
+            var defaults = defaultUsb ?? new UsbConfig();
             target.Usb ??= new UsbConfig
             {
                 RetryIntervalMs = defaults.RetryIntervalMs,
                 TransferTimeoutMs = defaults.TransferTimeoutMs,
                 DiagnosticJournalEnabled = defaults.DiagnosticJournalEnabled
             };
-            if (turzx && target.DeviceEnabled)
+            if (encryptedJpeg && target.DeviceEnabled)
             {
-                try { TurzxOutputConfig.ValidateFrameOptions(target.Turzx!.BrightnessPercent, target.Usb.DiagnosticJournalEnabled); }
+                try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg!.BrightnessPercent, target.Usb.DiagnosticJournalEnabled); }
                 catch (NotSupportedException error) { throw new InvalidDataException($"Output '{target.Id}': {error.Message}", error); }
             }
             if (target.Usb.RetryIntervalMs < 500 || target.Usb.TransferTimeoutMs < 500)
                 throw new InvalidDataException($"Output target '{target.Id}' USB intervals must be at least 500 ms.");
         }
     }
+    internal static void ValidatePhysicalConnection(OutputTargetConfig target)
+    {
+        if (!IsPhysicalKind(target.Kind) || !HasIntegratedTransport(target.Transport))
+            throw new InvalidDataException("Physical Output requires an implemented protocol selection.");
+        if (!IsInterfaceId(target.DeviceId))
+            throw new InvalidDataException("Physical Output requires an exact usb-interface binding.");
+        try { AdaptiveDashboardFactory.ValidateGeometry(target.Width, target.Height, 0); }
+        catch (ArgumentOutOfRangeException error)
+        { throw new InvalidDataException($"Output '{target.Id}' geometry is invalid: {error.Message}", error); }
+    }
+
+    internal static bool IsInterfaceId(string? value) => value is not null &&
+        value.Length == "usb-interface:".Length + 64 &&
+        value.StartsWith("usb-interface:", StringComparison.OrdinalIgnoreCase) &&
+        value.AsSpan("usb-interface:".Length).ToString().All(Uri.IsHexDigit);
+
 }
 
 internal sealed class RendererConfig

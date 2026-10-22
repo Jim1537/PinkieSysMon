@@ -1,6 +1,6 @@
 # TURZX 12.3-inch — Integration Contract
 
-This reference owns the TURZX-specific identity, configuration, transport and physical geometry contract. The shared renderer/`FramePump` path uses `TurzxFrameTransport`. Exact passive interface discovery supplies a normal Device candidate; explicit adoption/consent permits a saved Runtime session. [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
+This reference owns the encrypted JPEG wire protocol and its historically tested TURZX hardware. Common discovery, configuration and onboarding belong to [Physical Devices](../../outputs/physical_devices.md). The shared renderer/`FramePump` path uses `TurzxFrameTransport`. Exact passive interface discovery supplies a normal Device candidate; explicit adoption/consent permits a saved Runtime session. [Issue #71](https://github.com/Jim1537/PinkieSysMon/issues/71) owns implementation and physical acceptance. The [supported-device inventory](../../supported-devices.md) lists currently usable models.
 
 ## Passive interface discovery
 
@@ -130,16 +130,14 @@ The log includes the invocation/version, actual count and precisely those return
 
 ## Application configuration
 
-A TURZX record uses `Kind = turzx`, `Transport = turzx` and an explicit `DeviceId` containing `turzx:` plus the 64 hexadecimal SHA-256 digits of its trimmed, uppercased Windows interface path. This is a local interface binding, not a serial or cross-port stability promise. A missing or changed binding never selects another interface, even when only one TURZX is present. The [common Output contract](../../outputs/physical_devices.md#configuration-and-identity) owns logical Output identity and dashboard assignment.
-
-The optional `Turzx` object belongs only to this adapter; Desktop and Trofeo reject it. Validation creates it for a TURZX record if absent. Existing Desktop/Trofeo records omit the new object and retain their previous normalization and settings. No dashboard schema migration is involved. Older application binaries cannot read a TURZX kind; preserve the earlier local configuration before downgrading after deliberate adoption.
+The generic physical Output selects this implementation with `Transport = encrypted-jpeg`. Its protocol-neutral exact binding and user dimensions follow the [common Output contract](../../outputs/physical_devices.md#configuration-and-identity). The optional `EncryptedJpeg` object belongs only to this protocol. Old model-specific device settings are not migrated; dashboard documents remain untouched.
 
 | Field / boundary | Implemented contract |
 | --- | --- |
-| `Turzx.BrightnessPercent` | Nullable integer. `null` preserves the device's current brightness; `0..100` stores an explicitly selected application percentage. No factory/default brightness is inferred. |
+| `EncryptedJpeg.BrightnessPercent` | Nullable integer. `null` preserves the device's current brightness; `0..100` stores an explicitly selected application percentage. No factory/default brightness is inferred. |
 | Controller conversion | `floor(percent * 102 / 100)`, with exact endpoints 0 and 102. This pure conversion sends no command. |
 | Settings ownership | Detached target copies retain independent TURZX options through save/clone operations. Discovery does not dirty or save a draft. |
-| Admission | Exact connected candidates can be edited/adopted through the common detached Settings draft. Enabled remains opt-in with fresh binding checks and default-No consent. Enabled records require `BrightnessPercent = null` and detailed USB journaling disabled; unsupported saved options fail validation before acquisition. |
+| Admission | Only separately confirmed, configured Outputs can be enabled. Enabled remains opt-in with fresh binding checks and default-No consent. Enabled records require `BrightnessPercent = null` and detailed USB journaling disabled; unsupported saved options fail validation before acquisition. |
 | Other adapter options | Refresh/JPEG/USB values use existing physical normalization and are consumed by the common frame worker and this transport. New TURZX candidates explicitly disable detailed USB journaling instead of inheriting that unsupported option from global Trofeo defaults. Settings can clear previously saved unsupported brightness/journal values, without a hardware command. |
 
 Hardware-brightness implementation and acceptance are tracked separately in [Issue #74](https://github.com/Jim1537/PinkieSysMon/issues/74).
@@ -163,7 +161,7 @@ The independent C# implementation follows public interoperability facts from [th
 | Brightness `14` | Controller value at byte 8; percent conversion uses the [configuration policy above](#application-configuration). No implicit brightness command on open. |
 | Payload bound | Encoded image limited to 1,048,576 bytes, following the recovered probe/upstream software bound. It is not a measured firmware capacity. No implicit downscaling, codec switch or quality reduction. |
 
-The low-level transport accepts encoded bytes without rotating or decoding them. The shared frame adapter selects a 1920×720 physical rectangle with a clockwise 90° wire rotation, producing a 720×1920 JPEG. The canonical renderer first applies the dashboard orientation, fits its entire canvas with preserved proportions and centered black bars, then rotates the physical result. A 1920×480 canvas therefore has 120-pixel top/bottom bars on the physical display. Dashboard geometry/schema are unchanged. Physical orientation, image quality and integrated animation require owner observation.
+The low-level transport accepts encoded bytes without rotating or decoding them. Its shared frame profile applies the established clockwise 90° wire rotation and encoded payload bound to the assigned dashboard Canvas. There is no 1920×720 fitting surface or automatic black-bar insertion: a 1920×480 Canvas now produces a 480×1920 JPEG. Correct physical orientation and image dimensions still require observation on the selected device.
 
 ### Reply and failure boundaries
 
@@ -191,7 +189,7 @@ Dispose cancels admission/in-flight work and waits for that ownership boundary b
 
 ## Runtime sessions and recovery
 
-`OutputSessionManager` routes a matching `turzx` kind/transport to the common physical `FramePump`. The assigned canonical document, telemetry demand/publication, idle/suspend, selected reload, global lifetime and consented Enabled controls retain the [common architecture](../architecture.md#output-status-and-tray-control). There is no fixed frame budget in normal Runtime operation. The bounded developer checkpoint below remains a separate tool.
+`OutputSessionManager` routes a generic `physical` Output with `encrypted-jpeg` transport to the common physical `FramePump`. The assigned canonical document, telemetry demand/publication, idle/suspend, selected reload, global lifetime and consented Enabled controls retain the [common architecture](../architecture.md#output-status-and-tray-control). There is no fixed frame budget in normal Runtime operation. The bounded developer checkpoint below remains a separate tool.
 
 A missing exact binding returns no connection and can be checked again at the configured retry interval without a native exchange. A failed TURZX open/handshake or admitted frame exchange puts that session in **ERROR** and retires any acquired transport through terminal completion. The worker then checks passive Windows metadata immediately and at the configured USB retry interval; it opens no device during these checks. Idle pause and suspend suppress this polling.
 
@@ -223,7 +221,7 @@ This generates an ordinary current-schema **1920×480 adaptive dashboard in memo
 
 Asset/font resolution and a bounded JPEG preflight precede discovery. Exactly one usable interface and explicit `--consent YES` are required. The selected binding is verified again on native acquisition. One native open attempt, one initial sync and at most **20 completed JPEG frames** are admitted at a 500 ms refresh interval. A 20-second observation deadline stops the checkpoint if that budget is not established. Native ownership still drains terminal I/O completion during disposal; neither this deadline nor Ctrl+C guarantees bounded shutdown of a stalled driver. The checkpoint never automatically reopens the connection, changes codecs/brightness, or saves/resets firmware.
 
-Expected owner observation: the generated diagnostic layout replaces the previous test, its title is readable, seconds advance in place, and the complete 1920×480 composition appears between black horizontal bars on the 1920×720 physical screen. After roughly ten seconds the worker stops and the last picture remains. `FRAMES COMPLETE` requires 20 completed exchanges and at least two different consecutive encoded payloads; it does **not** prove physical animation, correct orientation or ongoing Runtime readiness. Preserve both `artifacts/turzx-runtime-check.log` and `artifacts/turzx-runtime-worker.log`, alongside the build log. The worker log may contain local paths/errors and is private evidence. On failure or a retained/incorrect picture, preserve the result and stop before another attempt or USB reconnect.
+Expected owner observation: the generated diagnostic layout replaces the previous test, its title is readable, seconds advance in place, and the assigned composition is visible. This historical 1920×480 diagnostic no longer inserts model-sized black bars; do not treat its old fitted-image acceptance as validation of the current geometry. After roughly ten seconds the worker stops and the last picture remains. `FRAMES COMPLETE` requires 20 completed exchanges and at least two different consecutive encoded payloads; it does **not** prove physical animation, correct orientation or ongoing Runtime readiness. Preserve both `artifacts/turzx-runtime-check.log` and `artifacts/turzx-runtime-worker.log`, alongside the build log. The worker log may contain local paths/errors and is private evidence. On failure or a retained/incorrect picture, preserve the result and stop before another attempt or USB reconnect.
 
 `TurzxFrameTransport` uses only the transport-owned JPEG reply policy. It rejects a non-null brightness setting and the detailed USB journal option before acquisition because those integrations are not implemented/verified. The [common connection/synchronization failure recorder](../../outputs/physical_devices.md#connection-and-synchronization-failure-diagnostics) and worker lifecycle/error logging remain available independently of the detailed USB journal option. Normal Settings/Runtime sessions follow the recovery contract above; this bounded checkpoint retains its single-attempt policy and performs no automatic recovery. Final image-output integration acceptance remains tracked in Issue #71.
 
@@ -231,6 +229,6 @@ Expected owner observation: the generated diagnostic layout replaces the previou
 
 ## Integration boundaries
 
-`OutputTargetContract.IsPhysicalKind` classifies the two physical record kinds; `HasIntegratedTransport` admits the Trofeo and TURZX adapters. Inventory, detached Settings, metric identity and control/status projections retain the selected adapter and stable Output identity. The default factory rejects mismatched kind/transport pairs before constructing a worker; a descriptor, known kind or registry match does not authorize hardware use.
+`OutputTargetContract.IsPhysicalKind` classifies the generic physical record; `HasIntegratedTransport` identifies implemented protocol handlers. Inventory, controls and metrics use the logical Output identity. The factory selects the handler from the saved protocol, with current exact catalog-interface revalidation before native acquisition. A model label or passive protocol hint is never dispatch authority.
 
 The existing canonical renderer, application transactions, global lifetime and idle policy remain with [Architecture](../architecture.md). Shared adoption, consent, removal and troubleshooting remain with [Physical Devices](../../outputs/physical_devices.md); model-specific recovery is defined [above](#runtime-sessions-and-recovery).

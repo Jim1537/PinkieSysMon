@@ -39,7 +39,7 @@ internal static class Issue71RuntimeTests
                 for (var x = 0; x < 30; x++)
                     Check(actual.GetPixelColor(x, y) == expected.GetPixelColor(y, 29 - x), "Clockwise wire rotation must preserve every oriented pixel.");
         }
-        Check(PhysicalFrameProfile.Turzx.WireSize(1920, 480) == new System.Drawing.Size(720, 1920), "TURZX has fixed wire geometry.");
+        Check(PhysicalFrameProfile.EncryptedJpeg.WireSize(1920, 480) == new System.Drawing.Size(480, 1920), "Encrypted JPEG rotates the assigned canvas without a model-sized surface.");
         foreach (var invalid in new[] { new PhysicalFrameProfile(45), new(0, 10), new(0, 0, 10), new(0, MaximumImageBytes: 0) })
             Throws<ArgumentException>(() => invalid.WireSize(1920, 480));
     }
@@ -52,12 +52,12 @@ internal static class Issue71RuntimeTests
         using var logical = renderer.RenderBgra(metrics);
         Check(logical.Bitmap.Width == 1920 && logical.Bitmap.Height == 480 && logical.Bitmap.GetPixel(500, 200).Alpha == 128,
             "Desktop must retain the logical raster and original alpha.");
-        using (var jpeg = renderer.RenderJpeg(metrics, PhysicalFrameProfile.Turzx, 100))
+        using (var jpeg = renderer.RenderJpeg(metrics, PhysicalFrameProfile.EncryptedJpeg, 100))
         using (var decoded = SKBitmap.Decode(jpeg.Bytes))
         {
-            Check(decoded.Width == 720 && decoded.Height == 1920, "The actual renderer must encode the TURZX raster.");
-            Near(decoded.GetPixel(60, 960), SKColors.Black);
-            Near(decoded.GetPixel(660, 960), SKColors.Black);
+            Check(decoded.Width == 480 && decoded.Height == 1920, "The actual renderer must encode the TURZX raster.");
+            Near(decoded.GetPixel(60, 960), new SKColor(128, 0, 0));
+            Near(decoded.GetPixel(420, 960), new SKColor(128, 0, 0));
             Near(decoded.GetPixel(360, 960), new SKColor(128, 0, 0));
             Check(decoded.GetPixel(360, 960).Alpha == 255, "JPEG compositing must be opaque.");
         }
@@ -74,17 +74,17 @@ internal static class Issue71RuntimeTests
         using var renderer = new DashboardRenderer(Board());
         var metrics = new MetricStore().Snapshot();
         Throws<InvalidDataException>(() => renderer.RenderJpeg(metrics, new PhysicalFrameProfile(0, MaximumImageBytes: 1), 90));
-        using var valid = renderer.RenderJpeg(metrics, PhysicalFrameProfile.Turzx, 90);
+        using var valid = renderer.RenderJpeg(metrics, PhysicalFrameProfile.EncryptedJpeg, 90);
         Check(valid.Length is > 1 and <= TurzxWireProtocol.MaximumImageBytes, "A failed payload bound must leave rendering usable.");
     }
 
     public static void AdapterAdmission()
     {
-        var target = new OutputTargetConfig { Kind = "turzx", Transport = "turzx", Turzx = new() };
+        var target = new OutputTargetConfig { Width = 1920, Height = 720, DeviceId = "usb-interface:a58aa4db4b66b15856a50a29fe447ab2d9bd64d1dcd4749e2b8e4799094051b2", Kind = "physical", Transport = "encrypted-jpeg", EncryptedJpeg = new() };
         TurzxFrameTransport.ValidateOptions(target, false);
-        target.Turzx.BrightnessPercent = 0;
+        target.EncryptedJpeg.BrightnessPercent = 0;
         Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target, false));
-        target.Turzx.BrightnessPercent = null;
+        target.EncryptedJpeg.BrightnessPercent = null;
         Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target, true));
         Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, false, null!, default));
         target.DeviceEnabled = true; target.Kind = "desktop";
@@ -157,7 +157,7 @@ internal static class Issue71RuntimeTests
         foreach (var image in usb.Images)
         {
             using var decoded = SKBitmap.Decode(image);
-            Check(decoded.Width == 720 && decoded.Height == 1920, "Worker output must use the physical profile.");
+            Check(decoded.Width == 480 && decoded.Height == 1920, "Worker output must use the physical profile.");
         }
         Check(writes.Any(line => line.Contains("open attempts=1")) && writes.All(line => !line.Contains(Device.DeviceId)),
             "The checkpoint must report its scoped result without device identifiers.");
@@ -185,7 +185,7 @@ internal static class Issue71RuntimeTests
     public static void FrameBudgetStopsFurtherAdmission()
     {
         var usb = new Usb();
-        var target = new OutputTargetConfig { Id = "budget", Name = "Synthetic", Kind = "turzx", Transport = "turzx",
+        var target = new OutputTargetConfig { Width = 1920, Height = 720, DeviceId = "usb-interface:64ffed526613e9e9f8fd0631449fab4ab291be11007a2434f6655bb83903c557", Id = "budget", Name = "Synthetic", Kind = "physical", Transport = "encrypted-jpeg",
             DeviceEnabled = true, RefreshIntervalMs = 10 };
         var config = new AppConfig();
         using (var pump = new FramePump(config, target, Board(), new MetricStore(), Log(), (_, _, _, _, token) =>
@@ -206,12 +206,12 @@ internal static class Issue71RuntimeTests
     }
 
     private static readonly string[] Consent = [TurzxRuntimeDiagnostic.Argument, "--consent", "YES"];
-    private static readonly OutputDeviceDescriptor Device = new("turzx:synthetic-private-binding", "turzx", "Synthetic", "synthetic-private-path");
+    private static readonly OutputDeviceDescriptor Device = new("usb-interface:synthetic-private-binding", "encrypted-jpeg", "Synthetic", "synthetic-private-path");
     private static int Run(Action<string> write, Usb usb, Action opened, Func<DateTime> now) =>
         TurzxRuntimeDiagnostic.TryRun(Consent, write, () => [Device], (target, timeout, journal, log, token) =>
         {
             opened();
-            Check(target.DeviceEnabled && target.DeviceId == Device.DeviceId && target.Turzx?.BrightnessPercent is null && !journal,
+            Check(target.DeviceEnabled && target.DeviceId == Device.DeviceId && target.EncryptedJpeg?.BrightnessPercent is null && !journal,
                 "Only the selected in-memory target, without brightness or detailed journal, may reach open.");
             var inner = new TurzxTransport(usb, syncDelay: _ => { });
             try { inner.Synchronize(token); return new TurzxFrameTransport(inner, token); }

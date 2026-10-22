@@ -37,9 +37,7 @@ internal sealed class OutputSessionManager : IDisposable
             target.Kind switch
             {
                 OutputTargetContract.DesktopKind => new DesktopOutputSession(app, target, board, store, logger),
-                OutputTargetContract.TrofeoKind when target.Transport == OutputTargetContract.TrofeoTransport =>
-                    new FramePump(app, target, board, store, logger, physicalTransportFactory),
-                OutputTargetContract.TurzxKind when target.Transport == OutputTargetContract.TurzxTransport =>
+                OutputTargetContract.PhysicalKind when OutputTargetContract.HasIntegratedTransport(target.Transport) =>
                     new FramePump(app, target, board, store, logger, physicalTransportFactory),
                 _ => throw new InvalidOperationException("The selected Output adapter is not integrated.")
             });

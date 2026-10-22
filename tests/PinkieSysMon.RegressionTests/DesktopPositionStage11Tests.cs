@@ -74,7 +74,7 @@ internal static class DesktopPositionStage11Tests
                 {
                   "PrivateUnknown": {"Keep": 17},
                   "Outputs": { "Targets": [
-                    {"Id": "screen-1", "Kind": "trofeo", "DeviceEnabled": true, "DeviceId": "private-marker"},
+                    {"Id": "screen-1", "Kind": "ly-bulk", "DeviceEnabled": true, "DeviceId": "private-marker"},
                     {"Id": "desk-1", "Kind": "desktop", "Dashboard": "PrivateBoard",
                      "Desktop": {"BoardEnabled": true, "Lock": false, "X": 0, "Y": 0, "Custom": "keep"}},
                     {"Id": "desk-2", "Kind": "desktop", "Desktop": {"X": 3, "Y": 4}}

@@ -93,8 +93,8 @@ internal static class Issue77DeviceIdentityTests
     public static void RecognitionAndDispatchContract()
     {
         Check(UsbDisplayCatalog.Families.Count(f => f.CandidateTransport is not null) == 2 &&
-              UsbDisplayCatalog.Find(new UsbProductId(0x0416, 0x5408))!.CandidateTransport == OutputTargetContract.TrofeoTransport &&
-              UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123)) is { CandidateTransport: OutputTargetContract.TurzxTransport, IntegrationIssue: 71 },
+              UsbDisplayCatalog.Find(new UsbProductId(0x0416, 0x5408))!.CandidateTransport == OutputTargetContract.LyBulkTransport &&
+              UsbDisplayCatalog.Find(new UsbProductId(0x1CBE, 0x0123)) is { CandidateTransport: OutputTargetContract.EncryptedJpegTransport, IntegrationIssue: 71 },
             "Only the reviewed LY and TURZX adapters are eligible; TURZX integration remains owned by Issue 71.");
         var path = Device("SYNTHETIC-A").DevicePath;
         Check(DeviceDiscovery.CreateTrofeoDescriptors([path, path.ToUpperInvariant(),
@@ -103,7 +103,7 @@ internal static class Issue77DeviceIdentityTests
                 path.Replace("DEE824EF-729B-4A0E-9C14-B7117D33A817", "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")]).Count == 1,
             "Catalog families, product substrings and wrong interface classes cannot enter Trofeo dispatch.");
         var target = Target(Device("SYNTHETIC-A"));
-        target.Transport = "turzx";
+        target.Transport = "unimplemented";
         Check(OutputDeviceSelection.Resolve(target, [Device("SYNTHETIC-A")]).Status == OutputDeviceResolutionStatus.UnsupportedTransport,
             "An unsupported configured handler must fail explicitly without discovery fallback.");
     }
@@ -179,10 +179,10 @@ internal static class Issue77DeviceIdentityTests
                   persisted.Dashboard == "RetainedBoard" && File.ReadAllBytes(path).SequenceEqual(enabledBytes) &&
                   !File.ReadAllText(path).Contains("PnpNodeKey") && !File.ReadAllText(path).Contains("SYNTHETIC-A"),
                 "Old trofeo binding semantics and save/reload idempotence remain unchanged; snapshot metadata stays private.");
-            persisted.Transport = "turzx";
+            persisted.Transport = "unimplemented";
             Throws<InvalidDataException>(() => loaded.Save(path));
             Check(File.ReadAllBytes(path).SequenceEqual(enabledBytes), "Unsupported adapter configuration must fail before persistence.");
-            persisted.Transport = OutputTargetContract.TrofeoTransport;
+            persisted.Transport = OutputTargetContract.LyBulkTransport;
             var duplicateTarget = Target(first);
             duplicateTarget.Id = "synthetic-duplicate";
             loaded.Outputs.Targets.Add(duplicateTarget);
@@ -195,7 +195,7 @@ internal static class Issue77DeviceIdentityTests
         $@"\\?\usb#vid_0416&pid_5408#{token}#{{DEE824EF-729B-4A0E-9C14-B7117D33A817}}"])[0];
 
     private static OutputTargetConfig Target(OutputDeviceDescriptor device) => new()
-    { Id = "synthetic-output", DeviceId = device.DeviceId, Dashboard = "RetainedBoard" };
+    { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "synthetic-output", DeviceId = device.DeviceId, Dashboard = "RetainedBoard" };
     private static string Id(string product, string token) => $@"USB\VID_{product[..4]}&PID_{product[5..]}\{token}";
     private static UsbPnpNode Node(string id, string? parent = null) => new(id, parent, "WINUSB", Guid.Empty, 0, true);
     private static void Check(bool condition, string message)

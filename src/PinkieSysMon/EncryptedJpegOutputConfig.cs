@@ -2,7 +2,7 @@ namespace PinkieSysMon;
 
 // Application policy only; null preserves the device's existing brightness.
 // A saved percentage is reapplied by the future adapter, never by discovery.
-internal sealed class TurzxOutputConfig
+internal sealed class EncryptedJpegOutputConfig
 {
     public int? BrightnessPercent { get; set; }
 

@@ -104,10 +104,10 @@ internal static class DeletedImageRollbackTests
                     Targets =
                     [
                         new OutputTargetConfig
-                        {
+                        { Width = 1920, Height = 480, DeviceId = "usb-interface:9db149bf534090a5954f8f6ccb89e434ecf3a469845f14ae5b1bceedaa15b70c",
                             Id = "physical", Name = "Physical",
-                            Kind = OutputTargetContract.TrofeoKind,
-                            Transport = OutputTargetContract.TrofeoTransport,
+                            Kind = OutputTargetContract.PhysicalKind,
+                            Transport = OutputTargetContract.LyBulkTransport,
                             Dashboard = "Physical", DeviceEnabled = true
                         }
                     ]

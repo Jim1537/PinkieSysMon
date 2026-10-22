@@ -16,7 +16,7 @@ internal static class Issue71ModelTests
         {
             var config = new AppConfig();
             config.Outputs.Targets.Add(new OutputTargetConfig
-            { Id = "old-physical", DeviceId = "trofeo:" + new string('a', 64), Dashboard = "OldBoard", DeviceEnabled = true });
+            { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "old-physical", DeviceId = "usb-interface:" + new string('a', 64), Dashboard = "OldBoard", DeviceEnabled = true });
             config.Save(path);
             var oldBytes = File.ReadAllBytes(path);
             var loaded = AppConfig.Load(path, log);
@@ -24,20 +24,20 @@ internal static class Issue71ModelTests
             Check(File.ReadAllBytes(path).SequenceEqual(oldBytes) && !File.ReadAllText(path).Contains("Turzx"),
                 "The additive model must not introduce TURZX fields or change stable old saves.");
             loaded.Outputs.Targets.Add(Target(Device("A")));
-            loaded.Outputs.Targets[^1].Turzx = new() { BrightnessPercent = 73 };
+            loaded.Outputs.Targets[^1].EncryptedJpeg = new() { BrightnessPercent = 73 };
             loaded.Save(path);
             var saved = File.ReadAllBytes(path);
             var roundTrip = AppConfig.Load(path, log);
             roundTrip.Save(path);
             Check(File.ReadAllBytes(path).SequenceEqual(saved) &&
-                roundTrip.Outputs.Targets[1].DeviceId == "trofeo:" + new string('a', 64) &&
+                roundTrip.Outputs.Targets[1].DeviceId == "usb-interface:" + new string('a', 64) &&
                 roundTrip.Outputs.Targets[1].DeviceEnabled && roundTrip.Outputs.Targets[1].Dashboard == "OldBoard" &&
-                roundTrip.Outputs.Targets[2] is { Kind: "turzx", Transport: "turzx", DeviceEnabled: false,
-                    Dashboard: "TurzxBoard", Turzx.BrightnessPercent: 73 },
+                roundTrip.Outputs.Targets[2] is { Kind: "physical", Transport: "encrypted-jpeg", DeviceEnabled: false,
+                    Dashboard: "TurzxBoard", EncryptedJpeg.BrightnessPercent: 73 },
                 "Mixed configurations must preserve old ownership and the explicit disabled TURZX settings.");
             var copy = JsonSerializer.Deserialize<OutputTargetConfig>(JsonSerializer.Serialize(roundTrip.Outputs.Targets[2]))!;
-            copy.Turzx!.BrightnessPercent = 40;
-            Check(roundTrip.Outputs.Targets[2].Turzx!.BrightnessPercent == 73,
+            copy.EncryptedJpeg!.BrightnessPercent = 40;
+            Check(roundTrip.Outputs.Targets[2].EncryptedJpeg!.BrightnessPercent == 73,
                 "Existing JSON-based transactional clones must own independent TURZX options.");
         });
     }
@@ -52,15 +52,15 @@ internal static class Issue71ModelTests
             var saved = File.ReadAllBytes(path);
             foreach (var mutate in new Action<AppConfig>[]
             {
-                c => { c.Outputs.Targets[1].DeviceEnabled = true; c.Outputs.Targets[1].Turzx!.BrightnessPercent = 10; },
+                c => { c.Outputs.Targets[1].DeviceEnabled = true; c.Outputs.Targets[1].EncryptedJpeg!.BrightnessPercent = 10; },
                 c => c.Outputs.Targets[1].DeviceId = "",
-                c => c.Outputs.Targets[1].DeviceId = "trofeo:" + new string('b', 64),
-                c => c.Outputs.Targets[1].Transport = "trofeo",
+                c => c.Outputs.Targets[1].DeviceId = "invalid-binding",
+                c => c.Outputs.Targets[1].Transport = "unimplemented",
                 c => c.Outputs.Targets[1].Desktop = new(),
-                c => c.Outputs.Targets[1].Turzx!.BrightnessPercent = -1,
-                c => c.Outputs.Targets[1].Turzx!.BrightnessPercent = 101,
-                c => c.Outputs.Targets[0].Turzx = new(),
-                c => c.Outputs.Targets.Add(new OutputTargetConfig { Id = "wrong", Turzx = new() }),
+                c => c.Outputs.Targets[1].EncryptedJpeg!.BrightnessPercent = -1,
+                c => c.Outputs.Targets[1].EncryptedJpeg!.BrightnessPercent = 101,
+                c => c.Outputs.Targets[0].EncryptedJpeg = new(),
+                c => c.Outputs.Targets.Add(new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:c8deaccbc343708b612facdb9317fdb3a103e99647a7deb0c0b70be04fe302f2", Id = "wrong", EncryptedJpeg = new() }),
                 c => { var t = Target(Device("A")); t.Id = "duplicate"; c.Outputs.Targets.Add(t); }
             })
             {
@@ -75,20 +75,20 @@ internal static class Issue71ModelTests
 
     public static void BrightnessPolicy()
     {
-        Check(new TurzxOutputConfig().BrightnessPercent is null,
+        Check(new EncryptedJpegOutputConfig().BrightnessPercent is null,
             "The default means no brightness command, not a fabricated factory percentage.");
         var previous = -1;
         for (var percent = 0; percent <= 100; percent++)
         {
-            var controller = TurzxOutputConfig.ToControllerBrightness(percent);
+            var controller = EncryptedJpegOutputConfig.ToControllerBrightness(percent);
             Check(controller >= previous && controller <= 102 && controller == percent * 102 / 100,
                 "Brightness conversion must be deterministic, bounded and monotonic across the entire slider.");
             previous = controller;
         }
-        Check(TurzxOutputConfig.ToControllerBrightness(0) == 0 &&
-            TurzxOutputConfig.ToControllerBrightness(100) == 102, "Both slider endpoints must map exactly.");
-        Throws<ArgumentOutOfRangeException>(() => TurzxOutputConfig.ToControllerBrightness(-1));
-        Throws<ArgumentOutOfRangeException>(() => TurzxOutputConfig.ToControllerBrightness(101));
+        Check(EncryptedJpegOutputConfig.ToControllerBrightness(0) == 0 &&
+            EncryptedJpegOutputConfig.ToControllerBrightness(100) == 102, "Both slider endpoints must map exactly.");
+        Throws<ArgumentOutOfRangeException>(() => EncryptedJpegOutputConfig.ToControllerBrightness(-1));
+        Throws<ArgumentOutOfRangeException>(() => EncryptedJpegOutputConfig.ToControllerBrightness(101));
     }
 
     public static void ExactPassiveInterfaces()
@@ -96,8 +96,8 @@ internal static class Issue71ModelTests
         var api = new FakeApi(Node("A"), Node("B"), Node("UNRELATED", "0416", "5408"));
         var found = TurzxDeviceDiscovery.Capture(api);
         Check(found.Count == 2 && found.Select(d => d.DeviceId).Distinct().Count() == 2 &&
-            found.All(d => d.Transport == "turzx" && d.DeviceId.StartsWith("turzx:") &&
-                d.DeviceId.Length == 70 && d.PhysicalFingerprint is null && d.PnpNodeKey is not null) &&
+            found.All(d => d.Transport == "encrypted-jpeg" && d.DeviceId.StartsWith("usb-interface:") &&
+                d.DeviceId.Length == 78 && d.PhysicalFingerprint is null && d.PnpNodeKey is not null) &&
             api.ReadIds.All(id => id.Contains("VID_1CBE&PID_0123")),
             "Only exact reviewed products incur metadata reads; distinct units retain distinct local bindings.");
         Check(TurzxDeviceDiscovery.CreateStableDeviceId("  " + PathFor("A").ToUpperInvariant() + "  ") ==
@@ -105,7 +105,7 @@ internal static class Issue71ModelTests
             found.Any(d => d.DeviceId == TurzxDeviceDiscovery.CreateStableDeviceId(PathFor("A"))),
             "Interface case and trimming must not change a TURZX binding.");
         Check(!found.Any(d => d.DeviceId.Contains("SYNTHETIC")) &&
-            UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product) is { CandidateTransport: OutputTargetContract.TurzxTransport, IntegrationIssue: 71 },
+            UsbDisplayCatalog.Find(TurzxDeviceDiscovery.Product) is { CandidateTransport: OutputTargetContract.EncryptedJpegTransport, IntegrationIssue: 71 },
             "Catalog eligibility must retain the reviewed TURZX adapter without publishing instance tokens.");
         api.Paths = id => [PathFor(Token(id)), PathFor(Token(id)).ToUpperInvariant(), PathFor(Token(id), ClassB),
             PathFor(Token(id)).Replace("pid_0123", "pid_01230"), PathFor(Token(id)).Replace("pid_0123", "pid_0088")];
@@ -169,9 +169,9 @@ internal static class Issue71ModelTests
         Check(OutputDeviceSelection.Resolve(target, devices.Reverse().ToArray()).Device == selected,
             "Selection must use the exact TURZX binding independently of enumeration order.");
         var upper = Target(selected);
-        upper.Kind = "TURZX";
-        upper.Transport = "TURZX";
-        var upperDevices = devices.Select(d => d with { Transport = "TURZX" }).ToArray();
+        upper.Kind = "PHYSICAL";
+        upper.Transport = "ENCRYPTED-JPEG";
+        var upperDevices = devices.Select(d => d with { Transport = "ENCRYPTED-JPEG" }).ToArray();
         Check(OutputDeviceSelection.Resolve(upper, upperDevices).Status == OutputDeviceResolutionStatus.Found &&
             PhysicalDeviceInventory.Build([upper], upperDevices).Single(e => e.IsPersisted).Status == PhysicalDeviceInventoryStatus.Connected,
             "Shared selection and inventory retain their case-insensitive transport contract.");
@@ -179,7 +179,7 @@ internal static class Issue71ModelTests
         Check(OutputDeviceSelection.Resolve(target, [selected]).Status == OutputDeviceResolutionStatus.Missing,
             "A new TURZX target must not use the legacy unbound single-device fallback.");
         target.DeviceId = selected.DeviceId;
-        var moved = selected with { DeviceId = "turzx:" + new string('c', 64), DevicePath = PathFor("MOVED") };
+        var moved = selected with { DeviceId = "usb-interface:" + new string('c', 64), DevicePath = PathFor("MOVED") };
         Check(OutputDeviceSelection.Resolve(target, [moved]).Status == OutputDeviceResolutionStatus.Missing,
             "A matching PnP node must not migrate the saved interface binding.");
         var duplicate = devices[1] with { PnpNodeKey = selected.PnpNodeKey };
@@ -193,7 +193,7 @@ internal static class Issue71ModelTests
         var retained = PhysicalDeviceInventory.Build([target], []).Single();
         Check(retained.Status == PhysicalDeviceInventoryStatus.Disconnected && target.Dashboard == "TurzxBoard" && !target.DeviceEnabled,
             "Missing hardware retains its assignment and saved disabled state.");
-        target.Kind = "trofeo";
+        target.Kind = "desktop";
         Check(OutputDeviceSelection.Resolve(target, devices).Status == OutputDeviceResolutionStatus.UnsupportedTransport,
             "A TURZX transport cannot masquerade as a Trofeo model.");
         var sameNode = new FakeApi(Node("A")) { Classes = [ClassA, ClassB] };
@@ -208,32 +208,32 @@ internal static class Issue71ModelTests
     {
         var device = Device("A");
         var target = Target(device);
-        target.Turzx = new() { BrightnessPercent = 61 };
+        target.EncryptedJpeg = new() { BrightnessPercent = 61 };
         var old = Issue77DeviceIdentityTests.Device("SYNTHETIC-OLD");
-        var oldTarget = new OutputTargetConfig { Id = "old", DeviceId = old.DeviceId };
+        var oldTarget = new OutputTargetConfig { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, Id = "old", DeviceId = old.DeviceId };
         var config = new AppConfig();
         config.Outputs.Targets.AddRange([oldTarget, target]);
         var model = new DeviceSettingsModel(config);
         model.Refresh([old, device]);
         var draft = model.Entries.Single(e => e.Target.Id == target.Id);
         Check(draft.CanEdit && !model.CanEnable(draft.Target) && !model.IsDirty &&
-            !ReferenceEquals(draft.Target.Turzx, target.Turzx) && draft.Target.Turzx!.BrightnessPercent == 61,
+            !ReferenceEquals(draft.Target.EncryptedJpeg, target.EncryptedJpeg) && draft.Target.EncryptedJpeg!.BrightnessPercent == 61,
             "A saved unsupported option remains independent and cannot be silently enabled.");
         Check(!model.SetEnabled(draft.Target, true, true), "Unsupported brightness cannot be enabled.");
         var existing = model.Entries.Single(e => e.Target.Id == "old");
         existing.Target.Name = "Renamed old device";
         model.MarkChanged(existing.Target);
         model.ApplyTo(config);
-        Check(config.Outputs.Targets.Single(t => t.Id == target.Id).Turzx!.BrightnessPercent == 61 &&
+        Check(config.Outputs.Targets.Single(t => t.Id == target.Id).EncryptedJpeg!.BrightnessPercent == 61 &&
             config.Outputs.Targets.Single(t => t.Id == "old").Name == "Renamed old device" && !target.DeviceEnabled,
             "Saving a sibling's editable settings must preserve the pending model's complete options.");
         var candidate = new DeviceSettingsModel(new AppConfig());
         candidate.Refresh([device]);
         Check(!candidate.IsDirty && candidate.ConfiguredCount == 0 && candidate.Entries.Single().CanEdit,
             "Passive discovery offers an editable candidate without automatically adopting it.");
-        candidate.Add(candidate.Entries.Single().Target);
-        Check(candidate.IsDirty && candidate.ConfiguredCount == 1 && !candidate.Entries.Single().Target.DeviceEnabled,
-            "Explicit adoption saves only a disabled draft until consent is granted.");
+        Throws<InvalidOperationException>(() => candidate.Add(candidate.Entries.Single().Target));
+        Check(!candidate.IsDirty && candidate.ConfiguredCount == 0,
+            "An old descriptor with no confirmed Runtime Test cannot bypass new onboarding.");
     }
 
     public static void RegisteredClassDecoding()
@@ -258,7 +258,7 @@ internal static class Issue71ModelTests
 
     private static OutputDeviceDescriptor Device(string token) => TurzxDeviceDiscovery.Capture(new FakeApi(Node(token))).Single();
     private static OutputTargetConfig Target(OutputDeviceDescriptor device) => new()
-    { Id = "turzx-output", Name = "TURZX", Kind = "turzx", Transport = "turzx", DeviceId = device.DeviceId, Dashboard = "TurzxBoard" };
+    { Width = 1920, Height = 720, Id = "turzx-output", Name = "TURZX", Kind = "physical", Transport = "encrypted-jpeg", DeviceId = device.DeviceId, Dashboard = "TurzxBoard" };
     private static UsbPnpNode Node(string token, string vid = "1CBE", string pid = "0123") =>
         new($@"USB\VID_{vid}&PID_{pid}\SYNTHETIC-{token}", null, "WINUSB", ClassA, 0, true);
     private static string Token(string instanceId) => instanceId[(instanceId.LastIndexOf('-') + 1)..];

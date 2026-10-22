@@ -161,7 +161,7 @@ internal static class DesktopMultiSessionStage15Tests
         new(config, boards, new MetricStore(), log,
             (app, target, board, metrics, logger) =>
             {
-                if (target.Kind == OutputTargetContract.TrofeoKind)
+                if (target.Kind == OutputTargetContract.PhysicalKind)
                     return physical;
 
                 return new DesktopOutputSession(app, target, board, metrics, logger,
@@ -208,11 +208,11 @@ internal static class DesktopMultiSessionStage15Tests
     };
 
     private static OutputTargetConfig Physical(string id) => new()
-    {
+    { Width = 1920, Height = 480, DeviceId = "usb-interface:9b3bd7ce2093daa7ecf344c38d6b2414269f9c4bd7f2307c7a09672de4efe79f",
         Id = id,
         Name = "Fake Trofeo",
-        Kind = OutputTargetContract.TrofeoKind,
-        Transport = OutputTargetContract.TrofeoTransport,
+        Kind = OutputTargetContract.PhysicalKind,
+        Transport = OutputTargetContract.LyBulkTransport,
         Dashboard = "Other",
         DeviceEnabled = true
     };

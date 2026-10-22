@@ -277,7 +277,7 @@ internal static class RuntimeNotificationStage26Tests
         bool connected = false, string? state = null) =>
         new(id, id == "device-b" ? "Device B" : "Device A", active, connected, state ?? (connected ? "CONNECTED" : active ? "WAITING" : "STOPPED"))
         {
-            Kind = OutputTargetContract.TrofeoKind, Dashboard = "Board B", OutputEnabled = true,
+            Kind = OutputTargetContract.PhysicalKind, Dashboard = "Board B", OutputEnabled = true,
             DeviceEnabled = true, ProviderEnabled = false
         };
 
