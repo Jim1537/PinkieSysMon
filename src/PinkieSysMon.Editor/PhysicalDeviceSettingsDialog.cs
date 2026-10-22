@@ -736,7 +736,7 @@ internal sealed class DeviceSettingsPage : TabPage
 internal sealed class UsbTestProgressDialog : PinkieEditorForm
 {
     private readonly Action _requestCancel;
-    private readonly Font _titleFont = new(SystemFonts.MessageBoxFont, FontStyle.Bold);
+    private readonly Font _titleFont = new(SystemFonts.MessageBoxFont ?? SystemFonts.DefaultFont, FontStyle.Bold);
     private readonly Font _clockFont = new(SystemFonts.MessageBoxFont.FontFamily, 38, FontStyle.Bold);
     private readonly Font _phaseFont = new(SystemFonts.MessageBoxFont.FontFamily, 22, FontStyle.Bold);
     private readonly Label _clock = new()

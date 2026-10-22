@@ -222,7 +222,7 @@ internal static class Issue95LiveTestTests
             var clock = 0;
             return new FramePump(new AppConfig(), new OutputTargetConfig
             { Id = "test", Name = "Test", Kind = "physical", Transport = intent.Protocol, DeviceId = intent.InterfaceId,
-                Width = intent.Width, Height = intent.Height, DeviceEnabled = true, RefreshIntervalMs = 10 }, board, metrics,
+                Width = intent.Width, Height = intent.Height, DeviceEnabled = true, RefreshIntervalMs = 25 }, board, metrics,
                 new FileLogger(Path.Combine(root, "worker.log")), (_, _, _, _, _) => { opened(); return frames; },
                 maximumFrames: RuntimeUsbTestService.FrameCount, frameClockNow: () => new DateTime(2026, 1, 1).AddSeconds(Interlocked.Increment(ref clock)), stopOnFailure: true);
         }, new FileLogger(Path.Combine(root, "service.log")), observationDuration: duration ?? TimeSpan.FromMilliseconds(300));
