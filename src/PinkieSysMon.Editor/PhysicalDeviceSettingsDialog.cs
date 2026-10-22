@@ -12,6 +12,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private bool _closeAfterTest;
     private readonly Func<AppConfig, byte[]?, Task<bool>>? _persistAndApply;
     private readonly Action<AppConfig, bool>? _onCommitted;
+    private readonly Func<bool>? _runtimeProcessPresent;
+    private readonly Func<Task<RuntimeIpcStatusResponse>>? _launchRuntime;
     private readonly FileLogger? _log;
     private readonly Button _ok = new() { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true };
 
@@ -21,11 +23,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         Func<IReadOnlyList<UsbDisplayObservation>>? discoverRecognizedDevices = null,
         FileLogger? log = null,
         Func<AppConfig, byte[]?, Task<bool>>? persistAndApply = null,
-        Action<AppConfig, bool>? onCommitted = null)
+        Action<AppConfig, bool>? onCommitted = null,
+        Func<bool>? runtimeProcessPresent = null,
+        Func<Task<RuntimeIpcStatusResponse>>? launchRuntime = null)
     {
         _log = log;
         _persistAndApply = persistAndApply;
         _onCommitted = onCommitted;
+        _runtimeProcessPresent = runtimeProcessPresent;
+        _launchRuntime = launchRuntime;
         _help = new EditorSettingsHelp(applicationRoot);
         _testClient = new EditorUsbTestClient(_help.ApplicationRoot);
         _dashboardChoices = dashboards;
@@ -62,7 +68,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             TextAlign = ContentAlignment.MiddleLeft,
             Text = "Save Configuration and Forget commit only this card immediately; Close cannot undo them. " +
                    "Remove commits its selected card after confirmation. Save each edited card separately. " +
-                   "Enabled displays require the ordinary Runtime; start it from Launcher if needed."
+                   "Saved enabled displays require Runtime; a configured card's Save offers to start it."
         };
         Controls.Add(notice);
         Controls.Add(buttons);
@@ -356,11 +362,31 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _log, original, updated, _discoverDevices, _persistAndApply);
             _devices.AcceptSavedConfigured(target, updated);
             ReportCommitted(saved, reloaded);
-            _devicePages[target.Id].SetApplyMessage(reloaded
-                ? "Saved and applied to the running Runtime."
-                : updated.DeviceEnabled
-                    ? "Saved, but Runtime did not apply this change. If stopped, start Runtime from Launcher to show this display; if running, inspect its status."
-                    : "Saved for the next Runtime start. Start Runtime from Launcher when you need this Output.");
+            var start = _runtimeProcessPresent is not null && _launchRuntime is not null
+                ? await ConfiguredDeviceRuntimeStart.AfterSaveAsync(reloaded,
+                    () => RuntimeIpc.GetStatusAsync(), _runtimeProcessPresent,
+                    () => MessageBox.Show(this,
+                        "Configuration saved. Runtime is not running.\n\n" +
+                        "Runtime sends dashboards to saved enabled Outputs. Start it now? " +
+                        "All enabled Outputs may start.",
+                        "Start Runtime?", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                        MessageBoxDefaultButton.Button2) == DialogResult.Yes,
+                    _launchRuntime)
+                : new ConfiguredDeviceRuntimeResult(reloaded
+                    ? ConfiguredDeviceRuntimeState.Applied : ConfiguredDeviceRuntimeState.Declined);
+            var message = start.State switch
+            {
+                ConfiguredDeviceRuntimeState.Applied => "Saved and applied to the running Runtime.",
+                ConfiguredDeviceRuntimeState.Started => "Saved. Runtime started; saved enabled Outputs are starting.",
+                ConfiguredDeviceRuntimeState.Declined => "Saved. Runtime was not started; enabled Outputs will appear after it starts.",
+                ConfiguredDeviceRuntimeState.Unresponsive => "Saved, but a Runtime process is not responding. No second Runtime was started; inspect its status.",
+                ConfiguredDeviceRuntimeState.AlreadyRunning => "Saved, but Runtime started during Save and this change was not applied. Reload Outputs to apply it.",
+                _ => "Saved, but Runtime could not be started: " + start.Message
+            };
+            _devicePages[target.Id].SetApplyMessage(message);
+            if (start.State is ConfiguredDeviceRuntimeState.Unresponsive or
+                ConfiguredDeviceRuntimeState.AlreadyRunning or ConfiguredDeviceRuntimeState.StartFailed)
+                MessageBox.Show(this, message, "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             UpdateDevicePages();
         }
         catch (Exception ex) { ShowDeviceError(ex); }

@@ -88,6 +88,7 @@ internal static class Issue95ProtocolChoiceTests
 
     public static void LiveActionStates()
     {
+        Issue95ConfiguredRuntimePromptTests.SaveStartDecisions();
         var candidate = Candidate(UsbDisplayCatalog.Find(new(0x0416, 0x5408))!);
         var model = new DeviceSettingsModel(new AppConfig()); model.Refresh([Descriptor(candidate)]);
         var entry = model.Entries.Single(); var draft = model.CandidateDraft(entry.Target)!;

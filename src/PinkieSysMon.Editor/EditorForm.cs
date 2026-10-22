@@ -827,6 +827,15 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 applicationRoot: _root, log: _log,
                 persistAndApply: (updated, expected) =>
                     ApplySettingsAndReloadRuntimeAsync(appConfigPath, updated, expected),
+                runtimeProcessPresent: IsRuntimeProcessPresent,
+                launchRuntime: async () =>
+                {
+                    var result = await LaunchRuntimeForOutputCommandAsync();
+                    SetStatus(result.Success
+                        ? "Device configuration saved. Runtime started for enabled Outputs."
+                        : "Device configuration saved, but Runtime did not start: " + result.Message);
+                    return result;
+                },
                 onCommitted: (saved, reloaded) =>
                 {
                     _appConfig.Outputs = saved.Outputs;
