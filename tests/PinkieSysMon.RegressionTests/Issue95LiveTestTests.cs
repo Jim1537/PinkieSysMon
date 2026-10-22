@@ -166,7 +166,10 @@ internal static class Issue95LiveTestTests
     private static RuntimeUsbTestService Service(string root, CatalogUsbTestBeginRequest request, Frames frames, Action opened) => new(
         () => Snapshot(request.Intent), (_, _) => false, intent =>
         {
-            var board = AdaptiveDashboardFactory.Create(intent.Width, intent.Height, 0, root);
+            // Use bundled fonts in the application root. The previous fixture
+            // copied them to a directory deleted during this test; Windows
+            // denied removal of Roboto-Bold.ttf after the test worker exited.
+            var board = AdaptiveDashboardFactory.Create(intent.Width, intent.Height, 0, VirtualBoardRoot());
             var metrics = new MetricStore(); metrics.Publish(SystemMetricContract.DateTime, new DateTime(2026, 1, 1));
             var clock = 0;
             return new FramePump(new AppConfig(), new OutputTargetConfig
@@ -192,15 +195,24 @@ internal static class Issue95LiveTestTests
         public void RecordLifecycle(string state, string reason) { }
         public void Dispose() { Disposals++; if (FailCleanup) throw new IOException("Synthetic cleanup failure."); }
     }
+    private static string VirtualBoardRoot() => Path.Combine(
+        ApplicationRootLocator.Find(AppContext.BaseDirectory), "__issue95_transient_virtual_board__");
+
     private static void WithRoot(Action<string> action)
     {
-        var root = Program.CreateTemporaryApplicationRoot("pinkie-live-test");
+        var root = Path.Combine(Path.GetTempPath(), "pinkie-live-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "config"));
         File.WriteAllText(Path.Combine(root, "config", "app.json"), "untouched");
+        var sharedAppConfig = Path.Combine(ApplicationRootLocator.Find(AppContext.BaseDirectory), "config", "app.json");
+        var originalAppBytes = File.ReadAllBytes(sharedAppConfig);
+        Check(!Directory.Exists(VirtualBoardRoot()), "Synthetic virtual-board path must not preexist.");
         try
         {
             action(root);
             Check(File.ReadAllText(Path.Combine(root, "config", "app.json")) == "untouched" &&
-                Directory.GetFiles(root, "dashboard.json", SearchOption.AllDirectories).Length == 0,
+                Directory.GetFiles(root, "dashboard.json", SearchOption.AllDirectories).Length == 0 &&
+                File.ReadAllBytes(sharedAppConfig).SequenceEqual(originalAppBytes) &&
+                !Directory.Exists(VirtualBoardRoot()),
                 "Neither success, failure, cancellation nor uncertain cleanup may persist configuration or a dashboard.");
         }
         catch (Exception error)

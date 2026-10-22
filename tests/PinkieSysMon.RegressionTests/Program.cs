@@ -11078,7 +11078,7 @@ internal static class Program
             ?? throw new InvalidOperationException($"Binary state '{stateKey}' has no text presentation.");
     }
 
-    internal static string CreateTemporaryApplicationRoot(string prefix)
+    private static string CreateTemporaryApplicationRoot(string prefix)
     {
         var root = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "config"));
