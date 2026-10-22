@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace PinkieSysMon;
 
 // Reservation state only. Actual USB opening and trusted native completion
-// will be wired by the Runtime worker; IPC callers never release a lease.
+// are reported by the Runtime worker; IPC callers never release a lease.
 internal sealed class RuntimeUsbTestLease(
     CatalogUsbTestBeginRequest request, CancellationTokenSource cancellation)
 {
@@ -24,7 +24,7 @@ internal sealed record RuntimeUsbTestStatus(
     RuntimeUsbTestPhase Phase, CatalogUsbTestTechnicalOutcome? TechnicalOutcome = null);
 
 // Caller must invoke Sweep(Stopwatch.GetTimestamp()) on the existing Runtime
-// heartbeat after a worker is connected. No background polling is started.
+// heartbeat. This state gate does not start background polling.
 internal sealed class RuntimeUsbTestSessionGate(
     TimeSpan clientSilenceLimit, TimeSpan absoluteLifetime)
 {

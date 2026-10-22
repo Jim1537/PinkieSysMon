@@ -11,3 +11,7 @@ internal interface IPhysicalFrameTransport : IDisposable
 }
 
 internal readonly record struct FrameRenderDiagnostics(double RenderMs, double EncodeMs);
+
+// Failed acquisition cleanup cannot be reported as released by a transient Test.
+internal sealed class PhysicalTransportCleanupException(Exception operation, Exception cleanup)
+    : AggregateException("Physical transport cleanup could not be confirmed.", operation, cleanup);

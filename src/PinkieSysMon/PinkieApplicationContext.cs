@@ -34,6 +34,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private OutputSessionManager _outputSessions;
     private IReadOnlyList<PhysicalDeviceInventoryEntry> _physicalInventory = Array.Empty<PhysicalDeviceInventoryEntry>();
     private HashSet<string> _lastRequiredMetrics = new(StringComparer.OrdinalIgnoreCase);
+    private readonly RuntimeUsbTestService _usbTests;
+    private bool _exitAfterTests;
     private bool _exiting;
     private bool _idlePaused;
 
@@ -98,11 +100,20 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled);
         BuildTray();
         _uiInvoker.CreateControl();
+        _usbTests = new RuntimeUsbTestService(CatalogUsbInterfaceDiscovery.CaptureSnapshot,
+            (intent, snapshot) => RuntimeUsbTestService.IsOwned(intent, snapshot,
+                _config.Outputs.Targets.Where(target => target.DeviceEnabled ||
+                    _outputSessions.GetStatuses().Any(status => status.TargetId == target.Id && status.IsActive))),
+            intent => RuntimeUsbTestService.CreatePump(_baseDir, _log, intent), _log);
+        _usbTests.TestFailed += () => _ = _uiInvoker.InvokeAsync(() => _notifications.Show(
+            "USB Test not passed. Configuration was not saved. Check the Runtime log and retry after cleanup.", RuntimeNotificationKind.Error));
         _ipcServer = new RuntimeIpcServer(HandleIpcCommandAsync, _log);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         _statusTimer.Tick += (_, _) =>
         {
+            _usbTests.Tick();
+            if (_exitAfterTests && !_usbTests.HasActive) { ExitThread(); return; }
             EvaluateRuntimeIdle();
             RefreshTrayStatus();
         };
@@ -158,6 +169,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         try
         {
             if (_exiting) return;
+            if (_usbTests.HasActive) throw new InvalidOperationException("Finish or cancel USB Test before changing physical enablement.");
             var apply = _outputConfiguration.PreparePhysicalEnablement(targetId, enable, target =>
             {
                 var consent = MessageBox.Show(
@@ -173,7 +185,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 return consent == DialogResult.Yes;
             }, () => PhysicalDeviceDiscovery.CaptureTransport(
                 _config.Outputs.Targets.Single(target => target.Id.Equals(targetId, StringComparison.OrdinalIgnoreCase)).Transport));
-            if (apply is null || _exiting) return;
+            if (apply is null || _exiting || _exitAfterTests) return;
+            // Native consent runs a nested message loop. Another Editor may
+            // have admitted a Test while this prompt was open.
+            if (_usbTests.HasActive) throw new InvalidOperationException("USB Test started during consent. Finish it before retrying enablement.");
 
             // Consent remains above this path. This internal feedback kind has no IPC verb.
             _commandFeedback.Execute(new(RuntimeIpcCommandKind.SetPhysicalDeviceEnabled, targetId, Value: enable),
@@ -333,13 +348,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus())));
 
-        // Parsed wire messages alone do not grant USB ownership. Admission,
-        // runtime-local candidate revalidation, lifecycle and native release
-        // must be implemented before any Test verb can become executable.
         if (parsed.Kind is RuntimeIpcCommandKind.UsbTestBegin or
             RuntimeIpcCommandKind.UsbTestStatus or RuntimeIpcCommandKind.UsbTestCancel)
-            return Task.FromResult(new RuntimeIpcResponse(false,
-                "USB Test sessions are not available in this Runtime revision; no device was opened."));
+            return InvokeOnUiAsync(() => _exitAfterTests && parsed.Kind == RuntimeIpcCommandKind.UsbTestBegin
+                ? new RuntimeIpcResponse(false, "Runtime is stopping after USB Test cleanup.")
+                : _usbTests.Execute(parsed), cancellationToken);
 
         return InvokeOnUiAsync(() =>
         {
@@ -463,6 +476,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
     private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
     {
+        if ((_usbTests.HasActive || _exitAfterTests) && command.Kind is not (RuntimeIpcCommandKind.Exit or RuntimeIpcCommandKind.StopAll))
+            return new(false, "Finish or cancel USB Test before applying Output configuration changes. Existing Outputs continue running.");
         var response = _commandFeedback.Execute(command, () =>
         {
             var applied = command.Kind switch
@@ -566,6 +581,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             switch (e.Mode)
             {
                 case PowerModes.Suspend:
+                    _usbTests.CancelActive();
                     _log.Info("Windows power event: suspend.");
                     _outputSessions.Suspend();
                     ReconcileTelemetryDemand();
@@ -641,6 +657,13 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (_exiting)
             return;
 
+        if (_usbTests.HasActive)
+        {
+            _exitAfterTests = true;
+            _usbTests.CancelActive();
+            _log.Info("Runtime shutdown awaits native USB Test release; IPC/UI remain available.");
+            return;
+        }
         _exiting = true;
         _log.Info("PinkieSysMon shutting down.");
 

@@ -133,7 +133,7 @@ internal static class DeviceSettingsStage23Tests
         Check(dialog.AcceptButton is Button { DialogResult: DialogResult.OK } &&
               dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
             "Physical Devices Settings must own OK/Cancel independently.");
-        var page = tabs.TabPages.Cast<TabPage>().Single(p => p.Text == "Device #1");
+        var page = tabs.TabPages.Cast<TabPage>().Single(p => p.Text == physical.Name);
         var fields = page.Controls.Find("DeviceFields", true).Single();
         var remove = page.Controls.Find("RemoveDevice", true).Single();
         Check(fields.Enabled && remove.Enabled && !dialog.DevicesChanged && calls == 1,

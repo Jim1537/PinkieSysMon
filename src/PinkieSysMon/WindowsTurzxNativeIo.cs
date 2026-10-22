@@ -39,7 +39,11 @@ internal sealed class WindowsTurzxNativeIo : ITurzxNativeIo
                 if (!WinUsb_SetPipePolicy(io._usb, pipe, 3, sizeof(uint), ref timeout)) throw Error("pipe timeout");
             return io;
         }
-        catch { io.Dispose(); throw; }
+        catch (Exception error)
+        {
+            try { io.Dispose(); } catch (Exception cleanup) { throw new PhysicalTransportCleanupException(error, cleanup); }
+            throw;
+        }
     }
 
     internal static void ValidatePipes(IReadOnlyList<TurzxNativePipe> pipes)

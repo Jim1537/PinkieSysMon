@@ -4,7 +4,10 @@ using System.Text.Json;
 
 namespace PinkieSysMon;
 
-internal sealed record RuntimeIpcResponse(bool Success, string Message);
+internal sealed record RuntimeIpcResponse(bool Success, string Message)
+{
+    internal bool ResponseReceived { get; init; }
+}
 
 internal static class RuntimeStartupOptions
 {
@@ -12,8 +15,8 @@ internal static class RuntimeStartupOptions
     {
         ArgumentNullException.ThrowIfNull(args);
         // Unsupported arguments must fail before any Output can acquire hardware.
-        if (args.Any())
-            throw new ArgumentException("Runtime startup arguments are unsupported. Start Runtime normally and control Outputs through their saved Enabled settings.", nameof(args));
+        if (args.Any() && !args.SequenceEqual(["--usb-test-only"]))
+            throw new ArgumentException("Unsupported Runtime arguments. Use normal startup or the exact --usb-test-only mode.", nameof(args));
     }
 }
 
@@ -270,8 +273,9 @@ internal static class RuntimeIpc
             var status = separator >= 0 ? line[..separator] : line;
             var message = separator >= 0 ? line[(separator + 1)..] : string.Empty;
             return status.Equals("OK", StringComparison.OrdinalIgnoreCase)
-                ? new RuntimeIpcResponse(true, message)
-                : new RuntimeIpcResponse(false, string.IsNullOrWhiteSpace(message) ? "PinkieSysMon runtime rejected the request." : message);
+                ? new RuntimeIpcResponse(true, message) { ResponseReceived = true }
+                : new RuntimeIpcResponse(false, string.IsNullOrWhiteSpace(message) ? "PinkieSysMon runtime rejected the request." : message)
+                    { ResponseReceived = status.Equals("ERR", StringComparison.OrdinalIgnoreCase) };
         }
         catch (OperationCanceledException)
         {

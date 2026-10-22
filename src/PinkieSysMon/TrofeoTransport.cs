@@ -100,7 +100,8 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         catch (Exception ex)
         {
             transport.WriteFailure("OPEN_FAIL", 0, "open", openStartedAt, ex);
-            transport.Dispose();
+            try { transport.Dispose(); }
+            catch (Exception cleanup) { throw new PhysicalTransportCleanupException(ex, cleanup); }
             throw;
         }
     }

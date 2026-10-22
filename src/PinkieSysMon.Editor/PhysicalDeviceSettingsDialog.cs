@@ -5,6 +5,10 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly EditorSettingsHelp _help;
     private readonly IReadOnlyList<string> _dashboardChoices;
     private readonly int _desktopCount;
+    private readonly EditorUsbTestClient _testClient;
+    private CancellationTokenSource? _testCancellation;
+    private bool _testUiBusy;
+    private bool _closeAfterTest;
 
     public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
@@ -12,6 +16,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         Func<IReadOnlyList<UsbDisplayObservation>>? discoverRecognizedDevices = null)
     {
         _help = new EditorSettingsHelp(applicationRoot);
+        _testClient = new EditorUsbTestClient(_help.ApplicationRoot);
         _dashboardChoices = dashboards;
         _devices = new DeviceSettingsModel(config);
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
@@ -163,13 +168,20 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             if (!_devicePages.TryGetValue(entry.Target.Id, out var page))
             {
                 page = new DeviceSettingsPage(entry.Target, _dashboardChoices,
-                    () => _devices.MarkChanged(entry.Target),
+                    () =>
+                    {
+                        _devices.MarkChanged(entry.Target);
+                        if (_devices.CandidateDraft(entry.Target)?.CanSaveConfiguration != true &&
+                            _devicePages.TryGetValue(entry.Target.Id, out var edited)) edited.SetTestMessage(null);
+                        UpdateDevicePages();
+                    },
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
-                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target));
+                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
+                    () => TestDeviceAsync(entry.Target), CancelCandidate);
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
             }
-            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount));
+            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount), _testUiBusy);
         }
         var recognized = _recognizedDevices.Entries;
         var recognizedIds = recognized.Select(e => e.Observation.ObservationId).ToHashSet(StringComparer.Ordinal);
@@ -194,7 +206,72 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         // Retain existing pages and selection through PnP refreshes. Number the
         // actual tab order, including informational pages and later arrivals.
         for (var index = 0; index < _settingsTabs.TabPages.Count; index++)
-            _settingsTabs.TabPages[index].Text = $"Device #{index + 1}";
+        {
+            var tab = _settingsTabs.TabPages[index];
+            var configured = entries.FirstOrDefault(entry => entry.IsConfigured &&
+                _devicePages.GetValueOrDefault(entry.Target.Id) == tab);
+            tab.Text = configured?.Target.Name ?? $"Device #{index + 1}";
+        }
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (_testUiBusy)
+        {
+            e.Cancel = true;
+            _closeAfterTest = true;
+            _testCancellation?.Cancel();
+        }
+        base.OnFormClosing(e);
+    }
+
+    private void CancelCandidate()
+    {
+        if (_testUiBusy) { _testCancellation?.Cancel(); return; }
+        DialogResult = DialogResult.Cancel;
+        Close();
+    }
+
+    private async Task TestDeviceAsync(OutputTargetConfig target)
+    {
+        if (_testUiBusy || _devices.CandidateDraft(target) is not { } draft || !draft.CanTest) return;
+        if (MessageBox.Show(this,
+            "Test will send display frames using the selected protocol. Close vendor display-control software first. " +
+            "Watch the current test image and check that seconds change. Configuration will not be saved.",
+            "USB Test", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+        _testUiBusy = true;
+        _testCancellation = new CancellationTokenSource();
+        try
+        {
+            var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
+            var intent = await _testClient.TestAsync(draft, snapshot, message =>
+            {
+                if (!IsDisposed && _devicePages.TryGetValue(target.Id, out var page))
+                { page.SetTestMessage(message); UpdateDevicePages(); }
+            }, _testCancellation.Token);
+            if (intent is not null && !_closeAfterTest && !_testCancellation.IsCancellationRequested)
+            {
+                var yes = MessageBox.Show(this,
+                    "During this Test, did you see the current test dashboard with correctly readable geometry and seconds changing? " +
+                    "The transmission has now stopped.\n\nYes confirms this attempt only; it does not save configuration or enable an Output.",
+                    "Confirm USB Test", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+                draft.ConfirmVisibleChangingSeconds(intent, yes);
+                _devicePages[target.Id].SetTestMessage(yes
+                    ? "Test confirmed. Saving and permanent Forget are not available in this version."
+                    : "Test not passed. Adjust the fields and retry; configuration was not saved.");
+            }
+            else if (!_closeAfterTest && !_testCancellation.IsCancellationRequested)
+                MessageBox.Show(this, "Test not passed. Configuration was not saved. See the card status and Runtime log for details.",
+                    "USB Test", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception error) { ShowDeviceError(error); }
+        finally
+        {
+            _testCancellation.Dispose(); _testCancellation = null; _testUiBusy = false;
+            if (!IsDisposed) UpdateDevicePages();
+            if (_closeAfterTest) { DialogResult = DialogResult.Cancel; Close(); }
+        }
     }
 
     private void AddDevice(OutputTargetConfig target)
@@ -259,7 +336,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 internal sealed class DeviceSettingsPage : TabPage
 {
     private readonly EditorSettingsHelp _help;
-    private readonly Label _status = new() { Dock = DockStyle.Top, Height = 72, Padding = new Padding(12) };
+    private readonly Label _status = new() { Dock = DockStyle.Top, Height = 110, Padding = new Padding(12) };
     private readonly TableLayoutPanel _fields = new()
     {
         Name = "DeviceFields", Dock = DockStyle.Top, AutoSize = true,
@@ -268,14 +345,22 @@ internal sealed class DeviceSettingsPage : TabPage
     private readonly Button _add = new() { Text = "Save Configuration", Name = "AddDevice", AutoSize = true };
     private readonly Button _remove = new() { Text = "Remove", Name = "RemoveDevice", AutoSize = true };
     private readonly CheckBox _enabled = new() { Text = EditorSettingsHelp.OutputEnabledCaption, Name = "DeviceEnabled", AutoSize = true };
+    private readonly Button _test = new() { Text = "Test", Name = "DeviceTest", AutoSize = true };
+    private readonly Button _forget = new() { Text = "Forget", Name = "ForgetDevice", AutoSize = true, Enabled = false };
+    private readonly Button _cancel = new() { Text = "Cancel", Name = "CancelDevice", AutoSize = true };
+    private readonly bool _hasTest;
+    private string? _testMessage;
+    internal void SetTestMessage(string? message) => _testMessage = message;
     private bool _binding;
     private readonly CatalogUsbCandidateDraft? _candidate;
 
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
         Action changed, Func<bool, bool> enable, Action add, Action remove,
-        string? applicationRoot = null, CatalogUsbCandidateDraft? candidate = null)
+        string? applicationRoot = null, CatalogUsbCandidateDraft? candidate = null,
+        Func<Task>? test = null, Action? cancel = null)
     {
         _candidate = candidate;
+        _hasTest = test is not null;
         _help = new EditorSettingsHelp(applicationRoot);
         AutoScroll = true;
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
@@ -310,8 +395,17 @@ internal sealed class DeviceSettingsPage : TabPage
         void AddButtons()
         {
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 48, Padding = new Padding(12, 4, 12, 4) };
-            buttons.Controls.Add(_add);
-            buttons.Controls.Add(_remove);
+            if (_candidate is not null)
+            {
+                buttons.Controls.Add(_test); buttons.Controls.Add(_add);
+                buttons.Controls.Add(_forget); buttons.Controls.Add(_cancel);
+                _test.Click += async (_, _) => { if (test is not null) await test(); };
+                _cancel.Click += (_, _) => cancel?.Invoke();
+                _help.Bind(_test, "Send a temporary changing-seconds dashboard through Runtime. No configuration is saved.");
+                _help.Bind(_forget, "Permanent per-device exclusion is not available in this version.");
+                _help.Bind(_cancel, "Cancel the current Test, or close this unsaved card. Native release remains owned by Runtime.");
+            }
+            else { buttons.Controls.Add(_add); buttons.Controls.Add(_remove); }
             _help.Bind(_add, EditorSettingsHelp.AddDevice);
             _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
             _add.Click += (_, _) => add();
@@ -362,8 +456,6 @@ internal sealed class DeviceSettingsPage : TabPage
                 protocols.Controls.Add(option);
             }
             Row("Protocol", protocols, "Select the implemented wire protocol. A catalog hint is only a trial suggestion; compatibility requires a successful Test.");
-            Row("Test", new Button { Name = "DeviceTest", Text = "Test", Enabled = false, AutoSize = true },
-                "Runtime USB Test integration is pending. This candidate cannot yet be saved or enabled.");
             AddButtons();
             return;
         }
@@ -449,7 +541,7 @@ internal sealed class DeviceSettingsPage : TabPage
         base.Dispose(disposing);
     }
 
-    public void UpdateState(DeviceSettingsEntry entry, bool canRemove)
+    public void UpdateState(DeviceSettingsEntry entry, bool canRemove, bool operationBusy = false)
     {
         var status = entry.Status switch
         {
@@ -462,13 +554,18 @@ internal sealed class DeviceSettingsPage : TabPage
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
             (entry.IsConfigured ? "Changes are saved and applied after OK." :
-                "Not configured. Enter screen size and protocol. Runtime Test integration is pending; saving is unavailable.");
-        _fields.Enabled = entry.CanEdit;
+                _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Saving and permanent Forget are not available in this version.");
+        _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
+        _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
         _add.Visible = !entry.IsConfigured;
-        _add.Enabled = entry.CanEdit && _candidate?.CanSaveConfiguration == true;
+        // The old whole-dialog Add path is not the approved per-card transaction.
+        // Never let a positive Test fall through to that persistence shortcut.
+        _add.Enabled = false;
+        _forget.Enabled = false;
+        _cancel.Enabled = true;
         _enabled.Enabled = entry.IsConfigured;
         _remove.Visible = entry.IsConfigured;
-        _remove.Enabled = entry.IsConfigured && canRemove;
+        _remove.Enabled = entry.IsConfigured && canRemove && !operationBusy;
         var wasBinding = _binding;
         _binding = true;
         try { _enabled.Checked = OutputTargetContract.IsEnabled(entry.Target); }

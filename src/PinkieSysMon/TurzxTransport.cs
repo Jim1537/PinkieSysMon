@@ -41,7 +41,11 @@ internal sealed class TurzxTransport : IDisposable
     {
         var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeoutMs);
         try { return new TurzxUsbConnection(native, timeoutMs); }
-        catch { native.Dispose(); throw; }
+        catch (Exception error)
+        {
+            try { native.Dispose(); } catch (Exception cleanup) { throw new PhysicalTransportCleanupException(error, cleanup); }
+            throw;
+        }
     }
 
     internal static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token,
@@ -79,9 +83,10 @@ internal sealed class TurzxTransport : IDisposable
             transport.Synchronize(token, diagnostics);
             return transport;
         }
-        catch
+        catch (Exception error)
         {
-            if (transport is null) connection.Dispose(); else transport.Dispose();
+            try { if (transport is null) connection.Dispose(); else transport.Dispose(); }
+            catch (Exception cleanup) { throw new PhysicalTransportCleanupException(error, cleanup); }
             throw;
         }
     }

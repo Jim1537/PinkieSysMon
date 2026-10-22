@@ -27,6 +27,12 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue95 live Test WorkerCompletionAndVirtualBoard", Issue95LiveTestTests.WorkerCompletionAndVirtualBoard),
+            ("Issue95 live Test StrictWorkerFailureAndCleanup", Issue95LiveTestTests.StrictWorkerFailureAndCleanup),
+            ("Issue95 live Test CancellationWaitsForNativeRelease", Issue95LiveTestTests.CancellationWaitsForNativeRelease),
+            ("Issue95 live Test ExistingOwnerAndResponseCorrelation", Issue95LiveTestTests.ExistingOwnerAndResponseCorrelation),
+            ("Issue95 live Test EditorLaunchAndStrictResults", () => Issue95LiveTestTests.EditorLaunchAndStrictResults().GetAwaiter().GetResult()),
+            ("Issue95 candidate live action states", Issue95ProtocolChoiceTests.LiveActionStates),
             ("Issue95 exact unscaled pixel mapping", Issue95FrameGeometryTests.ExactPixelMapping),
             ("Issue95 ordinary worker ignores panel dimensions", Issue95FrameGeometryTests.OrdinaryWorkerIgnoresPanelSize),
             ("Issue95 raster and wire resource bounds", Issue95FrameGeometryTests.ResourceAndWireBounds),
@@ -11072,7 +11078,7 @@ internal static class Program
             ?? throw new InvalidOperationException($"Binary state '{stateKey}' has no text presentation.");
     }
 
-    private static string CreateTemporaryApplicationRoot(string prefix)
+    internal static string CreateTemporaryApplicationRoot(string prefix)
     {
         var root = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(Path.Combine(root, "config"));

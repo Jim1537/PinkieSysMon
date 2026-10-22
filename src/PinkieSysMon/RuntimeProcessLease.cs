@@ -23,6 +23,14 @@ internal sealed class RuntimeProcessLease : IDisposable
         return TryAcquire(UserMutexPrefix + sid);
     }
 
+    internal static bool ExistsForCurrentUser()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var sid = identity.User?.Value ?? throw new InvalidOperationException("Runtime account identity is unavailable.");
+        try { using var existing = Mutex.OpenExisting(UserMutexPrefix + sid); return true; }
+        catch (WaitHandleCannotBeOpenedException) { return false; }
+    }
+
     // Explicit names allow isolated deterministic concurrency tests without
     // competing with the user's real Runtime.
     internal static RuntimeProcessLease? TryAcquire(string mutexName)

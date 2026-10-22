@@ -4,7 +4,7 @@ A **physical Output** assigns a saved dashboard to a supported hardware display.
 
 A saved physical Output uses the user's name, exact USB interface binding, selected implemented protocol and explicit screen width/height. The first working board is `device_<width>x<height>_default`, at 0° orientation, generated through the shared adaptive dashboard factory. An existing valid board is reused without overwriting edits. Ordinary frames use the assigned dashboard's Canvas; screen dimensions are not a model-size whitelist or an automatic fitting instruction.
 
-**Onboarding integration is pending:** candidate fields now use this generic model, but the live Runtime Test/visual confirmation/Save transaction is not available yet. The candidate's **Test** and **Save Configuration** actions stay disabled; the old **Add Device** and candidate **Enabled** shortcuts cannot bypass confirmation. The continuation and acceptance gates are tracked in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). The configured-Output controls below operate on the new format. Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
+**Onboarding remains incomplete:** candidate **Test** now uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** and **Forget** remain visible but disabled until their per-card transactions are integrated; even a confirmed Test cannot create or enable an Output through dialog OK. Acceptance is tracked in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). The configured-Output controls below operate on the new format. Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 
@@ -21,13 +21,13 @@ Adopting an Output creates an application configuration record. It does not crea
 
 ### Step 2. Find the Device tab
 
-Open **Devices**. This standalone dialog retains **Device #1**, **Device #2**, and subsequent tabs for saved physical Outputs and newly observed hardware candidates. The tab number is a presentation position, not a permanent identity. Inspect its display name, **Protocol**, user dimensions and status.
+Open **Devices**. Configured tabs use the saved user name. Unsaved candidates and informational entries retain **Device #N** presentation labels; the number is not a permanent identity. Inspect its display name, **Protocol**, user dimensions and status.
 
 | Settings state | Meaning and available actions |
 | --- | --- |
 | **Connected**, configured | A saved Output resolves to one present device. Its settings are editable. This is passive presence, not proof of a Runtime connection or delivered frames. |
-| **Connected**, **Not configured** | An unsaved candidate with editable name, dimensions and protocol. Onboarding is pending; neither Save Configuration nor Enabled may adopt it without Test confirmation. |
-| **Disconnected** | Saved values remain visible, but settings and Add are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
+| **Connected**, **Not configured** | An unsaved candidate with editable name, dimensions and protocol. Valid fields enable Test; Save Configuration and Forget await their transaction integration. |
+| **Disconnected** | Saved values remain visible, but settings and Test are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Save are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Save are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
 | **No matching eligible WinUSB interface was confirmed** | Windows recognizes a catalog product, but an exact eligible-interface correlation is unavailable or ambiguous. The informational entry cannot be adopted or enabled. |
@@ -36,7 +36,11 @@ Unrelated USB products are excluded. Hardware that has never been detected and h
 
 ### Step 3. Configure and adopt the Output
 
-For a candidate, enter **Display name**, **Width**, **Height** and **Protocol**. A unique passive catalog hint can suggest a protocol; an unhinted interface requires an explicit choice. The radio group keeps both implemented choices available for an eligible catalog interface. A documented family protocol without an implementation is shown disabled with **Not implemented yet**; it cannot authorize a Test. Neither hint nor name proves compatibility. No device dimensions are inferred. The required sequence is a clean Runtime Test, positive changing-seconds confirmation and separate Save Configuration, leaving the saved Output disabled. This sequence is not yet connected to the live Runtime/UI; current candidate controls do not persist it.
+For a candidate, enter **Display name**, **Width**, **Height** and **Protocol**. A unique passive catalog hint can suggest a protocol; an unhinted interface requires an explicit choice. The radio group keeps both implemented choices available for an eligible catalog interface. A documented family protocol without an implementation is shown disabled with **Not implemented yet**; it cannot authorize a Test. Neither hint nor name proves compatibility. No device dimensions are inferred. Press **Test** and confirm the hardware-use prompt. Watch the current generated dashboard and its changing seconds. The card locks inputs and repeated Test while the operation is active; **Cancel** requests cleanup. Closing the window waits for the client operation to finish before discarding the draft.
+
+After clean technical completion and release, answer whether the current image was readable at the expected geometry **and seconds changed**. The question refers to the observation during Test; transmission has already stopped. **Yes** confirms only that exact attempt. **No**, cancellation, an error or an uncertain response leaves it unconfirmed. Name-only changes preserve local approval; changing dimensions or protocol requires another Test. A visible image cannot override a technical failure.
+
+The generated board stays in memory. Test and Yes do not save a dashboard, configuration, assignment or enablement. The remaining Save Configuration/Forget actions are unavailable in this integration slice. Runtime ownership, timing, absent/unresponsive-process handling and cleanup limits are defined by [USB Test coordination](../development/architecture.md#transient-usb-test-coordination).
 
 For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding when available. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
 
@@ -57,7 +61,7 @@ Click **OK** to validate/save the draft and apply it through the shared [Setting
 
 - In the Editor, choose **Outputs (toolbar icon) → &lt;Output name&gt; → Reload**. It can launch an absent Runtime normally, starting all saved enabled Outputs, but cannot enable a disabled physical Output.
 - In Runtime's tray menu, choose the configured device name directly below the **Physical Devices** heading, then **Reload**. The heading is not a submenu. **Control Center** opens the Editor and its Settings.
-- Change assignment in **Devices → Device #N → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
+- Change assignment in **Devices → &lt;device name&gt; → Dashboard → OK**, or through **&lt;device name&gt; → Dashboard** in the tray. A tray assignment reloads an active enabled session and respects global Runtime lifetime; the tray action is unavailable for a disabled Output.
 
 Runtime uses saved dashboard content. Saving an Editor document alone does not reload it. The Editor's [Reload workflow](../development/architecture.md#editor-output-reload) handles **Save / Don't Save / Cancel** for unsaved edits and, when assignments differ, **Use editor dashboard / Keep assigned dashboard / Cancel**. Each Output owns its loaded copy, even when several Outputs select the same saved dashboard.
 
@@ -77,7 +81,7 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
 
-For removal, use **Control Center → Devices → Device #N → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
+For removal, use **Control Center → Devices → &lt;device name&gt; → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
 
 An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
@@ -93,6 +97,7 @@ For saved enablement, disabling the final Output, global shutdown and normal res
 | **WAITING**, **ERROR**, or a USB-open failure | Close competing display software, check the connection and local reported error. Follow the selected adapter's recovery policy; a new attempt does not establish that recovery succeeded. |
 | Ambiguous identity or a changed interface path | Resolve the actual binding using the selected adapter's identity rules linked from [Supported Devices](../supported-devices.md). No first-match fallback or automatic rebinding is performed. |
 | Disconnected controls cannot be edited | Reconnect that device to edit; use the tray to disable an already-enabled absent device, or Remove if appropriate. |
+| **Test not passed** / cleanup unconfirmed | Read the card status and Runtime log. Cancel is a request, not proof of released USB. Do not start a competing controller while cleanup is unconfirmed. No image/Yes override is offered after a technical failure. |
 | Missing/corrupt dashboard | Correct the saved document or assignment and retry. Runtime reports the affected Output rather than substituting another dashboard. |
 | Stale Settings draft or apply/recovery failure | Follow the [shared transaction's recovery result](../development/architecture.md#settings-save-and-apply); reopen current settings and inspect Runtime status before retrying. |
 
@@ -182,7 +187,7 @@ Settings, consent, Runtime inventory and transport dispatch use the common disco
 
 ### Draft validation and application
 
-The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables every setting when the passive entry is not Connected, while keeping allowed removal independent. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
+The [Device tab states](#step-2-find-the-device-tab) and [consent procedure](#step-4-grant-device-use-consent-and-apply) expose this validation to users. `DeviceSettingsPage` disables fields when the passive entry is not Connected or a Test is in progress. Configured removal remains independent of passive presence. Draft values survive status refresh. Before a new enabled transition is committed, `CanEnable` requires an explicit exact binding resolving to one current device; `ValidateForApply` refreshes discovery and rechecks consent. The check does not reserve a device against another process acquiring it later.
 
 Desktop and Physical Devices now have independent dialogs and detached drafts. Each preserves the other kind's saved Outputs and rejects a final combined configured set that would be empty. The shared [save/apply transaction](../development/architecture.md#settings-save-and-apply) owns byte checks, persistence, IPC reload and rollback limits. The tray has no removal command; its Enabled control uses the selected physical transaction below.
 

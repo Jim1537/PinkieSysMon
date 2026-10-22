@@ -51,7 +51,9 @@ internal static class Program
                     MessageBoxIcon.Warning);
                 return;
             }
-            Application.Run(new PinkieApplicationContext(appRoot, logger));
+            Application.Run(args.Length == 1
+                ? new UsbTestApplicationContext(appRoot, logger)
+                : new PinkieApplicationContext(appRoot, logger));
         }
         catch (Exception ex)
         {

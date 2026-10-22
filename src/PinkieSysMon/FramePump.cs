@@ -16,6 +16,15 @@ internal sealed class FramePump : IOutputSession
     private readonly SemaphoreSlim _wakeSignal = new(0, 1);
     private readonly string _targetId;
     private readonly int? _maximumFrames;
+    private readonly bool _stopOnFailure;
+    private Exception? _testFailure;
+    private bool _testCleanupFailed;
+    internal Exception? TestFailure => Volatile.Read(ref _testFailure);
+    internal bool TestCleanupFailed => Volatile.Read(ref _testCleanupFailed);
+    private void RecordTestFailure(Exception error)
+    {
+        if (_stopOnFailure) Interlocked.CompareExchange(ref _testFailure, error, null);
+    }
     private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?> _transportFactory;
     private readonly Func<IReadOnlyList<OutputDeviceDescriptor>> _turzxRecoveryDiscovery;
 
@@ -59,7 +68,7 @@ internal sealed class FramePump : IOutputSession
         FileLogger log,
         Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null,
         int? maximumFrames = null, Func<IReadOnlyList<OutputDeviceDescriptor>>? turzxRecoveryDiscovery = null,
-        Func<DateTime>? frameClockNow = null)
+        Func<DateTime>? frameClockNow = null, bool stopOnFailure = false)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -69,6 +78,7 @@ internal sealed class FramePump : IOutputSession
         if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
             TurzxFrameTransport.ValidateOptions(target, (target.Usb ?? config.Usb).DiagnosticJournalEnabled);
         _maximumFrames = maximumFrames;
+        _stopOnFailure = stopOnFailure;
         _config = config;
         _target = target;
         _turzxRecoveryDiscovery = turzxRecoveryDiscovery ?? (() => PhysicalDeviceDiscovery.CaptureForTarget(_target));
@@ -317,6 +327,7 @@ internal sealed class FramePump : IOutputSession
             }
             catch (Exception ex)
             {
+                RecordTestFailure(ex);
                 _log.ErrorThrottled(
                     $"frame.loop.{_targetId}",
                     HotPathErrorLogThrottleInterval,
@@ -460,6 +471,7 @@ internal sealed class FramePump : IOutputSession
         }
         catch (Exception ex)
         {
+            RecordTestFailure(ex);
             _log.Warn($"Output target '{TargetName}' transport lifecycle diagnostics failed.", ex);
         }
 
@@ -469,6 +481,8 @@ internal sealed class FramePump : IOutputSession
         }
         catch (Exception ex)
         {
+            RecordTestFailure(ex);
+            if (_stopOnFailure) Volatile.Write(ref _testCleanupFailed, true);
             _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
             lock (_sync)
             {
@@ -532,6 +546,7 @@ internal sealed class FramePump : IOutputSession
         }
         catch (OutputDeviceResolutionException ex)
         {
+            RecordTestFailure(ex);
             _log.WarnThrottled(
                 $"frame.usb-resolution.{_targetId}",
                 ConnectionErrorLogThrottleInterval,
@@ -551,6 +566,8 @@ internal sealed class FramePump : IOutputSession
         }
         catch (Exception ex)
         {
+            RecordTestFailure(ex);
+            if (ex is PhysicalTransportCleanupException) Volatile.Write(ref _testCleanupFailed, true);
             _log.ErrorThrottled(
                 $"frame.usb-connect.{_targetId}",
                 ConnectionErrorLogThrottleInterval,
@@ -574,6 +591,7 @@ internal sealed class FramePump : IOutputSession
 
         if (opened is null)
         {
+            RecordTestFailure(new InvalidOperationException("The exact Test interface is no longer available."));
             lock (_sync)
             {
                 if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused)
@@ -678,6 +696,7 @@ internal sealed class FramePump : IOutputSession
     private void RenderAndSendWorker(CancellationToken token)
     {
         DrainTransportRetirementWorker();
+        if (_stopOnFailure && TestFailure is not null) return;
         if (_maximumFrames is { } limit && SentFrames >= limit) return;
         var display = EnsureDisplayWorker(token);
         if (display is null)
@@ -705,6 +724,7 @@ internal sealed class FramePump : IOutputSession
         }
         catch (Exception ex)
         {
+            RecordTestFailure(ex);
             _log.ErrorThrottled(
                 $"frame.render.{_targetId}",
                 HotPathErrorLogThrottleInterval,
@@ -738,6 +758,7 @@ internal sealed class FramePump : IOutputSession
             }
             catch (Exception ex)
             {
+                RecordTestFailure(ex);
                 _log.ErrorThrottled(
                     $"frame.usb-transfer.{_targetId}",
                     ConnectionErrorLogThrottleInterval,

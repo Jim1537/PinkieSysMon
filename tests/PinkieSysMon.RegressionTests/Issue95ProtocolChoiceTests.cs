@@ -76,7 +76,7 @@ internal static class Issue95ProtocolChoiceTests
         Check(!missing.Enabled && radios.Count(radio => radio.Enabled) == 2 && radios.Count(radio => radio.Checked) == 1,
             "Reconnect restores usable choices while preserving the explicit selection and disabled missing implementation.");
         Check(!page.Controls.Find("DeviceTest", true).Single().Enabled && !page.Controls.Find("AddDevice", true).Single().Enabled,
-            "Protocol choices do not bypass the remaining live Runtime Test integration gate.");
+            "A page without a Runtime Test callback cannot dispatch or save a candidate.");
         using var informational = new RecognizedDeviceSettingsPage();
         informational.UpdateState(new(new UsbDisplayObservation("synthetic", candidate.Family,
             UsbDisplayObservationStatus.Recognized, 1, ["HIDUSB"], [], []), true));
@@ -84,6 +84,34 @@ internal static class Issue95ProtocolChoiceTests
         Check(details.Contains("No usable WinUSB driver was observed") && details.Contains(missing.Text) &&
             !details.Contains("synthetic-private-interface"),
             "Recognition-only cards explain the actual driver prerequisite and the same missing protocol without exposing native paths.");
+    }
+
+    public static void LiveActionStates()
+    {
+        var candidate = Candidate(UsbDisplayCatalog.Find(new(0x0416, 0x5408))!);
+        var model = new DeviceSettingsModel(new AppConfig()); model.Refresh([Descriptor(candidate)]);
+        var entry = model.Entries.Single(); var draft = model.CandidateDraft(entry.Target)!;
+        using var page = new DeviceSettingsPage(entry.Target, ["Default"], () => model.MarkChanged(entry.Target), _ => false,
+            () => throw new InvalidOperationException("Unexpected Save."), () => { }, candidate: draft, test: () => Task.CompletedTask);
+        var actions = new[] { "DeviceTest", "AddDevice", "ForgetDevice", "CancelDevice" }
+            .Select(name => (Button)page.Controls.Find(name, true).Single()).ToArray();
+        Check(actions.Select(button => button.Text).SequenceEqual(["Test", "Save Configuration", "Forget", "Cancel"]) &&
+            actions.All(button => button.Parent == actions[0].Parent), "All four candidate actions stay in the same action row.");
+        page.UpdateState(entry, false);
+        Check(!actions[0].Enabled && actions[3].Enabled, "Invalid empty geometry cannot dispatch Test; Cancel remains available.");
+        ((NumericUpDown)page.Controls.Find("DeviceWidth", true).Single()).Value = 320;
+        ((NumericUpDown)page.Controls.Find("DeviceHeight", true).Single()).Value = 240;
+        page.UpdateState(entry, false);
+        Check(actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled,
+            "Valid candidate can Test; unimplemented Save/Forget transactions cannot fall through to legacy dialog persistence.");
+        var intent = draft.BeginTest(new([candidate], []), new HashSet<string>()); draft.MarkDispatchAttempted(intent);
+        page.UpdateState(entry, false, true);
+        Check(!actions[0].Enabled && !page.Controls.Find("DeviceFields", true).Single().Enabled && actions[3].Enabled,
+            "In-flight Test locks wire inputs and repeat dispatch while keeping Cancel available.");
+        draft.RecordTechnicalOutcome(intent, CatalogUsbTestTechnicalOutcome.SucceededAndReleased);
+        draft.ConfirmVisibleChangingSeconds(intent, true); page.UpdateState(entry, false);
+        Check(draft.CanSaveConfiguration && actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled,
+            "Positive confirmation changes draft eligibility only; staged persistence remains deliberately unavailable.");
     }
 
     private static CatalogUsbInterfaceCandidate Candidate(UsbDisplayFamily family) => new(
