@@ -133,8 +133,10 @@ internal static class DeviceSettingsStage23Tests
         Check(dialog.Padding == new Padding(12),
             "Physical Devices Settings must inset the dynamic device tabs from the window edges.");
         Check(dialog.AcceptButton is Button { Text: "Close", DialogResult: DialogResult.Cancel } &&
-              dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
-            "Physical Devices Settings closes without a second whole-dialog commit.");
+              ReferenceEquals(dialog.AcceptButton, dialog.CancelButton) &&
+              dialog.Controls.OfType<FlowLayoutPanel>().Single(panel => panel.Dock == DockStyle.Bottom)
+                  .Controls.OfType<Button>().Single() == dialog.AcceptButton,
+            "Physical Devices Settings has one Close action without a second whole-dialog commit.");
         var page = tabs.TabPages.Cast<TabPage>().Single(p => p.Text == physical.Name);
         var fields = page.Controls.Find("DeviceFields", true).Single();
         var remove = page.Controls.Find("RemoveDevice", true).Single();

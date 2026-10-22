@@ -260,7 +260,7 @@ internal sealed class RuntimeCommandFeedback(
             NotificationOutcome.OutputError => $"{action} applied; an Output reports an error.",
             _ when !result.Response.Success => $"{action} failed; check Runtime log.",
             _ when result.Pending => $"{action} applied; " +
-                (command.TargetId is null ? "some Outputs not ready." : "Output not ready."),
+                (command.TargetId is null ? "waiting for active Outputs." : "waiting for display connection."),
             _ when result.Kind == RuntimeNotificationKind.Warning => "Settings reloaded; no enabled Outputs.",
             _ => command.Kind switch
             {

@@ -52,17 +52,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft,
             Padding = new Padding(8), WrapContents = false
         };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-        buttons.Controls.Add(cancel);
         buttons.Controls.Add(_ok);
         AcceptButton = _ok;
-        CancelButton = cancel;
+        CancelButton = _ok;
         var notice = new Label
         {
             Dock = DockStyle.Bottom, Height = 54,
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
-            Text = "Save Configuration and Forget commit only this card immediately; Cancel cannot undo them. " +
+            Text = "Save Configuration and Forget commit only this card immediately; Close cannot undo them. " +
                    "Remove commits its selected card after confirmation. Save each edited card separately. A responsive Runtime reloads saved settings."
         };
         Controls.Add(notice);
@@ -241,7 +239,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _devicePages.GetValueOrDefault(entry.Target.Id) == tab);
             tab.Text = configured?.Target.Name ?? $"Device #{index + 1}";
         }
-        _ok.Enabled = !_saveUiBusy && !_testUiBusy;
+        _ok.Enabled = !_saveUiBusy;
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -258,9 +256,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     private void CancelCandidate()
     {
-        if (_testUiBusy) { _testCancellation?.Cancel(); return; }
-        DialogResult = DialogResult.Cancel;
-        Close();
+        _testCancellation?.Cancel();
     }
 
     private async Task TestDeviceAsync(OutputTargetConfig target)
@@ -449,6 +445,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 internal sealed class DeviceSettingsPage : TabPage
 {
     private readonly EditorSettingsHelp _help;
+    private readonly Panel _scrollableFields = new() { Dock = DockStyle.Fill, AutoScroll = true };
     private readonly Label _status = new() { Dock = DockStyle.Top, Height = 110, Padding = new Padding(12) };
     private readonly TableLayoutPanel _fields = new()
     {
@@ -460,7 +457,7 @@ internal sealed class DeviceSettingsPage : TabPage
     private readonly CheckBox _enabled = new() { Text = EditorSettingsHelp.OutputEnabledCaption, Name = "DeviceEnabled", AutoSize = true };
     private readonly Button _test = new() { Text = "Test", Name = "DeviceTest", AutoSize = true };
     private readonly Button _forget = new() { Text = "Forget", Name = "ForgetDevice", AutoSize = true, Enabled = false };
-    private readonly Button _cancel = new() { Text = "Cancel", Name = "CancelDevice", AutoSize = true };
+    private readonly Button _cancel = new() { Text = "Cancel Test", Name = "CancelDevice", AutoSize = true, Visible = false };
     private readonly bool _hasTest;
     private string? _testMessage;
     internal void SetTestMessage(string? message) => _testMessage = message;
@@ -476,7 +473,6 @@ internal sealed class DeviceSettingsPage : TabPage
         _candidate = candidate;
         _hasTest = test is not null;
         _help = new EditorSettingsHelp(applicationRoot);
-        AutoScroll = true;
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _fields.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -503,6 +499,15 @@ internal sealed class DeviceSettingsPage : TabPage
             var control = new NumericUpDown { Name = name, Minimum = minimum,
                 Maximum = maximum, Value = value, Width = 160, ThousandsSeparator = true };
             control.ValueChanged += (_, _) => Change(() => set(Decimal.ToInt32(control.Value)));
+            if (_candidate is not null && (name == "DeviceWidth" || name == "DeviceHeight"))
+                control.TextChanged += (_, _) =>
+                {
+                    if (_binding || !_fields.Enabled) return;
+                    var parsed = decimal.TryParse(control.Text, System.Globalization.NumberStyles.Number,
+                        System.Globalization.CultureInfo.CurrentCulture, out var entered) &&
+                        entered == decimal.Truncate(entered) && entered >= minimum && entered <= maximum;
+                    Change(() => set(parsed ? decimal.ToInt32(entered) : 0));
+                };
             return control;
         }
 
@@ -518,17 +523,18 @@ internal sealed class DeviceSettingsPage : TabPage
                 _cancel.Click += (_, _) => cancel?.Invoke();
                 _help.Bind(_test, "Send a temporary changing-seconds dashboard through Runtime. No configuration is saved.");
                 _help.Bind(_forget, "Persist an exclusion for this exact physical node. Manually remove its hash from app.json to allow it again.");
-                _help.Bind(_cancel, "Cancel the current Test, or close this unsaved card. Native release remains owned by Runtime.");
+                _help.Bind(_cancel, "Request cancellation of the current Test. Native release remains owned by Runtime.");
             }
             else { buttons.Controls.Add(_add); buttons.Controls.Add(_remove); }
             _help.Bind(_add, _candidate is null
-                ? "Save only this configured Output now. Cancel cannot undo a completed Save."
+                ? "Save only this configured Output now. Close cannot undo a completed Save."
                 : EditorSettingsHelp.AddDevice);
             _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
             _add.Click += async (_, _) => await add();
             _remove.Click += (_, _) => remove();
+            _scrollableFields.Controls.Add(_fields);
+            Controls.Add(_scrollableFields);
             Controls.Add(buttons);
-            Controls.Add(_fields);
             Controls.Add(_status);
         }
 
@@ -673,7 +679,9 @@ internal sealed class DeviceSettingsPage : TabPage
             _ => "Discovery unavailable — controls unavailable"
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
-            (entry.IsConfigured ? "Save Configuration or Remove commits this card immediately." :
+            (entry.IsConfigured ? pendingConfiguredEdit
+                ? "Unsaved changes. Use Save Configuration above to apply this Output's settings."
+                : "Use Save Configuration above for edits, or Remove this Output." :
                 _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test, or Forget this candidate.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
@@ -682,7 +690,8 @@ internal sealed class DeviceSettingsPage : TabPage
             (entry.IsConfigured ? pendingConfiguredEdit :
                 _candidate?.CanSaveConfiguration == true);
         _forget.Enabled = !entry.IsConfigured && entry.CanEdit && canPersist && !operationBusy && _candidate?.IsTesting != true;
-        _cancel.Enabled = true;
+        _cancel.Visible = _candidate?.IsTesting == true && operationBusy;
+        _cancel.Enabled = _cancel.Visible;
         _enabled.Enabled = entry.IsConfigured;
         _remove.Visible = entry.IsConfigured;
         _remove.Enabled = entry.IsConfigured && canRemove && !operationBusy;

@@ -219,7 +219,7 @@ internal static class RuntimeNotificationStage26Tests
         var target = new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadTarget, "device-a");
         var response = pending.Run(target, () => pending.Put(Physical(active: true)));
         Check(response.Success && pending.Events.Single().Kind == RuntimeNotificationKind.Warning &&
-            Has(pending.Events.Single().Message, "Device A", "not ready") &&
+            Has(pending.Events.Single().Message, "Device A", "waiting for display connection") &&
             pending.Events.Single().Message.Length < 100 &&
             !Has(pending.Events.Single().Message, "device-a") &&
             Has(pending.Diagnostics.Single().Message, "device-a", "Board B", "WAITING"),

@@ -95,22 +95,27 @@ internal static class Issue95ProtocolChoiceTests
             () => throw new InvalidOperationException("Unexpected Save."), () => { }, candidate: draft, test: () => Task.CompletedTask);
         var actions = new[] { "DeviceTest", "AddDevice", "ForgetDevice", "CancelDevice" }
             .Select(name => (Button)page.Controls.Find(name, true).Single()).ToArray();
-        Check(actions.Select(button => button.Text).SequenceEqual(["Test", "Save Configuration", "Forget", "Cancel"]) &&
-            actions.All(button => button.Parent == actions[0].Parent), "All four candidate actions stay in the same action row.");
+        Check(actions.Select(button => button.Text).SequenceEqual(["Test", "Save Configuration", "Forget", "Cancel Test"]) &&
+            actions.All(button => button.Parent == actions[0].Parent) &&
+            !actions[3].Visible && !page.AutoScroll &&
+            actions[0].Parent!.Parent == page &&
+            page.Controls.Find("DeviceFields", true).Single().Parent is Panel { AutoScroll: true },
+            "Candidate actions stay visible above scrolling fields; cancellation is shown only for an active Test.");
         page.UpdateState(entry, false);
-        Check(!actions[0].Enabled && actions[3].Enabled, "Invalid empty geometry cannot dispatch Test; Cancel remains available.");
-        ((NumericUpDown)page.Controls.Find("DeviceWidth", true).Single()).Value = 320;
-        ((NumericUpDown)page.Controls.Find("DeviceHeight", true).Single()).Value = 240;
+        Check(!actions[0].Enabled && !actions[3].Visible, "Invalid empty geometry cannot dispatch Test.");
+        ((NumericUpDown)page.Controls.Find("DeviceWidth", true).Single()).Text = "320";
+        ((NumericUpDown)page.Controls.Find("DeviceHeight", true).Single()).Text = "240";
         page.UpdateState(entry, false);
-        Check(actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled,
-            "Valid candidate can Test; unimplemented Save/Forget transactions cannot fall through to legacy dialog persistence.");
+        Check(actions[0].Enabled && draft.Width == 320 && draft.Height == 240 &&
+            !actions[1].Enabled && !actions[2].Enabled,
+            "Typed geometry enables Test before focus moves; unavailable persistence cannot fall through to legacy dialog behavior.");
         var intent = draft.BeginTest(new([candidate], []), new HashSet<string>()); draft.MarkDispatchAttempted(intent);
         page.UpdateState(entry, false, true);
-        Check(!actions[0].Enabled && !page.Controls.Find("DeviceFields", true).Single().Enabled && actions[3].Enabled,
-            "In-flight Test locks wire inputs and repeat dispatch while keeping Cancel available.");
+        Check(!actions[0].Enabled && !page.Controls.Find("DeviceFields", true).Single().Enabled && actions[3].Visible && actions[3].Enabled,
+            "In-flight Test locks wire inputs and repeat dispatch while keeping Cancel Test available.");
         draft.RecordTechnicalOutcome(intent, CatalogUsbTestTechnicalOutcome.SucceededAndReleased);
         draft.ConfirmVisibleChangingSeconds(intent, true); page.UpdateState(entry, false);
-        Check(draft.CanSaveConfiguration && actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled,
+        Check(draft.CanSaveConfiguration && actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled && !actions[3].Visible,
             "Positive confirmation changes draft eligibility only; staged persistence remains deliberately unavailable.");
     }
 
