@@ -20,6 +20,7 @@ internal sealed class DeviceSettingsModel
 
     internal CatalogUsbCandidateDraft? CandidateDraft(OutputTargetConfig target) => _drafts.GetValueOrDefault(target.Id);
     private readonly HashSet<string> _removedBindings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _ignoredNodes;
     private readonly Dictionary<string, string> _initialEnabledBindings;
     private readonly HashSet<string> _enableConsent = new(StringComparer.OrdinalIgnoreCase);
     private readonly AppConfig _defaults;
@@ -31,6 +32,7 @@ internal sealed class DeviceSettingsModel
     public DeviceSettingsModel(AppConfig config)
     {
         _defaults = config;
+        _ignoredNodes = config.Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _targets = config.Outputs.Targets
             .Where(t => OutputTargetContract.IsPhysicalKind(t.Kind)).Select(Copy).ToList();
         _originalConnections = _targets.ToDictionary(t => t.Id, Copy, StringComparer.OrdinalIgnoreCase);
@@ -42,6 +44,7 @@ internal sealed class DeviceSettingsModel
     internal bool HasPendingRemoval => _originalConnections.Keys.Any(id =>
         !_targets.Any(target => target.Id.Equals(id, StringComparison.OrdinalIgnoreCase)));
     public int ConfiguredCount => _targets.Count;
+    internal IReadOnlySet<string> IgnoredNodes => _ignoredNodes;
 
     public IReadOnlyList<DeviceSettingsEntry> Entries
     {
@@ -74,6 +77,7 @@ internal sealed class DeviceSettingsModel
         foreach (var entry in PhysicalDeviceInventory.Build(_targets, discovered))
         {
             if (entry.IsPersisted || entry.DiscoveredDevice is not { } device ||
+                device.PnpNodeKey is { } node && _ignoredNodes.Contains(node) ||
                 _removedBindings.Contains(device.DeviceId) ||
                 _targets.Any(t => t.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase)) ||
                 _candidates.Any(t => t.DeviceId.Equals(device.DeviceId, StringComparison.OrdinalIgnoreCase)))
@@ -102,6 +106,21 @@ internal sealed class DeviceSettingsModel
     }
 
     public void DiscoveryUnavailable() => _discoveryAvailable = false;
+
+    internal string PrepareForget(OutputTargetConfig target)
+    {
+        if (!_candidates.Contains(target) || CandidateDraft(target) is not { } draft || draft.IsTesting)
+            throw new InvalidOperationException("Only an idle unconfigured candidate can be forgotten.");
+        return draft.PnpNodeKey;
+    }
+
+    internal void AcceptForgot(OutputTargetConfig target, string node)
+    {
+        if (!_candidates.Remove(target))
+            throw new InvalidOperationException("The candidate changed during Forget.");
+        _drafts.Remove(target.Id);
+        _ignoredNodes.Add(node);
+    }
 
     public void Add(OutputTargetConfig target)
     {

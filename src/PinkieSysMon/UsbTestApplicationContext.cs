@@ -19,7 +19,9 @@ internal sealed class UsbTestApplicationContext : ApplicationContext
     {
         _notifications = new WindowsAppNotificationService(log);
         _tests = new RuntimeUsbTestService(CatalogUsbInterfaceDiscovery.CaptureSnapshot,
-            (_, _) => false, intent => RuntimeUsbTestService.CreatePump(root, log, intent), log);
+            (_, _) => false, intent => RuntimeUsbTestService.CreatePump(root, log, intent), log,
+            () => AppConfig.Load(Path.Combine(root, "config", "app.json"), log)
+                .Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase));
         _tests.TestFailed += () => _ = _invoker.InvokeAsync(() => _notifications.Show(
             "USB Test not passed. Configuration was not saved. Check the Runtime log and retry after cleanup.", RuntimeNotificationKind.Error));
         _invoker.CreateControl();

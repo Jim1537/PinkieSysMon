@@ -171,6 +171,54 @@ internal static class Issue95CandidateSaveTests
         });
     }
 
+    public static void ForgetExactNodeAndRollback()
+    {
+        InSandbox((root, path, log) =>
+        {
+            var first = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'w');
+            var neighbor = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'x');
+            var original = new AppConfig(); original.Save(path);
+            var model = new DeviceSettingsModel(original); model.Refresh([first, neighbor]);
+            var card = model.Entries.Single(e => e.Target.DeviceId == first.DeviceId).Target;
+            var node = model.PrepareForget(card);
+            var before = File.ReadAllBytes(path);
+            Task<bool> Apply(AppConfig next, byte[]? expected) =>
+                EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                    () => Task.FromResult<RuntimeIpcResponse?>(null));
+            Reject(() => PhysicalDeviceSettingsTransaction.ForgetCandidateAsync(path, log,
+                first.DeviceId, node, () => [first, first], Apply).GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(before), "Ambiguous node cannot be forgotten.");
+            Reject(() => PhysicalDeviceSettingsTransaction.ForgetCandidateAsync(path, log,
+                first.DeviceId, node, () => [first], (next, expected) =>
+                    EditorSettingsPersistence.ApplyAsync(path, next, expected,
+                        () => Task.FromResult<RuntimeIpcResponse?>(new(false, "Injected apply failure"))))
+                .GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(before) && model.Entries.Count == 2,
+                "Failed apply restores the config and both candidate cards.");
+            var newer = AppConfig.Load(path, log);
+            newer.Outputs.Targets[0].Name = "Newer Desktop"; newer.Save(path);
+            var (saved, reloaded) = PhysicalDeviceSettingsTransaction.ForgetCandidateAsync(path, log,
+                first.DeviceId, node, () => [first, neighbor], Apply).GetAwaiter().GetResult();
+            model.AcceptForgot(card, node); model.Refresh([first, neighbor]);
+            Check(!reloaded && saved.Outputs.Targets[0].Name == "Newer Desktop" &&
+                  saved.Outputs.IgnoredDeviceNodeKeys.SequenceEqual([node]) &&
+                  model.Entries.Count == 1 && model.Entries[0].Target.DeviceId == neighbor.DeviceId,
+                "Forget merges one hashed node and retains a same-product neighbor and newer settings.");
+            var reopened = new DeviceSettingsModel(AppConfig.Load(path, log)); reopened.Refresh([first, neighbor]);
+            Check(reopened.Entries.Count == 1 && reopened.Entries[0].Target.DeviceId == neighbor.DeviceId,
+                "The exclusion survives reload and replug.");
+            var intent = new CatalogUsbTrialIntent(Guid.NewGuid(), first.DeviceId, node,
+                OutputTargetContract.LyBulkTransport, 800, 600, 1);
+            Check(RuntimeUsbTestPreflight.Check(intent, new([first.Candidate!, neighbor.Candidate!], []),
+                saved.Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase)) ==
+                  RuntimeUsbTestPreflightStatus.Missing,
+                "Runtime Test must deny a forgotten exact node before opening USB.");
+            saved.Outputs.IgnoredDeviceNodeKeys.Clear(); saved.Save(path);
+            var restored = new DeviceSettingsModel(AppConfig.Load(path, log)); restored.Refresh([first, neighbor]);
+            Check(restored.Entries.Count == 2, "Manual exclusion removal restores the candidate offer.");
+        });
+    }
+
     private static void InSandbox(Action<string, string, FileLogger> body)
     {
         var root = Path.Combine(Path.GetTempPath(), "PinkieSysMon-CandidateSave-" + Guid.NewGuid().ToString("N"));

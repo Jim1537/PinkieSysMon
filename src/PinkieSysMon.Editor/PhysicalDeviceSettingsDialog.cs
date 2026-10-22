@@ -62,7 +62,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Dock = DockStyle.Bottom, Height = 54,
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
-            Text = "Save Configuration commits only this card immediately; Cancel cannot undo it. " +
+            Text = "Save Configuration and Forget commit only this card immediately; Cancel cannot undo them. " +
                    "OK applies a pending Remove only; Save each edited card separately. A responsive Runtime reloads saved settings."
         };
         Controls.Add(notice);
@@ -153,7 +153,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _devices.DiscoveryUnavailable();
                 unavailable = true;
             }
-            try { _recognizedDevices.Refresh(_discoverRecognizedDevices(), supported); }
+            try { _recognizedDevices.Refresh(_discoverRecognizedDevices().Where(o =>
+                !o.NodeKeys.Any(_devices.IgnoredNodes.Contains)).ToArray(), supported); }
             catch (Exception ex) when (ex is InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
             {
                 _recognizedDevices.DiscoveryUnavailable();
@@ -201,7 +202,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
                     () => entry.IsConfigured ? SaveConfiguredAsync(entry.Target) : SaveCandidateAsync(entry.Target),
                     () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
-                    () => TestDeviceAsync(entry.Target), CancelCandidate);
+                    () => TestDeviceAsync(entry.Target), CancelCandidate,
+                    () => ForgetCandidateAsync(entry.Target));
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
                 if (wasSelected) _settingsTabs.SelectedTab = page;
@@ -209,7 +211,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount), _testUiBusy || _saveUiBusy,
                 _persistAndApply is not null, _devices.HasPendingConfiguredEdit(entry.Target));
         }
-        var recognized = _recognizedDevices.Entries;
+        var recognized = _recognizedDevices.Entries.Where(e =>
+            !e.Observation.NodeKeys.Any(_devices.IgnoredNodes.Contains)).ToArray();
         var recognizedIds = recognized.Select(e => e.Observation.ObservationId).ToHashSet(StringComparer.Ordinal);
         foreach (var id in _recognizedPages.Keys.Where(id => !recognizedIds.Contains(id)).ToArray())
         {
@@ -342,6 +345,32 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
+    private async Task ForgetCandidateAsync(OutputTargetConfig target)
+    {
+        if (_saveUiBusy || _testUiBusy || _persistAndApply is null || _log is null) return;
+        var draft = _devices.CandidateDraft(target);
+        if (draft is null || draft.IsTesting) return;
+        if (MessageBox.Show(this,
+            $"Permanently forget '{target.Name}' on this installation?\n\n" +
+            "This specific device will not be offered or tested again. To allow it later, manually remove its hashed node key from config/app.json. No dashboard file is deleted.",
+            "Forget Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        _saveUiBusy = true;
+        try
+        {
+            RefreshDeviceDiscovery();
+            var node = _devices.PrepareForget(target);
+            var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.ForgetCandidateAsync(
+                Path.Combine(_help.ApplicationRoot!, "config", "app.json"), _log,
+                draft.InterfaceId, node, _discoverDevices, _persistAndApply);
+            _devices.AcceptForgot(target, node);
+            ReportCommitted(saved, reloaded);
+            RefreshDeviceDiscovery();
+        }
+        catch (Exception ex) { ShowDeviceError(ex); }
+        finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
+    }
+
     private void ReportCommitted(AppConfig saved, bool reloaded)
     {
         try { _onCommitted?.Invoke(saved, reloaded); }
@@ -426,7 +455,7 @@ internal sealed class DeviceSettingsPage : TabPage
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
         Action changed, Func<bool, bool> enable, Func<Task> add, Action remove,
         string? applicationRoot = null, CatalogUsbCandidateDraft? candidate = null,
-        Func<Task>? test = null, Action? cancel = null)
+        Func<Task>? test = null, Action? cancel = null, Func<Task>? forget = null)
     {
         _candidate = candidate;
         _hasTest = test is not null;
@@ -469,9 +498,10 @@ internal sealed class DeviceSettingsPage : TabPage
                 buttons.Controls.Add(_test); buttons.Controls.Add(_add);
                 buttons.Controls.Add(_forget); buttons.Controls.Add(_cancel);
                 _test.Click += async (_, _) => { if (test is not null) await test(); };
+                _forget.Click += async (_, _) => { if (forget is not null) await forget(); };
                 _cancel.Click += (_, _) => cancel?.Invoke();
                 _help.Bind(_test, "Send a temporary changing-seconds dashboard through Runtime. No configuration is saved.");
-                _help.Bind(_forget, "Permanent per-device exclusion is not available in this version.");
+                _help.Bind(_forget, "Persist an exclusion for this exact physical node. Manually remove its hash from app.json to allow it again.");
                 _help.Bind(_cancel, "Cancel the current Test, or close this unsaved card. Native release remains owned by Runtime.");
             }
             else { buttons.Controls.Add(_add); buttons.Controls.Add(_remove); }
@@ -628,14 +658,14 @@ internal sealed class DeviceSettingsPage : TabPage
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
             (entry.IsConfigured ? "Save Configuration commits this card now; Remove still applies after OK." :
-                _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test; Forget is not yet available.");
+                _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test, or Forget this candidate.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
         _add.Visible = true;
         _add.Enabled = canPersist && entry.CanEdit && !operationBusy &&
             (entry.IsConfigured ? pendingConfiguredEdit :
                 _candidate?.CanSaveConfiguration == true);
-        _forget.Enabled = false;
+        _forget.Enabled = !entry.IsConfigured && entry.CanEdit && canPersist && !operationBusy && _candidate?.IsTesting != true;
         _cancel.Enabled = true;
         _enabled.Enabled = entry.IsConfigured;
         _remove.Visible = entry.IsConfigured;

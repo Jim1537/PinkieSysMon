@@ -104,7 +104,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             (intent, snapshot) => RuntimeUsbTestService.IsOwned(intent, snapshot,
                 _config.Outputs.Targets.Where(target => target.DeviceEnabled ||
                     _outputSessions.GetStatuses().Any(status => status.TargetId == target.Id && status.IsActive))),
-            intent => RuntimeUsbTestService.CreatePump(_baseDir, _log, intent), _log);
+            intent => RuntimeUsbTestService.CreatePump(_baseDir, _log, intent), _log,
+            () => _config.Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase));
         _usbTests.TestFailed += () => _ = _uiInvoker.InvokeAsync(() => _notifications.Show(
             "USB Test not passed. Configuration was not saved. Check the Runtime log and retry after cleanup.", RuntimeNotificationKind.Error));
         _ipcServer = new RuntimeIpcServer(HandleIpcCommandAsync, _log);

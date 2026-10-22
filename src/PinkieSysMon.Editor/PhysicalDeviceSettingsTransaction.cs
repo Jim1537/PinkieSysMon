@@ -24,6 +24,8 @@ internal static class PhysicalDeviceSettingsTransaction
             throw new InvalidOperationException("The confirmed interface is no longer uniquely present on the same physical node.");
 
         var (current, bytes) = ReadCurrent(configPath, log);
+        if (current.Outputs.IgnoredDeviceNodeKeys.Contains(confirmedPnpNodeKey, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("This physical node was forgotten elsewhere. Reopen Settings.");
         if (current.Outputs.Targets.Any(t =>
                 t.Id.Equals(confirmed.Id, StringComparison.OrdinalIgnoreCase) ||
                 (OutputTargetContract.IsPhysicalKind(t.Kind) &&
@@ -62,6 +64,33 @@ internal static class PhysicalDeviceSettingsTransaction
             throw new InvalidOperationException("This Output changed elsewhere while its card was open. Reopen Settings.");
         current.Outputs.Targets[index] = updated;
         _ = RuntimeConfigurationValidator.LoadTarget(updated, applicationRoot);
+        var reloaded = await persistAndApply(current, bytes);
+        return (current, reloaded);
+    }
+
+    internal static async Task<(AppConfig Config, bool RuntimeReloaded)> ForgetCandidateAsync(
+        string configPath, FileLogger log, string interfaceId, string nodeKey,
+        Func<IReadOnlyList<OutputDeviceDescriptor>> discover,
+        Func<AppConfig, byte[]?, Task<bool>> persistAndApply)
+    {
+        // The node key is a hash of one observed PnP instance. A path, model
+        // name or VID/PID cannot stand in for this identity.
+        var devices = discover();
+        var matches = devices.Where(d => d.DeviceId.Equals(interfaceId, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (matches.Length != 1 || matches[0].PnpNodeKey is not { } actualNode ||
+            !actualNode.Equals(nodeKey, StringComparison.OrdinalIgnoreCase) ||
+            devices.Count(d => d.PnpNodeKey?.Equals(nodeKey, StringComparison.OrdinalIgnoreCase) == true) != 1 ||
+            OutputDeviceSelection.FindAmbiguousDeviceIds(devices).Contains(interfaceId))
+            throw new InvalidOperationException("The candidate's exact physical identity is no longer unique. Reopen Settings.");
+
+        var (current, bytes) = ReadCurrent(configPath, log);
+        if (current.Outputs.IgnoredDeviceNodeKeys.Contains(nodeKey, StringComparer.OrdinalIgnoreCase) ||
+            current.Outputs.Targets.Any(t => OutputTargetContract.IsPhysicalKind(t.Kind) &&
+                (t.DeviceId.Equals(interfaceId, StringComparison.OrdinalIgnoreCase) ||
+                 devices.Any(d => d.DeviceId.Equals(t.DeviceId, StringComparison.OrdinalIgnoreCase) &&
+                     d.PnpNodeKey?.Equals(nodeKey, StringComparison.OrdinalIgnoreCase) == true))))
+            throw new InvalidOperationException("This device was already configured or forgotten elsewhere. Reopen Settings.");
+        current.Outputs.IgnoredDeviceNodeKeys.Add(nodeKey);
         var reloaded = await persistAndApply(current, bytes);
         return (current, reloaded);
     }

@@ -16,6 +16,7 @@ internal sealed class RuntimeUsbTestService
     private readonly Func<CatalogUsbCandidateSnapshot> _capture;
     private readonly Func<CatalogUsbTrialIntent, CatalogUsbCandidateSnapshot, bool> _isOwned;
     private readonly Func<CatalogUsbTrialIntent, FramePump> _createPump;
+    private readonly Func<IReadOnlySet<string>> _readIgnoredNodes;
     private readonly FileLogger _log;
     private CatalogUsbTestHandle? _active;
     private long _completedAt;
@@ -25,8 +26,10 @@ internal sealed class RuntimeUsbTestService
 
     internal RuntimeUsbTestService(Func<CatalogUsbCandidateSnapshot> capture,
         Func<CatalogUsbTrialIntent, CatalogUsbCandidateSnapshot, bool> isOwned,
-        Func<CatalogUsbTrialIntent, FramePump> createPump, FileLogger log)
-    { _capture = capture; _isOwned = isOwned; _createPump = createPump; _log = log; }
+        Func<CatalogUsbTrialIntent, FramePump> createPump, FileLogger log,
+        Func<IReadOnlySet<string>>? readIgnoredNodes = null)
+    { _capture = capture; _isOwned = isOwned; _createPump = createPump; _log = log;
+      _readIgnoredNodes = readIgnoredNodes ?? (() => new HashSet<string>()); }
 
     internal RuntimeIpcResponse Execute(RuntimeIpcCommand command)
     {
@@ -39,7 +42,7 @@ internal sealed class RuntimeUsbTestService
             try
             {
                 var snapshot = _capture();
-                var preflight = RuntimeUsbTestPreflight.Check(request.Intent, snapshot, new HashSet<string>());
+                var preflight = RuntimeUsbTestPreflight.Check(request.Intent, snapshot, _readIgnoredNodes());
                 if (preflight != RuntimeUsbTestPreflightStatus.Admitted)
                     return new(false, $"Test not passed: current interface validation returned {preflight}. Reconnect and retry.");
                 if (_isOwned(request.Intent, snapshot))
@@ -85,7 +88,7 @@ internal sealed class RuntimeUsbTestService
         try
         {
             lease.StopRequested.ThrowIfCancellationRequested();
-            if (RuntimeUsbTestPreflight.Check(lease.Request.Intent, _capture(), new HashSet<string>()) != RuntimeUsbTestPreflightStatus.Admitted)
+            if (RuntimeUsbTestPreflight.Check(lease.Request.Intent, _capture(), _readIgnoredNodes()) != RuntimeUsbTestPreflightStatus.Admitted)
                 throw new InvalidOperationException("Exact Test binding changed before acquisition.");
             pump = _createPump(lease.Request.Intent);
             lease.StopRequested.ThrowIfCancellationRequested();

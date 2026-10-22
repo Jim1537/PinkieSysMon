@@ -69,6 +69,11 @@ internal sealed class AppConfig
             throw new InvalidDataException("Application config requires Display, Runtime, Outputs, Renderer, Usb and Media objects.");
         if (Outputs.Targets is null)
             throw new InvalidDataException("Outputs.Targets must be an array of configured outputs.");
+        if (Outputs.IgnoredDeviceNodeKeys is null || Outputs.IgnoredDeviceNodeKeys.Any(key =>
+                key is null || !key.StartsWith("usb-pnp:", StringComparison.OrdinalIgnoreCase) ||
+                key.Length != 72 || !key.AsSpan(8).ToString().All(Uri.IsHexDigit)) ||
+            Outputs.IgnoredDeviceNodeKeys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != Outputs.IgnoredDeviceNodeKeys.Count)
+            throw new InvalidDataException("Outputs.IgnoredDeviceNodeKeys must contain distinct hashed USB node identities.");
 
         if (Runtime.IdleTimeoutMinutes is < 0 or > RuntimeIdlePolicy.MaximumTimeoutMinutes)
             throw new InvalidDataException("Runtime.IdleTimeoutMinutes must be 0 (disabled) or 1..1440 minutes.");
@@ -115,6 +120,7 @@ internal sealed class RuntimeConfig
 internal sealed class OutputConfig
 {
     public List<OutputTargetConfig> Targets { get; set; } = OutputTargetContract.CreateDefaults();
+    public List<string> IgnoredDeviceNodeKeys { get; set; } = [];
 }
 
 internal sealed class OutputTargetConfig
