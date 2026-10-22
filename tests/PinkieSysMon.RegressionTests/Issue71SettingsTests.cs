@@ -21,9 +21,9 @@ internal static class Issue71SettingsTests
                 page.Controls.Find("DeviceWidth", true).Length != 1 ||
                 page.Controls.Find("DeviceTest", true).Single().Enabled)
                 throw new InvalidOperationException("A connected TURZX candidate exposes supported fields without dirtying Settings or offering unsupported commands.");
-            var title = string.Join(" ", Descendants(page).OfType<Label>().Select(label => label.Text));
-            if (!title.Contains("Physical USB display"))
-                throw new InvalidOperationException("The integrated candidate must have its own accurate model label.");
+            var choices = page.Controls.Find("DeviceProtocol", true).Single().Controls.OfType<RadioButton>().ToArray();
+            if (choices.Length != 2 || choices.Any(choice => !choice.Enabled) || choices.Any(choice => choice.Checked))
+                throw new InvalidOperationException("The candidate must expose both implemented protocols without inventing a hint for this unhinted fixture.");
             if (page.Controls.Find("AddDevice", true).Single().Enabled)
                 throw new InvalidOperationException("A candidate cannot bypass Runtime Test through the old Add Device action.");
         }

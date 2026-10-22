@@ -49,33 +49,33 @@ internal sealed class WindowsTurzxInterfaceDiscoveryApi : ITurzxInterfaceDiscove
         for (var attempt = 0; attempt < 3; attempt++)
         {
             if (length is < 2 or > MaximumPropertyBytes || length % 2 != 0)
-                throw new InvalidOperationException("TURZX interface registry value has an invalid size.");
+                throw new InvalidOperationException("USB interface registry value has an invalid size.");
             var buffer = new byte[checked((int)length)];
             result = RegQueryValueExW(key, name, IntPtr.Zero, out type, buffer, ref length);
             if (result == MoreData && attempt < 2) continue;
             if (result is NotFound or AccessDenied) return [];
             if (result != 0) throw Failure("registry read", unchecked((uint)result));
             if (type != expectedType)
-                throw new InvalidOperationException("TURZX interface registry value has an invalid type.");
+                throw new InvalidOperationException("USB interface registry value has an invalid type.");
             return DecodeRegisteredClasses(type, buffer, length);
         }
-        throw new InvalidOperationException("TURZX interface registry value did not stabilize.");
+        throw new InvalidOperationException("USB interface registry value did not stabilize.");
     }
 
     internal static IReadOnlyList<Guid> DecodeRegisteredClasses(uint type, byte[] buffer, uint length)
     {
         if (length is < 2 or > MaximumPropertyBytes || length > buffer.Length || length % 2 != 0 ||
             buffer[length - 1] != 0 || buffer[length - 2] != 0 || type is not (1 or 7))
-            throw new InvalidOperationException("TURZX interface registry data is malformed.");
+            throw new InvalidOperationException("USB interface registry data is malformed.");
         var text = Encoding.Unicode.GetString(buffer, 0, checked((int)length));
         var values = type == 1 ? new[] { text[..^1] } :
             UsbDisplayDiscovery.ParseMultiSz(text.ToCharArray()).ToArray();
         // Do not accept hidden values after a MULTI_SZ terminator.
         if (type == 7 && text != string.Join('\0', values) + (values.Length == 0 ? "\0" : "\0\0") &&
             !(values.Length == 0 && text == "\0\0"))
-            throw new InvalidOperationException("TURZX interface registry data has trailing content.");
+            throw new InvalidOperationException("USB interface registry data has trailing content.");
         if (values.Length > 16 || values.Any(value => !Guid.TryParse(value, out var id) || id == Guid.Empty))
-            throw new InvalidOperationException("TURZX interface registry data contains invalid classes.");
+            throw new InvalidOperationException("USB interface registry data contains invalid classes.");
         return values.Select(Guid.Parse).Distinct().ToArray();
     }
 
@@ -87,7 +87,7 @@ internal sealed class WindowsTurzxInterfaceDiscoveryApi : ITurzxInterfaceDiscove
             if (result == 0x0D) return [];
             if (result != UsbDisplayDiscovery.Success) throw Failure("interface size", result);
             if (length is < 1 or > UsbDisplayDiscovery.MaximumListCharacters)
-                throw new InvalidOperationException("TURZX interface list has an invalid size.");
+                throw new InvalidOperationException("USB interface list has an invalid size.");
             var buffer = new char[checked((int)length)];
             result = CM_Get_Device_Interface_ListW(ref interfaceClass, instanceId, buffer, length, 0);
             if (result == UsbDisplayDiscovery.BufferSmall && attempt < 2) continue;
@@ -95,11 +95,11 @@ internal sealed class WindowsTurzxInterfaceDiscoveryApi : ITurzxInterfaceDiscove
             if (result != UsbDisplayDiscovery.Success) throw Failure("interface list", result);
             return UsbDisplayDiscovery.ParseMultiSz(buffer);
         }
-        throw new InvalidOperationException("TURZX interface list did not stabilize.");
+        throw new InvalidOperationException("USB interface list did not stabilize.");
     }
 
     private static InvalidOperationException Failure(string operation, uint code) =>
-        new($"TURZX passive discovery {operation} failed: 0x{code:X8}.");
+        new($"USB passive discovery {operation} failed: 0x{code:X8}.");
 
     [DllImport("CfgMgr32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern uint CM_Locate_DevNodeW(out uint node, string instanceId, uint flags);

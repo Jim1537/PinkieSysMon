@@ -328,6 +328,73 @@ internal static class Issue95CatalogCandidateTests
             "An MI function must have its own WinUSB driver, regardless of the parent.");
     }
 
+    public static void CompositeSnapshotCompleteness()
+    {
+        var parent = NodeId("0416:5408", "ATOMIC");
+        var first = FunctionId("0416:5408", "FIRST", 1);
+        var second = FunctionId("0416:5408", "SECOND", 2);
+        var healthy = NodeId("1CBE:0123", "HEALTHY");
+        var sameProduct = NodeId("0416:5408", "INDEPENDENT");
+        FakeApi Create(bool reverse = false)
+        {
+            var api = new FakeApi(reverse ? [parent, second, first, healthy, sameProduct] : [parent, first, second, healthy, sameProduct]);
+            api.Nodes[parent] = Node(parent, "USBCCGP");
+            api.Nodes[first] = new(first, parent, "WINUSB", Guid.Empty, 0, true);
+            api.Nodes[second] = new(second, parent, "WINUSB", Guid.Empty, 0, true);
+            api.Classes[first] = api.Classes[second] = api.Classes[healthy] = api.Classes[sameProduct] = [ClassA];
+            api.Paths[first] = [FunctionPath("0416:5408", "FIRST", 1, ClassA)];
+            api.Paths[second] = [FunctionPath("0416:5408", "SECOND", 2, ClassA)];
+            api.Paths[healthy] = [Path("1CBE:0123", "HEALTHY", ClassA)];
+            api.Paths[sameProduct] = [Path("0416:5408", "INDEPENDENT", ClassA)];
+            return api;
+        }
+        var complete = CatalogUsbInterfaceDiscovery.CaptureSnapshot(Create());
+        Check(complete.Candidates.Count == 4 && complete.UnavailableNodeKeys.Count == 0,
+            "Complete composite metadata retains both interfaces so ambiguity remains visible.");
+        void Incomplete(FakeApi api, bool unresolvedParent = false)
+        {
+            var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot(api);
+            Check(snapshot.Candidates.Count == (unresolvedParent ? 1 : 2) &&
+                snapshot.Candidates.Any(candidate => candidate.Family.Product == TurzxDeviceDiscovery.Product) &&
+                snapshot.UnavailableNodeKeys.Contains(UsbDisplayDiscovery.CreateObservationId(parent)),
+                "A failing composite function must invalidate the whole physical unit while preserving an independent healthy product.");
+            var devices = PhysicalDeviceDiscovery.Project(snapshot);
+            Check(devices.Select(device => device.Candidate).SequenceEqual(snapshot.Candidates),
+                "Runtime receives the same complete passive snapshot, including a proven unrelated same-product unit.");
+        }
+        foreach (var reverse in new[] { false, true })
+        {
+            var api = Create(reverse); api.FailedClassNode = second;
+            Incomplete(api);
+        }
+        var unavailable = Create();
+        unavailable.Nodes[second] = new(second, parent, "WINUSB", Guid.Empty, 0, false);
+        Incomplete(unavailable);
+        var failedInitial = Create();
+        failedInitial.Read = id => id == second ? throw new InvalidOperationException("Synthetic initial function read failure.") : failedInitial.Nodes[id];
+        Incomplete(failedInitial, unresolvedParent: true);
+        var removedParent = Create(); var parentReads = 0;
+        removedParent.Read = id => id == parent && ++parentReads > 1 ? null : removedParent.Nodes[id];
+        Incomplete(removedParent);
+        var changedParent = Create(); var firstReads = 0;
+        changedParent.Read = id => id == first && ++firstReads > 1
+            ? new(first, NodeId("0416:5408", "OTHER"), "WINUSB", Guid.Empty, 0, true) : changedParent.Nodes[id];
+        Incomplete(changedParent);
+        var projected = PhysicalDeviceDiscovery.Project(complete with
+        { UnavailableNodeKeys = [UsbDisplayDiscovery.CreateObservationId(parent)] });
+        Check(projected.Count == 2 && projected.All(device => device.PnpNodeKey != UsbDisplayDiscovery.CreateObservationId(parent)),
+            "Even an injected incomplete snapshot cannot expose a failed unit through production projection.");
+
+        var one = NodeId("0416:5408", "ONE"); var two = NodeId("0416:5408", "TWO");
+        var conflicting = new FakeApi([one, two]); var correlations = 0;
+        conflicting.Classes[one] = conflicting.Classes[two] = [ClassA];
+        conflicting.Paths[one] = conflicting.Paths[two] = [Path("0416:5408", "REUSED", ClassA)];
+        conflicting.InterfaceInstanceId = _ => ++correlations == 1 ? one : two;
+        var claims = CatalogUsbInterfaceDiscovery.CaptureSnapshot(conflicting);
+        Check(claims.Candidates.Count == 0 && claims.UnavailableNodeKeys.Count == 2,
+            "A path claimed by different physical nodes during one capture must not be deduplicated into a usable first match.");
+    }
+
     private static string FunctionId(string pair, string unit, byte mi) =>
         $"USB\\VID_{pair[..4]}&PID_{pair[5..]}&MI_{mi:X2}\\SYNTHETIC-{unit}";
 

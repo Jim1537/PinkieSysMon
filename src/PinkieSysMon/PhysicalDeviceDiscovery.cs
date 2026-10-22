@@ -46,7 +46,8 @@ internal static class PhysicalDeviceDiscovery
     }
 
     internal static IReadOnlyList<OutputDeviceDescriptor> Project(CatalogUsbCandidateSnapshot snapshot) =>
-        snapshot.Candidates.Select(candidate => new OutputDeviceDescriptor(
+        snapshot.Candidates.Where(candidate => !snapshot.UnavailableNodeKeys.Contains(
+            candidate.PnpNodeKey, StringComparer.OrdinalIgnoreCase)).Select(candidate => new OutputDeviceDescriptor(
             candidate.Id, candidate.SuggestedTransport ?? string.Empty,
             candidate.DisplayName, candidate.InterfacePath)
         { PnpNodeKey = candidate.PnpNodeKey, Candidate = candidate, PhysicalFingerprint = candidate.PhysicalFingerprint }).ToArray();

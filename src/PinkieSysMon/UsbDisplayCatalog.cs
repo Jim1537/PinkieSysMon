@@ -16,6 +16,13 @@ internal sealed record UsbDisplayFamily(UsbProductId Product, string Name, strin
     // never authorizes dispatch, supplies geometry, or creates an Output.
     public string? CandidateTransport { get; init; }
     public int? IntegrationIssue { get; init; }
+    public string? UnimplementedProtocol { get; init; }
+}
+
+internal sealed record UsbDisplayProtocolChoice(string Id, string Name)
+{
+    public bool IsImplemented => OutputTargetContract.HasIntegratedTransport(Id);
+    public string Label => IsImplemented ? Name : $"{Name} — Not implemented yet";
 }
 
 internal static class UsbDisplayCatalog
@@ -32,13 +39,13 @@ internal static class UsbDisplayCatalog
         Family(0x0416, 0x5408, "Thermalright LY display family", ThermalrightEvidence,
             OutputTargetContract.LyBulkTransport),
         Family(0x0416, 0x5409, "Thermalright LY1 display family", ThermalrightEvidence),
-        Family(0x0416, 0x5302, "Thermalright Type 2 display family", ThermalrightEvidence),
-        Family(0x0418, 0x5303, "ALi Type 3 display family", ThermalrightEvidence),
-        Family(0x0418, 0x5304, "ALi Type 3 display family", ThermalrightEvidence),
-        Family(0x0416, 0x5406, "ALi/F5 display family", ThermalrightEvidence),
-        Family(0x0402, 0x3922, "Thermalright SCSI display family", ThermalrightEvidence),
-        Family(0x87CD, 0x70DB, "Thermalright SCSI display family", ThermalrightEvidence),
-        Family(0x87AD, 0x70DB, "Thermalright bulk display family", ThermalrightEvidence),
+        Family(0x0416, 0x5302, "Thermalright Type 2 display family", ThermalrightEvidence, unimplementedProtocol: "hid-type2"),
+        Family(0x0418, 0x5303, "ALi Type 3 display family", ThermalrightEvidence, unimplementedProtocol: "hid-f5"),
+        Family(0x0418, 0x5304, "ALi Type 3 display family", ThermalrightEvidence, unimplementedProtocol: "hid-f5"),
+        Family(0x0416, 0x5406, "ALi/F5 display family", ThermalrightEvidence, unimplementedProtocol: "hid-f5"),
+        Family(0x0402, 0x3922, "Thermalright SCSI display family", ThermalrightEvidence, unimplementedProtocol: "scsi-display"),
+        Family(0x87CD, 0x70DB, "Thermalright SCSI display family", ThermalrightEvidence, unimplementedProtocol: "scsi-display"),
+        Family(0x87AD, 0x70DB, "Thermalright bulk display family", ThermalrightEvidence, unimplementedProtocol: "usblcdnew-bulk"),
         Family(0x1CBE, 0x0123, "Turing/TURZX 12.3-inch family", TuringEvidence, OutputTargetContract.EncryptedJpegTransport, integrationIssue: 71),
         Family(0x1CBE, 0x0028, "Turing 2.8-inch family", TuringEvidence),
         Family(0x1CBE, 0x0046, "Turing 4.6-inch family", TuringEvidence),
@@ -48,15 +55,30 @@ internal static class UsbDisplayCatalog
         Family(0x1CBE, 0x0092, "Turing 9.2-inch family", TuringEvidence)
     });
 
+    // Protocol metadata is shared by the candidate UI and passive information
+    // pages. Missing implementations are visible, never selectable aliases.
+    private static readonly IReadOnlyList<UsbDisplayProtocolChoice> Protocols = Array.AsReadOnly(new[]
+    {
+        new UsbDisplayProtocolChoice(OutputTargetContract.LyBulkTransport, "LY bulk"),
+        new UsbDisplayProtocolChoice(OutputTargetContract.EncryptedJpegTransport, "Encrypted JPEG"),
+        new UsbDisplayProtocolChoice("hid-type2", "HID Type 2"),
+        new UsbDisplayProtocolChoice("hid-f5", "HID F5"),
+        new UsbDisplayProtocolChoice("scsi-display", "SCSI display"),
+        new UsbDisplayProtocolChoice("usblcdnew-bulk", "USBLCDNew bulk")
+    });
+
+    internal static IReadOnlyList<UsbDisplayProtocolChoice> ProtocolChoices(UsbDisplayFamily family) =>
+        Protocols.Where(protocol => protocol.IsImplemented || protocol.Id == family.UnimplementedProtocol).ToArray();
+
     private static readonly IReadOnlyDictionary<UsbProductId, UsbDisplayFamily> ByProduct =
         Families.ToDictionary(family => family.Product);
 
     public static UsbDisplayFamily? Find(UsbProductId product) => ByProduct.GetValueOrDefault(product);
 
     private static UsbDisplayFamily Family(ushort vid, ushort pid, string name, string evidence,
-        string? candidateTransport = null, int? integrationIssue = null) =>
+        string? candidateTransport = null, int? integrationIssue = null, string? unimplementedProtocol = null) =>
         new(new UsbProductId(vid, pid), name, evidence)
-        { CandidateTransport = candidateTransport, IntegrationIssue = integrationIssue };
+        { CandidateTransport = candidateTransport, IntegrationIssue = integrationIssue, UnimplementedProtocol = unimplementedProtocol };
 
     // Parse only an actual USB devnode instance ID, not an interface path,
     // description, substring, generic HID ID, or USBSTOR disk name. Function

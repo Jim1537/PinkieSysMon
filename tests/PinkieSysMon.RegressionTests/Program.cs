@@ -27,6 +27,10 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue95 composite snapshot completeness", Issue95CatalogCandidateTests.CompositeSnapshotCompleteness),
+            ("Issue95 catalog protocol choices and draft admission", Issue95ProtocolChoiceTests.CatalogChoicesAndDraftAdmission),
+            ("Issue95 candidate explicit choice survives refresh", Issue95ProtocolChoiceTests.CandidateRefreshPreservesExplicitChoice),
+            ("Issue95 protocol radio availability and reconnect", Issue95ProtocolChoiceTests.RadioAvailabilityAndReconnect),
             ("Issue95 LY endpoint admission", Issue95GenericOutputTests.LyEndpointAdmission),
             ("Issue95 generic Output round trip and ownership", Issue95GenericOutputTests.NewFormatRoundTripAndOwnership),
             ("Issue95 required geometry protocol and binding", Issue95GenericOutputTests.RequiredGeometryProtocolAndBinding),

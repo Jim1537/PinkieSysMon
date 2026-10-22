@@ -34,6 +34,7 @@ internal sealed class CatalogUsbCandidateDraft
     internal CatalogUsbCandidateDraft(CatalogUsbInterfaceCandidate candidate,
         string suggestedName, IEnumerable<string> applicableImplementedProtocols)
     {
+        ProtocolChoices = UsbDisplayCatalog.ProtocolChoices(candidate.Family);
         InterfaceId = candidate.Id;
         PnpNodeKey = candidate.PnpNodeKey;
         _name = suggestedName;
@@ -60,6 +61,7 @@ internal sealed class CatalogUsbCandidateDraft
         return target;
     }
 
+    internal IReadOnlyList<UsbDisplayProtocolChoice> ProtocolChoices { get; }
     internal string InterfaceId { get; }
     internal string PnpNodeKey { get; }
     internal IReadOnlySet<string> ApplicableProtocols => _applicable;

@@ -92,7 +92,7 @@ internal sealed class DeviceSettingsModel
             };
             if (device.Candidate is { } observed)
                 _drafts.Add(candidate.Id, new CatalogUsbCandidateDraft(observed, candidate.Name,
-                    [OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport]));
+                    UsbDisplayCatalog.ProtocolChoices(observed.Family).Where(choice => choice.IsImplemented).Select(choice => choice.Id)));
             _candidates.Add(candidate);
         }
     }

@@ -51,10 +51,16 @@ internal static class CatalogUsbInterfaceDiscovery
     {
         ArgumentNullException.ThrowIfNull(api);
         var candidates = new List<CatalogUsbInterfaceCandidate>();
-        var unavailable = new List<string>();
+        var unavailable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var unresolvedFunctions = new HashSet<UsbProductId>();
         var nodes = UsbDisplayDiscovery.CaptureNodes(api,
             product => UsbDisplayCatalog.Find(product) is not null,
-            failedId => unavailable.Add(UsbDisplayDiscovery.CreateObservationId(failedId)));
+            failedId =>
+            {
+                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(failedId));
+                if (UsbDisplayCatalog.TryParseInstanceId(failedId, out var product, out var function) && function)
+                    unresolvedFunctions.Add(product);
+            });
         foreach (var node in nodes)
         {
             if (!TryEligibleNode(node, out var product))
@@ -67,6 +73,11 @@ internal static class CatalogUsbInterfaceDiscovery
                         childProduct == product);
                 if (!representedParent)
                     unavailable.Add(UsbDisplayDiscovery.CreateObservationId(node.InstanceId));
+                if ((!node.MetadataAvailable || node.ProblemCode != 0) && node.ParentInstanceId is { } parentId &&
+                    nodes.Any(parent => parent.InstanceId.Equals(parentId, StringComparison.OrdinalIgnoreCase) &&
+                        UsbDisplayCatalog.TryParseInstanceId(parent.InstanceId, out var parentProduct, out var function) &&
+                        parentProduct == product && !function))
+                    unavailable.Add(UsbDisplayDiscovery.CreateObservationId(parentId));
                 continue;
             }
 
@@ -86,8 +97,20 @@ internal static class CatalogUsbInterfaceDiscovery
                     parentProduct == product && !parentIsFunction &&
                     other.MetadataAvailable && other.ProblemCode == 0).ToArray();
                 if (parent.Length != 1)
+                {
+                    unavailable.Add(UsbDisplayDiscovery.CreateObservationId(node.InstanceId));
                     continue;
+                }
                 physicalId = parent[0].InstanceId;
+            }
+
+            // A failed function read has no trustworthy parent relation. Until
+            // that metadata is available, another same-product unit cannot be
+            // proved unrelated; never infer a unique interface by omission.
+            if (unresolvedFunctions.Contains(product))
+            {
+                unavailable.Add(UsbDisplayDiscovery.CreateObservationId(physicalId));
+                continue;
             }
 
             // Only publish a node after all of its interfaces are enumerated:
@@ -115,7 +138,11 @@ internal static class CatalogUsbInterfaceDiscovery
                         !TryEligibleNode(current, out var currentProduct) ||
                         currentProduct != product ||
                         !node.InstanceId.Equals(current.InstanceId,
-                            StringComparison.OrdinalIgnoreCase))
+                            StringComparison.OrdinalIgnoreCase) ||
+                        isFunction && (!string.Equals(current.ParentInstanceId, physicalId, StringComparison.OrdinalIgnoreCase) ||
+                            api.ReadNode(physicalId) is not { } currentParent ||
+                            !string.Equals(currentParent.InstanceId, physicalId, StringComparison.OrdinalIgnoreCase) ||
+                            !currentParent.MetadataAvailable || currentParent.ProblemCode != 0))
                         throw new InvalidOperationException(
                             "USB candidate changed during interface enumeration.");
 
@@ -136,8 +163,14 @@ internal static class CatalogUsbInterfaceDiscovery
                 unavailable.Add(UsbDisplayDiscovery.CreateObservationId(physicalId));
             candidates.AddRange(perNode);
         }
+        // Multiple functions share one physical unit. A failure in any of its
+        // WinUSB functions invalidates provisional interfaces from its siblings.
+        foreach (var claims in candidates.GroupBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase))
+            if (claims.Select(candidate => candidate.PnpNodeKey).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+                foreach (var claim in claims) unavailable.Add(claim.PnpNodeKey);
         return new CatalogUsbCandidateSnapshot(
-            candidates.DistinctBy(candidate => candidate.Id)
+            candidates.Where(candidate => !unavailable.Contains(candidate.PnpNodeKey))
+                .DistinctBy(candidate => candidate.Id)
                 .OrderBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray(),
             unavailable.Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(key => key, StringComparer.Ordinal).ToArray());

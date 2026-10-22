@@ -325,23 +325,43 @@ internal sealed class DeviceSettingsPage : TabPage
         name.TextChanged += (_, _) => Change(() => target.Name = name.Text);
         Row("Display name", name, EditorSettingsHelp.DisplayName);
         var isTurzx = target.Transport == OutputTargetContract.EncryptedJpegTransport;
-        Row("Type", new Label { Text = "Physical USB display", AutoSize = true }, EditorSettingsHelp.DeviceType);
         if (candidate is not null)
         {
-            var protocol = new ComboBox { Name = "DeviceProtocol", DropDownStyle = ComboBoxStyle.DropDownList };
-            protocol.Items.AddRange([OutputTargetContract.LyBulkTransport, OutputTargetContract.EncryptedJpegTransport]);
-            protocol.SelectedItem = candidate.Protocol;
-            protocol.SelectedIndexChanged += (_, _) => Change(() =>
-            {
-                target.Transport = protocol.SelectedItem as string ?? string.Empty;
-                target.EncryptedJpeg = target.Transport == OutputTargetContract.EncryptedJpegTransport ? new() : null;
-                target.Usb!.DiagnosticJournalEnabled = false;
-            });
-            Row("Protocol", protocol, "Select the implemented wire protocol. A catalog hint does not establish compatibility.");
             Row("Width", Number("DeviceWidth", target.Width, 0, int.MaxValue, value => target.Width = value),
                 "Required screen width at zero rotation. No model dimensions are inferred.");
             Row("Height", Number("DeviceHeight", target.Height, 0, int.MaxValue, value => target.Height = value),
                 "Required screen height at zero rotation. Runtime Test validates this geometry.");
+            var separator = new Label { Name = "DeviceProtocolSeparator", BorderStyle = BorderStyle.Fixed3D,
+                Height = 2, Dock = DockStyle.Fill, Margin = new Padding(3, 8, 3, 8) };
+            _fields.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+            _fields.Controls.Add(separator, 0, _fields.RowCount++);
+            _fields.SetColumnSpan(separator, 3);
+            var protocols = new FlowLayoutPanel
+            {
+                Name = "DeviceProtocol", AutoSize = true, FlowDirection = FlowDirection.TopDown,
+                WrapContents = false, Dock = DockStyle.Fill
+            };
+            foreach (var choice in candidate.ProtocolChoices)
+            {
+                var option = new RadioButton
+                {
+                    Name = "DeviceProtocol_" + choice.Id, Text = choice.Label, AutoSize = true,
+                    Tag = choice.Id, Enabled = choice.IsImplemented && candidate.ApplicableProtocols.Contains(choice.Id),
+                    Checked = string.Equals(candidate.Protocol, choice.Id, StringComparison.OrdinalIgnoreCase)
+                };
+                option.CheckedChanged += (_, _) =>
+                {
+                    if (!option.Checked || !option.Enabled) return;
+                    Change(() =>
+                    {
+                        target.Transport = choice.Id;
+                        target.EncryptedJpeg = choice.Id == OutputTargetContract.EncryptedJpegTransport ? new() : null;
+                        target.Usb!.DiagnosticJournalEnabled = false;
+                    });
+                };
+                protocols.Controls.Add(option);
+            }
+            Row("Protocol", protocols, "Select the implemented wire protocol. A catalog hint is only a trial suggestion; compatibility requires a successful Test.");
             Row("Test", new Button { Name = "DeviceTest", Text = "Test", Enabled = false, AutoSize = true },
                 "Runtime USB Test integration is pending. This candidate cannot yet be saved or enabled.");
             AddButtons();
@@ -349,6 +369,7 @@ internal sealed class DeviceSettingsPage : TabPage
         }
         else
         {
+            Row("Type", new Label { Text = "Physical USB display", AutoSize = true }, EditorSettingsHelp.DeviceType);
             Row("Protocol", new Label { Text = target.Transport, AutoSize = true },
                 "Confirmed protocol. To change protocol or geometry, Remove and repeat Test / Save Configuration.");
             Row("Screen size", new Label { Text = $"{target.Width} × {target.Height}", AutoSize = true },
