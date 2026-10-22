@@ -117,6 +117,19 @@ internal static class Issue95ProtocolChoiceTests
         draft.ConfirmVisibleChangingSeconds(intent, true); page.UpdateState(entry, false);
         Check(draft.CanSaveConfiguration && actions[0].Enabled && !actions[1].Enabled && !actions[2].Enabled && !actions[3].Visible,
             "Positive confirmation changes draft eligibility only; staged persistence remains deliberately unavailable.");
+
+        using var configured = new DeviceSettingsPage(entry.Target, ["Default"], () => { }, _ => true,
+            () => Task.CompletedTask, () => { });
+        var configuredEntry = new DeviceSettingsEntry(entry.Target, PhysicalDeviceInventoryStatus.Connected, true);
+        var status = (Label)configured.Controls.Find("DeviceStatus", true).Single();
+        configured.SetApplyMessage("Saved for the next Runtime start. Start Runtime from Launcher.");
+        configured.UpdateState(configuredEntry, true, pendingConfiguredEdit: false);
+        Check(status.Text.Contains("Start Runtime from Launcher", StringComparison.Ordinal),
+            "The configured card must show next-start guidance while the Settings modal hides the Editor status bar.");
+        configured.UpdateState(configuredEntry, true, pendingConfiguredEdit: true);
+        Check(status.Text.Contains("Unsaved changes", StringComparison.Ordinal) &&
+            !status.Text.Contains("Start Runtime from Launcher", StringComparison.Ordinal),
+            "A new unsaved edit must supersede earlier apply feedback.");
     }
 
     private static CatalogUsbInterfaceCandidate Candidate(UsbDisplayFamily family) => new(

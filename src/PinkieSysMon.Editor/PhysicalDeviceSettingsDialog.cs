@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace PinkieSysMon.Editor;
 
 internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
@@ -61,7 +63,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
             Text = "Save Configuration and Forget commit only this card immediately; Close cannot undo them. " +
-                   "Remove commits its selected card after confirmation. Save each edited card separately. A responsive Runtime reloads saved settings."
+                   "Remove commits its selected card after confirmation. Save each edited card separately. " +
+                   "Enabled displays require the ordinary Runtime; start it from Launcher if needed."
         };
         Controls.Add(notice);
         Controls.Add(buttons);
@@ -193,6 +196,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     () =>
                     {
                         _devices.MarkChanged(entry.Target);
+                        if (_devicePages.TryGetValue(entry.Target.Id, out var changedPage))
+                            changedPage.SetApplyMessage(null);
                         if (_devices.CandidateDraft(entry.Target)?.CanSaveConfiguration != true &&
                             _devicePages.TryGetValue(entry.Target.Id, out var edited)) edited.SetTestMessage(null);
                         UpdateDevicePages();
@@ -259,23 +264,40 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         _testCancellation?.Cancel();
     }
 
-    private async Task TestDeviceAsync(OutputTargetConfig target)
+    private Task TestDeviceAsync(OutputTargetConfig target)
     {
-        if (_testUiBusy || _devices.CandidateDraft(target) is not { } draft || !draft.CanTest) return;
+        if (_testUiBusy || _devices.CandidateDraft(target) is not { } draft || !draft.CanTest) return Task.CompletedTask;
         if (MessageBox.Show(this,
             "Test will send display frames using the selected protocol. Close vendor display-control software first. " +
-            "Watch the current test image and check that seconds change. Configuration will not be saved.",
-            "USB Test", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return;
+            "Watch the current test image and check that seconds change. A progress window will keep the Editor " +
+            "unavailable until Runtime reports the Test outcome. Configuration will not be saved.",
+            "USB Test", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) != DialogResult.OK) return Task.CompletedTask;
         _testUiBusy = true;
         _testCancellation = new CancellationTokenSource();
         try
         {
-            var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
-            var intent = await _testClient.TestAsync(draft, snapshot, message =>
+            CatalogUsbTrialIntent? intent = null;
+            Exception? testError = null;
+            using (var progress = new UsbTestProgressDialog(CancelCandidate))
             {
-                if (!IsDisposed && _devicePages.TryGetValue(target.Id, out var page))
-                { page.SetTestMessage(message); UpdateDevicePages(); }
-            }, _testCancellation.Token);
+                progress.Shown += async (_, _) =>
+                {
+                    try
+                    {
+                        var snapshot = CatalogUsbInterfaceDiscovery.CaptureSnapshot();
+                        intent = await _testClient.TestAsync(draft, snapshot, message =>
+                        {
+                            progress.Report(message);
+                            if (!IsDisposed && _devicePages.TryGetValue(target.Id, out var page))
+                            { page.SetTestMessage(message); UpdateDevicePages(); }
+                        }, _testCancellation.Token);
+                    }
+                    catch (Exception error) { testError = error; }
+                    finally { progress.Complete(); }
+                };
+                progress.ShowDialog(this);
+            }
+            if (testError is not null) throw testError;
             if (intent is not null && !_closeAfterTest && !_testCancellation.IsCancellationRequested)
             {
                 var yes = MessageBox.Show(this,
@@ -299,6 +321,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             if (!IsDisposed) UpdateDevicePages();
             if (_closeAfterTest) { DialogResult = DialogResult.Cancel; Close(); }
         }
+        return Task.CompletedTask;
     }
 
     private async Task SaveCandidateAsync(OutputTargetConfig target)
@@ -335,6 +358,12 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _log, original, updated, _discoverDevices, _persistAndApply);
             _devices.AcceptSavedConfigured(target, updated);
             ReportCommitted(saved, reloaded);
+            _devicePages[target.Id].SetApplyMessage(reloaded
+                ? "Saved and applied to the running Runtime."
+                : updated.DeviceEnabled
+                    ? "Saved, but Runtime did not apply this change. If stopped, start Runtime from Launcher to show this display; if running, inspect its status."
+                    : "Saved for the next Runtime start. Start Runtime from Launcher when you need this Output.");
+            UpdateDevicePages();
         }
         catch (Exception ex) { ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
@@ -446,7 +475,7 @@ internal sealed class DeviceSettingsPage : TabPage
 {
     private readonly EditorSettingsHelp _help;
     private readonly Panel _scrollableFields = new() { Dock = DockStyle.Fill, AutoScroll = true };
-    private readonly Label _status = new() { Dock = DockStyle.Top, Height = 110, Padding = new Padding(12) };
+    private readonly Label _status = new() { Name = "DeviceStatus", Dock = DockStyle.Top, Height = 110, Padding = new Padding(12) };
     private readonly TableLayoutPanel _fields = new()
     {
         Name = "DeviceFields", Dock = DockStyle.Top, AutoSize = true,
@@ -460,7 +489,9 @@ internal sealed class DeviceSettingsPage : TabPage
     private readonly Button _cancel = new() { Text = "Cancel Test", Name = "CancelDevice", AutoSize = true, Visible = false };
     private readonly bool _hasTest;
     private string? _testMessage;
+    private string? _applyMessage;
     internal void SetTestMessage(string? message) => _testMessage = message;
+    internal void SetApplyMessage(string? message) => _applyMessage = message;
     private bool _binding;
     private readonly CatalogUsbCandidateDraft? _candidate;
     internal bool IsCandidate => _candidate is not null;
@@ -681,7 +712,7 @@ internal sealed class DeviceSettingsPage : TabPage
         _status.Text = $"{entry.Target.Name} — {status}\n" +
             (entry.IsConfigured ? pendingConfiguredEdit
                 ? "Unsaved changes. Use Save Configuration above to apply this Output's settings."
-                : "Use Save Configuration above for edits, or Remove this Output." :
+                : _applyMessage ?? "Use Save Configuration above for edits, or Remove this Output." :
                 _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test, or Forget this candidate.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
@@ -699,5 +730,115 @@ internal sealed class DeviceSettingsPage : TabPage
         _binding = true;
         try { _enabled.Checked = OutputTargetContract.IsEnabled(entry.Target); }
         finally { _binding = wasBinding; }
+    }
+}
+
+// A nested modal dialog keeps both Device Settings and the Editor unavailable
+// until Runtime reports a terminal result or explicitly uncertain cleanup.
+internal sealed class UsbTestProgressDialog : PinkieEditorForm
+{
+    private readonly Action _requestCancel;
+    private readonly Stopwatch _elapsed = new();
+    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 250 };
+    private readonly Font _titleFont = new(SystemFonts.MessageBoxFont, FontStyle.Bold);
+    private readonly Font _elapsedFont = new(SystemFonts.MessageBoxFont.FontFamily, 38, FontStyle.Bold);
+    private readonly Label _clock = new()
+    {
+        Name = "UsbTestElapsed", Text = "00:00", Dock = DockStyle.Fill,
+        TextAlign = ContentAlignment.MiddleCenter, ForeColor = SystemColors.Highlight
+    };
+    private readonly Label _phase = new()
+    {
+        Name = "UsbTestPhase", Text = "Preparing Runtime…", Dock = DockStyle.Fill,
+        TextAlign = ContentAlignment.MiddleCenter
+    };
+    private readonly Button _cancel = new() { Text = "Cancel Test", Name = "UsbTestCancel", AutoSize = true };
+    private bool _completed;
+
+    internal UsbTestProgressDialog(Action requestCancel)
+    {
+        _requestCancel = requestCancel;
+        Text = "USB Test in progress";
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MinimizeBox = false;
+        MaximizeBox = false;
+        ShowInTaskbar = false;
+        ClientSize = new Size(560, 300);
+        _clock.Font = _elapsedFont;
+
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(20) };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 35));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 23));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        layout.Controls.Add(new Label { Text = "USB TEST RUNNING", Dock = DockStyle.Fill,
+            Font = _titleFont, TextAlign = ContentAlignment.MiddleCenter }, 0, 0);
+        layout.Controls.Add(_clock, 0, 1);
+        layout.Controls.Add(new ProgressBar { Dock = DockStyle.Fill, Style = ProgressBarStyle.Marquee,
+            MarqueeAnimationSpeed = 30 }, 0, 2);
+        layout.Controls.Add(_phase, 0, 3);
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+        actions.Controls.Add(_cancel);
+        layout.Controls.Add(actions, 0, 4);
+        Controls.Add(layout);
+
+        _timer.Tick += (_, _) => UpdateElapsed();
+        _cancel.Click += (_, _) => RequestCancel();
+        CancelButton = _cancel;
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        _elapsed.Start();
+        _timer.Start();
+    }
+
+    internal void Report(string message) => _phase.Text = message;
+
+    internal void Complete()
+    {
+        _completed = true;
+        _timer.Stop();
+        UpdateElapsed();
+        Close();
+    }
+
+    private void UpdateElapsed()
+    {
+        var time = _elapsed.Elapsed;
+        _clock.Text = $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
+    }
+
+    private void RequestCancel()
+    {
+        if (!_cancel.Enabled) return;
+        _cancel.Enabled = false;
+        _phase.Text = "Cancel requested. Waiting for Runtime to release USB…";
+        _requestCancel();
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (!_completed)
+        {
+            e.Cancel = true;
+            RequestCancel();
+        }
+        base.OnFormClosing(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _timer.Dispose();
+            _titleFont.Dispose();
+            _elapsedFont.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }
