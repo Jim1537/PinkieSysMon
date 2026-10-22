@@ -844,17 +844,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             return;
 
         if (physical)
-        {
-            var deviceDialog = (PhysicalDeviceSettingsDialog)dialog;
-            if (!deviceDialog.HasPendingRemove)
-                return;
-            try { deviceDialog.ApplyOutputChanges(runtimeConfig); }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-        }
+            return; // Every physical mutation has already committed on its card.
         else
         {
             var desktopDialog = (DesktopSettingsDialog)dialog;

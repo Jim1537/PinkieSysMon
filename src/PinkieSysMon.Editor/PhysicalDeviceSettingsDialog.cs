@@ -13,7 +13,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly Func<AppConfig, byte[]?, Task<bool>>? _persistAndApply;
     private readonly Action<AppConfig, bool>? _onCommitted;
     private readonly FileLogger? _log;
-    private readonly Button _ok = new() { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };
+    private readonly Button _ok = new() { Text = "Close", DialogResult = DialogResult.Cancel, AutoSize = true };
 
     public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
@@ -63,7 +63,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
             Text = "Save Configuration and Forget commit only this card immediately; Cancel cannot undo them. " +
-                   "OK applies a pending Remove only; Save each edited card separately. A responsive Runtime reloads saved settings."
+                   "Remove commits its selected card after confirmation. Save each edited card separately. A responsive Runtime reloads saved settings."
         };
         Controls.Add(notice);
         Controls.Add(buttons);
@@ -201,7 +201,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     },
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
                     () => entry.IsConfigured ? SaveConfiguredAsync(entry.Target) : SaveCandidateAsync(entry.Target),
-                    () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
+                    () => { _ = RemoveDeviceAsync(entry.Target); }, _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
                     () => TestDeviceAsync(entry.Target), CancelCandidate,
                     () => ForgetCandidateAsync(entry.Target));
                 _devicePages.Add(entry.Target.Id, page);
@@ -241,8 +241,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _devicePages.GetValueOrDefault(entry.Target.Id) == tab);
             tab.Text = configured?.Target.Name ?? $"Device #{index + 1}";
         }
-        _ok.Enabled = !_saveUiBusy && !_testUiBusy &&
-            !entries.Any(e => e.IsConfigured && _devices.HasPendingConfiguredEdit(e.Target));
+        _ok.Enabled = !_saveUiBusy && !_testUiBusy;
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -412,18 +411,35 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         return OutputTargetContract.IsEnabled(target);
     }
 
-    private void RemoveDevice(OutputTargetConfig target)
+    private async Task RemoveDeviceAsync(OutputTargetConfig target)
     {
-        if (!_devices.CanRemove(target, _desktopCount))
+        if (_saveUiBusy || _testUiBusy || !_devices.CanRemove(target, _desktopCount) ||
+            _persistAndApply is null || _log is null)
             return;
         if (MessageBox.Show(this,
                 $"Remove Device Output '{target.Name}'?\n\n" +
-                "Its running session will stop after OK. Dashboard files and other Outputs will remain.",
+                "Runtime will stop and release only this Output before its saved record is removed. Dashboard files and other Outputs will remain.",
                 "Remove Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes)
             return;
-        _devices.Remove(target, _desktopCount);
-        UpdateDevicePages();
+        _saveUiBusy = true;
+        try
+        {
+            var original = _devices.PrepareRemove(target, _desktopCount);
+            var (saved, reloaded, warning) = await PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
+                Path.Combine(_help.ApplicationRoot!, "config", "app.json"), _log, original,
+                () => RuntimeIpc.GetStatusAsync(), RuntimeProcessLease.ExistsForCurrentUser,
+                () => RuntimeProcessLease.TryAcquireForCurrentUser(),
+                (id, hash) => RuntimeIpc.PreparePhysicalRemovalAsync(id, hash),
+                () => RuntimeIpc.ReloadAsync());
+            _devices.AcceptRemovedConfigured(target);
+            ReportCommitted(saved, reloaded);
+            RefreshDeviceDiscovery();
+            if (warning is not null)
+                MessageBox.Show(this, warning, "Remove partially applied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch (Exception ex) { ShowDeviceError(ex); }
+        finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
     private void ShowDeviceError(Exception ex) => MessageBox.Show(this, ex.Message,
@@ -657,7 +673,7 @@ internal sealed class DeviceSettingsPage : TabPage
             _ => "Discovery unavailable — controls unavailable"
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
-            (entry.IsConfigured ? "Save Configuration commits this card now; Remove still applies after OK." :
+            (entry.IsConfigured ? "Save Configuration or Remove commits this card immediately." :
                 _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test, or Forget this candidate.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;

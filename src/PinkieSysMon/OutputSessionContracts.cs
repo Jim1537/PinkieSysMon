@@ -15,6 +15,9 @@ internal interface IOutputSession : IDisposable
     double LastFrameMs { get; }
     int LastJpegBytes { get; }
     string UsbState { get; }
+    // True only when selected removal has observed terminal native cleanup.
+    // Non-USB fixture/Desktop sessions own no physical transport.
+    bool NativeReleaseConfirmed => true;
 
     void Start();
     IOutputSessionReconfiguration PrepareReconfiguration(

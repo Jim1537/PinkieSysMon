@@ -4,7 +4,7 @@ A **physical Output** assigns a saved dashboard to a supported hardware display.
 
 A saved physical Output uses the user's name, exact USB interface binding, selected implemented protocol and explicit screen width/height. The first working board is `device_<width>x<height>_default`, at 0° orientation, generated through the shared adaptive dashboard factory. An existing valid board is reused without overwriting edits. Ordinary frames use the assigned dashboard's Canvas; screen dimensions are not a model-size whitelist or an automatic fitting instruction.
 
-Candidate **Test** uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** commits the selected candidate or configured-device edits immediately; a new Output starts disabled with an editable working board. **Forget** commits a per-instance exclusion for an idle connected candidate. The dialog's **OK** applies pending Remove only, and is unavailable while a configured card has unsaved edits; that legacy Remove path awaits its per-card transaction in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
+Candidate **Test** uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** commits the selected candidate or configured-device edits immediately; a new Output starts disabled with an editable working board. **Forget** commits a per-instance exclusion for an idle connected candidate. Configured **Remove** commits its selected card immediately after confirmation; **Close** discards remaining drafts. Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 
@@ -44,7 +44,7 @@ The Test board stays in memory. Test and Yes do not save a dashboard, configurat
 
 For an idle connected candidate, **Forget → Yes** saves its hashed physical PnP node identity under `Outputs.IgnoredDeviceNodeKeys` in `config/app.json`. Declining changes nothing. The excluded device is not offered on reopening or replug and Runtime refuses its Test; another device with the same product pair remains eligible. No dashboard is removed. To offer the device again, close the applications and manually remove that one key from the JSON list. Cancel cannot undo an already completed Forget.
 
-For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding when available. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
+For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
 
 ### Step 4. Grant device-use consent and apply
 
@@ -52,7 +52,7 @@ To permit hardware output for an already configured Output, turn on **Enabled**.
 
 For existing configured-device edits, click that card's **Save Configuration** to commit only its changed settings through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). It checks that the selected saved record has not changed elsewhere, rechecks the exact interface and validates its assigned board. Other cards' unsaved drafts and newer unrelated settings remain untouched. A newly enabled configured device also requires explicit consent. If its identity has disappeared or become ambiguous, saving fails instead of selecting replacement hardware.
 
-**Cancel** discards uncommitted drafts, including configured-device edits, enablement and removals; it cannot reverse a completed per-card Save Configuration. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
+**Cancel** discards uncommitted drafts, including configured-device edits and enablement; it cannot reverse a completed Save Configuration, Remove or Forget. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
 
 | Switch | What it permits |
 | --- | --- |
@@ -77,15 +77,15 @@ The device submenu orders **Enabled**, **Dashboard**, **Reload**, then read-only
 
 | Operation | Effect |
 | --- | --- |
-| Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and OK. The configured device's tray **Enabled** switch also offers disabling. |
+| Turn **Enabled** off in Settings | Persistently prevent hardware output through an editable connected Device tab and its Save Configuration. The configured device's tray **Enabled** switch also offers disabling. |
 | Physically disconnect | Leave the saved Output configured. An enabled session follows its adapter's binding/recovery policy; disconnecting does not revoke saved enablement or remove its record. |
-| **Remove** and confirm | Delete the selected saved Output record, stop its applied session and retain dashboard files and other Outputs. In Settings, removal takes effect after **OK**. |
+| **Remove** and confirm | Stop and release only the selected Runtime session before deleting its saved Output record. Other Outputs and dashboard files remain. |
 
 The configured device's tray **Enabled** switch offers enable/disable, with fresh presence checks and the existing consent warning before enabling. An enabled disconnected device can still be **disabled from the tray**, although disconnected Settings fields are read-only. Newly discovered unconfigured devices cannot be enabled from the tray; adopt them in Settings. Concurrent/stale-input failures follow the [tray transaction](#tray-enabled-transaction).
 
-For removal, use **Control Center → Devices → &lt;device name&gt; → Remove → Yes → OK**. At least one configured Desktop or physical Output must remain. The Settings guard counts the physical draft and the saved Desktop Outputs; adopted additions/removals on other device tabs count, while an unadopted candidate does not.
+For removal, use **Control Center → Devices → &lt;device name&gt; → Remove → Yes**. This commits immediately; Close cannot undo it. At least one configured Desktop or physical Output must remain. An unadopted candidate does not count. A responsive Runtime must confirm terminal cleanup of that selected session before its record is deleted; if ownership or cleanup is uncertain, the card reports a partial/error state instead of claiming removal. Without a Runtime, Editor holds the process ownership lease while saving the removal. A failed post-removal reload retains the deleted record and warns that the current Runtime state needs inspection.
 
-An attached removed device is not silently restored. It is suppressed for the rest of that Settings draft and can reappear as **Not configured** on reopening. The tray lists only configured Outputs. Explicit adoption is required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
+An attached removed device reappears immediately as a fresh **Not configured** candidate with no Test approval. A disconnected removed device can reappear after reconnection. The tray lists only configured Outputs. Explicit Test, visual confirmation and Save are required again. A newly adopted record receives a new Output identity, so old Output-metric widget references are not silently reassigned.
 
 For saved enablement, disabling the final Output, global shutdown and normal restart, see the [Runtime lifetime contract](../development/architecture.md#control-path-and-reconfiguration). Its [tray-control section](../development/architecture.md#output-status-and-tray-control) defines the storage and status projection.
 
@@ -168,7 +168,7 @@ Incomplete metadata is distinct from absence. Inventory retains proven healthy e
 
 Runtime captures inventory at startup and successful configuration reload and refreshes it when the Runtime tray root menu is opened. Tray enablement has a [separate validation sequence](#tray-enabled-transaction). This menu inventory retains its snapshot in memory, with no periodic refresh or live hotplug subscription. An active worker may separately observe passive metadata under its adapter's [recovery policy](#session-lifecycle-and-evidence-limits); that observation does not refresh the menu inventory. Private Runtime logging contains aggregate status/fingerprint counts rather than raw serials or per-device paths; an unexpected discovery failure does not stop active sessions.
 
-The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates, removed bindings and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Candidate conversion requires the exact latest clean released Test plus positive visual confirmation; consent alone cannot adopt it. A removed binding is suppressed within the dialog, while reopening can offer it as a new unsaved candidate.
+The open Settings window refreshes passive discovery on `WM_DEVICECHANGE / DBT_DEVNODES_CHANGED`, without a timer or transport acquisition. `DeviceSettingsModel` keeps separate configured targets, unsaved candidates and consented enable transitions. Discovery alone cannot make its draft dirty, adopt hardware or persist a target. Candidate conversion requires the exact latest clean released Test plus positive visual confirmation; consent alone cannot adopt it. After committed Remove, the selected target is discarded and a present device receives a new unsaved candidate card immediately.
 
 ### Passive USB family recognition
 

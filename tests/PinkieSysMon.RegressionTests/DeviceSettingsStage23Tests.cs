@@ -132,9 +132,9 @@ internal static class DeviceSettingsStage23Tests
         var tabs = dialog.Controls.OfType<TabControl>().Single();
         Check(dialog.Padding == new Padding(12),
             "Physical Devices Settings must inset the dynamic device tabs from the window edges.");
-        Check(dialog.AcceptButton is Button { DialogResult: DialogResult.OK } &&
+        Check(dialog.AcceptButton is Button { Text: "Close", DialogResult: DialogResult.Cancel } &&
               dialog.CancelButton is Button { DialogResult: DialogResult.Cancel },
-            "Physical Devices Settings must own OK/Cancel independently.");
+            "Physical Devices Settings closes without a second whole-dialog commit.");
         var page = tabs.TabPages.Cast<TabPage>().Single(p => p.Text == physical.Name);
         var fields = page.Controls.Find("DeviceFields", true).Single();
         var remove = page.Controls.Find("RemoveDevice", true).Single();
@@ -143,8 +143,8 @@ internal static class DeviceSettingsStage23Tests
         var provider = (CheckBox)page.Controls.Find("DeviceProvider", true).Single();
         provider.Checked = true;
         Check(dialog.DevicesChanged && !dialog.HasPendingRemove && !physical.ProviderEnabled && !physical.DeviceEnabled &&
-              !((Button)dialog.AcceptButton!).Enabled,
-            "A pending configured-card edit must not silently fall through whole-dialog OK.");
+              ((Button)dialog.AcceptButton!).Enabled,
+            "An unsaved configured-card edit must remain a discardable draft when closing.");
         discovery = [];
         dialog.RefreshDeviceDiscovery();
         Check(!fields.Enabled && remove.Enabled &&

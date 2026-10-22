@@ -4,6 +4,32 @@ namespace PinkieSysMon.Editor;
 // A failed apply restores the exact previous local file, unless another writer intervened.
 internal static class EditorSettingsPersistence
 {
+    internal static void ApplyRemovalWithoutRuntime(string path, AppConfig config, byte[]? expectedFile)
+    {
+        if (!Matches(path, expectedFile))
+            throw new InvalidOperationException("Configuration changed while removing the selected Output. Reopen Settings.");
+        config.Save(path);
+    }
+
+    internal static async Task<(bool RuntimeReloaded, string? Warning)> ApplyRemovalAsync(
+        string path, AppConfig config, byte[]? expectedFile, Func<Task<RuntimeIpcResponse>>? reload)
+    {
+        if (!Matches(path, expectedFile))
+            throw new InvalidOperationException("Configuration changed after Runtime stop. The selected session remains stopped; reopen Settings.");
+        config.Save(path);
+        if (reload is null) return (false, null);
+        try
+        {
+            var response = await reload();
+            if (response.Success && response.ResponseReceived) return (true, null);
+            return (false, "Selected record was removed, but Runtime reload was not confirmed. Other Outputs may retain their previous settings; inspect Runtime before retrying. " + response.Message);
+        }
+        catch (Exception error)
+        {
+            return (false, "Selected record was removed, but Runtime reload was not confirmed. Inspect Runtime before retrying. " + error.Message);
+        }
+    }
+
     public static async Task<bool> ApplyAsync(string path, AppConfig config, byte[]? expectedFile,
         Func<Task<RuntimeIpcResponse?>> reloadIfRunning)
     {

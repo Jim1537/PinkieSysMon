@@ -9,6 +9,7 @@ internal sealed class OutputSessionManager : IDisposable
     private readonly FileLogger _log;
     private readonly OutputSessionFactory _factory;
     private readonly Dictionary<string, IOutputSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _pendingRemoval = new(StringComparer.OrdinalIgnoreCase);
 
     private AppConfig _config;
     private IReadOnlyDictionary<string, CanonicalDashboardDefinition> _boards;
@@ -471,6 +472,42 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
+    // Stop exactly one physical session before its file record is deleted. A
+    // reservation prevents reload/enable from reopening it while the Editor
+    // completes the second half. On failure the Runtime stays stopped and the
+    // caller must report a partial operation; it cannot claim USB release.
+    internal void PreparePhysicalRemoval(string targetId)
+    {
+        IOutputSession? removed;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var target = FindConfiguredTargetLocked(targetId);
+            if (!OutputTargetContract.IsPhysicalKind(target.Kind) || !_pendingRemoval.Add(targetId))
+                throw new InvalidOperationException("Physical Remove is unavailable or already pending.");
+            _sessions.Remove(targetId, out removed);
+            if (removed is not null)
+            {
+                try { removed.SetRuntimeMetricsPublisher(false); }
+                catch (Exception error) { _log.Warn("Removed Output metric publisher cleanup failed.", error); }
+            }
+            ClearOutputMetricsLocked(target);
+            UpdateRuntimeMetricPublisherLocked();
+        }
+        if (removed is null) return;
+        try
+        {
+            removed.Dispose();
+            if (!removed.NativeReleaseConfirmed)
+                throw new InvalidOperationException("Native USB release could not be confirmed.");
+        }
+        catch (Exception error)
+        {
+            _log.Error($"Physical Output '{targetId}' Remove cleanup is unconfirmed; restart Runtime only after inspecting device ownership.", error);
+            throw new InvalidOperationException("Selected Output stopped, but native release was not confirmed. The saved record remains; inspect Runtime before retrying.", error);
+        }
+    }
+
     public void StopAll()
     {
         IOutputSession[] sessions;
@@ -646,6 +683,8 @@ internal sealed class OutputSessionManager : IDisposable
     private IOutputSession CreateSession(AppConfig config, OutputTargetConfig target,
         CanonicalDashboardDefinition dashboard)
     {
+        if (_pendingRemoval.Contains(target.Id))
+            throw new InvalidOperationException($"Output '{target.Id}' is reserved by an incomplete Remove; restart Runtime after resolving it.");
         var session = _factory(config, target, dashboard, _metrics, _log);
         if (session is IDesktopStackSession desktop)
         {

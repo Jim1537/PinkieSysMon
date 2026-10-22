@@ -9,6 +9,24 @@ internal sealed class RuntimeOutputConfigurationControl(
     OutputSessionManager sessions, Func<AppConfig> currentConfig, string applicationRoot,
     FileLogger log, Action<AppConfig> commitRuntime)
 {
+    internal RuntimeIpcResponse PreparePhysicalRemoval(RuntimeIpcCommand command)
+    {
+        var selected = currentConfig().Outputs.Targets.SingleOrDefault(t =>
+            t.Id.Equals(command.TargetId, StringComparison.OrdinalIgnoreCase));
+        if (selected is null || !OutputTargetContract.IsPhysicalKind(selected.Kind) ||
+            !string.Equals(RuntimeIpcProtocol.TargetRecordHash(selected), command.RecordHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Runtime's selected Output differs from the Remove card. Reopen Settings.");
+        var path = Path.Combine(applicationRoot, "config", "app.json");
+        var original = File.ReadAllBytes(path);
+        var disk = AppConfig.Load(path, log);
+        var saved = disk.Outputs.Targets.SingleOrDefault(t => t.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+        if (saved is null || !string.Equals(RuntimeIpcProtocol.TargetRecordHash(saved), command.RecordHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The saved Output differs from the Remove card. Reopen Settings.");
+        EnsureCurrent(path, original);
+        sessions.PreparePhysicalRemoval(selected.Id);
+        return new RuntimeIpcResponse(true, "Selected physical Output stopped and native cleanup completed; remove its saved record now.");
+    }
+
     public RuntimeIpcResponse Execute(RuntimeIpcCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);

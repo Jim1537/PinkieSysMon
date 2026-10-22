@@ -95,6 +95,72 @@ internal static class PhysicalDeviceSettingsTransaction
         return (current, reloaded);
     }
 
+    internal static async Task<(AppConfig Config, bool RuntimeReloaded, string? Warning)> RemoveConfiguredAsync(
+        string configPath, FileLogger log, OutputTargetConfig original,
+        Func<Task<RuntimeIpcStatusResponse>> runtimeStatus, Func<bool> ownerExists,
+        Func<IDisposable?> acquireAbsentRuntime,
+        Func<string, string, Task<RuntimeIpcResponse>> stopSelected,
+        Func<Task<RuntimeIpcResponse>> reload)
+    {
+        var (current, _) = ReadCurrent(configPath, log);
+        static int Index(AppConfig app, OutputTargetConfig selected) => app.Outputs.Targets.FindIndex(t =>
+            t.Id.Equals(selected.Id, StringComparison.OrdinalIgnoreCase));
+        var index = Index(current, original);
+        if (index < 0 || !OutputTargetContract.IsPhysicalKind(current.Outputs.Targets[index].Kind) ||
+            JsonSerializer.Serialize(current.Outputs.Targets[index]) != JsonSerializer.Serialize(original))
+            throw new InvalidOperationException("The selected Output changed elsewhere. Reopen Settings.");
+        if (current.Outputs.Targets.Count <= 1)
+            throw new InvalidOperationException("At least one Output must remain configured.");
+
+        var status = await runtimeStatus();
+        var running = status.Success;
+        if (running)
+        {
+            if (status.Status?.Outputs.Count(o => o.TargetId.Equals(original.Id, StringComparison.OrdinalIgnoreCase)) != 1)
+                throw new InvalidOperationException("Runtime cannot identify exactly one selected Output. No record was removed.");
+            var stopped = await stopSelected(original.Id, RuntimeIpcProtocol.TargetRecordHash(original));
+            if (!stopped.Success || !stopped.ResponseReceived)
+                throw new InvalidOperationException("Remove may have stopped the selected Runtime session, but terminal native release was not confirmed. Configuration remains saved; inspect Runtime before retrying. " + stopped.Message);
+        }
+        else if (ownerExists())
+            throw new InvalidOperationException("Runtime ownership exists but its status is unavailable. No record was removed.");
+
+        if (!running)
+        {
+            // Hold the same process lease that Runtime requires while the file
+            // changes, so a new Runtime cannot start from the old binding.
+            using var lease = acquireAbsentRuntime() ?? throw new InvalidOperationException(
+                "A Runtime started while Remove was preparing. No record was removed.");
+            var (inactive, expectedInactive) = ReadCurrent(configPath, log);
+            var inactiveIndex = Index(inactive, original);
+            if (inactiveIndex < 0 || JsonSerializer.Serialize(inactive.Outputs.Targets[inactiveIndex]) != JsonSerializer.Serialize(original) ||
+                inactive.Outputs.Targets.Count <= 1)
+                throw new InvalidOperationException("The selected Output changed while Remove was preparing. No record was removed.");
+            inactive.Outputs.Targets.RemoveAt(inactiveIndex);
+            EditorSettingsPersistence.ApplyRemovalWithoutRuntime(configPath, inactive, expectedInactive);
+            return (inactive, false, null);
+        }
+
+        // Recheck after native cleanup; a concurrent writer's unrelated edits
+        // survive, while a changed selected record cannot be overwritten.
+        try
+        {
+            var (latest, expected) = ReadCurrent(configPath, log);
+            index = Index(latest, original);
+            if (index < 0 || JsonSerializer.Serialize(latest.Outputs.Targets[index]) != JsonSerializer.Serialize(original) ||
+                latest.Outputs.Targets.Count <= 1)
+                throw new InvalidOperationException("The selected Output changed after Runtime stop.");
+            latest.Outputs.Targets.RemoveAt(index);
+            var (reloaded, warning) = await EditorSettingsPersistence.ApplyRemovalAsync(
+                configPath, latest, expected, reload);
+            return (latest, reloaded, warning);
+        }
+        catch (Exception error)
+        {
+            throw new InvalidOperationException("Runtime stopped the selected Output, but its saved record could not be removed. It remains stopped in this Runtime; inspect the file and reopen Settings to resolve this partial Remove.", error);
+        }
+    }
+
     private static (AppConfig Config, byte[]? Bytes) ReadCurrent(string path, FileLogger log)
     {
         var bytes = File.Exists(path) ? File.ReadAllBytes(path) : null;

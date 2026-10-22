@@ -364,6 +364,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                 case RuntimeIpcCommandKind.StartOrReloadTarget:
                 case RuntimeIpcCommandKind.StartOrReloadAll:
                 case RuntimeIpcCommandKind.StopAll:
+                case RuntimeIpcCommandKind.PreparePhysicalRemoval:
                 case RuntimeIpcCommandKind.AssignDashboard:
                 case RuntimeIpcCommandKind.SetDesktopBoardEnabled:
                 case RuntimeIpcCommandKind.SetDesktopLock:
@@ -484,6 +485,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             var applied = command.Kind switch
             {
                 RuntimeIpcCommandKind.ReloadConfiguration => ReloadConfigurationCore(),
+                RuntimeIpcCommandKind.PreparePhysicalRemoval => _outputConfiguration.PreparePhysicalRemoval(command),
                 RuntimeIpcCommandKind.Exit => new RuntimeIpcResponse(true, "Shutdown requested."),
                 _ => _outputControl.Execute(command)
             };

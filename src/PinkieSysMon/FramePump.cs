@@ -19,6 +19,9 @@ internal sealed class FramePump : IOutputSession
     private readonly bool _stopOnFailure;
     private Exception? _testFailure;
     private bool _testCleanupFailed;
+    private bool _nativeReleaseFailed;
+    public bool NativeReleaseConfirmed => Volatile.Read(ref _disposeState) != 0 &&
+        (_worker is null || _worker.IsCompleted) && !Volatile.Read(ref _nativeReleaseFailed);
     internal Exception? TestFailure => Volatile.Read(ref _testFailure);
     internal bool TestCleanupFailed => Volatile.Read(ref _testCleanupFailed);
     private void RecordTestFailure(Exception error)
@@ -482,6 +485,7 @@ internal sealed class FramePump : IOutputSession
         catch (Exception ex)
         {
             RecordTestFailure(ex);
+            Volatile.Write(ref _nativeReleaseFailed, true);
             if (_stopOnFailure) Volatile.Write(ref _testCleanupFailed, true);
             _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
             lock (_sync)

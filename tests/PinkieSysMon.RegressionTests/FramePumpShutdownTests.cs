@@ -161,6 +161,78 @@ internal static class FramePumpShutdownTests
         }
     }
 
+    public static void SelectedPhysicalRemovalRelease()
+    {
+        using var root = new TestRoot();
+        using var writeEntered = new ManualResetEventSlim();
+        using var releaseWrite = new ManualResetEventSlim();
+        var selected = Target(15_000);
+        var sibling = Clone(selected);
+        sibling.Id = "synthetic-sibling";
+        sibling.DeviceId = "usb-interface:" + new string('a', 64);
+        var config = new AppConfig { Outputs = new OutputConfig { Targets = [selected, sibling] } };
+        TransactionTransport? selectedTransport = null;
+        TransactionTransport? siblingTransport = null;
+        var selectedCreated = 0;
+        using var manager = new OutputSessionManager(config, root.Board(), new MetricStore(), root.Log,
+            (app, target, board, store, log) => new FramePump(app, target, board, store, log,
+                (_, _, _, _, token) =>
+                {
+                    if (target.Id == selected.Id)
+                    {
+                        Interlocked.Increment(ref selectedCreated);
+                        return selectedTransport ??= new TransactionTransport(token, writeEntered, releaseWrite);
+                    }
+                    return siblingTransport ??= new TransactionTransport(token);
+                }));
+        Task? removal = null;
+        try
+        {
+            manager.Start();
+            Check(writeEntered.Wait(TimeSpan.FromSeconds(5)), "Selected frame must enter its native transaction.");
+            Check(SpinWait.SpinUntil(() => siblingTransport?.CompletedFrames > 0, TimeSpan.FromSeconds(5)),
+                "Sibling Output must run before selected removal.");
+            removal = Task.Run(() => manager.PreparePhysicalRemoval(selected.Id));
+            Check(SpinWait.SpinUntil(() => manager.GetStatuses().Single(s => s.TargetId == selected.Id).IsActive == false,
+                TimeSpan.FromSeconds(5)) && !removal.IsCompleted && selectedTransport!.DisposeCount == 0,
+                "Removal reserves the selected Output without claiming release during an in-flight frame.");
+            releaseWrite.Set();
+            Check(removal.Wait(TimeSpan.FromSeconds(5)), "Selected native completion must allow terminal removal.");
+            removal.GetAwaiter().GetResult();
+            Check(selectedTransport!.DisposeCount == 1 && !selectedTransport.DisposedDuringTransfer &&
+                  siblingTransport!.DisposeCount == 0 && manager.GetStatuses().Single(s => s.TargetId == sibling.Id).IsActive,
+                "Only the selected native transport is released; the sibling remains active.");
+            var blocked = false;
+            try { manager.Reconfigure(config, root.Board()); }
+            catch (InvalidOperationException) { blocked = true; }
+            Check(blocked, "Pending Remove must prevent the old enabled Output from reopening.");
+            var after = new AppConfig { Outputs = new OutputConfig { Targets = [sibling] } };
+            manager.Reconfigure(after, root.Board());
+            Check(manager.GetStatuses().Single().TargetId == sibling.Id && selectedCreated == 1,
+                "After persisted deletion, the sibling continues without recreating the removed target.");
+        }
+        finally { releaseWrite.Set(); removal?.GetAwaiter().GetResult(); }
+
+        // A native disposal error must not be misreported as terminal release.
+        var failedTransport = new TransactionTransport(CancellationToken.None, failDispose: true);
+        using var failed = new OutputSessionManager(
+            new AppConfig { Outputs = new OutputConfig { Targets = [selected] } }, root.Board(),
+            new MetricStore(), root.Log,
+            (app, target, board, store, log) => new FramePump(app, target, board, store, log,
+                (_, _, _, _, _) => failedTransport));
+        failed.Start();
+        Check(SpinWait.SpinUntil(() => failedTransport.CompletedFrames > 0, TimeSpan.FromSeconds(5)),
+            "Synthetic failed-release transport must be active first.");
+        try { failed.PreparePhysicalRemoval(selected.Id); }
+        catch (InvalidOperationException)
+        {
+            Check(failedTransport.DisposeCount == 1 && !failed.GetStatuses().Single().IsActive,
+                "A failed native Dispose leaves an inactive reserved Output and refuses terminal success.");
+            return;
+        }
+        throw new InvalidOperationException("A failed native release must reject selected Remove.");
+    }
+
     private static OutputTargetConfig Target(int timeoutMs) => new()
     { Transport = OutputTargetContract.LyBulkTransport, Width = 1920, Height = 480, DeviceId = "usb-interface:e912cbded0e8644fea777832da3443ec7f5a9ed35fa4a52b2eda150d97218dae",
         Id = "synthetic-physical", Name = "Synthetic physical", Dashboard = "Synthetic",
@@ -208,7 +280,8 @@ internal static class FramePumpShutdownTests
 
     private sealed class TransactionTransport(CancellationToken token,
         ManualResetEventSlim? writeEntered = null, ManualResetEventSlim? releaseWrite = null,
-        ManualResetEventSlim? ackEntered = null, ManualResetEventSlim? releaseAck = null) : IPhysicalFrameTransport
+        ManualResetEventSlim? ackEntered = null, ManualResetEventSlim? releaseAck = null,
+        bool failDispose = false) : IPhysicalFrameTransport
     {
         private int _sends, _completed, _disposals, _inFlight, _disposedInFlight;
         public CancellationToken Token => token;
@@ -240,6 +313,7 @@ internal static class FramePumpShutdownTests
         {
             if (Volatile.Read(ref _inFlight) != 0) Interlocked.Exchange(ref _disposedInFlight, 1);
             Interlocked.Increment(ref _disposals);
+            if (failDispose) throw new IOException("Injected native release failure.");
         }
     }
 }

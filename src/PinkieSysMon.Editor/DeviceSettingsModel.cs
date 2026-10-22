@@ -194,6 +194,25 @@ internal sealed class DeviceSettingsModel
             _targets.Any(HasPendingConfiguredEdit);
     }
 
+    internal OutputTargetConfig PrepareRemove(OutputTargetConfig target, int desktopCount)
+    {
+        if (!_targets.Contains(target) || !_originalConnections.TryGetValue(target.Id, out var original) ||
+            _targets.Count + desktopCount <= 1)
+            throw new InvalidOperationException("The selected configured Output cannot be removed.");
+        return Copy(original); // Discard any unsaved edits on this card.
+    }
+
+    internal void AcceptRemovedConfigured(OutputTargetConfig target)
+    {
+        if (!_targets.Remove(target) || !_originalConnections.Remove(target.Id))
+            throw new InvalidOperationException("The removed card changed before its commit was reflected.");
+        _enableConsent.Remove(target.Id);
+        _initialEnabledBindings.Remove(target.Id);
+        IsDirty = _targets.Any(HasPendingConfiguredEdit);
+        // A fresh discovery now offers a new candidate with no Test approval.
+        Refresh(_discovered, _unavailableTransports);
+    }
+
     public void MarkChanged(OutputTargetConfig target)
     {
         RequireEditable(target);

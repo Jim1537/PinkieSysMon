@@ -1,6 +1,7 @@
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace PinkieSysMon;
 
@@ -58,6 +59,7 @@ internal enum RuntimeIpcCommandKind
     StartOrReloadTarget,
     StartOrReloadAll,
     StopAll,
+    PreparePhysicalRemoval,
     AssignDashboard,
     SetDesktopBoardEnabled,
     SetDesktopLock,
@@ -75,7 +77,8 @@ internal sealed record RuntimeIpcCommand(
     string? Dashboard = null,
     bool? Value = null,
     CatalogUsbTestBeginRequest? UsbTestBegin = null,
-    CatalogUsbTestHandle? UsbTestHandle = null);
+    CatalogUsbTestHandle? UsbTestHandle = null,
+    string? RecordHash = null);
 
 internal static class RuntimeIpcProtocol
 {
@@ -86,6 +89,7 @@ internal static class RuntimeIpcProtocol
     public const string StartOrReloadTargetCommand = "OUTPUT_START_RELOAD";
     public const string StartOrReloadAllCommand = "OUTPUT_START_RELOAD_ALL";
     public const string StopAllCommand = "OUTPUT_STOP_ALL";
+    public const string PreparePhysicalRemovalCommand = "OUTPUT_PREPARE_REMOVE";
     public const string AssignDashboardCommand = "OUTPUT_ASSIGN_DASHBOARD";
     public const string SetDesktopBoardEnabledCommand = "DESKTOP_SET_BOARD_ENABLED";
     public const string SetDesktopLockCommand = "DESKTOP_SET_LOCK";
@@ -103,6 +107,14 @@ internal static class RuntimeIpcProtocol
 
         return $"{verb}\t{JsonSerializer.Serialize(targetId, JsonOptions)}";
     }
+
+    internal static string TargetRecordHash(OutputTargetConfig target) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(target))));
+
+    internal static string BuildPreparePhysicalRemoval(string targetId, string recordHash) =>
+        PreparePhysicalRemovalCommand + "\t" + JsonSerializer.Serialize(new RemovalRequest(targetId, recordHash));
+
+    private sealed record RemovalRequest(string TargetId, string RecordHash);
 
     private sealed record ConfigurationRequest(string? TargetId, string? Dashboard = null, bool? Value = null);
 
@@ -136,6 +148,22 @@ internal static class RuntimeIpcProtocol
 
         if (CatalogUsbTestIpcProtocol.TryParse(command, out var usbTest))
             return usbTest;
+
+        if (command.StartsWith(PreparePhysicalRemovalCommand + "\t", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemovalRequest>(
+                    command[(PreparePhysicalRemovalCommand.Length + 1)..],
+                    new JsonSerializerOptions { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow });
+                if (request is null || string.IsNullOrWhiteSpace(request.TargetId) ||
+                    request.TargetId.Length > 128 || request.RecordHash?.Length != 64 ||
+                    !request.RecordHash!.All(Uri.IsHexDigit))
+                    throw new JsonException("Expected an Output ID and exact record hash.");
+                return new(RuntimeIpcCommandKind.PreparePhysicalRemoval, request.TargetId, RecordHash: request.RecordHash);
+            }
+            catch (JsonException) { return new(RuntimeIpcCommandKind.Invalid, Error: "Invalid physical Remove request."); }
+        }
 
         if (TryParseTargetCommand(command, StartOrReloadTargetCommand, RuntimeIpcCommandKind.StartOrReloadTarget, out var parsed))
             return parsed;
@@ -339,6 +367,10 @@ internal static class RuntimeIpc
 
     public static Task<RuntimeIpcResponse> StopAllOutputsAsync(int timeoutMs = 3000, CancellationToken cancellationToken = default) =>
         SendAsync(RuntimeIpcProtocol.StopAllCommand, timeoutMs, cancellationToken);
+
+    internal static Task<RuntimeIpcResponse> PreparePhysicalRemovalAsync(string targetId, string recordHash,
+        int timeoutMs = 120_000) =>
+        SendAsync(RuntimeIpcProtocol.BuildPreparePhysicalRemoval(targetId, recordHash), timeoutMs);
 
 }
 

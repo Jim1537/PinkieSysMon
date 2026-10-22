@@ -219,6 +219,98 @@ internal static class Issue95CandidateSaveTests
         });
     }
 
+    public static void RemoveCardIsolationAndPartialState()
+    {
+        InSandbox((root, path, log) =>
+        {
+            var device = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'y');
+            var neighbor = Issue95GenericOutputTests.Device(OutputTargetContract.LyBulkTransport, 'z');
+            var app = new AppConfig();
+            app.Outputs.Targets.Add(new OutputTargetConfig
+            {
+                Id = "removable", Name = "Original", Kind = OutputTargetContract.PhysicalKind,
+                Transport = device.Transport, DeviceId = device.DeviceId, Width = 800, Height = 600,
+                Dashboard = "Existing", Usb = new UsbConfig(), DeviceEnabled = true
+            });
+            app.Outputs.Targets.Add(new OutputTargetConfig
+            {
+                Id = "neighbor", Name = "Neighbor", Kind = OutputTargetContract.PhysicalKind,
+                Transport = neighbor.Transport, DeviceId = neighbor.DeviceId, Width = 800, Height = 600,
+                Dashboard = "Existing", Usb = new UsbConfig()
+            });
+            app.Save(path);
+            var model = new DeviceSettingsModel(AppConfig.Load(path, log)); model.Refresh([device, neighbor]);
+            var card = model.Entries.Single(e => e.Target.Id == "removable").Target;
+            var siblingDraft = model.Entries.Single(e => e.Target.Id == "neighbor").Target;
+            siblingDraft.Name = "Unsaved neighbor"; model.MarkChanged(siblingDraft);
+            card.Name = "Unsaved edit"; model.MarkChanged(card);
+            var original = model.PrepareRemove(card, 1);
+            var command = RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.BuildPreparePhysicalRemoval(
+                original.Id, RuntimeIpcProtocol.TargetRecordHash(original)));
+            Check(command.Kind == RuntimeIpcCommandKind.PreparePhysicalRemoval && command.TargetId == original.Id &&
+                  command.RecordHash == RuntimeIpcProtocol.TargetRecordHash(original) &&
+                  RuntimeIpcProtocol.ParseCommand(RuntimeIpcProtocol.PreparePhysicalRemovalCommand +
+                      "\t{\"TargetId\":\"removable\",\"RecordHash\":\"BAD\"}").Kind == RuntimeIpcCommandKind.Invalid,
+                "The selected Remove request must carry a strict exact-record fingerprint.");
+            var stopCalls = 0;
+            var reloadCalls = 0;
+            var current = AppConfig.Load(path, log);
+            current.Outputs.Targets[0].Name = "Newer Desktop"; current.Save(path);
+            var (saved, reloaded, warning) = PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
+                path, log, original,
+                () => Task.FromResult(new RuntimeIpcStatusResponse(true, "", new("", [
+                    new("removable", "Original", true, true, "ACTIVE")]))),
+                () => true, () => throw new InvalidOperationException("Running Runtime does not yield a lease."),
+                (id, hash) => { stopCalls++; Check(id == original.Id && hash == RuntimeIpcProtocol.TargetRecordHash(original),
+                    "Remove identifies the original selected record, not an unsaved draft.");
+                    return Task.FromResult(new RuntimeIpcResponse(true, "Released") { ResponseReceived = true }); },
+                () => { reloadCalls++; return Task.FromResult(new RuntimeIpcResponse(true, "Reloaded") { ResponseReceived = true }); })
+                .GetAwaiter().GetResult();
+            model.AcceptRemovedConfigured(card);
+            Check(reloaded && warning is null && stopCalls == 1 && reloadCalls == 1 &&
+                  saved.Outputs.Targets.Count == 2 && saved.Outputs.Targets[0].Name == "Newer Desktop" &&
+                  saved.Outputs.Targets[1].Name == "Neighbor" && siblingDraft.Name == "Unsaved neighbor" &&
+                  model.Entries.Single(e => !e.IsConfigured).Target is { } fresh &&
+                  model.CandidateDraft(fresh) is { CanSaveConfiguration: false },
+                "Only the selected record is deleted; newer Desktop, saved neighbor, unsaved sibling draft and fresh candidate survive.");
+
+            app.Save(path);
+            var before = File.ReadAllBytes(path);
+            Reject(() => PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
+                path, log, original,
+                () => Task.FromResult(new RuntimeIpcStatusResponse(true, "", new("", [
+                    new("removable", "Original", true, true, "ACTIVE")]))),
+                () => true, () => null,
+                (_, _) => Task.FromResult(new RuntimeIpcResponse(false, "Native cleanup unconfirmed") { ResponseReceived = true }),
+                () => throw new InvalidOperationException("Reload must not run."))
+                .GetAwaiter().GetResult());
+            Check(File.ReadAllBytes(path).SequenceEqual(before), "Unconfirmed release cannot delete the saved record.");
+
+            var partial = PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
+                path, log, original,
+                () => Task.FromResult(new RuntimeIpcStatusResponse(true, "", new("", [
+                    new("removable", "Original", true, true, "ACTIVE")]))),
+                () => true, () => null,
+                (_, _) => Task.FromResult(new RuntimeIpcResponse(true, "Released") { ResponseReceived = true }),
+                () => Task.FromResult(new RuntimeIpcResponse(false, "Injected reload failure") { ResponseReceived = true }))
+                .GetAwaiter().GetResult();
+            Check(!partial.RuntimeReloaded && partial.Warning is not null &&
+                  AppConfig.Load(path, log).Outputs.Targets.Count == 2,
+                "After terminal release, failed reload leaves the deleted record and reports partial Runtime state.");
+
+            app.Save(path);
+            var absent = PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(path, log, original,
+                () => Task.FromResult(new RuntimeIpcStatusResponse(false, "Absent", null)),
+                () => false, () => new MemoryStream(),
+                (_, _) => throw new InvalidOperationException("Absent Runtime must not receive stop."),
+                () => throw new InvalidOperationException("Absent Runtime must not receive reload."))
+                .GetAwaiter().GetResult();
+            Check(!absent.RuntimeReloaded && absent.Warning is null &&
+                  AppConfig.Load(path, log).Outputs.Targets.Count == 2,
+                "Absent Runtime removal writes only the selected card while holding its startup lease.");
+        });
+    }
+
     private static void InSandbox(Action<string, string, FileLogger> body)
     {
         var root = Path.Combine(Path.GetTempPath(), "PinkieSysMon-CandidateSave-" + Guid.NewGuid().ToString("N"));
