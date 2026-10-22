@@ -101,6 +101,15 @@ internal sealed class DeviceSettingsModel
 
     public void Add(OutputTargetConfig target)
     {
+        var confirmed = PrepareCandidate(target);
+        AcceptSavedCandidate(target, confirmed);
+        IsDirty = true;
+    }
+
+    // Build the exact confirmed snapshot without converting the visible card.
+    // A failed file/apply transaction leaves its draft and approval intact.
+    internal OutputTargetConfig PrepareCandidate(OutputTargetConfig target)
+    {
         RequireEditable(target);
         if (!_candidates.Contains(target))
             throw new InvalidOperationException("This device is already configured.");
@@ -111,6 +120,13 @@ internal sealed class DeviceSettingsModel
         if (resolution.Status != OutputDeviceResolutionStatus.Found ||
             !string.Equals(resolution.Device!.PnpNodeKey, draft.PnpNodeKey, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The confirmed interface is no longer uniquely present on the same physical node.");
+        return confirmed;
+    }
+
+    internal void AcceptSavedCandidate(OutputTargetConfig target, OutputTargetConfig confirmed)
+    {
+        if (!_candidates.Contains(target) || target.Id != confirmed.Id)
+            throw new InvalidOperationException("The candidate card changed during Save.");
         target.Name = confirmed.Name; target.Transport = confirmed.Transport;
         target.Width = confirmed.Width; target.Height = confirmed.Height;
         target.Dashboard = confirmed.Dashboard; target.DeviceEnabled = false;
@@ -118,8 +134,9 @@ internal sealed class DeviceSettingsModel
         target.Usb = confirmed.Usb; target.JpegQuality = confirmed.JpegQuality;
         target.RefreshIntervalMs = confirmed.RefreshIntervalMs; target.ProviderEnabled = false;
         _candidates.Remove(target);
+        _drafts.Remove(target.Id);
         _targets.Add(target);
-        IsDirty = true;
+        _originalConnections.Add(target.Id, Copy(target));
     }
 
     public void MarkChanged(OutputTargetConfig target)

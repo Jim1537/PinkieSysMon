@@ -8,13 +8,23 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly EditorUsbTestClient _testClient;
     private CancellationTokenSource? _testCancellation;
     private bool _testUiBusy;
+    private bool _saveUiBusy;
     private bool _closeAfterTest;
+    private readonly Func<AppConfig, byte[]?, Task<bool>>? _persistAndApply;
+    private readonly Action<AppConfig, bool>? _onCommitted;
+    private readonly FileLogger? _log;
 
     public PhysicalDeviceSettingsDialog(AppConfig config, IReadOnlyList<string> dashboards,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? discoverDevices = null,
         string? applicationRoot = null,
-        Func<IReadOnlyList<UsbDisplayObservation>>? discoverRecognizedDevices = null)
+        Func<IReadOnlyList<UsbDisplayObservation>>? discoverRecognizedDevices = null,
+        FileLogger? log = null,
+        Func<AppConfig, byte[]?, Task<bool>>? persistAndApply = null,
+        Action<AppConfig, bool>? onCommitted = null)
     {
+        _log = log;
+        _persistAndApply = persistAndApply;
+        _onCommitted = onCommitted;
         _help = new EditorSettingsHelp(applicationRoot);
         _testClient = new EditorUsbTestClient(_help.ApplicationRoot);
         _dashboardChoices = dashboards;
@@ -52,8 +62,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             Dock = DockStyle.Bottom, Height = 54,
             Padding = new Padding(12, 4, 12, 4),
             TextAlign = ContentAlignment.MiddleLeft,
-            Text = "Changes take effect after OK (Cancel discards them). " +
-                   "A responsive Runtime reloads saved device settings; otherwise they take effect on its next start."
+            Text = "Candidate Save Configuration commits immediately and stays disabled; Cancel cannot undo it. " +
+                   "Configured-device edits and Remove still take effect after OK. A responsive Runtime reloads saved settings."
         };
         Controls.Add(notice);
         Controls.Add(buttons);
@@ -165,6 +175,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         for (var index = 0; index < entries.Count; index++)
         {
             var entry = entries[index];
+            var wasSelected = false;
+            if (_devicePages.TryGetValue(entry.Target.Id, out var oldPage) &&
+                oldPage.IsCandidate && entry.IsConfigured)
+            {
+                wasSelected = _settingsTabs.SelectedTab == oldPage;
+                _settingsTabs.TabPages.Remove(oldPage);
+                oldPage.Dispose();
+                _devicePages.Remove(entry.Target.Id);
+            }
             if (!_devicePages.TryGetValue(entry.Target.Id, out var page))
             {
                 page = new DeviceSettingsPage(entry.Target, _dashboardChoices,
@@ -176,12 +195,14 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                         UpdateDevicePages();
                     },
                     enabled => ChangeDeviceEnabled(entry.Target, enabled),
-                    () => AddDevice(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
+                    () => SaveCandidateAsync(entry.Target), () => RemoveDevice(entry.Target), _help.ApplicationRoot, _devices.CandidateDraft(entry.Target),
                     () => TestDeviceAsync(entry.Target), CancelCandidate);
                 _devicePages.Add(entry.Target.Id, page);
                 _settingsTabs.TabPages.Add(page);
+                if (wasSelected) _settingsTabs.SelectedTab = page;
             }
-            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount), _testUiBusy);
+            page.UpdateState(entry, _devices.CanRemove(entry.Target, _desktopCount), _testUiBusy || _saveUiBusy,
+                _persistAndApply is not null);
         }
         var recognized = _recognizedDevices.Entries;
         var recognizedIds = recognized.Select(e => e.Observation.ObservationId).ToHashSet(StringComparer.Ordinal);
@@ -216,6 +237,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (_saveUiBusy) e.Cancel = true;
         if (_testUiBusy)
         {
             e.Cancel = true;
@@ -258,7 +280,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                 draft.ConfirmVisibleChangingSeconds(intent, yes);
                 _devicePages[target.Id].SetTestMessage(yes
-                    ? "Test confirmed. Saving and permanent Forget are not available in this version."
+                    ? "Test confirmed. Save Configuration is available; the Output will remain disabled."
                     : "Test not passed. Adjust the fields and retry; configuration was not saved.");
             }
             else if (!_closeAfterTest && !_testCancellation.IsCancellationRequested)
@@ -274,15 +296,31 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         }
     }
 
-    private void AddDevice(OutputTargetConfig target)
+    private async Task SaveCandidateAsync(OutputTargetConfig target)
     {
+        if (_saveUiBusy || _testUiBusy || _persistAndApply is null || _log is null) return;
+        _saveUiBusy = true;
         try
         {
             RefreshDeviceDiscovery();
-            _devices.Add(target);
+            var confirmed = _devices.PrepareCandidate(target);
+            var node = _devices.CandidateDraft(target)!.PnpNodeKey;
+            var (saved, reloaded) = await PhysicalCandidateSaveTransaction.SaveAsync(
+                _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
+                _log, confirmed, node, _discoverDevices, _persistAndApply);
+            _devices.AcceptSavedCandidate(target, confirmed);
+            try { _onCommitted?.Invoke(saved, reloaded); }
+            catch (Exception refreshError)
+            {
+                MessageBox.Show(this,
+                    $"Configuration was saved, but the Editor view could not refresh: {refreshError.Message}\nReopen Settings before further edits.",
+                    "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            _devicePages[target.Id].SetTestMessage(null);
             UpdateDevicePages();
         }
         catch (Exception ex) { ShowDeviceError(ex); }
+        finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
     private bool ChangeDeviceEnabled(OutputTargetConfig target, bool enabled)
@@ -353,9 +391,10 @@ internal sealed class DeviceSettingsPage : TabPage
     internal void SetTestMessage(string? message) => _testMessage = message;
     private bool _binding;
     private readonly CatalogUsbCandidateDraft? _candidate;
+    internal bool IsCandidate => _candidate is not null;
 
     public DeviceSettingsPage(OutputTargetConfig target, IReadOnlyList<string> dashboards,
-        Action changed, Func<bool, bool> enable, Action add, Action remove,
+        Action changed, Func<bool, bool> enable, Func<Task> add, Action remove,
         string? applicationRoot = null, CatalogUsbCandidateDraft? candidate = null,
         Func<Task>? test = null, Action? cancel = null)
     {
@@ -408,7 +447,7 @@ internal sealed class DeviceSettingsPage : TabPage
             else { buttons.Controls.Add(_add); buttons.Controls.Add(_remove); }
             _help.Bind(_add, EditorSettingsHelp.AddDevice);
             _help.Bind(_remove, EditorSettingsHelp.RemoveDevice);
-            _add.Click += (_, _) => add();
+            _add.Click += async (_, _) => await add();
             _remove.Click += (_, _) => remove();
             Controls.Add(buttons);
             Controls.Add(_fields);
@@ -541,7 +580,8 @@ internal sealed class DeviceSettingsPage : TabPage
         base.Dispose(disposing);
     }
 
-    public void UpdateState(DeviceSettingsEntry entry, bool canRemove, bool operationBusy = false)
+    public void UpdateState(DeviceSettingsEntry entry, bool canRemove, bool operationBusy = false,
+        bool canPersist = false)
     {
         var status = entry.Status switch
         {
@@ -554,13 +594,12 @@ internal sealed class DeviceSettingsPage : TabPage
         };
         _status.Text = $"{entry.Target.Name} — {status}\n" +
             (entry.IsConfigured ? "Changes are saved and applied after OK." :
-                _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Saving and permanent Forget are not available in this version.");
+                _testMessage ?? "Not configured. Enter screen size and protocol, then Test. Save after a confirmed Test; Forget is not yet available.");
         _fields.Enabled = entry.CanEdit && _candidate?.IsTesting != true && !operationBusy;
         _test.Enabled = _hasTest && entry.CanEdit && _candidate?.CanTest == true && !operationBusy;
         _add.Visible = !entry.IsConfigured;
-        // The old whole-dialog Add path is not the approved per-card transaction.
-        // Never let a positive Test fall through to that persistence shortcut.
-        _add.Enabled = false;
+        _add.Enabled = !entry.IsConfigured && canPersist && entry.CanEdit &&
+            _candidate?.CanSaveConfiguration == true && !operationBusy;
         _forget.Enabled = false;
         _cancel.Enabled = true;
         _enabled.Enabled = entry.IsConfigured;

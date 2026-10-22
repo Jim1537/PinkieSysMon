@@ -171,6 +171,6 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string UsbRetry = "Wait this many milliseconds before another connection attempt after\na missing device or failed USB connection/transfer. It is not a transfer timeout.";
     public const string UsbTimeout = "Time limit requested for each USB read/write operation, in milliseconds.\nHigher values allow slower transfers but delay error recovery.";
     public const string UsbJournal = "Write a rotating USB event journal in the application's logs folder.\nUse for troubleshooting: it adds disk I/O and does not fix USB faults.";
-    public const string AddDevice = "Save requires a clean Runtime Test and positive visual confirmation.\nA confirmed new Output remains disabled. Runtime onboarding integration is pending.";
+    public const string AddDevice = "After a clean Runtime Test and positive visual confirmation, save this candidate immediately.\nIts own editable working board is created or reused; the new Output remains disabled.";
     public const string RemoveDevice = "Remove this saved physical Output after OK, keeping its dashboard files.\nAt least one Output must remain; attached hardware is not automatically re-added.";
 }

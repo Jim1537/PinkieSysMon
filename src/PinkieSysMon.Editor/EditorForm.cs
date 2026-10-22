@@ -824,7 +824,19 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         using Form dialog = physical
             ? new PhysicalDeviceSettingsDialog(runtimeConfig, DashboardCatalog.Discover(_root),
-                applicationRoot: _root)
+                applicationRoot: _root, log: _log,
+                persistAndApply: (updated, expected) =>
+                    ApplySettingsAndReloadRuntimeAsync(appConfigPath, updated, expected),
+                onCommitted: (saved, reloaded) =>
+                {
+                    _appConfig.Outputs = saved.Outputs;
+                    SynchronizeScreenMenu();
+                    RefreshPreviewTelemetry();
+                    RenderPreview(force: true);
+                    SetStatus(reloaded
+                        ? "Device configuration saved and applied to the running Runtime."
+                        : "Device configuration saved. Runtime will read it on its next start.");
+                })
             : new DesktopSettingsDialog(runtimeConfig, DashboardCatalog.Discover(_root),
                 applicationRoot: _root);
 

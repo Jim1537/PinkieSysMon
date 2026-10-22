@@ -4,7 +4,7 @@ A **physical Output** assigns a saved dashboard to a supported hardware display.
 
 A saved physical Output uses the user's name, exact USB interface binding, selected implemented protocol and explicit screen width/height. The first working board is `device_<width>x<height>_default`, at 0° orientation, generated through the shared adaptive dashboard factory. An existing valid board is reused without overwriting edits. Ordinary frames use the assigned dashboard's Canvas; screen dimensions are not a model-size whitelist or an automatic fitting instruction.
 
-**Onboarding remains incomplete:** candidate **Test** now uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** and **Forget** remain visible but disabled until their per-card transactions are integrated; even a confirmed Test cannot create or enable an Output through dialog OK. Acceptance is tracked in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). The configured-Output controls below operate on the new format. Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
+Candidate **Test** uses Runtime and asks for separate visual confirmation after clean USB release. **Save Configuration** commits a confirmed candidate as a disabled Output with an editable working board; **Forget** remains unavailable pending its exclusion transaction. Configured-device edits and Remove still use the dialog's OK/Cancel draft path while per-card integration continues in [Issue #95](https://github.com/Jim1537/PinkieSysMon/issues/95). Old model-specific application/device records are deliberately unsupported; dashboard documents and their schema are unchanged.
 
 For Windows panels without display hardware, use [Desktop](desktop.md). A configured Output, the physical device it binds to and the dashboard it displays are separate objects.
 
@@ -17,7 +17,7 @@ For Windows panels without display hardware, use [Desktop](desktop.md). A config
 3. Close vendor display-control software and other applications that could control the same hardware before enabling PinkieSysMon output.
 4. In the Dashboard Editor, open or create and **save** the desired dashboard. Configure its Canvas and widgets using the [widget/property guides](../README.md#available-widgets) for the dimensions you intend to display.
 
-Adopting an Output creates an application configuration record. It does not create hardware, author a dashboard or install a generic display driver.
+Adopting an Output creates an application configuration record and its initial editable working board when needed. It does not create hardware or install a display driver.
 
 ### Step 2. Find the Device tab
 
@@ -26,7 +26,7 @@ Open **Devices**. Configured tabs use the saved user name. Unsaved candidates an
 | Settings state | Meaning and available actions |
 | --- | --- |
 | **Connected**, configured | A saved Output resolves to one present device. Its settings are editable. This is passive presence, not proof of a Runtime connection or delivered frames. |
-| **Connected**, **Not configured** | An unsaved candidate with editable name, dimensions and protocol. Valid fields enable Test; Save Configuration and Forget await their transaction integration. |
+| **Connected**, **Not configured** | An unsaved candidate with editable name, dimensions and protocol. Valid fields enable Test; a clean Test and visual Yes enable Save Configuration. Forget remains unavailable. |
 | **Disconnected** | Saved values remain visible, but settings and Test are disabled. Remove remains available subject to the last-Output guard. A candidate already seen in this open dialog also retains its draft during absence. |
 | **Ambiguous identity — controls unavailable** | Device identity is not safe to select. Settings/Save are disabled; do not assume that one matching device was chosen. |
 | **Discovery unavailable — controls unavailable** | Passive discovery failed. Settings/Save are disabled rather than retaining stale editable Connected controls. Reopen Settings or reconnect to retry discovery. |
@@ -40,7 +40,7 @@ For a candidate, enter **Display name**, **Width**, **Height** and **Protocol**.
 
 After clean technical completion and release, answer whether the current image was readable at the expected geometry **and seconds changed**. The question refers to the observation during Test; transmission has already stopped. **Yes** confirms only that exact attempt. **No**, cancellation, an error or an uncertain response leaves it unconfirmed. Name-only changes preserve local approval; changing dimensions or protocol requires another Test. A visible image cannot override a technical failure.
 
-The generated board stays in memory. Test and Yes do not save a dashboard, configuration, assignment or enablement. The remaining Save Configuration/Forget actions are unavailable in this integration slice. Runtime ownership, timing, absent/unresponsive-process handling and cleanup limits are defined by [USB Test coordination](../development/architecture.md#transient-usb-test-coordination).
+The Test board stays in memory. Test and Yes do not save a dashboard, configuration, assignment or enablement. **Save Configuration** rechecks the exact interface and physical node, merges this one confirmed card with the current saved settings, then creates or reuses the separate `device_<width>x<height>_default` working board. It does not overwrite an existing board, enable the Output, or start an absent Runtime. A responsive running Runtime receives a reload; failed application restores the prior configuration and releases a newly generated unchanged board when safe. Cancel after a completed Save does not undo it. Runtime ownership and Test cleanup are defined by [USB Test coordination](../development/architecture.md#transient-usb-test-coordination).
 
 For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding when available. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
 
@@ -48,9 +48,9 @@ For a configured, connected Output, edit its name, saved dashboard assignment, r
 
 To permit hardware output for an already configured Output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. An unconfigured candidate cannot be enabled or adopted through this switch.
 
-Click **OK** to validate/save the draft and apply it through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). A newly enabled device is rechecked after consent and immediately before saving. If it has disappeared or become ambiguous, enabling fails instead of selecting replacement hardware.
+For existing configured-device edits, click **OK** to validate/save the draft and apply it through the shared [Settings save/apply transaction](../development/architecture.md#settings-save-and-apply). Candidate Save Configuration commits immediately and independently of OK. A newly enabled configured device is rechecked after consent and immediately before saving. If it has disappeared or become ambiguous, enabling fails instead of selecting replacement hardware.
 
-**Cancel** discards the draft, including configured-device edits, enablement and removals. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
+**Cancel** discards uncommitted drafts, including configured-device edits, enablement and removals; it cannot reverse a completed candidate Save Configuration. Granting consent inside an uncommitted Settings draft does not itself open the device. Settings reloads a responsive running Runtime; it does not launch an absent or unreachable one. Check whether the Editor reports **saved and applied** or **saved for next start**.
 
 | Switch | What it permits |
 | --- | --- |

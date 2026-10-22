@@ -32,6 +32,8 @@ internal static class Program
             ("Issue95 live Test CancellationWaitsForNativeRelease", Issue95LiveTestTests.CancellationWaitsForNativeRelease),
             ("Issue95 live Test ExistingOwnerAndResponseCorrelation", Issue95LiveTestTests.ExistingOwnerAndResponseCorrelation),
             ("Issue95 live Test EditorLaunchAndStrictResults", () => Issue95LiveTestTests.EditorLaunchAndStrictResults().GetAwaiter().GetResult()),
+            ("Issue95 candidate per-card Save merge and working board", Issue95CandidateSaveTests.PerCardMergeAndWorkingBoard),
+            ("Issue95 candidate Save stale binding and apply rollback", Issue95CandidateSaveTests.StaleBindingAndApplyFailure),
             ("Issue95 candidate live action states", Issue95ProtocolChoiceTests.LiveActionStates),
             ("Issue95 exact unscaled pixel mapping", Issue95FrameGeometryTests.ExactPixelMapping),
             ("Issue95 ordinary worker ignores panel dimensions", Issue95FrameGeometryTests.OrdinaryWorkerIgnoresPanelSize),
