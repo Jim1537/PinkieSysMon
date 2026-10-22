@@ -70,26 +70,34 @@ internal static class FrameGeometry
         int logicalWidth, int logicalHeight, int nativeWidth, int nativeHeight,
         int orientationDegrees, PhysicalFrameProfile profile)
     {
-        var physical = profile.PhysicalSize(nativeWidth, nativeHeight);
+        ArgumentNullException.ThrowIfNull(destination);
+        ArgumentNullException.ThrowIfNull(logical);
+        _ = profile.WireSize(nativeWidth, nativeHeight);
         destination.Save();
         try
         {
             switch (profile.RotationDegrees)
             {
-                case 90: destination.Translate(physical.Height, 0); destination.RotateDegrees(90); break;
-                case 180: destination.Translate(physical.Width, physical.Height); destination.RotateDegrees(180); break;
-                case 270: destination.Translate(0, physical.Width); destination.RotateDegrees(270); break;
+                case 90: destination.Translate(nativeHeight, 0); destination.RotateDegrees(90); break;
+                case 180: destination.Translate(nativeWidth, nativeHeight); destination.RotateDegrees(180); break;
+                case 270: destination.Translate(0, nativeWidth); destination.RotateDegrees(270); break;
             }
-            // Fit the complete canonical canvas without stretching/cropping.
-            // Opaque black compositing supplies any letterbox bars.
-            var scale = Math.Min((float)physical.Width / nativeWidth, (float)physical.Height / nativeHeight);
-            destination.Translate((physical.Width - nativeWidth * scale) / 2,
-                (physical.Height - nativeHeight * scale) / 2);
-            destination.Scale(scale);
             DrawLogicalToWire(destination, logical, logicalWidth, logicalHeight,
                 nativeWidth, nativeHeight, orientationDegrees, wireRotationDegrees: 0);
         }
         finally { destination.Restore(); }
+    }
+
+    // 64 MiB per BGRA raster; renderer-owned surfaces and exported frames are
+    // separate allocations. This is an application budget, not a panel limit.
+    internal const long MaximumRasterPixels = 16_777_216;
+
+    internal static void ValidateRasterSize(int width, int height)
+    {
+        ValidateNativeSize(width, height);
+        if ((long)width * height > MaximumRasterPixels)
+            throw new InvalidDataException(
+                $"Canvas {width}x{height} exceeds the renderer budget of {MaximumRasterPixels} pixels per raster (64 MiB BGRA).");
     }
 
     public static void ValidateNativeSize(int nativeWidth, int nativeHeight)

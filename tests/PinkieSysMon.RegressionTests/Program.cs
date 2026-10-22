@@ -27,6 +27,9 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue95 exact unscaled pixel mapping", Issue95FrameGeometryTests.ExactPixelMapping),
+            ("Issue95 ordinary worker ignores panel dimensions", Issue95FrameGeometryTests.OrdinaryWorkerIgnoresPanelSize),
+            ("Issue95 raster and wire resource bounds", Issue95FrameGeometryTests.ResourceAndWireBounds),
             ("Issue95 composite snapshot completeness", Issue95CatalogCandidateTests.CompositeSnapshotCompleteness),
             ("Issue95 catalog protocol choices and draft admission", Issue95ProtocolChoiceTests.CatalogChoicesAndDraftAdmission),
             ("Issue95 candidate explicit choice survives refresh", Issue95ProtocolChoiceTests.CandidateRefreshPreservesExplicitChoice),
@@ -61,7 +64,7 @@ internal static class Program
             ("Issue71 adoption FaultedTurzxDoesNotAutomaticallyReopen", Issue71AdoptionTests.FaultedTurzxDoesNotAutomaticallyReopen),
             ("Issue71 adoption FailedTurzxOpenAndTrofeoRetryIsolation", Issue71AdoptionTests.FailedTurzxOpenAndTrofeoRetryIsolation),
             ("Issue71 Runtime GeometryAndLegacyParity", Issue71RuntimeTests.GeometryAndLegacyParity),
-            ("Issue71 Runtime CanonicalRendererFitAndIsolation", Issue71RuntimeTests.CanonicalRendererFitAndIsolation),
+            ("Issue71 Runtime CanonicalRendererGeometryAndIsolation", Issue71RuntimeTests.CanonicalRendererGeometryAndIsolation),
             ("Issue71 Runtime EncodedPayloadBound", Issue71RuntimeTests.EncodedPayloadBound),
             ("Issue71 Runtime AdapterAdmission", Issue71RuntimeTests.AdapterAdmission),
             ("Issue71 Runtime CheckpointAdmissionAndPreflight", Issue71RuntimeTests.CheckpointAdmissionAndPreflight),

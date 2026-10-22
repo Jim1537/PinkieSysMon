@@ -39,6 +39,7 @@ internal sealed class DashboardRenderer : IDisposable
         _nativeWidth = definition.Canvas.Width;
         _nativeHeight = definition.Canvas.Height;
         _orientation = definition.Canvas.Orientation;
+        FrameGeometry.ValidateRasterSize(_nativeWidth, _nativeHeight);
         _backgroundColor = ColorParser.Parse(definition.Canvas.BackgroundColor);
 
         var widgets = definition.Widgets
@@ -197,18 +198,17 @@ internal sealed class DashboardRenderer : IDisposable
     }
 
     public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, int wireRotationDegrees, int jpegQuality) =>
-        RenderJpeg(metrics, new PhysicalFrameProfile(FrameGeometry.NormalizeWireRotation(wireRotationDegrees)), jpegQuality);
+        RenderJpeg(metrics, new PhysicalFrameProfile(FrameGeometry.NormalizeWireRotation(wireRotationDegrees), TrofeoWireProtocol.MaximumImageBytes), jpegQuality);
 
     public RenderedJpeg RenderJpeg(IReadOnlyDictionary<string, object?> metrics, PhysicalFrameProfile profile, int jpegQuality)
     {
         var renderStartedAt = Stopwatch.GetTimestamp();
-        RenderLogicalFrame(metrics);
-
         var wireSize = profile.WireSize(_nativeWidth, _nativeHeight);
+        RenderLogicalFrame(metrics);
         if (_wireWidth != wireSize.Width || _wireHeight != wireSize.Height)
         {
             var replacement = SKSurface.Create(new SKImageInfo(wireSize.Width, wireSize.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
-                ?? throw new InvalidOperationException("Failed to create model-specific wire surface.");
+                ?? throw new InvalidOperationException("Failed to create protocol wire surface.");
             var previous = _wireSurface;
             _wireSurface = replacement;
             _wireWidth = wireSize.Width;

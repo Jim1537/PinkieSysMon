@@ -64,6 +64,8 @@ The Runtime renderer produces JPEG bytes; `TrofeoTransport` delegates wire-frame
 | `11`–`12` | 2 bytes | Zero-based record index (`uint16`) |
 | `13`–`15` | 3 bytes | Zeroed reserved bytes |
 
+The unsigned 16-bit chunk count, including the mandatory terminal record, permits at most `65,535 × 496 − 1 = 32,505,359` encoded bytes. Layout calculation rejects larger payloads before allocating the frame buffer; the renderer uses the same bound. This is a wire-field capacity, not measured device capacity. Packet bytes and transfer sequencing within the bound are unchanged.
+
 Records are transferred through OUT `0x09` in writes of at most **4,096 bytes**, using a reusable pinned managed buffer. The sender then reads an ACK from IN `0x81` into a **512-byte** buffer. The current implementation requires a **non-empty** ACK and does **not** validate its contents beyond that; do not describe stricter ACK validation as implemented.
 
 !!! warning "Protocol-sensitive parameters"

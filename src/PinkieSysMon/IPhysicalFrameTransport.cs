@@ -5,7 +5,7 @@ namespace PinkieSysMon;
 internal interface IPhysicalFrameTransport : IDisposable
 {
     int WireRotationDegrees { get; }
-    PhysicalFrameProfile Profile => new(WireRotationDegrees);
+    PhysicalFrameProfile Profile => new(WireRotationDegrees, TrofeoWireProtocol.MaximumImageBytes);
     void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics);
     void RecordLifecycle(string state, string reason);
 }

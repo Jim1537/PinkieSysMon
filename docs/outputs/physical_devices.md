@@ -112,6 +112,12 @@ The selected adapter's native completion limits still apply to a stalled USB ope
 
 `DeviceSettingsModel` and `PhysicalDeviceInventory` classify all physical records with `OutputTargetContract.PhysicalKind`. The shared session factory creates `FramePump` for either implemented protocol; the transport factory selects its existing wire implementation by `Transport`. Commercial model names and catalog hints never select a saved session. Each worker retains independent renderer, transport, cancellation and metrics ownership. A missing exact binding remains disconnected even when a single device is present.
 
+### Frame geometry
+
+Ordinary frames use the assigned dashboard's Canvas Width, Height and Orientation. Saved screen dimensions describe onboarding geometry and initial board generation; they do not resize an assigned dashboard. The physical frame profile contains only protocol rotation and encoded-payload capacity. There is no panel rectangle, fitting, stretching, cropping or letterboxing step. Canvas image/widget presentation rules still apply inside the dashboard itself.
+
+The shared [renderer resource budget](../development/architecture.md#runtime-output-ownership) and the [LY wire field bound](../development/devices/trofeo-vision-9.16.md#jpeg-frame-wire-format) / [encrypted-image bound](../development/devices/turzx-12.3.md#framing-and-commands) remain enforced. Rejection does not silently lower quality or change geometry. An oversized replacement is rejected during preparation before replacing the active renderer. A dimension mismatch is not itself an error, but firmware clipping, orientation and visible results require observation on the selected device.
+
 ### Configuration and identity
 
 Physical Outputs use local `Outputs.Targets` records:

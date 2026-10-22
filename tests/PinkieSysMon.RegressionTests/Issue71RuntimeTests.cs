@@ -32,7 +32,7 @@ internal static class Issue71RuntimeTests
             using var physical = SKSurface.Create(new SKImageInfo(80, 30));
             FrameGeometry.DrawLogicalToWire(physical.Canvas, logical, size.Width, size.Height, 80, 30, orientation, 0);
             using var rotated = SKSurface.Create(new SKImageInfo(30, 80));
-            FrameGeometry.DrawLogicalToPhysicalWire(rotated.Canvas, logical, size.Width, size.Height, 80, 30, orientation, new(90, 80, 30));
+            FrameGeometry.DrawLogicalToPhysicalWire(rotated.Canvas, logical, size.Width, size.Height, 80, 30, orientation, new(90));
             using var expected = physical.PeekPixels();
             using var actual = rotated.PeekPixels();
             for (var y = 0; y < 80; y++)
@@ -40,11 +40,11 @@ internal static class Issue71RuntimeTests
                     Check(actual.GetPixelColor(x, y) == expected.GetPixelColor(y, 29 - x), "Clockwise wire rotation must preserve every oriented pixel.");
         }
         Check(PhysicalFrameProfile.EncryptedJpeg.WireSize(1920, 480) == new System.Drawing.Size(480, 1920), "Encrypted JPEG rotates the assigned canvas without a model-sized surface.");
-        foreach (var invalid in new[] { new PhysicalFrameProfile(45), new(0, 10), new(0, 0, 10), new(0, MaximumImageBytes: 0) })
+        foreach (var invalid in new[] { new PhysicalFrameProfile(45), new(0, MaximumImageBytes: 0) })
             Throws<ArgumentException>(() => invalid.WireSize(1920, 480));
     }
 
-    public static void CanonicalRendererFitAndIsolation()
+    public static void CanonicalRendererGeometryAndIsolation()
     {
         var board = Board("#80FF0000");
         using var renderer = new DashboardRenderer(board);
@@ -65,7 +65,7 @@ internal static class Issue71RuntimeTests
         using (var decoded = SKBitmap.Decode(legacy.Bytes))
             Check(decoded.Width == 1920 && decoded.Height == 480, "Changing a profile must not poison later legacy renders.");
         Check(board.Canvas.Width == 1920 && board.Canvas.Height == 480 && board.Canvas.Orientation == 0,
-            "Physical fitting must not mutate the canonical dashboard.");
+            "Protocol conversion must not mutate the canonical dashboard.");
         Check(logical.Bitmap.GetPixel(500, 200).Alpha == 128, "Later wire renders must not mutate an owned Desktop frame.");
     }
 

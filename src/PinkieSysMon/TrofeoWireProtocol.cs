@@ -14,11 +14,14 @@ internal static class TrofeoWireProtocol
     internal const int HeaderSize = 16;
     internal const int DataSize = 496;
     internal const int TransferBlockSize = 4096;
+    // The extra terminal record also counts in the unsigned 16-bit chunk field.
+    internal const int MaximumImageBytes = ushort.MaxValue * DataSize - 1;
 
     internal static TrofeoFrameLayout GetFrameLayout(int payloadLength)
     {
-        if (payloadLength < 0)
-            throw new ArgumentOutOfRangeException(nameof(payloadLength));
+        if (payloadLength < 0 || payloadLength > MaximumImageBytes)
+            throw new ArgumentOutOfRangeException(nameof(payloadLength), payloadLength,
+                $"LY encoded image must be 0..{MaximumImageBytes} bytes to fit the 16-bit chunk count.");
 
         var chunkCount = payloadLength / DataSize + 1;
         var lastDataLength = payloadLength % DataSize;
