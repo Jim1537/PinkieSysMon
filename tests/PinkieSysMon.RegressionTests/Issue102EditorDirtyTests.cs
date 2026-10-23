@@ -127,7 +127,13 @@ internal static class Issue102EditorDirtyTests
     {
         var directory = Path.Combine(DashboardCatalog.GetRoot(root), name);
         EditorForm.WriteNewDashboardFile(directory, 640, 640, orientation: 0);
-        return DashboardCatalog.GetDefinitionPath(root, name);
+        var path = DashboardCatalog.GetDefinitionPath(root, name);
+        var definition = C.DashboardDefinition.Load(path);
+        // Equal Z values must retain source order, not be sorted by widget ID.
+        foreach (var widget in definition.Widgets)
+            widget.Z = 0;
+        File.WriteAllText(path, DashboardJson.Serialize(definition, indented: true) + Environment.NewLine);
+        return path;
     }
 
     private static void Open(EditorForm editor, string name)

@@ -37,6 +37,7 @@ internal sealed class EditorLayerHierarchy
     private readonly CanonicalDashboardDefinition _definition;
     private readonly DashboardEditorMetadata _metadata;
     private readonly Dictionary<string, CanonicalWidgetDefinition> _widgetsById;
+    private readonly Dictionary<string, int> _widgetSourceOrder;
     private readonly Dictionary<string, List<EditorLayerNodeRef>> _children = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _groupDeclarationOrder;
 
@@ -47,6 +48,10 @@ internal sealed class EditorLayerHierarchy
         _widgetsById = definition.Widgets
             .Where(widget => !string.IsNullOrWhiteSpace(widget.Id))
             .ToDictionary(widget => widget.Id!, StringComparer.OrdinalIgnoreCase);
+        _widgetSourceOrder = definition.Widgets
+            .Select((widget, index) => new { widget.Id, index })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+            .ToDictionary(item => item.Id!, item => item.index, StringComparer.OrdinalIgnoreCase);
         _groupDeclarationOrder = metadata.GroupDefinitions
             .Select((group, index) => new { group.Id, index })
             .ToDictionary(item => item.Id, item => item.index, StringComparer.OrdinalIgnoreCase);
@@ -300,7 +305,11 @@ internal sealed class EditorLayerHierarchy
                     return left.Kind == EditorLayerNodeKind.Widget ? -1 : 1;
 
                 if (left.Kind == EditorLayerNodeKind.Widget)
-                    return string.Compare(left.Id, right.Id, StringComparison.OrdinalIgnoreCase);
+                {
+                    // Equal Z values render in document order. Sorting by ID here
+                    // would invent a layer change merely by opening a dashboard.
+                    return _widgetSourceOrder[left.Id].CompareTo(_widgetSourceOrder[right.Id]);
+                }
 
                 var leftOrder = _groupDeclarationOrder.GetValueOrDefault(left.Id, int.MaxValue);
                 var rightOrder = _groupDeclarationOrder.GetValueOrDefault(right.Id, int.MaxValue);
