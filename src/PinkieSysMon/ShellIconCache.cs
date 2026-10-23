@@ -102,7 +102,11 @@ internal sealed class ShellIconCache : IDisposable
 
     private static ImageAsset? Extract(string target)
     {
-        var initialized = CoInitializeEx(IntPtr.Zero, 0) >= 0;
+        var initialization = CoInitializeEx(IntPtr.Zero, 0);
+        // RPC_E_CHANGED_MODE means COM is already initialized in another apartment.
+        // Other failures must not enter Shell APIs without their COM prerequisite.
+        if (initialization < 0 && initialization != unchecked((int)0x80010106)) return null;
+        var initialized = initialization >= 0;
         IntPtr item = IntPtr.Zero;
         var info = new ShellFileInfo();
         try
