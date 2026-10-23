@@ -687,7 +687,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `image.background_image.asset.fit`
     - `image.foreground_image.asset.fit`
     - `bar.image.fit`
-    - `graph.image.asset.fit`
 
     **Canonical model:**
     - `ImageAssetPresentationDefinition.Fit` (Image, state assets, Canvas layers, Graph background)
@@ -729,7 +728,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Semantic keys:**
     - `image.background_image.color`
     - `image.foreground_image.color`
-    - `graph.image.color`
 
     **Canonical model:** `CanvasImageLayerDefinition.Color`
 
@@ -770,7 +768,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `image.background_image.asset.loop`
     - `image.foreground_image.asset.loop`
     - `bar.image.loop`
-    - `graph.image.asset.loop`
 
     **Canonical model:**
     - `ImageAssetPresentationDefinition.Loop` (Image, state assets, Canvas layers, Graph background)
@@ -816,7 +813,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `general.foreground_image.asset.source`
     - `states.{state}.asset.source`
     - `bar.image.source`
-    - `graph.image.asset.source`
 
     **Canonical model:**
     - `ImageAssetPresentationDefinition.Source` (Image, Canvas layers, state assets, Graph background)
@@ -862,7 +858,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `general.source.image.kind`
     - `general.background_image.asset.kind`
     - `general.foreground_image.asset.kind`
-    - `graph.image.asset.kind`
 
     **Canonical model:** `ImageAssetPresentationDefinition.SourceType`
 
@@ -1221,7 +1216,6 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `text.state.{state}.opacity`
     - `image.background_image.opacity`
     - `image.foreground_image.opacity`
-    - `graph.image.opacity`
 
     **Canonical model:**
     - `ImageWidgetDefinition.Opacity`
@@ -1528,21 +1522,23 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Semantic keys:**
     - `gauge.reverse`
     - `gauge.bar.reverse`
+    - `graph.reverse`
 
-    **Canonical model:**
-    - `GaugeWidgetDefinition.Reverse`
-    - `BarWidgetDefinition.Reverse`
+    **Canonical model:** `NumericWidgetDefinition.Reverse`
 
     **JSON:** `reverse`
 
 
     **Values:**
-    - Boolean.
+    - Boolean; default `false`.
 
 
     Reverses the direction in which the quantitative indicator progresses.
 
-    **Used by:** Gauge, Bar
+    **Used by:** Gauge, Bar, Graph
+
+    For Graph, `false` scrolls history left to right (new observations at left);
+    `true` scrolls right to left (new observations at right). This does not mirror the background image or the value axis.
 
 <!-- --8<-- [end:reverse] -->
 

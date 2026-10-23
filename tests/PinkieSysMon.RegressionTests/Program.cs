@@ -466,6 +466,7 @@ internal static class Program
             ("Graph gaps expiry clipping and dense spikes", GraphWidgetTests.GapsExpiryClippingAndDenseSpikes),
             ("Graph fill alpha and common image composition", GraphWidgetTests.FillAlphaAndCommonImageComposition),
             ("Graph geometry reuse and Runtime Editor parity", GraphWidgetTests.GeometryReuseAndRuntimeEditorParity),
+            ("Graph reverse time direction and background edits", GraphWidgetTests.ReverseTimeDirectionAndBackgroundEdits),
             ("Graph telemetry publication and serialized discovery", GraphTelemetryTests.PublicationAndSerializedDiscovery),
             ("Graph telemetry pause and generation fences", GraphTelemetryTests.PausedCaptureAndSemanticGenerationFences),
             ("Graph catalog meaning and direct Output publication", GraphTelemetryTests.CatalogMeaningAndDynamicPublication),
@@ -474,6 +475,7 @@ internal static class Program
             ("Graph preview stale discovery and illustrative Output history", GraphPreviewLifecycleTests.StaleDiscoveryAndIllustrativeOutputHistory),
             ("Graph Editor common properties and applicability", GraphEditorTests.CommonPropertiesAndGraphApplicability),
             ("Graph Editor clipboard image and undo snapshots", GraphEditorTests.ClipboardImageImportAndCanonicalUndoSnapshots),
+            ("Graph Editor shared background image bindings", GraphEditorTests.BackgroundImageSharedPropertyBindings),
             ("Bar image property visibility", BarImagePropertyVisibility),
             ("Bar image progress modes", BarImageProgressModes),
             ("Bar image fit modes", BarImageFitModes),
@@ -11603,8 +11605,8 @@ internal static class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 23,
-            "The executable current dashboard contract must be schema 23.");
+               MetricContract.DashboardSchemaVersion == 24,
+            "The executable current dashboard contract must be schema 24.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

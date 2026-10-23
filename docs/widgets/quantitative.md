@@ -1,12 +1,12 @@
 # Shared Quantitative Widget Contracts
 
-This is an **internal shared contract** for **Gauge**, **Bar**, and **Graph**, not a widget or a separate Editor-properties reference. `DashboardModel.NumericWidgetDefinition` owns their metric, unit, DateTime projection, range and thresholds. `QuantitativeWidgetDefinition` adds Gauge/Bar `gap` and `reverse`; Graph does not inherit these progress controls. Each widget page owns geometry, drawing, image modes, unavailable appearances, and property applicability. The [Property Dictionary](properties.md) owns the definitions and values of each individual setting.
+This is an **internal shared contract** for **Gauge**, **Bar**, and **Graph**, not a widget or a separate Editor-properties reference. `DashboardModel.NumericWidgetDefinition` owns their metric, unit, DateTime projection, range, thresholds and Reverse. `QuantitativeWidgetDefinition` adds Gauge/Bar `gap`; each widget owns the meaning of its drawing direction. Each widget page owns geometry, drawing, image modes, unavailable appearances, and property applicability. The [Property Dictionary](properties.md) owns the definitions and values of each individual setting.
 
 ## Metric resolution and normalized position
 
 <!-- --8<-- [start:quantitative-metric] -->
 
-The shared numeric model provides `metric`, `unit`, `component`, `componentFormat`, `min`, `max`, and `thresholds`. `DashboardMetricUsage.Collect` requests the configured metric on demand; no renderer polls a provider. Gauge and Bar receive a **current telemetry snapshot** through `WidgetRenderContext`; [Graph](graph.md#historical-projection-and-geometry) consumes publication history through the same conversion contract.
+The shared numeric model provides `metric`, `unit`, `component`, `componentFormat`, `min`, `max`, `reverse`, and `thresholds`. `DashboardMetricUsage.Collect` requests the configured metric on demand; no renderer polls a provider. Gauge and Bar receive a **current telemetry snapshot** through `WidgetRenderContext`; [Graph](graph.md#historical-projection-and-geometry) consumes publication history through the same conversion contract.
 
 `MetricValueConverter.TryResolveQuantitative`, also used by `WidgetRenderContext.TryGetMetricDouble`, checks whether its descriptor identifies a numeric metric. For recognized numeric metrics, `MetricValueConverter` applies the requested `Unit`; unknown or non-DateTime nonnumeric descriptors can accept a finite numeric conversion only without a unit or Component. Missing, null, unconvertible, or non-finite readings are unavailable; no widget substitutes a last-good value for an unavailable observation.
 

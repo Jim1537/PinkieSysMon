@@ -188,6 +188,9 @@ internal abstract class NumericWidgetDefinition : WidgetDefinition
     [JsonPropertyName("max")]
     public double Max { get; set; } = 100d;
 
+    [JsonPropertyName("reverse")]
+    public bool Reverse { get; set; }
+
     [JsonPropertyName("thresholds")]
     public ThresholdSetDefinition Thresholds { get; set; } = new();
 
@@ -211,9 +214,6 @@ internal abstract class QuantitativeWidgetDefinition : NumericWidgetDefinition
 {
     [JsonPropertyName("gap")]
     public float Gap { get; set; }
-
-    [JsonPropertyName("reverse")]
-    public bool Reverse { get; set; }
 
     protected void ValidateQuantitative(bool validateThresholds)
     {

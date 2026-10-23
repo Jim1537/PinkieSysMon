@@ -34,17 +34,68 @@ internal static class GraphEditorTests
         Rows(graphRows, "Timeline")["GraphMode"]!.SetValue(null, "Columns");
         GraphWidgetTests.Check(line["StrokeWidth"]!.IsReadOnly && line["FillEnabled"]!.IsReadOnly && line["FillOpacity"]!.IsReadOnly,
             "Columns must disable Line-only settings.");
-        var image = Rows(graphRows, "Background Image");
+        GraphWidgetTests.Check(graphRows["Background Image"] is null, "Graph must not duplicate image controls in its plot tab.");
+        var source = Rows(general, "Background Image");
+        var image = Rows(View(EditorPropertySection.Image), "Background Image");
         GraphWidgetTests.Check(image["Fit"]!.IsReadOnly && image["Opacity"]!.IsReadOnly &&
-              image["Source"]!.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor,
+              source["Source"]!.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor,
             "Graph background must reuse the normal asset picker and absent-source applicability.");
         GraphWidgetTests.Check(View(EditorPropertySection.Gauge).Count == 0 &&
-              EditorForm.IsPropertyContextSwitch("GraphMode") && EditorForm.IsPropertyContextSwitch("GraphScaleMode"),
+              EditorForm.IsPropertyContextSwitch("GraphMode") && EditorForm.IsPropertyContextSwitch("GraphScaleMode") &&
+              EditorForm.IsPropertyContextSwitch("Source") && EditorForm.IsPropertyContextSwitch("SourceType"),
             "Graph needs its own tab and normal context refresh, without Bar/Gauge controls.");
+        Rows(graphRows, "Timeline")["Reverse"]!.SetValue(null, false);
+        GraphWidgetTests.Check(!graph.Reverse &&
+              ((IPropertySemanticKeyDescriptor)source["Source"]!).SemanticKey == "general.background_image.asset.source" &&
+              ((IPropertySemanticKeyDescriptor)image["Opacity"]!).SemanticKey == "image.background_image.opacity",
+            "Graph must use the shared image-layer property keys and expose Reverse in Timeline.");
         graph.Metric = SystemMetricContract.DateTime;
         var value = Rows(View(EditorPropertySection.Data), "Value");
         GraphWidgetTests.Check(value["Component"] is not null && value["ComponentFormat"] is not null,
             "DateTime Graph must reuse the numeric component and precision controls.");
+    }
+
+    public static void BackgroundImageSharedPropertyBindings()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pinkie-Graph-Image-Properties-" + Guid.NewGuid().ToString("N"));
+        var icons = Path.Combine(root, "assets", "icons", "test"); Directory.CreateDirectory(icons);
+        try
+        {
+            File.WriteAllText(Path.Combine(icons, "tintable.svg"),
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><path fill=\"currentColor\" d=\"M0 0H10V10H0Z\"/></svg>");
+            File.WriteAllBytes(Path.Combine(root, "background.png"), Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aJd8AAAAASUVORK5CYII="));
+            var graph = GraphWidgetTests.Graph();
+            PropertyDescriptorCollection Layer(EditorPropertySection section) => TypeDescriptor.GetProperties(
+                new EditorPropertyView(graph, root, root, section: section).GetProperties()["Background Image"]!.GetValue(null)!);
+            var source = Layer(EditorPropertySection.General); var image = Layer(EditorPropertySection.Image);
+            GraphWidgetTests.Check(source.Count == 2 && image.Count == 4 && image["Color"]!.IsReadOnly,
+                "Graph must split source/presentation through the shared image-layer groups.");
+            source["SourceType"]!.SetValue(null, "Icon"); source["Source"]!.SetValue(null, "test:tintable");
+            GraphWidgetTests.Check(!image["Opacity"]!.IsReadOnly && !image["Color"]!.IsReadOnly && image["Loop"]!.IsReadOnly,
+                "Selecting a static tintable icon must enable opacity/color and keep Loop disabled.");
+            image["Opacity"]!.SetValue(null, .4f); image["Color"]!.SetValue(null, "#80123456");
+            GraphWidgetTests.Check(graph.Image.Opacity == .4f && graph.Image.Color == "#80123456" && graph.Color != graph.Image.Color,
+                "Image edits must write the graph-local layer rather than the plot foreground or another layer.");
+            source["SourceType"]!.SetValue(null, "Image");
+            GraphWidgetTests.Check(graph.Image.Asset.Source is null && image["Opacity"]!.IsReadOnly && image["Color"]!.IsReadOnly,
+                "Switching image kind must clear the source and reapply shared applicability.");
+            source["Source"]!.SetValue(null, "background.png"); image["Opacity"]!.SetValue(null, .2f);
+            GraphWidgetTests.Check(!image["Fit"]!.IsReadOnly && graph.Image.Opacity == .2f && image["Color"]!.IsReadOnly,
+                "A file background must expose fit/opacity without offering unsupported tint.");
+            var canvas = new C.CanvasDefinition();
+            var canvasSource = TypeDescriptor.GetProperties(new EditorPropertyView(canvas, root, root,
+                section: EditorPropertySection.General).GetProperties()["Background Image"]!.GetValue(null)!);
+            var canvasImage = TypeDescriptor.GetProperties(new EditorPropertyView(canvas, root, root,
+                section: EditorPropertySection.Image).GetProperties()["Background Image"]!.GetValue(null)!);
+            foreach (PropertyDescriptor row in source)
+                GraphWidgetTests.Check(((IPropertySemanticKeyDescriptor)row).SemanticKey == ((IPropertySemanticKeyDescriptor)canvasSource[row.Name]!).SemanticKey,
+                    "Graph and Canvas source controls must share canonical image-layer semantics.");
+            foreach (PropertyDescriptor row in image)
+                GraphWidgetTests.Check(((IPropertySemanticKeyDescriptor)row).SemanticKey == ((IPropertySemanticKeyDescriptor)canvasImage[row.Name]!).SemanticKey,
+                    "Graph and Canvas presentation controls must share canonical image-layer semantics.");
+        }
+        finally { Directory.Delete(root, true); }
     }
 
     public static void ClipboardImageImportAndCanonicalUndoSnapshots()

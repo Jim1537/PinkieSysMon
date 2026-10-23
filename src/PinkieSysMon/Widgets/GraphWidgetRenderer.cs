@@ -80,6 +80,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public readonly Point[] Points;
         public readonly int[] Selected;
         public readonly QuantitativeColorScale Colors;
+        public readonly bool Reverse;
         public SKRect Bounds;
         public readonly SKRoundRect Clip = new();
         public readonly SKPaint Stroke;
@@ -96,7 +97,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         {
             Capacity = capacity;
             Raw = new MetricHistorySample[capacity]; Points = new Point[capacity]; Selected = new int[capacity];
-            Colors = new(graph);
+            Colors = new(graph); Reverse = graph.Reverse;
             UpdateGeometry(graph);
             Stroke = new() { IsAntialias = antialias, Style = SKPaintStyle.Stroke, StrokeWidth = graph.StrokeWidth, StrokeCap = SKStrokeCap.Round };
             Fill = new() { IsAntialias = antialias, Style = SKPaintStyle.Fill };
@@ -174,7 +175,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             }
         }
 
-        public float X(double x) => Bounds.Left + (float)x * Bounds.Width;
+        public float X(double x) => Bounds.Left + (float)(Reverse ? x : 1 - x) * Bounds.Width;
         public float Y(double value) => Bounds.Bottom - (float)Range.Normalize(value) * Bounds.Height;
         public void SetColor(double value, bool fill, float opacity = 1)
         {

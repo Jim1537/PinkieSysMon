@@ -20,11 +20,11 @@ internal static class GraphWidgetTests
         Check(parsed.Widgets.Single() is C.GraphWidgetDefinition, "Graph discriminator must round-trip.");
         Check(DashboardJson.Serialize(parsed, indented: false) == json, "Repeated parse/save must be idempotent.");
         var widget = JsonNode.Parse(json)!["widgets"]![0]!.AsObject();
-        Check(!widget.ContainsKey("gap") && !widget.ContainsKey("reverse") && !widget.ContainsKey("history") &&
-              !widget.ContainsKey("sampleIntervalMs"), "Graph must not persist Bar knobs, samples or an independent polling interval.");
+        Check(!widget.ContainsKey("gap") && widget["reverse"]!.GetValue<bool>() && !widget.ContainsKey("history") &&
+              !widget.ContainsKey("sampleIntervalMs"), "Graph must persist Reverse without Gap, samples or an independent polling interval.");
         var clone = (C.GraphWidgetDefinition)DashboardJson.CloneWidget(graph);
         Check(clone.Name == graph.Name && clone.Rotation == 17 && clone.ShadowEnabled && clone.Thresholds.Items.Count == 3 &&
-              clone.FillOpacity == .4f, "Canonical cloning must preserve common fields and Graph settings.");
+              clone.FillOpacity == .4f && clone.Reverse, "Canonical cloning must preserve common fields and Graph settings.");
         for (var version = 10; version < DashboardSchemaMigration.GraphSchemaVersion; version++)
         {
             var root = JsonNode.Parse(json)!.AsObject(); root["schemaVersion"] = version;
@@ -32,6 +32,24 @@ internal static class GraphWidgetTests
             Throws<InvalidDataException>(() => DashboardSchemaMigration.UpgradeToCurrent(root));
             Check(root.ToJsonString() == before, "Legacy Graph rejection must precede mutation, for every earlier schema.");
         }
+        var forward = JsonNode.Parse(json)!.AsObject(); forward["widgets"]![0]!["reverse"] = false;
+        var forwardParsed = C.DashboardDefinition.Parse(forward.ToJsonString(), Path.Combine(Path.GetTempPath(), "forward-graph.json"));
+        Check(!((C.GraphWidgetDefinition)forwardParsed.Widgets.Single()).Reverse &&
+              JsonNode.DeepEquals(forward, JsonNode.Parse(DashboardJson.Serialize(forwardParsed, indented: false))),
+            "Explicit false must preserve left-to-right direction across current-schema parse/save.");
+        Check(!new C.GraphWidgetDefinition().Reverse && !new C.BarWidgetDefinition().Reverse && !new C.GaugeWidgetDefinition().Reverse,
+            "New numeric widgets must default Reverse to false.");
+        var schema23 = JsonNode.Parse(json)!.AsObject(); schema23["schemaVersion"] = 23;
+        schema23["widgets"]![0]!.AsObject().Remove("reverse");
+        var migrated = C.DashboardDefinition.Parse(schema23.ToJsonString(), Path.Combine(Path.GetTempPath(), "old-graph.json"));
+        Check(((C.GraphWidgetDefinition)migrated.Widgets.Single()).Reverse && migrated.SchemaVersion == 24,
+            "Schema-23 Graph migration must retain its original right-to-left direction.");
+        var migratedJson = DashboardJson.Serialize(migrated, indented: false);
+        Check(migratedJson == json, "Migration must preserve every existing Graph field and rendered direction.");
+        Check(migratedJson == DashboardJson.Serialize(C.DashboardDefinition.Parse(migratedJson, Path.Combine(Path.GetTempPath(), "old-graph.json")), indented: false),
+            "Graph direction migration must be idempotent across parse/save.");
+        schema23["widgets"]![0]!["reverse"] = false;
+        Throws<InvalidDataException>(() => DashboardSchemaMigration.UpgradeToCurrent(schema23));
         definition.Widgets = [new C.BarWidgetDefinition { Id = "bar", Metric = SystemMetricContract.Uptime, Width = 50, Height = 10 }];
         var current = DashboardJson.Serialize(definition, indented: false);
         var old = JsonNode.Parse(current)!.AsObject(); old["schemaVersion"] = 22;
@@ -225,10 +243,74 @@ internal static class GraphWidgetTests
         Check(preview.RecommendedRefreshIntervalMs == 50, "A Graph must preserve the faster existing scrolling-text cadence.");
     }
 
+    public static void ReverseTimeDirectionAndBackgroundEdits()
+    {
+        foreach (var mode in new[] { "Line", "Columns" })
+        foreach (var scale in new[] { "Auto", "Fixed" })
+        foreach (var threshold in C.ThresholdModeContract.SupportedModes)
+        foreach (var reverse in new[] { false, true })
+        {
+            var graph = Graph(); graph.Mode = mode; graph.ScaleMode = scale; graph.Reverse = reverse;
+            graph.FillEnabled = true; SetThresholds(graph); graph.Thresholds.Mode = threshold;
+            using var f = new Fixture(graph); f.Publish(2, 20); f.Publish(8, 80); f.Now = T(10);
+            using var bitmap = f.Render();
+            // Sample inside a value band: an Auto maximum at a threshold has zero visible band height.
+            var y = scale == "Auto" ? 25 : 35;
+            var timeX = mode == "Line" ? 65 : 80;
+            var newerX = reverse ? timeX : 100 - timeX; var olderX = 100 - newerX;
+            var colors = new QuantitativeColorScale(graph);
+            var expected = threshold == C.ThresholdModeContract.State ? SKColors.Red : colors.At(65, scale == "Auto" ? 20 : 0);
+            Check(NearPixel(bitmap, newerX, y, expected) && bitmap.GetPixel(olderX, y).Alpha == 0,
+                $"Reverse must move the newer observation and its historical color to the correct side: {mode}/{scale}/{threshold}/{reverse}.");
+        }
+        foreach (var reverse in new[] { false, true })
+        {
+            var graph = Graph(); graph.Reverse = reverse; graph.ScaleMode = "Auto";
+            using var f = new Fixture(graph); f.Publish(1, 100); f.Publish(3, 20); f.Publish(4, 30); f.Now = T(12);
+            using var bitmap = f.Render();
+            Check(NearPixel(bitmap, reverse ? 20 : 80, 1, SKColors.White),
+                "The predecessor must clip at the older-time edge in either direction without setting Auto extrema.");
+        }
+        var imageGraph = Graph(); using var fixture = new Fixture(imageGraph);
+        var iconRoot = Path.Combine(fixture.Root, "assets", "icons", "test"); Directory.CreateDirectory(iconRoot);
+        File.WriteAllText(Path.Combine(iconRoot, "solid.svg"),
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><path fill=\"currentColor\" d=\"M0 0H10V10H0Z\"/></svg>");
+        using (var source = new SKBitmap(2, 1))
+        {
+            source.SetPixel(0, 0, SKColors.Blue); source.SetPixel(1, 0, SKColors.Red);
+            using var data = source.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(Path.Combine(fixture.Root, "background.png"), data.ToArray());
+        }
+        var board = Board(imageGraph); board.BaseDirectory = fixture.Root; board.Canvas.BackgroundColor = "#00000000";
+        SKColor RenderPixel(int x = 50)
+        {
+            using var preview = new DashboardPreviewRenderer(board);
+            using var bitmap = SKBitmap.Decode(preview.RenderToPng(new Dictionary<string, object?>()));
+            return bitmap.GetPixel(x, 50);
+        }
+        imageGraph.Image.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon); imageGraph.Image.Asset.Source = "test:solid";
+        imageGraph.Image.Color = "#80FF0000"; imageGraph.Image.Opacity = .5f;
+        var red = RenderPixel();
+        Check(red.Red > 245 && red.Green < 5 && Math.Abs(red.Alpha - 64) <= 1, "Graph SVG tint must combine color alpha and opacity once.");
+        imageGraph.Image.Color = "#FF00FF00"; imageGraph.Image.Opacity = .25f;
+        var green = RenderPixel();
+        Check(green.Green > 245 && green.Red < 5 && Math.Abs(green.Alpha - 64) <= 1, "Rebuilt Graph preview must apply edited icon tint and opacity.");
+        imageGraph.Image.Asset.ChangeSourceType(C.ImageAssetSourceType.File); imageGraph.Image.Asset.Source = "background.png";
+        foreach (var reverse in new[] { false, true })
+        {
+            imageGraph.Reverse = reverse; imageGraph.Image.Opacity = .75f;
+            var left = RenderPixel(10); var right = RenderPixel(90);
+            Check(left.Blue > 245 && right.Red > 245 && Math.Abs(left.Alpha - 191) <= 1,
+                "Reverse must not mirror the background, and file opacity must remain independent of icon tint.");
+            imageGraph.Image.Opacity = .25f;
+            Check(Math.Abs(RenderPixel(10).Alpha - 64) <= 1, "Rebuilt Graph preview must apply edited file opacity.");
+        }
+    }
+
     internal static C.GraphWidgetDefinition Graph() => new()
     {
         Id = "graph", Metric = SystemMetricContract.IntegratedGpuLoad,
-        Width = 100, Height = 100, WindowSeconds = 10, ScaleMode = "Fixed", StrokeWidth = 3
+        Width = 100, Height = 100, WindowSeconds = 10, ScaleMode = "Fixed", StrokeWidth = 3, Reverse = true
     };
     internal static C.DashboardDefinition Board(C.WidgetDefinition graph) => new()
     { BaseDirectory = Path.GetTempPath(), Canvas = new() { Width = 100, Height = 100 }, Widgets = [graph] };

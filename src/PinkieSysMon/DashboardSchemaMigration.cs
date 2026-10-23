@@ -18,7 +18,8 @@ internal static class DashboardSchemaMigration
     public const int BinaryDateTimeComponentSchemaVersion = 21;
     public const int DateTimeComponentPrecisionSchemaVersion = 22;
     public const int GraphSchemaVersion = 23;
-    public const int CurrentSchemaVersion = GraphSchemaVersion;
+    public const int GraphReverseSchemaVersion = 24;
+    public const int CurrentSchemaVersion = GraphReverseSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -35,7 +36,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -68,6 +69,22 @@ internal static class DashboardSchemaMigration
             // Graph-free documents keep all content; no history is created or persisted.
             root["schemaVersion"] = GraphSchemaVersion;
             schemaVersion = GraphSchemaVersion;
+        }
+
+        if (schemaVersion == GraphSchemaVersion)
+        {
+            if (root["widgets"] is JsonArray graphWidgets)
+            {
+                var graphs = graphWidgets.OfType<JsonObject>().Where(widget =>
+                    widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
+                    string.Equals(type, global::PinkieSysMon.WidgetTypeContract.Graph, StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (graphs.Any(graph => graph.ContainsKey("reverse")))
+                    throw new InvalidDataException("Schema-23 Graph widgets cannot contain a reverse field.");
+                // Preserve the original right-to-left history direction; new Graphs default to false.
+                foreach (var graph in graphs) graph["reverse"] = true;
+            }
+            root["schemaVersion"] = GraphReverseSchemaVersion;
+            schemaVersion = GraphReverseSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

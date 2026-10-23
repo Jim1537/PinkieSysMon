@@ -193,7 +193,7 @@ internal static class CanonicalPropertyViewBuilder
             EditorPropertySection.Appearance => BuildAppearance(widget, applicationRoot),
             EditorPropertySection.Data => BuildData(widget, mediaEndpoints, endpointTypeOverrides),
             EditorPropertySection.Gauge => BuildGauge(widget, dashboardDirectory),
-            EditorPropertySection.Graph => BuildGraph(widget, applicationRoot, dashboardDirectory),
+            EditorPropertySection.Graph => BuildGraph(widget),
             EditorPropertySection.States => BuildStates(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Image => BuildImage(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Text => BuildText(widget, applicationRoot),
@@ -291,6 +291,8 @@ internal static class CanonicalPropertyViewBuilder
         }
         if (source.Count > 0)
             result.Add(Group("Source", source));
+        if (widget is C.GraphWidgetDefinition graphBackground)
+            result.Add(Group("Background Image", BuildImageLayer("background_image", graphBackground.Image, applicationRoot, dashboardDirectory, sourceOnly: true)));
 
         var geometry = new List<PropertyDescriptor>
         {
@@ -647,26 +649,24 @@ internal static class CanonicalPropertyViewBuilder
         return result;
     }
 
-    private static List<PropertyDescriptor> BuildGraph(C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory)
+    private static List<PropertyDescriptor> BuildGraph(C.WidgetDefinition widget)
     {
         if (widget is not C.GraphWidgetDefinition graph) return [];
         Func<string?> lineDisabled = () => graph.Mode == "Line" ? null : NotApplicable("Mode");
-        var imageRows = BuildCanvasLayer("graph", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: true, semanticPrefix: "graph.image");
-        imageRows.AddRange(BuildCanvasLayer("graph", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: false, semanticPrefix: "graph.image"));
         return [
             Group("Timeline", [
                 Double(graph, nameof(C.GraphWidgetDefinition.WindowSeconds), "graph.window_seconds", "History Window (seconds)", () => graph.WindowSeconds,
                     v => graph.WindowSeconds = Math.Clamp(v, 1, MetricHistoryStore.MaximumWindowSeconds)),
                 String(graph, "GraphMode", "graph.mode", "Mode", () => graph.Mode, v => graph.Mode = Convert.ToString(v) ?? "Line",
-                    converter: new FixedStringConverter(["Line", "Columns"]))
+                    converter: new FixedStringConverter(["Line", "Columns"])),
+                Bool(graph, nameof(C.NumericWidgetDefinition.Reverse), "graph.reverse", "Reverse", () => graph.Reverse, v => graph.Reverse = v)
             ]),
             Group("Line", [
                 Float(graph, nameof(C.GraphWidgetDefinition.StrokeWidth), "graph.stroke_width", "Stroke Width", () => graph.StrokeWidth, v => graph.StrokeWidth = Math.Max(.1f, v), lineDisabled),
                 Bool(graph, nameof(C.GraphWidgetDefinition.FillEnabled), "graph.fill_enabled", "Fill Enabled", () => graph.FillEnabled, v => graph.FillEnabled = v, lineDisabled),
                 Float(graph, nameof(C.GraphWidgetDefinition.FillOpacity), "graph.fill_opacity", "Fill Opacity", () => graph.FillOpacity, v => graph.FillOpacity = Math.Clamp(v, 0, 1),
                     () => lineDisabled() ?? (graph.FillEnabled ? null : NotApplicable("Fill Enabled")))
-            ]),
-            Group("Background Image", imageRows)
+            ])
         ];
     }
 
@@ -733,6 +733,8 @@ internal static class CanonicalPropertyViewBuilder
     private static List<PropertyDescriptor> BuildImage(C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory)
     {
         var result = new List<PropertyDescriptor>();
+        if (widget is C.GraphWidgetDefinition graph)
+            return [Group("Background Image", BuildImageLayer("background_image", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: false))];
         if (widget is C.ImageWidgetDefinition image)
         {
             var loopDisabled = () =>
@@ -853,8 +855,8 @@ internal static class CanonicalPropertyViewBuilder
         if (section == EditorPropertySection.General)
         {
             return [
-                Group("Background Image", BuildCanvasLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
-                Group("Foreground Image", BuildCanvasLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
+                Group("Background Image", BuildImageLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
+                Group("Foreground Image", BuildImageLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
                 Group("Geometry", [
                     Int(canvas, nameof(C.CanvasDefinition.Width), "general.geometry.width", "Width", () => canvas.Width, v => canvas.Width = Math.Max(1, v)),
                     Int(canvas, nameof(C.CanvasDefinition.Height), "general.geometry.height", "Height", () => canvas.Height, v => canvas.Height = Math.Max(1, v)),
@@ -867,8 +869,8 @@ internal static class CanonicalPropertyViewBuilder
         if (section == EditorPropertySection.Image)
         {
             return [
-                Group("Background Image", BuildCanvasLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: false)),
-                Group("Foreground Image", BuildCanvasLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: false))
+                Group("Background Image", BuildImageLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: false)),
+                Group("Foreground Image", BuildImageLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: false))
             ];
         }
         if (section == EditorPropertySection.All)
@@ -881,12 +883,12 @@ internal static class CanonicalPropertyViewBuilder
         return [];
     }
 
-    private static List<PropertyDescriptor> BuildCanvasLayer(
+    private static List<PropertyDescriptor> BuildImageLayer(
         string role,
         C.CanvasImageLayerDefinition layer,
         string? applicationRoot,
         string? dashboardDirectory,
-        bool sourceOnly, string? semanticPrefix = null)
+        bool sourceOnly)
     {
         var editor = !string.IsNullOrWhiteSpace(applicationRoot) && !string.IsNullOrWhiteSpace(dashboardDirectory)
             ? new ImageAssetSourceEditor(layer.Asset, applicationRoot!, dashboardDirectory!) : null;
@@ -895,8 +897,8 @@ internal static class CanonicalPropertyViewBuilder
         {
             return ImageAssetSourceProperties(
                 layer.Asset,
-                $"{semanticPrefix ?? $"general.{role}"}.asset.kind",
-                $"{semanticPrefix ?? $"general.{role}"}.asset.source",
+                $"general.{role}.asset.kind",
+                $"general.{role}.asset.source",
                 editor);
         }
 
@@ -924,7 +926,7 @@ internal static class CanonicalPropertyViewBuilder
                 : NotApplicable("Source");
         }
 
-        var prefix = semanticPrefix ?? $"image.{role}";
+        var prefix = $"image.{role}";
         return [
             String(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Fit), $"{prefix}.asset.fit", "Fit", () => layer.Asset.Fit, v => layer.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter, disabled: () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
             Float(layer, nameof(C.CanvasImageLayerDefinition.Opacity), $"{prefix}.opacity", "Opacity", () => layer.Opacity, v => layer.Opacity = Math.Clamp(v, 0f, 1f), () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
