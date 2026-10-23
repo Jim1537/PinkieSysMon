@@ -224,11 +224,25 @@ internal static class GraphWidgetTests
         using (var bitmap = new SKBitmap(100, 100))
         using (var canvas = new SKCanvas(bitmap))
         {
-            for (var i = 0; i < 100; i++) f.Draw(canvas);
-            var before = GC.GetAllocatedBytesForCurrentThread();
-            for (var i = 0; i < 1000; i++) f.Draw(canvas);
-            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Check(allocated <= 4096, $"A warmed fixed numeric Line must avoid per-sample/frame allocation; observed {allocated} bytes / 1000 frames.");
+            // A short call-count warmup can leave lazy runtime/interop initialization in
+            // the measured window. Require two allocation-free batches before measuring;
+            // bound warmup so recurring allocations fail rather than being retried away.
+            var allocationFreeBatches = 0;
+            var warmupAllocated = 0L;
+            for (var batch = 0; batch < 10 && allocationFreeBatches < 2; batch++)
+            {
+                warmupAllocated = MeasureDrawAllocations(f, canvas);
+                allocationFreeBatches = warmupAllocated == 0 ? allocationFreeBatches + 1 : 0;
+            }
+            Check(allocationFreeBatches == 2,
+                $"Fixed numeric Line allocation did not stabilize within 10000 warmup frames; last batch {warmupAllocated} bytes / 1000 frames.");
+            // Every measured batch must pass; do not choose the best result or raise the budget.
+            for (var batch = 0; batch < 3; batch++)
+            {
+                var allocated = MeasureDrawAllocations(f, canvas);
+                Check(allocated <= 4096,
+                    $"A warmed fixed numeric Line must avoid per-sample/frame allocation; batch {batch + 1}: {allocated} bytes / 1000 frames.");
+            }
         }
         var definition = Board(graph); definition.BaseDirectory = f.Root; definition.Canvas.BackgroundColor = "#00000000";
         using var runtime = new DashboardRenderer(definition, history: f.History);
@@ -241,6 +255,13 @@ internal static class GraphWidgetTests
         definition.Widgets.Add(new C.ValueWidgetDefinition { Id = "scrolling-caption", Width = 100,
             TextPresentation = new() { OverflowMode = ValueOverflowContract.Scroll } });
         Check(preview.RecommendedRefreshIntervalMs == 50, "A Graph must preserve the faster existing scrolling-text cadence.");
+    }
+
+    private static long MeasureDrawAllocations(Fixture fixture, SKCanvas canvas)
+    {
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1000; i++) fixture.Draw(canvas);
+        return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 
     public static void ReverseTimeDirectionAndBackgroundEdits()
