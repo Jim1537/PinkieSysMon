@@ -39,7 +39,9 @@ internal static class GraphEditorTests
             ((IPropertySemanticKeyDescriptor)filter).SemanticKey == "graph.filter" &&
             ((IPropertySemanticKeyDescriptor)line["Interpolation"]!).SemanticKey == "graph.interpolation",
             "Filtering applies to both plot modes; interpolation is Line-only with canonical keys.");
-        filter.SetValue(null, "Median"); line["Interpolation"]!.SetValue(null, "Bezier");
+        filter.SetValue(null, "Median");
+        Rows(graphRows, "Timeline")["GraphMode"]!.SetValue(null, "Line");
+        line["Interpolation"]!.SetValue(null, "Bezier");
         GraphWidgetTests.Check(graph.Filter == "Median" && graph.Interpolation == "Bezier" &&
             filter.Converter.GetStandardValues()!.Cast<string>().SequenceEqual(new[] { "None", "Median", "Mean", "Kalman" }) &&
             line["Interpolation"]!.Converter.GetStandardValues()!.Cast<string>().SequenceEqual(new[] { "Linear", "Bezier" }),
