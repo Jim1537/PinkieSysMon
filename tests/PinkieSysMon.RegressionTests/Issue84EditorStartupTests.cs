@@ -106,7 +106,7 @@ internal static class Issue84EditorStartupTests
             "copy", "clipboard-paste", "copy-plus", "undo-2", "redo-2",
             "group", "ungroup", "zoom-in", "zoom-out", "focus",
             "move-vertical", "grid-3x3", "monitor",
-            "settings-2", "palette", "database", "gauge",
+            "settings-2", "palette", "database", "gauge", "chart-no-axes-combined",
             "list-tree", "image", "type"
         })
         {
