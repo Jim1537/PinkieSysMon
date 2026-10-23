@@ -19,6 +19,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (ShortcutNativeDiagnostic.TryRun(args, Console.WriteLine) is { } shortcutNativeExit)
+            return shortcutNativeExit;
         if (TurzxRuntimeDiagnostic.TryRun(args, Console.WriteLine) is { } runtimeCheckExit)
             return runtimeCheckExit;
         if (TurzxTransportDiagnostic.TryRun(args, Console.WriteLine) is { } transportExit)
@@ -27,6 +29,11 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue101 prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
+            ("Issue101 prototype separated union and overlap order", ShortcutInputPrototypeTests.UnionAndOverlap),
+            ("Issue101 prototype click modes and cancellation", ShortcutInputPrototypeTests.ClickModesAndCancellation),
+            ("Issue101 prototype timing distance and generation", ShortcutInputPrototypeTests.TimeDistanceAndIdentity),
+            ("Issue101 native experiment explicit admission", ShortcutInputPrototypeTests.DiagnosticAdmission),
             ("Issue95 live Test WorkerCompletionAndVirtualBoard", Issue95LiveTestTests.WorkerCompletionAndVirtualBoard),
             ("Issue95 live Test StrictWorkerFailureAndCleanup", Issue95LiveTestTests.StrictWorkerFailureAndCleanup),
             ("Issue95 live Test CancellationWaitsForNativeRelease", Issue95LiveTestTests.CancellationWaitsForNativeRelease),
