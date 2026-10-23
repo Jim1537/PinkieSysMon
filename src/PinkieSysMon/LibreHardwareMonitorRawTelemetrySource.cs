@@ -380,6 +380,11 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
         return result;
     }
 
+    public IReadOnlyList<LibreHardwareMonitorMetricEntry> MetricEntries
+    {
+        get { lock (_sync) return _catalog.Values.ToArray(); }
+    }
+
     public bool RefreshCatalog() => EnsureCatalog(force: true);
 
     private bool EnsureCatalog(bool force = false)

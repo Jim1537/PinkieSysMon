@@ -32,7 +32,7 @@ internal sealed class DashboardRenderer : IDisposable
     private int _owners = 1;
 
 
-    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null)
+    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null)
     {
         _definition = definition;
         _frameClockNow = frameClockNow;
@@ -69,7 +69,7 @@ internal sealed class DashboardRenderer : IDisposable
             renderContext = new WidgetRenderContext(
                 new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
                 RenderQuality.Antialias,
-                typefaceCache);
+                typefaceCache, history);
 
             logicalSurface = SKSurface.Create(new SKImageInfo(logical.Width, logical.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
                 ?? throw new InvalidOperationException("Failed to create logical Skia surface.");

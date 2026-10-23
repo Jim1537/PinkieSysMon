@@ -12,6 +12,7 @@ internal enum EditorPropertySection
     Appearance,
     Data,
     Gauge,
+    Graph,
     States,
     Image,
     Text

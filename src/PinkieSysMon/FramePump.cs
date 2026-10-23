@@ -94,7 +94,7 @@ internal sealed class FramePump : IOutputSession
         _transportFactory = transportFactory ??
             (static (selectedTarget, timeoutMs, journalEnabled, logger, ioToken) =>
                 PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
-        _renderer = new DashboardRenderer(dashboard, _frameClockNow);
+        _renderer = new DashboardRenderer(dashboard, _frameClockNow, _metrics.History);
     }
 
     public string TargetId => _targetId;
@@ -141,7 +141,7 @@ internal sealed class FramePump : IOutputSession
             dashboard.Canvas.Width,
             dashboard.Canvas.Height,
             dashboard.Canvas.Orientation,
-            new DashboardRenderer(dashboard, _frameClockNow));
+            new DashboardRenderer(dashboard, _frameClockNow, _metrics.History));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(

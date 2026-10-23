@@ -6,6 +6,21 @@ namespace PinkieSysMon.Editor;
 
 internal sealed partial class EditorForm
 {
+    private CanonicalWidgetDefinition? _mediaEndpointRefreshWidget;
+    private async void RefreshPreviewMediaEndpoints(CanonicalWidgetDefinition widget)
+    {
+        if (ReferenceEquals(widget, _mediaEndpointRefreshWidget) || _previewShutdownStarted) return;
+        _mediaEndpointRefreshWidget = widget;
+        try
+        {
+            await _previewTelemetry.RefreshMediaEndpointsAsync();
+            if (!_previewShutdownStarted && !IsDisposed && !Disposing && ReferenceEquals(_selectedWidget, widget))
+                RefreshWidgetPropertySelectionDeferred();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) { _log.Warn("Editor media endpoint discovery failed.", error); }
+    }
+
     private void PopulateTree()
     {
         if (_definition is null)
@@ -116,11 +131,12 @@ internal sealed partial class EditorForm
         if (target is CanonicalWidgetDefinition widget &&
             WidgetTypeContract.Is(widget.Type, WidgetTypeContract.MediaSystem))
         {
+            RefreshPreviewMediaEndpoints(widget);
             return new EditorPropertyView(
                 target,
                 _root,
                 dashboardDirectory,
-                _mediaTelemetry.GetActiveEndpoints(),
+                _previewTelemetry.Catalog.Endpoints,
                 _appConfig.Media.EndpointTypeOverrides,
                 candidate => ResolveEffectiveWidgetSize((CanonicalWidgetDefinition)candidate),
                 section,

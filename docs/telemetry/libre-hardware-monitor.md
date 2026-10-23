@@ -416,7 +416,7 @@ instance for preview telemetry.
 
 The separate LHM source follows the shared [Editor snapshot/render-timer boundary](../development/architecture.md#editor-versus-runtime-state). With `lhm` enabled, preview requests only LHM metrics required by the current dashboard.
 
-When the Metric selector is opened, Editor performs a fresh discovery using `LibreHardwareMonitorHttpClient` and `data.json`.
+When the Metric selector is opened, Editor queues `RefreshCatalog` on that same preview source under the [shared capture/discovery ownership](../development/architecture.md#editor-versus-runtime-state). It reads `data.json` through the source's existing HTTP client; the picker does not create a second source or perform HTTP work on the UI thread.
 
 The resulting catalog is used to:
 

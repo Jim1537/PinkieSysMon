@@ -36,11 +36,10 @@
   <ItemGroup>
     <Compile Remove="Widgets\GridWidgetRenderer.cs" />
     <Compile Remove="Widgets\RectWidgetRenderer.cs" />
-    <Compile Remove="Widgets\GraphWidgetRenderer.cs" />
   </ItemGroup>
 
   <Target Name="RemoveObsoleteWidgetRendererSources" BeforeTargets="BeforeBuild">
-    <Delete Files="$(MSBuildProjectDirectory)\Widgets\GridWidgetRenderer.cs;$(MSBuildProjectDirectory)\Widgets\RectWidgetRenderer.cs;$(MSBuildProjectDirectory)\Widgets\GraphWidgetRenderer.cs" />
+    <Delete Files="$(MSBuildProjectDirectory)\Widgets\GridWidgetRenderer.cs;$(MSBuildProjectDirectory)\Widgets\RectWidgetRenderer.cs" />
   </Target>
 
 </Project>

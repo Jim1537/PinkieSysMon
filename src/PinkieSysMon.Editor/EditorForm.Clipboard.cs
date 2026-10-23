@@ -279,6 +279,10 @@ internal sealed partial class EditorForm
                     sources.Add(new ImageSourceSlot(bar.Image.Source!,
                         value => bar.Image.Source = value));
                     break;
+                case C.GraphWidgetDefinition graph when C.ImageAssetSourceType.IsFile(graph.Image.Asset.SourceType) &&
+                    !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
+                    sources.Add(new ImageSourceSlot(graph.Image.Asset.Source!, value => graph.Image.Asset.Source = value));
+                    break;
                 case C.StateVisualWidgetDefinition stateWidget:
                     foreach (var profile in stateWidget.Profiles.Values)
                     {

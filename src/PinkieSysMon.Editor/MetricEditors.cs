@@ -8,17 +8,26 @@ internal static class MetricSelectorEnvironment
     private static string? _applicationRoot;
     private static FileLogger? _log;
     private static Func<AppConfig>? _configAccessor;
+    private static EditorPreviewTelemetry? _previewOwner;
     private static readonly object CacheSync = new();
     private static readonly Dictionary<string, LibreHardwareMonitorMetricEntry> LastKnownLhmEntries =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, IcueSensorLogMetricEntry> LastKnownIcueEntries =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public static void Configure(string applicationRoot, FileLogger log, Func<AppConfig> configAccessor)
+    public static void Configure(string applicationRoot, FileLogger log, Func<AppConfig> configAccessor, EditorPreviewTelemetry? previewOwner = null)
     {
         _applicationRoot = applicationRoot ?? throw new ArgumentNullException(nameof(applicationRoot));
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _configAccessor = configAccessor ?? throw new ArgumentNullException(nameof(configAccessor));
+        _previewOwner = previewOwner;
+    }
+
+    public static async Task<MetricSelectorCatalogSnapshot> BuildSnapshotAsync(string? currentMetric)
+    {
+        if (_previewOwner is { } owner) await owner.RefreshCatalogAsync();
+        else return await Task.Run(() => BuildSnapshot(currentMetric));
+        return BuildSnapshot(currentMetric);
     }
 
     public static MetricSelectorCatalogSnapshot BuildSnapshot(string? currentMetric)
@@ -49,7 +58,16 @@ internal static class MetricSelectorEnvironment
         metrics.AddRange(outputPicker.Metrics);
 
         var lhmDiscoverySucceeded = false;
-        if (lhmEnabled)
+        if (lhmEnabled && _previewOwner is not null)
+        {
+            lhmDiscoverySucceeded = _previewOwner.Catalog.LhmAvailable;
+            foreach (var entry in _previewOwner.Catalog.Lhm)
+            {
+                metrics.Add(CreateLhmMetric(entry, available: lhmDiscoverySucceeded));
+                lock (CacheSync) LastKnownLhmEntries[entry.MetricId] = entry;
+            }
+        }
+        else if (lhmEnabled)
         {
             try
             {
@@ -86,7 +104,16 @@ internal static class MetricSelectorEnvironment
         }
 
         var icueDiscoverySucceeded = false;
-        if (icueEnabled)
+        if (icueEnabled && _previewOwner is not null)
+        {
+            icueDiscoverySucceeded = _previewOwner.Catalog.IcueAvailable;
+            foreach (var entry in _previewOwner.Catalog.Icue)
+            {
+                metrics.Add(CreateIcueMetric(entry, available: icueDiscoverySucceeded));
+                lock (CacheSync) LastKnownIcueEntries[entry.MetricId] = entry;
+            }
+        }
+        else if (icueEnabled)
         {
             try
             {
@@ -293,8 +320,8 @@ internal sealed class MetricNameEditor : UITypeEditor
     public override object? EditValue(ITypeDescriptorContext? context, IServiceProvider provider, object? value)
     {
         var currentMetric = Convert.ToString(value);
-        var snapshot = MetricSelectorEnvironment.BuildSnapshot(currentMetric);
-        using var picker = new MetricPickerDialog(snapshot, currentMetric);
+        using var picker = new MetricPickerDialog(new MetricSelectorCatalogSnapshot([], null, "Loading metrics..."), currentMetric,
+            () => MetricSelectorEnvironment.BuildSnapshotAsync(currentMetric));
         var owner = Form.ActiveForm;
         var result = owner is null ? picker.ShowDialog() : picker.ShowDialog(owner);
         return result == DialogResult.OK
@@ -334,7 +361,7 @@ internal sealed class MetricPickerDialog : PinkieEditorForm
 
     private TreeNode? _currentNode;
 
-    public MetricPickerDialog(MetricSelectorCatalogSnapshot snapshot, string? currentMetric)
+    public MetricPickerDialog(MetricSelectorCatalogSnapshot snapshot, string? currentMetric, Func<Task<MetricSelectorCatalogSnapshot>>? loadSnapshot = null)
     {
         Text = "Select Metric";
         StartPosition = FormStartPosition.CenterParent;
@@ -392,6 +419,28 @@ internal sealed class MetricPickerDialog : PinkieEditorForm
             e.Handled = true;
             e.SuppressKeyPress = true;
         };
+
+        if (loadSnapshot is not null)
+            Shown += async (_, _) =>
+            {
+                try
+                {
+                    var loaded = await loadSnapshot();
+                    if (IsDisposed || Disposing) return;
+                    _tree.Nodes.Clear(); _currentNode = null;
+                    PopulateTree(loaded, currentMetric);
+                    _status.Text = loaded.StatusText ?? string.Empty;
+                    if (_currentNode is not null)
+                    {
+                        ExpandAncestors(_currentNode); _tree.SelectedNode = _currentNode; _currentNode.EnsureVisible();
+                    }
+                    UpdateSelectionState();
+                }
+                catch (Exception error)
+                {
+                    if (!IsDisposed && !Disposing) _status.Text = $"Metric discovery unavailable: {error.Message}";
+                }
+            };
 
         Shown += (_, _) =>
         {

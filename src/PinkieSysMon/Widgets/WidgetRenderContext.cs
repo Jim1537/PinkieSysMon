@@ -25,13 +25,17 @@ internal sealed class WidgetRenderContext : IDisposable
     public WidgetRenderContext(
         IReadOnlyDictionary<string, object?> metrics,
         bool antialias,
-        TypefaceCache typefaces)
+        TypefaceCache typefaces, MetricHistoryStore? history = null)
     {
+        History = history;
         _metrics = metrics;
         Antialias = antialias;
         _typefaces = typefaces;
     }
 
+    public MetricHistoryStore? History { get; }
+    public long HistoryTimestamp { get; private set; }
+    public long FrameSequence { get; private set; }
     public IReadOnlyDictionary<string, object?> Metrics => _metrics;
     public bool Antialias { get; }
 
@@ -55,6 +59,8 @@ internal sealed class WidgetRenderContext : IDisposable
     // or fabricated when that source has not provided a usable reading.
     public void BeginFrame(IReadOnlyDictionary<string, object?> metrics, Func<DateTime>? clockNow = null)
     {
+        FrameSequence++;
+        HistoryTimestamp = History?.GetTimestamp() ?? 0;
         UpdateMetrics(metrics);
         SetFrameClock(metrics.TryGetValue(SystemMetricContract.DateTime, out var raw) &&
                       raw is DateTime or DateTimeOffset
@@ -707,7 +713,7 @@ internal sealed class WidgetRenderContext : IDisposable
     public bool TryGetMetricDouble(CanonicalDashboard.BinaryWidgetDefinition widget, out double value) =>
         TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, widget.ComponentFormat, out value);
 
-    public bool TryGetMetricDouble(CanonicalDashboard.QuantitativeWidgetDefinition widget, out double value) =>
+    public bool TryGetMetricDouble(CanonicalDashboard.NumericWidgetDefinition widget, out double value) =>
         TryGetMetricDouble(widget.Metric, widget.Unit, widget.Component, widget.ComponentFormat, out value);
 
     public bool TryGetMetricDouble(string? metric, string? unit, out double value) =>
@@ -737,35 +743,9 @@ internal sealed class WidgetRenderContext : IDisposable
         if (Metrics.TryGetValue(metric, out var raw) && raw is not null)
         {
             raw = ResolveFrameReading(metric, raw);
-            var descriptor = MetricContract.GetDescriptor(metric);
-            if (descriptor?.ValueKind == MetricValueKind.DateTime)
-            {
-                if (normalizedUnit is null && DateTimeComponentContract.TryProject(raw, component, componentFormat, out var candidate))
-                    converted = candidate;
-            }
-            else if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
-            {
-                if (MetricValueConverter.TryConvertNumeric(raw, descriptor, normalizedUnit, out var candidate))
-                    converted = candidate;
-            }
-            else if (normalizedUnit is null && component is null)
-            {
-                try
-                {
-                    var candidate = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
-                    if (double.IsFinite(candidate))
-                        converted = candidate;
-                }
-                catch (FormatException)
-                {
-                }
-                catch (InvalidCastException)
-                {
-                }
-                catch (OverflowException)
-                {
-                }
-            }
+            if (MetricValueConverter.TryResolveQuantitative(raw, MetricContract.GetDescriptor(metric),
+                    normalizedUnit, component, componentFormat, out var candidate))
+                converted = candidate;
         }
 
         cache[key] = converted;

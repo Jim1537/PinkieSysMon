@@ -9,6 +9,51 @@ namespace PinkieSysMon;
 /// </summary>
 internal static class MetricValueConverter
 {
+    public static bool TryResolveQuantitative(MetricHistorySample sample, MetricDescriptor? descriptor, string? unit,
+        string? component, string? componentFormat, out double value)
+    {
+        if (sample.Kind != MetricHistoryValueKind.Number)
+            return TryResolveQuantitative(sample.ToReading(), descriptor, unit, component, componentFormat, out value);
+        value = default;
+        if (descriptor?.ValueKind == MetricValueKind.DateTime) return false;
+        if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
+        {
+            try
+            {
+                value = ConvertNumericValue(sample.Number, descriptor, unit);
+                return double.IsFinite(value);
+            }
+            catch (Exception error) when (error is FormatException or InvalidOperationException or OverflowException)
+            { return false; }
+        }
+        if (Normalize(unit) is not null || component is not null) return false;
+        value = sample.Number;
+        return double.IsFinite(value);
+    }
+
+    public static bool TryResolveQuantitative(object? raw, MetricDescriptor? descriptor, string? unit,
+        string? component, string? componentFormat, out double value)
+    {
+        value = default;
+        if (raw is null) return false;
+        var normalized = string.IsNullOrWhiteSpace(unit) || unit.Equals("raw", StringComparison.OrdinalIgnoreCase)
+            ? null : unit.Trim();
+        if (descriptor?.ValueKind == MetricValueKind.DateTime)
+            return normalized is null && DateTimeComponentContract.TryProject(raw, component, componentFormat, out value);
+        if (descriptor is not null && MetricContract.IsNumericValueKind(descriptor.ValueKind))
+            return TryConvertNumeric(raw, descriptor, normalized, out value);
+        if (normalized is not null || component is not null) return false;
+        try
+        {
+            value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+            return double.IsFinite(value);
+        }
+        catch (Exception ex) when (ex is FormatException or InvalidCastException or OverflowException)
+        {
+            return false;
+        }
+    }
+
     public static bool TryConvertNumeric(
         object? value,
         MetricDescriptor descriptor,
@@ -47,7 +92,11 @@ internal static class MetricValueConverter
         if (!MetricContract.IsNumericValueKind(descriptor.ValueKind))
             throw new InvalidOperationException($"Metric '{descriptor.Id}' is not numeric.");
 
-        var nativeValue = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        return ConvertNumericValue(Convert.ToDouble(value, CultureInfo.InvariantCulture), descriptor, unit);
+    }
+
+    private static double ConvertNumericValue(double nativeValue, MetricDescriptor descriptor, string? unit)
+    {
         if (!double.IsFinite(nativeValue))
             throw new FormatException($"Metric '{descriptor.Id}' is not a finite numeric value.");
 

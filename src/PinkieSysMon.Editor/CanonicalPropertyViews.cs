@@ -193,6 +193,7 @@ internal static class CanonicalPropertyViewBuilder
             EditorPropertySection.Appearance => BuildAppearance(widget, applicationRoot),
             EditorPropertySection.Data => BuildData(widget, mediaEndpoints, endpointTypeOverrides),
             EditorPropertySection.Gauge => BuildGauge(widget, dashboardDirectory),
+            EditorPropertySection.Graph => BuildGraph(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.States => BuildStates(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Image => BuildImage(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Text => BuildText(widget, applicationRoot),
@@ -213,7 +214,7 @@ internal static class CanonicalPropertyViewBuilder
         foreach (var section in new[]
                  {
                      EditorPropertySection.General, EditorPropertySection.Appearance, EditorPropertySection.Data,
-                     EditorPropertySection.Gauge, EditorPropertySection.States, EditorPropertySection.Image,
+                     EditorPropertySection.Gauge, EditorPropertySection.Graph, EditorPropertySection.States, EditorPropertySection.Image,
                      EditorPropertySection.Text
                  })
         {
@@ -265,6 +266,9 @@ internal static class CanonicalPropertyViewBuilder
             case C.BinaryWidgetDefinition binary:
                 source.Add(Metric(binary, nameof(C.BinaryWidgetDefinition.Metric), "general.source.metric", "Metric", () => binary.Metric, v => binary.Metric = EmptyToNull(v)));
                 break;
+            case C.GraphWidgetDefinition graph:
+                source.Add(Metric(graph, nameof(C.GraphWidgetDefinition.Metric), "general.source.metric", "Metric", () => graph.Metric, v => graph.Metric = EmptyToNull(v)));
+                break;
             case C.GaugeWidgetDefinition gauge:
                 source.Add(Metric(gauge, nameof(C.GaugeWidgetDefinition.Metric), "general.source.metric", "Metric", () => gauge.Metric, v => gauge.Metric = EmptyToNull(v)));
                 break;
@@ -312,7 +316,7 @@ internal static class CanonicalPropertyViewBuilder
     private static List<PropertyDescriptor> BuildAppearance(C.WidgetDefinition widget, string? applicationRoot)
     {
         var result = new List<PropertyDescriptor>();
-        var foregroundApplicable = widget is C.ValueWidgetDefinition or C.GaugeWidgetDefinition or C.StateVisualWidgetDefinition ||
+        var foregroundApplicable = widget is C.ValueWidgetDefinition or C.GaugeWidgetDefinition or C.GraphWidgetDefinition or C.StateVisualWidgetDefinition ||
                                    widget is C.BarWidgetDefinition bar && !BarImageContract.IsImageMode(bar.ContentMode) ||
                                    widget is C.ImageWidgetDefinition image && C.ImageAssetSourceType.IsIcon(image.Asset.SourceType);
         if (foregroundApplicable)
@@ -348,7 +352,7 @@ internal static class CanonicalPropertyViewBuilder
             Color(widget, nameof(C.WidgetDefinition.ShadowColor), "appearance.shadow.color", "Color", () => widget.ShadowColor, v => widget.ShadowColor = v, () => widget.ShadowEnabled ? null : NotApplicable("Enabled"))
         ]));
 
-        if (widget is C.QuantitativeWidgetDefinition quantitative &&
+        if (widget is C.NumericWidgetDefinition quantitative &&
             (widget is not C.BarWidgetDefinition thresholdBar || !BarImageContract.IsImageMode(thresholdBar.ContentMode)))
         {
             result.Add(String(quantitative, "ThresholdMode", "appearance.thresholds.mode", "Threshold Mode", () => quantitative.Thresholds.Mode,
@@ -580,7 +584,7 @@ internal static class CanonicalPropertyViewBuilder
                 ]));
                 break;
             }
-            case C.QuantitativeWidgetDefinition quantitative:
+            case C.NumericWidgetDefinition quantitative:
             {
                 MetricDescriptor? CurrentMetric() => MetricContract.GetDescriptor(quantitative.Metric);
                 var valueRows = new List<PropertyDescriptor>
@@ -622,10 +626,14 @@ internal static class CanonicalPropertyViewBuilder
                         () => quantitative.Component is null ? NotApplicable("Component") : null));
                 }
                 result.Add(Group("Value", valueRows));
-                result.Add(Group("Range", [
-                    Double(quantitative, nameof(C.QuantitativeWidgetDefinition.Min), "data.range.min", "Min", () => quantitative.Min, v => quantitative.Min = v),
-                    Double(quantitative, nameof(C.QuantitativeWidgetDefinition.Max), "data.range.max", "Max", () => quantitative.Max, v => quantitative.Max = v)
-                ]));
+                var rangeRows = new List<PropertyDescriptor>();
+                if (quantitative is C.GraphWidgetDefinition graph)
+                    rangeRows.Add(String(graph, "GraphScaleMode", "data.graph.scale_mode", "Scale Mode", () => graph.ScaleMode,
+                        v => graph.ScaleMode = Convert.ToString(v) ?? "Auto", converter: new FixedStringConverter(["Auto", "Fixed"])));
+                Func<string?> rangeDisabled = () => quantitative is C.GraphWidgetDefinition { AutoScale: true } ? NotApplicable("Scale Mode") : null;
+                rangeRows.Add(Double(quantitative, nameof(C.NumericWidgetDefinition.Min), "data.range.min", "Min", () => quantitative.Min, v => quantitative.Min = v, rangeDisabled));
+                rangeRows.Add(Double(quantitative, nameof(C.NumericWidgetDefinition.Max), "data.range.max", "Max", () => quantitative.Max, v => quantitative.Max = v, rangeDisabled));
+                result.Add(Group("Range", rangeRows));
                 break;
             }
         }
@@ -637,6 +645,29 @@ internal static class CanonicalPropertyViewBuilder
                 .ToList()));
         }
         return result;
+    }
+
+    private static List<PropertyDescriptor> BuildGraph(C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory)
+    {
+        if (widget is not C.GraphWidgetDefinition graph) return [];
+        Func<string?> lineDisabled = () => graph.Mode == "Line" ? null : NotApplicable("Mode");
+        var imageRows = BuildCanvasLayer("graph", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: true, semanticPrefix: "graph.image");
+        imageRows.AddRange(BuildCanvasLayer("graph", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: false, semanticPrefix: "graph.image"));
+        return [
+            Group("Timeline", [
+                Double(graph, nameof(C.GraphWidgetDefinition.WindowSeconds), "graph.window_seconds", "History Window (seconds)", () => graph.WindowSeconds,
+                    v => graph.WindowSeconds = Math.Clamp(v, 1, MetricHistoryStore.MaximumWindowSeconds)),
+                String(graph, "GraphMode", "graph.mode", "Mode", () => graph.Mode, v => graph.Mode = Convert.ToString(v) ?? "Line",
+                    converter: new FixedStringConverter(["Line", "Columns"]))
+            ]),
+            Group("Line", [
+                Float(graph, nameof(C.GraphWidgetDefinition.StrokeWidth), "graph.stroke_width", "Stroke Width", () => graph.StrokeWidth, v => graph.StrokeWidth = Math.Max(.1f, v), lineDisabled),
+                Bool(graph, nameof(C.GraphWidgetDefinition.FillEnabled), "graph.fill_enabled", "Fill Enabled", () => graph.FillEnabled, v => graph.FillEnabled = v, lineDisabled),
+                Float(graph, nameof(C.GraphWidgetDefinition.FillOpacity), "graph.fill_opacity", "Fill Opacity", () => graph.FillOpacity, v => graph.FillOpacity = Math.Clamp(v, 0, 1),
+                    () => lineDisabled() ?? (graph.FillEnabled ? null : NotApplicable("Fill Enabled")))
+            ]),
+            Group("Background Image", imageRows)
+        ];
     }
 
     private static List<PropertyDescriptor> BuildGauge(C.WidgetDefinition widget, string? dashboardDirectory)
@@ -855,7 +886,7 @@ internal static class CanonicalPropertyViewBuilder
         C.CanvasImageLayerDefinition layer,
         string? applicationRoot,
         string? dashboardDirectory,
-        bool sourceOnly)
+        bool sourceOnly, string? semanticPrefix = null)
     {
         var editor = !string.IsNullOrWhiteSpace(applicationRoot) && !string.IsNullOrWhiteSpace(dashboardDirectory)
             ? new ImageAssetSourceEditor(layer.Asset, applicationRoot!, dashboardDirectory!) : null;
@@ -864,8 +895,8 @@ internal static class CanonicalPropertyViewBuilder
         {
             return ImageAssetSourceProperties(
                 layer.Asset,
-                $"general.{role}.asset.kind",
-                $"general.{role}.asset.source",
+                $"{semanticPrefix ?? $"general.{role}"}.asset.kind",
+                $"{semanticPrefix ?? $"general.{role}"}.asset.source",
                 editor);
         }
 
@@ -893,7 +924,7 @@ internal static class CanonicalPropertyViewBuilder
                 : NotApplicable("Source");
         }
 
-        var prefix = $"image.{role}";
+        var prefix = semanticPrefix ?? $"image.{role}";
         return [
             String(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Fit), $"{prefix}.asset.fit", "Fit", () => layer.Asset.Fit, v => layer.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter, disabled: () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
             Float(layer, nameof(C.CanvasImageLayerDefinition.Opacity), $"{prefix}.opacity", "Opacity", () => layer.Opacity, v => layer.Opacity = Math.Clamp(v, 0f, 1f), () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),

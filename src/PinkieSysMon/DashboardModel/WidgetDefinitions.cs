@@ -7,6 +7,7 @@ namespace PinkieSysMon.DashboardModel;
 [JsonDerivedType(typeof(BinaryWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Binary)]
 [JsonDerivedType(typeof(GaugeWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Gauge)]
 [JsonDerivedType(typeof(BarWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Bar)]
+[JsonDerivedType(typeof(GraphWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Graph)]
 [JsonDerivedType(typeof(ImageWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Image)]
 [JsonDerivedType(typeof(PowerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Power)]
 [JsonDerivedType(typeof(MediaSystemWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaSystem)]
@@ -165,7 +166,7 @@ internal abstract class StateVisualWidgetDefinition : WidgetDefinition
     }
 }
 
-internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
+internal abstract class NumericWidgetDefinition : WidgetDefinition
 {
     [JsonPropertyName("metric")]
     public string? Metric { get; set; }
@@ -187,31 +188,39 @@ internal abstract class QuantitativeWidgetDefinition : WidgetDefinition
     [JsonPropertyName("max")]
     public double Max { get; set; } = 100d;
 
-    [JsonPropertyName("gap")]
-    public float Gap { get; set; }
-
-    [JsonPropertyName("reverse")]
-    public bool Reverse { get; set; }
-
     [JsonPropertyName("thresholds")]
     public ThresholdSetDefinition Thresholds { get; set; } = new();
 
-    protected void ValidateQuantitative(bool validateThresholds)
+    protected void ValidateNumeric(bool validateThresholds, bool autoScale = false)
     {
         RequireMetric(Metric);
         global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"{Type} widget '{Id}'");
         global::PinkieSysMon.DateTimeComponentContract.ValidateFormat(ComponentFormat, $"{Type} widget '{Id}'");
         RequireFinite(Min, nameof(Min));
         RequireFinite(Max, nameof(Max));
-        RequireFinite(Gap, nameof(Gap));
-        if (Max <= Min)
+        if (!autoScale && Max <= Min)
             throw new InvalidDataException($"{Type} widget '{Id}' requires Max > Min.");
-        if (Gap < 0f)
-            throw new InvalidDataException($"{Type} widget '{Id}' Gap cannot be negative.");
         if (Thresholds is null)
             throw new InvalidDataException($"{Type} widget '{Id}' Thresholds must not be null.");
         if (validateThresholds)
-            Thresholds.Validate(Min, Max, $"{Type} widget '{Id}' Thresholds");
+            Thresholds.Validate(Min, Max, $"{Type} widget '{Id}' Thresholds", requireRange: !autoScale);
+    }
+}
+
+internal abstract class QuantitativeWidgetDefinition : NumericWidgetDefinition
+{
+    [JsonPropertyName("gap")]
+    public float Gap { get; set; }
+
+    [JsonPropertyName("reverse")]
+    public bool Reverse { get; set; }
+
+    protected void ValidateQuantitative(bool validateThresholds)
+    {
+        ValidateNumeric(validateThresholds);
+        RequireFinite(Gap, nameof(Gap));
+        if (Gap < 0f)
+            throw new InvalidDataException($"{Type} widget '{Id}' Gap cannot be negative.");
     }
 }
 

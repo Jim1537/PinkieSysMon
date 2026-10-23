@@ -34,7 +34,7 @@ internal sealed class ThresholdSetDefinition
         new()
     ];
 
-    internal void Validate(double min, double max, string context)
+    internal void Validate(double min, double max, string context, bool requireRange = true)
     {
         if (!ThresholdModeContract.SupportedModes.Contains(Mode, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"{context} has invalid Mode '{Mode}'.");
@@ -45,7 +45,7 @@ internal sealed class ThresholdSetDefinition
             Items[i].ValidateStructure($"{context} item {i + 1}");
 
         var enabledValues = Items.Where(item => item.Enabled).Select(item => item.Value).ToArray();
-        if (enabledValues.Any(value => value < min || value > max))
+        if (requireRange && enabledValues.Any(value => value < min || value > max))
             throw new InvalidDataException($"{context} enabled values must be within Min..Max.");
         if (!enabledValues.SequenceEqual(enabledValues.OrderBy(value => value)))
             throw new InvalidDataException($"{context} enabled values must be ordered by value.");

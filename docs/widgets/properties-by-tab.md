@@ -203,6 +203,9 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     ### Range
 
+    #### Scale Mode
+    --8<-- "widgets/properties.md:scale-mode"
+
     #### Min
     --8<-- "widgets/properties.md:min"
 
@@ -286,6 +289,49 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     #### Gap
     --8<-- "widgets/properties.md:gap"
+
+=== "Graph"
+
+    ## Graph
+
+    ### Timeline
+
+    #### History Window
+    --8<-- "widgets/properties.md:history-window"
+
+    #### Mode
+    --8<-- "widgets/properties.md:graph-mode"
+
+    ### Line
+
+    #### Stroke Width
+    --8<-- "widgets/properties.md:stroke-width"
+
+    #### Fill Enabled
+    --8<-- "widgets/properties.md:fill-enabled"
+
+    #### Fill Opacity
+    --8<-- "widgets/properties.md:fill-opacity"
+
+    ### Background Image
+
+    #### Type
+    --8<-- "widgets/properties.md:image-source-type"
+
+    #### Source
+    --8<-- "widgets/properties.md:image-source"
+
+    #### Fit
+    --8<-- "widgets/properties.md:image-fit"
+
+    #### Opacity
+    --8<-- "widgets/properties.md:opacity"
+
+    #### Loop
+    --8<-- "widgets/properties.md:image-loop"
+
+    #### Color
+    --8<-- "widgets/properties.md:image-layer-color"
 
 === "States"
 

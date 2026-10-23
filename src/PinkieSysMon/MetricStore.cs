@@ -6,6 +6,8 @@ internal sealed class MetricStore
     private Dictionary<string, object?> _snapshot = new(StringComparer.OrdinalIgnoreCase);
     private readonly MetricHistoryStore? _history;
 
+    public MetricHistoryStore? History => _history;
+
     public MetricStore() { }
 
     public MetricStore(MetricHistoryStore history)

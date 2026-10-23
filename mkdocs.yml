@@ -26,6 +26,7 @@ nav:
       - Binary: widgets/binary.md
       - Gauge: widgets/gauge.md
       - Bar: widgets/bar.md
+      - Graph: widgets/graph.md
       - Image: widgets/image.md
       - Power: widgets/power.md
       - Media System: widgets/media-system.md

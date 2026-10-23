@@ -22,7 +22,7 @@ internal static class DashboardMetricUsage
                     Add(required, binary.Metric);
                     break;
 
-                case CanonicalDashboard.QuantitativeWidgetDefinition quantitative:
+                case CanonicalDashboard.NumericWidgetDefinition quantitative:
                     Add(required, quantitative.Metric);
                     break;
 
@@ -50,6 +50,11 @@ internal static class DashboardMetricUsage
         return required;
     }
 
+
+    public static IEnumerable<MetricHistoryDemand> CollectHistory(CanonicalDashboard.DashboardDefinition dashboard) =>
+        dashboard.Widgets.OfType<CanonicalDashboard.GraphWidgetDefinition>()
+            .Where(graph => !string.IsNullOrWhiteSpace(graph.Metric))
+            .Select(graph => new MetricHistoryDemand(graph.Metric!.Trim(), graph.WindowSeconds));
 
     private static void Add(ISet<string> metrics, string? metric)
     {

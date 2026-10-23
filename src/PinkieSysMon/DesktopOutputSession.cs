@@ -52,7 +52,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
 
-        _renderer = new DashboardRenderer(dashboard);
+        _renderer = new DashboardRenderer(dashboard, history: _metrics.History);
         IDesktopOutputWindow? window = null;
         try
         {
@@ -156,7 +156,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var size = FrameGeometry.GetLogicalSize(
             dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, new DashboardRenderer(dashboard));
+        return new PreparedReconfiguration(config, target, size, new DashboardRenderer(dashboard, history: _metrics.History));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(

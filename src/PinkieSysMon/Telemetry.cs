@@ -192,10 +192,13 @@ internal sealed class TelemetryEngine : IDisposable
     private HashSet<string> _enabledProviders;
     private HashSet<string> _requiredMetrics;
     private long _scheduleVersion;
+    private MetricHistoryDemand[] _historyDemands = [];
+    private MetricHistoryDemand[] _resolvedHistoryDemands = [];
     private bool _initialCapturePending;
     private bool _idlePaused;
     private Task? _worker;
     private int _disposeState;
+    private readonly Queue<(Action Run, Action Cancel)> _sourceOperations = new();
 
     public TelemetryEngine(
         MetricStore store,
@@ -217,6 +220,94 @@ internal sealed class TelemetryEngine : IDisposable
 
     // Fired once per active schedule after its first completed capture batch has been published.
     public event Action? InitialValuesPublished;
+
+    // Editor discovery uses the same acquisition owner as capture and publication.
+    // User continuations always run after the worker operation, outside scheduler locks.
+    public Task<T> RunSourceOperationAsync<T>(Func<T> operation)
+    {
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_sync)
+        {
+            if (Volatile.Read(ref _disposeState) != 0) return Task.FromCanceled<T>(new CancellationToken(true));
+            if (_sourceOperations.Count >= 64)
+                return Task.FromException<T>(new InvalidOperationException("Telemetry discovery/settings queue is full."));
+            _sourceOperations.Enqueue((() =>
+            {
+                try { completion.TrySetResult(operation()); }
+                catch (Exception error) { completion.TrySetException(error); }
+            }, () => completion.TrySetCanceled()));
+        }
+        SignalWake();
+        return completion.Task;
+    }
+
+    private void RunSourceOperations(CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            (Action Run, Action Cancel) operation;
+            lock (_sync)
+            {
+                if (_sourceOperations.Count == 0) return;
+                operation = _sourceOperations.Dequeue();
+            }
+            operation.Run();
+        }
+    }
+
+    // A history-window-only edit must reconcile even when ordinary metric demand is unchanged.
+    public void SetHistoryDemand(IEnumerable<MetricHistoryDemand> demands)
+    {
+        var next = demands.OrderBy(d => d.Metric, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.WindowSeconds).ToArray();
+        lock (_sync)
+        {
+            if (_historyDemands.SequenceEqual(next)) return;
+            ApplyHistoryDemandLocked(next, _config, _enabledProviders);
+            var ownerChanged = next.Any(d => _historyDemands.Any(old =>
+                string.Equals(old.Metric, d.Metric, StringComparison.OrdinalIgnoreCase) && old.OwnerGeneration != d.OwnerGeneration));
+            _historyDemands = next;
+            if (ownerChanged) _scheduleVersion++; // Reject a capture started under another measurement owner.
+        }
+        SignalWake();
+    }
+
+    private void ApplyHistoryDemandLocked(MetricHistoryDemand[] demands, TelemetryConfig config, HashSet<string> providers)
+    {
+        if (_store.History is null) return;
+        var resolved = demands.Select(d => d with
+        {
+            Descriptor = MetricContract.GetDescriptor(d.Metric),
+            IntervalSeconds = ResolveHistoryInterval(d.Metric, config, providers)
+        }).ToArray();
+        if (_resolvedHistoryDemands.SequenceEqual(resolved)) return;
+        _store.History.SetDemand(resolved);
+        _resolvedHistoryDemands = resolved;
+    }
+
+    private double? ResolveHistoryInterval(string metric, TelemetryConfig config, HashSet<string> providers)
+    {
+        var source = ResolveMetricSource(metric);
+        if (source is not null && providers.Contains(source.ProviderId))
+        {
+            if (config.Metrics.TryGetValue(metric, out var policy))
+                return policy.Enabled ? policy.IntervalMs / 1000d : null;
+            return source.DefaultIntervalMs / 1000d;
+        }
+        return OutputMetricContract.DescribeKnownId(metric) is not null ? 1d : null;
+    }
+
+    private void RefreshHistoryDescriptorsLocked()
+    {
+        if (_store.History is null) return;
+        foreach (var demand in _resolvedHistoryDemands)
+        {
+            var descriptor = MetricContract.GetDescriptor(demand.Metric);
+            if (descriptor?.ValueKind == demand.Descriptor?.ValueKind && descriptor?.BaseUnit == demand.Descriptor?.BaseUnit)
+                continue;
+            ApplyHistoryDemandLocked(_historyDemands, _config, _enabledProviders);
+            break;
+        }
+    }
 
     public static IReadOnlyDictionary<string, IMetricSource> BuildMetricIndex(IEnumerable<IMetricSource> sources) =>
         MetricSourceCatalog.BuildMetricIndex(sources);
@@ -293,6 +384,8 @@ internal sealed class TelemetryEngine : IDisposable
                     StringComparer.OrdinalIgnoreCase));
             }
 
+            ApplyHistoryDemandLocked(_historyDemands, prepared.Config, prepared.EnabledProviders);
+            _store.History?.BreakContinuity();
             _config = prepared.Config;
             _enabledProviders = prepared.EnabledProviders;
             _requiredMetrics = prepared.RequiredMetrics;
@@ -316,6 +409,7 @@ internal sealed class TelemetryEngine : IDisposable
         {
             if (_idlePaused == paused)
                 return;
+            _store.History?.BreakContinuity();
             _idlePaused = paused;
             _scheduleVersion++; // Reject a capture batch that started before this transition.
             if (!paused)
@@ -334,6 +428,8 @@ internal sealed class TelemetryEngine : IDisposable
         {
             try
             {
+                RunSourceOperations(token);
+                token.ThrowIfCancellationRequested();
                 long planVersion;
                 bool paused;
                 lock (_sync)
@@ -349,8 +445,9 @@ internal sealed class TelemetryEngine : IDisposable
                 Action? notifyInitialValues = null;
                 lock (_sync)
                 {
-                    if (!paused && !_idlePaused && planVersion == _scheduleVersion)
+                    if (!token.IsCancellationRequested && !paused && !_idlePaused && planVersion == _scheduleVersion)
                     {
+                        RefreshHistoryDescriptorsLocked();
                         _store.Publish(_captureBatch);
                         if (_initialCapturePending && _captureBatch.Count > 0)
                         {
@@ -628,6 +725,8 @@ internal sealed class TelemetryEngine : IDisposable
         }
         finally
         {
+            lock (_sync)
+                while (_sourceOperations.TryDequeue(out var operation)) operation.Cancel();
             _wakeSignal.Dispose();
             _cts.Dispose();
         }

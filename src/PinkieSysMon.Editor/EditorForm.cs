@@ -31,6 +31,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private readonly FileLogger _log;
     private readonly AppConfig _appConfig;
     private readonly string _appConfigPath;
+    private readonly EditorPreviewTelemetry _previewTelemetry;
+    private bool _previewShutdownStarted;
+    private bool _previewShutdownComplete;
     private readonly WindowsSystemTelemetrySource _systemTelemetry;
     private readonly WindowsNetworkTelemetrySource _networkTelemetry;
     private readonly WindowsPowerTelemetrySource _powerTelemetry;
@@ -65,12 +68,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private readonly Dictionary<string, TreeNode> _groupTreeNodes = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, object?> _lastMetrics = new Dictionary<string, object?>();
     private IReadOnlySet<string> _previewRequiredMetrics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    private string[] _previewSystemMetrics = [];
-    private string[] _previewNetworkMetrics = [];
-    private string[] _previewPowerMetrics = [];
-    private string[] _previewMediaMetrics = [];
-    private string[] _previewLhmMetrics = [];
-    private string[] _previewIcueMetrics = [];
     private string _dashboardName = string.Empty;
     private string _dashboardPath = string.Empty;
     private float _zoom = 0.5f;
@@ -188,7 +185,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _log = new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"));
         _appConfigPath = Path.Combine(root, "config", "app.json");
         _appConfig = AppConfig.Load(_appConfigPath, _log);
-        MetricSelectorEnvironment.Configure(_root, _log, () => _appConfig);
         _systemTelemetry = new WindowsSystemTelemetrySource(_log);
         _networkTelemetry = new WindowsNetworkTelemetrySource(_log);
         _powerTelemetry = new WindowsPowerTelemetrySource(_log);
@@ -196,6 +192,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _lhmTelemetry = new LibreHardwareMonitorRawTelemetrySource(_log);
         _icueTelemetry = new IcueSensorLogTelemetrySource(_root, _log);
         _mediaTelemetry.SetEndpointTypeOverrides(_appConfig.Media.EndpointTypeOverrides);
+        IMetricSource[] previewSources = [_systemTelemetry, _networkTelemetry, _powerTelemetry, _mediaTelemetry, _lhmTelemetry, _icueTelemetry];
+        _previewTelemetry = new EditorPreviewTelemetry(previewSources,
+            TelemetryConfig.Load(Path.Combine(_root, "config", "telemetry.json"), previewSources, _log), _log,
+            DiscoverPreviewCatalog, _mediaTelemetry.SetEndpointTypeOverrides, _mediaTelemetry.GetActiveEndpoints);
+        _previewTelemetry.Configure(_appConfig, null);
+        MetricSelectorEnvironment.Configure(_root, _log, () => _appConfig, _previewTelemetry);
+
         _settingsPath = Path.Combine(root, "config", "editor.json");
         _settings = EditorSettings.Load(_settingsPath);
         _themeMode = EditorThemeContract.Parse(_settings.Theme);
@@ -1048,7 +1051,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (propertyName.StartsWith(EndpointOverridePropertyDescriptor.PropertyPrefix, StringComparison.Ordinal))
             {
                 _appConfig.Save(_appConfigPath);
-                _mediaTelemetry.SetEndpointTypeOverrides(_appConfig.Media.EndpointTypeOverrides);
+                _previewTelemetry.Configure(_appConfig, _definition);
                 RefreshPreviewTelemetry();
                 RenderPreview(force: true);
                 SetStatus("Media endpoint override saved.");
@@ -1138,7 +1141,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     internal static bool IsPropertyContextSwitch(string propertyName) =>
-        propertyName is "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode";
+        propertyName is "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled";
 
     private bool ApplyWidgetPropertyChange(
         CanonicalWidgetDefinition widget,
@@ -1203,7 +1206,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     binary.Format = MetricContract.NormalizeFormatForMetric(binary.Metric, binary.Format);
                     break;
                 }
-                case PinkieSysMon.DashboardModel.QuantitativeWidgetDefinition quantitative:
+                case PinkieSysMon.DashboardModel.NumericWidgetDefinition quantitative:
                     quantitative.Unit = MetricContract.NormalizeNumericUnitForMetric(quantitative.Metric, quantitative.Unit);
                     break;
             }
@@ -2087,6 +2090,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
                         OverflowMode = ValueOverflowContract.None
                     }
                 },
+                WidgetTypeContract.Graph => new PinkieSysMon.DashboardModel.GraphWidgetDefinition
+                {
+                    Id = id, Z = nextZ, X = 100, Y = 100, Width = 300, Height = 120,
+                    Metric = SystemMetricContract.Uptime
+                },
                 WidgetTypeContract.Bar => new CanonicalBarWidgetDefinition
                 {
                     Id = id,
@@ -2417,7 +2425,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     private static string WidgetTypeDisplayName(string type) =>
-        WidgetTypeContract.Is(type, WidgetTypeContract.Value) ? "Text / Value" : type;
+        WidgetTypeContract.Is(type, WidgetTypeContract.Value) ? "Text / Value" : WidgetTypeContract.Is(type, WidgetTypeContract.Graph) ? "Graph" : type;
 
     private static string WidgetCaption(CanonicalWidgetDefinition widget)
     {
@@ -2427,12 +2435,40 @@ internal sealed partial class EditorForm : PinkieEditorForm
         return $"{label}  [{widget.Type}]";
     }
 
-    private void OnFormClosing(object? sender, FormClosingEventArgs e)
+    protected override void Dispose(bool disposing)
     {
-        if (!ConfirmSaveBeforeDestructiveAction())
+        try
         {
-            _restartAfterClose = false;
-            e.Cancel = true;
+            // Programmatic Dispose has no asynchronous FormClosing handshake.
+            if (disposing && !_previewShutdownComplete && _previewTelemetry is { } owner)
+            {
+                owner.StopAsync().GetAwaiter().GetResult();
+                _previewShutdownComplete = true;
+            }
+        }
+        finally { base.Dispose(disposing); }
+    }
+
+    private async void OnFormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (_previewShutdownStarted && !_previewShutdownComplete) { e.Cancel = true; return; }
+        if (!_previewShutdownComplete)
+        {
+            if (!ConfirmSaveBeforeDestructiveAction())
+            {
+                _restartAfterClose = false; e.Cancel = true; return;
+            }
+            e.Cancel = true; _previewShutdownStarted = true;
+            _previewTimer.Stop(); _runtimeStatusTimer.Stop();
+            Enabled = false;
+            try { await _previewTelemetry.StopAsync(); }
+            catch (Exception error)
+            {
+                _log.Error("Editor preview shutdown failed.", error);
+                MessageBox.Show(this, error.Message, "Preview shutdown", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            _previewShutdownComplete = true;
+            Close();
             return;
         }
 
@@ -2445,8 +2481,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _runtimeStatusTimer.Dispose();
         _previewTimer.Dispose();
         _preview?.Dispose();
-        _lhmTelemetry.Dispose();
-        _mediaTelemetry.Dispose();
         _canvasImage?.Dispose();
         DisposePropertyTabImages();
         DisposeToolbarImages();

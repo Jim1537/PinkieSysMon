@@ -54,11 +54,7 @@ internal sealed class CompiledQuantitativeIndicator
 
     public static CompiledQuantitativeIndicator Create(CanonicalDashboard.QuantitativeWidgetDefinition widget, string baseColor)
     {
-        var thresholds = widget.Thresholds.Items
-            .Where(item => item.Enabled)
-            .Select(item => new QuantitativeThreshold(item.Value, ColorParser.Parse(item.Color)))
-            .OrderBy(item => item.Value)
-            .ToList();
+        var thresholds = QuantitativeColorScale.CompileThresholds(widget.Thresholds).ToList();
 
         var parsedBaseColor = ColorParser.Parse(baseColor);
         var solidStops = new QuantitativeStop[thresholds.Count + 1];
@@ -115,17 +111,8 @@ internal sealed class CompiledQuantitativeIndicator
     public float GetRatioFloat(double value) =>
         ToRatio(_min, _inverseRange, value);
 
-    public SKColor GetStateColor(double value)
-    {
-        var color = BaseColor;
-        foreach (var threshold in Thresholds)
-        {
-            if (value < threshold.Value)
-                break;
-            color = threshold.Color;
-        }
-        return color;
-    }
+    public SKColor GetStateColor(double value) =>
+        QuantitativeColorScale.StateColor(BaseColor, Thresholds, value);
 
     private static float ToRatio(double min, double inverseRange, double value) =>
         (float)Math.Clamp((value - min) * inverseRange, 0.0, 1.0);

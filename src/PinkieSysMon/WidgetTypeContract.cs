@@ -5,6 +5,7 @@ internal static class WidgetTypeContract
     public const string Value = "value";
     public const string Bar = "bar";
     public const string Gauge = "gauge";
+    public const string Graph = "graph";
     public const string Image = "image";
     public const string Binary = "binary";
     public const string Power = "power";
@@ -16,6 +17,7 @@ internal static class WidgetTypeContract
         Value,
         Bar,
         Gauge,
+        Graph,
         Image,
         Binary,
         Power,
@@ -28,6 +30,7 @@ internal static class WidgetTypeContract
         Value,
         Bar,
         Gauge,
+        Graph,
         Image,
         Binary,
         Power,

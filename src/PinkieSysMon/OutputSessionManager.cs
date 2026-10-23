@@ -105,6 +105,15 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
+    public MetricHistoryDemand[] GetRequiredHistoryDemands()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _suspended || _idlePaused ? [] : OutputTelemetryDemand.CollectHistory(_config, _boards, _sessions.Keys);
+        }
+    }
+
     public void Start()
     {
         List<IOutputSession> created = [];

@@ -452,7 +452,7 @@ internal static class Program
             ("Dashboard universal size schema", DashboardUniversalSizeSchema),
             ("Quantitative foreground color schema", QuantitativeForegroundColorSchema),
             ("Bar foreground color rendering", BarForegroundColorRendering),
-            ("Removed Graph widget type", RemovedGraphWidgetType),
+            ("Graph canonical type and obsolete global fields", GraphCanonicalTypeAndObsoleteFields),
             ("Graph history publication and immutable snapshots", GraphHistoryTests.PublicationsAndImmutableSnapshots),
             ("Graph history demand prepare commit and release", GraphHistoryTests.DemandPrepareCommitAndRelease),
             ("Graph history gaps cadence and pause boundaries", GraphHistoryTests.GapsCadenceAndPauseBoundaries),
@@ -460,6 +460,20 @@ internal static class Program
             ("Graph history raw temporal values and semantic epochs", GraphHistoryTests.RawTemporalValuesAndSemanticEpochs),
             ("Graph history budget validation and allocation bounds", GraphHistoryTests.BudgetValidationAndAllocationBounds),
             ("Graph history concurrent readers writers and retirement", GraphHistoryTests.ConcurrentWritersReadersAndRetirement),
+            ("Graph canonical schema and legacy compatibility", GraphWidgetTests.SchemaAndLegacyCompatibility),
+            ("Graph ranges and absolute threshold colors", GraphWidgetTests.RangesAndAbsoluteThresholdColors),
+            ("Graph Line Columns Auto Fixed threshold render matrix", GraphWidgetTests.RenderingModeScaleThresholdMatrix),
+            ("Graph gaps expiry clipping and dense spikes", GraphWidgetTests.GapsExpiryClippingAndDenseSpikes),
+            ("Graph fill alpha and common image composition", GraphWidgetTests.FillAlphaAndCommonImageComposition),
+            ("Graph geometry reuse and Runtime Editor parity", GraphWidgetTests.GeometryReuseAndRuntimeEditorParity),
+            ("Graph telemetry publication and serialized discovery", GraphTelemetryTests.PublicationAndSerializedDiscovery),
+            ("Graph telemetry pause and generation fences", GraphTelemetryTests.PausedCaptureAndSemanticGenerationFences),
+            ("Graph catalog meaning and direct Output publication", GraphTelemetryTests.CatalogMeaningAndDynamicPublication),
+            ("Graph preview coalescing and terminal source ownership", GraphPreviewLifecycleTests.DiscoveryCoalescingAndTerminalShutdown),
+            ("Graph preview close fence and Runtime isolation", GraphPreviewLifecycleTests.BlockedCaptureCloseFenceAndIsolation),
+            ("Graph preview stale discovery and illustrative Output history", GraphPreviewLifecycleTests.StaleDiscoveryAndIllustrativeOutputHistory),
+            ("Graph Editor common properties and applicability", GraphEditorTests.CommonPropertiesAndGraphApplicability),
+            ("Graph Editor clipboard image and undo snapshots", GraphEditorTests.ClipboardImageImportAndCanonicalUndoSnapshots),
             ("Bar image property visibility", BarImagePropertyVisibility),
             ("Bar image progress modes", BarImageProgressModes),
             ("Bar image fit modes", BarImageFitModes),
@@ -7219,13 +7233,11 @@ internal static class Program
     private static void RemovedLegacyWidgetTypes()
     {
         Assert(!WidgetTypeContract.KnownTypes.Contains("grid", StringComparer.OrdinalIgnoreCase) &&
-               !WidgetTypeContract.KnownTypes.Contains("rect", StringComparer.OrdinalIgnoreCase) &&
-               !WidgetTypeContract.KnownTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
-            "Removed Grid/Rect/Graph widget types must not remain in the runtime type contract.");
+               !WidgetTypeContract.KnownTypes.Contains("rect", StringComparer.OrdinalIgnoreCase),
+            "Removed Grid/Rect widget types must not remain in the runtime type contract.");
         Assert(!WidgetTypeContract.EditorAddableTypes.Contains("grid", StringComparer.OrdinalIgnoreCase) &&
-               !WidgetTypeContract.EditorAddableTypes.Contains("rect", StringComparer.OrdinalIgnoreCase) &&
-               !WidgetTypeContract.EditorAddableTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
-            "Removed Grid/Rect/Graph widget types must not remain addable in the editor.");
+               !WidgetTypeContract.EditorAddableTypes.Contains("rect", StringComparer.OrdinalIgnoreCase),
+            "Removed Grid/Rect widget types must not remain addable in the editor.");
 
         var widgetProperties = TypeDescriptor.GetProperties(typeof(C.WidgetDefinition));
         Assert(widgetProperties["Spacing"] is null &&
@@ -7239,7 +7251,7 @@ internal static class Program
         try
         {
             var dashboardPath = Path.Combine(tempRoot, "dashboards", "removed-widgets.json");
-            foreach (var type in new[] { "grid", "rect", "graph" })
+            foreach (var type in new[] { "grid", "rect" })
             {
                 var rejected = false;
                 try
@@ -10127,12 +10139,12 @@ internal static class Program
         }
     }
 
-    private static void RemovedGraphWidgetType()
+    private static void GraphCanonicalTypeAndObsoleteFields()
     {
-        Assert(!WidgetTypeContract.KnownTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
-            "Removed Graph widget type must not remain in the runtime type contract.");
-        Assert(!WidgetTypeContract.EditorAddableTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
-            "Removed Graph widget type must not remain addable in the editor.");
+        Assert(WidgetTypeContract.KnownTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
+            "Schema-23 Graph must be registered in the runtime type contract.");
+        Assert(WidgetTypeContract.EditorAddableTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
+            "Schema-23 Graph must be addable in the Editor.");
 
         var widgetProperties = TypeDescriptor.GetProperties(typeof(WidgetDefinition));
         Assert(widgetProperties["History"] is null &&

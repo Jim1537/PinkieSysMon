@@ -30,6 +30,7 @@ internal sealed partial class EditorForm
     private readonly TabPage _appearancePropertyTab = new() { Name = "Appearance", Padding = Padding.Empty, ToolTipText = "Appearance", AccessibleName = "Appearance" };
     private readonly TabPage _dataPropertyTab = new() { Name = "Data", Padding = Padding.Empty, ToolTipText = "Data", AccessibleName = "Data" };
     private readonly TabPage _gaugePropertyTab = new() { Name = "Gauge", Padding = Padding.Empty, ToolTipText = "Gauge", AccessibleName = "Gauge" };
+    private readonly TabPage _graphPropertyTab = new() { Name = "Graph", Padding = Padding.Empty, ToolTipText = "Graph", AccessibleName = "Graph" };
     private readonly TabPage _statesPropertyTab = new() { Name = "States", Padding = Padding.Empty, ToolTipText = "States", AccessibleName = "States" };
     private readonly TabPage _imagePropertyTab = new() { Name = "Image", Padding = Padding.Empty, ToolTipText = "Image", AccessibleName = "Image" };
     private readonly TabPage _textPropertyTab = new() { Name = "Text", Padding = Padding.Empty, ToolTipText = "Text", AccessibleName = "Text" };
@@ -199,6 +200,7 @@ internal sealed partial class EditorForm
             replacements.Add((_appearancePropertyTab, CreateLucideToolbarImage(size, PropertyAppearanceIcons)));
             replacements.Add((_dataPropertyTab, CreateLucideToolbarImage(size, PropertyDataIcons)));
             replacements.Add((_gaugePropertyTab, CreateLucideToolbarImage(size, PropertyGaugeIcons)));
+            replacements.Add((_graphPropertyTab, CreateLucideToolbarImage(size, ["chart-no-axes-combined", "chart-line", "activity"])));
             replacements.Add((_statesPropertyTab, CreateLucideToolbarImage(size, PropertyStatesIcons)));
             replacements.Add((_imagePropertyTab, CreateLucideToolbarImage(size, PropertyImageIcons)));
             replacements.Add((_textPropertyTab, CreateLucideToolbarImage(size, PropertyTextIcons)));
@@ -272,12 +274,14 @@ internal sealed partial class EditorForm
                     var includeStates = CreatePropertyTargetView(target!, EditorPropertySection.States).GetProperties().Count > 0;
                     var includeImage = CreatePropertyTargetView(target!, EditorPropertySection.Image).GetProperties().Count > 0;
                     var includeText = CreatePropertyTargetView(target!, EditorPropertySection.Text).GetProperties().Count > 0;
-                    ConfigureWidgetPropertyTabs(includeData, includeGauge, includeStates, includeImage, includeText);
+                    var includeGraph = CreatePropertyTargetView(target!, EditorPropertySection.Graph).GetProperties().Count > 0;
+                    ConfigureWidgetPropertyTabs(includeData, includeGauge, includeStates, includeImage, includeText, includeGraph);
 
                     _generalPropertyTab.Enabled = true;
                     _appearancePropertyTab.Enabled = true;
                     _dataPropertyTab.Enabled = true;
                     _gaugePropertyTab.Enabled = true;
+                    _graphPropertyTab.Enabled = true;
                     _statesPropertyTab.Enabled = true;
                     _imagePropertyTab.Enabled = true;
                     _textPropertyTab.Enabled = true;
@@ -326,7 +330,7 @@ internal sealed partial class EditorForm
             _ => throw new InvalidOperationException($"Unsupported property target '{target.GetType().Name}'.")
         };
 
-    private void ConfigureWidgetPropertyTabs(bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText)
+    private void ConfigureWidgetPropertyTabs(bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText, bool includeGraph = false)
     {
         var desired = new List<TabPage>
         {
@@ -337,6 +341,8 @@ internal sealed partial class EditorForm
             desired.Add(_dataPropertyTab);
         if (includeGauge)
             desired.Add(_gaugePropertyTab);
+        if (includeGraph)
+            desired.Add(_graphPropertyTab);
         if (includeStates)
             desired.Add(_statesPropertyTab);
         if (includeImage)
@@ -417,6 +423,7 @@ internal sealed partial class EditorForm
             EditorPropertySection.Appearance or
             EditorPropertySection.Data or
             EditorPropertySection.Gauge or
+            EditorPropertySection.Graph or
             EditorPropertySection.States or
             EditorPropertySection.Image or
             EditorPropertySection.Text
@@ -449,6 +456,11 @@ internal sealed partial class EditorForm
             section = EditorPropertySection.Gauge;
             return true;
         }
+        if (ReferenceEquals(page, _graphPropertyTab))
+        {
+            section = EditorPropertySection.Graph;
+            return true;
+        }
         if (ReferenceEquals(page, _statesPropertyTab))
         {
             section = EditorPropertySection.States;
@@ -474,6 +486,7 @@ internal sealed partial class EditorForm
         EditorPropertySection.Appearance => _appearancePropertyTab,
         EditorPropertySection.Data => _dataPropertyTab,
         EditorPropertySection.Gauge => _gaugePropertyTab,
+        EditorPropertySection.Graph => _graphPropertyTab,
         EditorPropertySection.States => _statesPropertyTab,
         EditorPropertySection.Image => _imagePropertyTab,
         EditorPropertySection.Text => _textPropertyTab,

@@ -17,7 +17,8 @@ internal static class DashboardSchemaMigration
     public const int DateTimeComponentSchemaVersion = 20;
     public const int BinaryDateTimeComponentSchemaVersion = 21;
     public const int DateTimeComponentPrecisionSchemaVersion = 22;
-    public const int CurrentSchemaVersion = DateTimeComponentPrecisionSchemaVersion;
+    public const int GraphSchemaVersion = 23;
+    public const int CurrentSchemaVersion = GraphSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -25,11 +26,16 @@ internal static class DashboardSchemaMigration
         ArgumentNullException.ThrowIfNull(root);
 
         var schemaVersion = ReadSchemaVersion(root);
+        if (schemaVersion < GraphSchemaVersion && root["widgets"] is JsonArray inputWidgets &&
+            inputWidgets.OfType<JsonObject>().Any(widget =>
+                widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
+                string.Equals(type, "graph", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("Legacy graph widgets cannot be reinterpreted as the schema-23 Graph widget.");
         if (schemaVersion == CurrentSchemaVersion)
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -55,6 +61,13 @@ internal static class DashboardSchemaMigration
             // Leave Binary's existing textual format untouched and add no fields.
             root["schemaVersion"] = DateTimeComponentPrecisionSchemaVersion;
             schemaVersion = DateTimeComponentPrecisionSchemaVersion;
+        }
+
+        if (schemaVersion == DateTimeComponentPrecisionSchemaVersion)
+        {
+            // Graph-free documents keep all content; no history is created or persisted.
+            root["schemaVersion"] = GraphSchemaVersion;
+            schemaVersion = GraphSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

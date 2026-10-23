@@ -144,8 +144,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Component
     **Semantic keys:** `data.quantitative.datetime_component` / `data.binary.datetime_component`
-    **Canonical model:** `QuantitativeWidgetDefinition.Component` / `BinaryWidgetDefinition.Component`
-    **JSON:** `component` (optional; Gauge/Bar since schema 20, Binary since schema 21)
+    **Canonical model:** `NumericWidgetDefinition.Component` / `BinaryWidgetDefinition.Component`
+    **JSON:** `component` (optional; Gauge/Bar since schema 20, Binary since schema 21, Graph since schema 23)
 
     **Choices and whole-component ranges (`Format = 0`):**
 
@@ -163,7 +163,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     | Second | `second` | 0–59 |
 
     A DateTime/DateTimeOffset metric requires one selected Component before Gauge,
-    Bar, or Binary can use its numeric value. DateTimeOffset uses local civil time,
+    Bar, Graph, or Binary can use its numeric value. DateTimeOffset uses local civil time,
     as does DateTime text formatting. Compound date/time masks such as `hh:mm`
     are not Components. Missing or unconvertible readings, or no Component,
     remain unavailable, never a fabricated False state.
@@ -172,7 +172,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Semantic keys:** `data.quantitative.datetime_component_format` /
     `data.binary.datetime_component_format`
-    **Canonical model:** `QuantitativeWidgetDefinition.ComponentFormat` /
+    **Canonical model:** `NumericWidgetDefinition.ComponentFormat` /
     `BinaryWidgetDefinition.ComponentFormat`
     **JSON:** `componentFormat` (optional, schema 22)
 
@@ -192,7 +192,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
     The default `0` is represented by an absent `componentFormat` on existing
     and newly created dashboards; changing this setting affects geometry and
     Binary evaluation, not just printed text. For the live System clock's
-    per-frame updates, see [System telemetry](../telemetry/system.md#operating-system-and-general-system-metrics).
+    per-frame updates in current-value widgets, see [System telemetry](../telemetry/system.md#operating-system-and-general-system-metrics).
+
+    Graph projects each stored historical timestamp; it does not substitute the
+    current frame time for past DateTime samples.
 
     With fractional precision, ranges are half-open: Year [1,10000),
     Month [1,13), Day of month [1,32) (with the actual month ending earlier),
@@ -218,7 +221,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     states as well. Schema 21 → 22 migration leaves legacy text masks and
     absent numeric precision untouched; it never creates an unselected Component.
 
-    **Used by:** Gauge, Bar, Binary when Metric is DateTime.
+    **Used by:** Gauge, Bar, Graph, Binary when Metric is DateTime.
 
 <!-- --8<-- [end:component] -->
 
@@ -357,6 +360,46 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:fallback] -->
 
 ---
+## Fill Enabled
+
+<!-- --8<-- [start:fill-enabled] -->
+
+!!! info ""
+
+    **Editor name:** Fill Enabled  
+    **Semantic key:** `graph.fill_enabled`  
+    **Canonical model:** `GraphWidgetDefinition.FillEnabled`  
+    **JSON:** `fillEnabled`
+
+    **Values:** Boolean; default `false`.
+
+    Enables the area below a Line.
+
+    **Used by:** Graph Line; read-only in Columns mode.
+
+<!-- --8<-- [end:fill-enabled] -->
+
+---
+## Fill Opacity
+
+<!-- --8<-- [start:fill-opacity] -->
+
+!!! info ""
+
+    **Editor name:** Fill Opacity  
+    **Semantic key:** `graph.fill_opacity`  
+    **Canonical model:** `GraphWidgetDefinition.FillOpacity`  
+    **JSON:** `fillOpacity`
+
+    **Values:** Finite number `0..1`; default `0.25`.
+
+    Multiplies the selected foreground/threshold alpha once for the filled area.
+
+    **Used by:** Graph Line with Fill Enabled; otherwise read-only.
+
+<!-- --8<-- [end:fill-opacity] -->
+
+---
 ## Font Family
 
 
@@ -448,7 +491,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Primary foreground color. For state-driven widgets, it serves as a fallback when the active profile does not define its own Color.
 
-    **Used by:** Text / Value, Gauge, Binary, Power, Media System, Media Player, Bar in Fill mode, Image in Icon mode
+    **Used by:** Text / Value, Gauge, Graph, Binary, Power, Media System, Media Player, Bar in Fill mode, Image in Icon mode
 
     **Disabled / read-only when:**
     - Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
@@ -531,6 +574,26 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:gap] -->
 
 ---
+## Graph Mode
+
+<!-- --8<-- [start:graph-mode] -->
+
+!!! info ""
+
+    **Editor name:** Mode  
+    **Semantic key:** `graph.mode`  
+    **Canonical model:** `GraphWidgetDefinition.Mode`  
+    **JSON:** `mode`
+
+    **Values:** `Line` (default), `Columns`.
+
+    Selects the historical plot geometry. Columns retain but do not use Line settings.
+
+    **Used by:** Graph
+
+<!-- --8<-- [end:graph-mode] -->
+
+---
 ## Height
 
 
@@ -561,6 +624,26 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Used by:** All widgets, Canvas
 
 <!-- --8<-- [end:height] -->
+
+---
+## History Window
+
+<!-- --8<-- [start:history-window] -->
+
+!!! info ""
+
+    **Editor name:** History Window (seconds)  
+    **Semantic key:** `graph.window_seconds`  
+    **Canonical model:** `GraphWidgetDefinition.WindowSeconds`  
+    **JSON:** `windowSeconds`
+
+    **Values:** Finite number `1..600`; default `60`.
+
+    Selects the rolling time interval. Increasing it cannot recover observations already evicted.
+
+    **Used by:** Graph
+
+<!-- --8<-- [end:history-window] -->
 
 ---
 ## Horizontal Alignment
@@ -604,9 +687,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `image.background_image.asset.fit`
     - `image.foreground_image.asset.fit`
     - `bar.image.fit`
+    - `graph.image.asset.fit`
 
     **Canonical model:**
-    - `ImageAssetPresentationDefinition.Fit` (Image, state assets, Canvas layers)
+    - `ImageAssetPresentationDefinition.Fit` (Image, state assets, Canvas layers, Graph background)
     - `BarImagePresentationDefinition.Fit` (Bar Image mode)
 
     **JSON:**
@@ -615,19 +699,20 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Canvas background: `canvas.backgroundImage.asset.fit`
     - Canvas foreground: `canvas.foregroundImage.asset.fit`
     - Bar Image: `image.fit`
+    - Graph background: `image.asset.fit`
 
 
     **Values:**
-    - Image / state / Canvas assets: `contain`, `cover`, `stretch`.
+    - Image / state / Canvas / Graph assets: `contain`, `cover`, `stretch`.
     - Bar Image mode: `Clip`, `Contain`, `Cover`, `Stretch`.
 
 
     Controls how an image source is fitted inside the target bounds.
 
-    **Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
-    - Canvas layer Fit is read-only when [Source](properties.md#image-source) is empty.
+    - Canvas/Graph layer Fit is read-only when [Source](properties.md#image-source) is empty.
 
 <!-- --8<-- [end:image-fit] -->
 
@@ -644,21 +729,23 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Semantic keys:**
     - `image.background_image.color`
     - `image.foreground_image.color`
+    - `graph.image.color`
 
     **Canonical model:** `CanvasImageLayerDefinition.Color`
 
     **JSON:**
     - `canvas.backgroundImage.color`
     - `canvas.foregroundImage.color`
+    - Graph background: `image.color`
 
 
     **Values:**
     - Color.
 
 
-    Tint color of a Canvas image layer.
+    Tint color of a Canvas or Graph image layer.
 
-    **Used by:** Canvas background image layer, Canvas foreground image layer
+    **Used by:** Graph background image, Canvas background image layer, Canvas foreground image layer
 
     **Disabled / read-only when:**
     - [Source](properties.md#image-source) is empty.
@@ -683,9 +770,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `image.background_image.asset.loop`
     - `image.foreground_image.asset.loop`
     - `bar.image.loop`
+    - `graph.image.asset.loop`
 
     **Canonical model:**
-    - `ImageAssetPresentationDefinition.Loop` (Image, state assets, Canvas layers)
+    - `ImageAssetPresentationDefinition.Loop` (Image, state assets, Canvas layers, Graph background)
     - `BarImagePresentationDefinition.Loop` (Bar Image mode)
 
     **JSON:**
@@ -694,6 +782,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Canvas background: `canvas.backgroundImage.asset.loop`
     - Canvas foreground: `canvas.foregroundImage.asset.loop`
     - Bar Image: `image.loop`
+    - Graph background: `image.asset.loop`
 
 
     **Values:**
@@ -702,11 +791,11 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Controls looping of an animated graphical source.
 
-    **Used by:** Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
     - Icon-backed Image/state content is read-only when the selected icon does not expose animated capability.
-    - Canvas layers require a non-empty [Source](properties.md#image-source) and an animated file/icon capability.
+    - Canvas/Graph layers require a non-empty [Source](properties.md#image-source) and an animated file/icon capability.
     - Bar Image mode exposes Loop directly.
 
 <!-- --8<-- [end:image-loop] -->
@@ -727,9 +816,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `general.foreground_image.asset.source`
     - `states.{state}.asset.source`
     - `bar.image.source`
+    - `graph.image.asset.source`
 
     **Canonical model:**
-    - `ImageAssetPresentationDefinition.Source` (Image, Canvas layers, state assets)
+    - `ImageAssetPresentationDefinition.Source` (Image, Canvas layers, state assets, Graph background)
     - `BarImagePresentationDefinition.Source` (Bar Image mode)
 
     **JSON:**
@@ -738,6 +828,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Canvas foreground: `canvas.foregroundImage.asset.source`
     - State profile: `profiles.{state}.asset.source`
     - Bar Image: `image.source`
+    - Graph background: `image.asset.source`
 
 
     **Values:**
@@ -746,9 +837,9 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Bar Image mode: dashboard-relative image file.
 
 
-    Active graphical source. An empty source is a valid unconfigured image for Image, Bar Image mode, and graphical state profiles; any nonempty source must still resolve.
+    Active graphical source. An empty source is a valid unconfigured image for Image, Graph background, Bar Image mode, Canvas layers, and graphical state profiles; any nonempty source must still resolve.
 
-    **Used by:** Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
+    **Used by:** Graph background image, Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 
     **Context notes:**
     - State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
@@ -771,6 +862,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `general.source.image.kind`
     - `general.background_image.asset.kind`
     - `general.foreground_image.asset.kind`
+    - `graph.image.asset.kind`
 
     **Canonical model:** `ImageAssetPresentationDefinition.SourceType`
 
@@ -778,6 +870,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Image: `asset.sourceType`
     - Canvas background: `canvas.backgroundImage.asset.sourceType`
     - Canvas foreground: `canvas.foregroundImage.asset.sourceType`
+    - Graph background: `image.asset.sourceType`
 
 
     **Values:**
@@ -787,7 +880,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Selects whether a shared image asset uses a dashboard-relative file or a global icon.
 
-    **Used by:** Image, Canvas background image layer, Canvas foreground image layer
+    **Used by:** Graph background image, Image, Canvas background image layer, Canvas foreground image layer
 
     **Notes:**
     - Changing `file` ↔ `icon` uses canonical `ChangeSourceType()` and clears the current [Source](properties.md#image-source).
@@ -828,17 +921,20 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Max  
     **Semantic key:** `data.range.max`  
-    **Canonical model:** `GaugeWidgetDefinition.Max` / `BarWidgetDefinition.Max`  
+    **Canonical model:** `NumericWidgetDefinition.Max`  
     **JSON:** `max`
 
 
     **Values:**
-    - Finite number; must be > [Min](properties.md#min).
+    - Finite number; must be > [Min](properties.md#min) for Gauge, Bar, and Graph Fixed scale.
 
 
     Upper bound of the quantitative range.
 
-    **Used by:** Gauge, Bar
+    **Used by:** Gauge, Bar, Graph
+
+    **Disabled / read-only when:**
+    - Graph [Scale Mode](properties.md#scale-mode)=`Auto`; the stored value is retained for Fixed mode.
 
 <!-- --8<-- [end:max] -->
 
@@ -903,7 +999,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Metric  
     **Semantic key:** `general.source.metric`  
-    **Canonical model:** `ValueWidgetDefinition.Metric / BinaryWidgetDefinition.Metric / GaugeWidgetDefinition.Metric / BarWidgetDefinition.Metric`  
+    **Canonical model:** `ValueWidgetDefinition.Metric / BinaryWidgetDefinition.Metric / NumericWidgetDefinition.Metric`  
     **JSON:** `metric`
 
 
@@ -913,7 +1009,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Telemetry metric used by the widget as its data source.
 
-    **Used by:** Text / Value, Binary, Gauge, Bar
+    **Used by:** Text / Value, Binary, Gauge, Bar, Graph
 
     **Disabled / read-only when:**
     - Text / Value: [Type](properties.md#value-source-type)!=`Metric`.
@@ -930,17 +1026,20 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Min  
     **Semantic key:** `data.range.min`  
-    **Canonical model:** `GaugeWidgetDefinition.Min` / `BarWidgetDefinition.Min`  
+    **Canonical model:** `NumericWidgetDefinition.Min`  
     **JSON:** `min`
 
 
     **Values:**
-    - Finite number; must be < [Max](properties.md#max).
+    - Finite number; must be < [Max](properties.md#max) for Gauge, Bar, and Graph Fixed scale.
 
 
     Lower bound of the quantitative range.
 
-    **Used by:** Gauge, Bar
+    **Used by:** Gauge, Bar, Graph
+
+    **Disabled / read-only when:**
+    - Graph [Scale Mode](properties.md#scale-mode)=`Auto`; the stored value is retained for Fixed mode.
 
 <!-- --8<-- [end:min] -->
 
@@ -1122,6 +1221,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - `text.state.{state}.opacity`
     - `image.background_image.opacity`
     - `image.foreground_image.opacity`
+    - `graph.image.opacity`
 
     **Canonical model:**
     - `ImageWidgetDefinition.Opacity`
@@ -1133,6 +1233,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - State profile: `profiles.{state}.opacity`
     - Canvas background: `canvas.backgroundImage.opacity`
     - Canvas foreground: `canvas.foregroundImage.opacity`
+    - Graph background: `image.opacity`
+
 
     **Values:**
     - Number `0..1`.
@@ -1140,10 +1242,10 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Opacity of the visual content represented by the current context.
 
-    **Used by:** Image, Value/graphical state profiles, Canvas background/foreground image layers
+    **Used by:** Graph background image, Image, Value/graphical state profiles, Canvas background/foreground image layers
 
     **Context notes:**
-    - Canvas layer Opacity is read-only when [Source](properties.md#image-source) is empty.
+    - Canvas/Graph layer Opacity is read-only when [Source](properties.md#image-source) is empty.
 
 <!-- --8<-- [end:opacity] -->
 
@@ -1469,6 +1571,26 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:rotation] -->
 
 ---
+## Scale Mode
+
+<!-- --8<-- [start:scale-mode] -->
+
+!!! info ""
+
+    **Editor name:** Scale Mode  
+    **Semantic key:** `data.graph.scale_mode`  
+    **Canonical model:** `GraphWidgetDefinition.ScaleMode`  
+    **JSON:** `scaleMode`
+
+    **Values:** `Auto` (default), `Fixed`.
+
+    Auto derives its range from finite in-window readings before drawing reduction. Fixed uses stored Min/Max.
+
+    **Used by:** Graph
+
+<!-- --8<-- [end:scale-mode] -->
+
+---
 ## Scroll Speed
 
 
@@ -1705,11 +1827,11 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Source unit of the value before display conversion.
 
-    **Used by:** Text / Value, Binary, Gauge, Bar
+    **Used by:** Text / Value, Binary, Gauge, Bar, Graph
 
     **Disabled / read-only when:**
     - Text / Value: [Type](properties.md#value-source-type)=`Text` and [Text](properties.md#text) is not a finite invariant number.
-    - Binary, Gauge, and Bar obtain [Source Unit](properties.md#source-unit) from the selected [Metric](properties.md#metric).
+    - Binary, Gauge, Bar, and Graph obtain [Source Unit](properties.md#source-unit) from the selected [Metric](properties.md#metric).
 
 <!-- --8<-- [end:source-unit] -->
 
@@ -1804,6 +1926,26 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:state-source-type] -->
 
 ---
+## Stroke Width
+
+<!-- --8<-- [start:stroke-width] -->
+
+!!! info ""
+
+    **Editor name:** Stroke Width  
+    **Semantic key:** `graph.stroke_width`  
+    **Canonical model:** `GraphWidgetDefinition.StrokeWidth`  
+    **JSON:** `strokeWidth`
+
+    **Values:** Positive finite number in logical pixels; default `2`.
+
+    Width of the Line stroke and isolated-point diameter.
+
+    **Used by:** Graph Line; read-only in Columns mode.
+
+<!-- --8<-- [end:stroke-width] -->
+
+---
 ## Suffix
 
 
@@ -1880,7 +2022,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Color assigned to the corresponding threshold slot.
 
-    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+    **Used by:** Gauge, Graph, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
     **Disabled / read-only when:**
     - The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
@@ -1916,7 +2058,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Enables the corresponding threshold slot.
 
-    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+    **Used by:** Gauge, Graph, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
     **Context notes:**
     - A disabled threshold does not participate in threshold rendering.
@@ -1934,7 +2076,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Threshold Mode  
     **Semantic key:** `appearance.thresholds.mode`  
-    **Canonical model:** `GaugeWidgetDefinition.Thresholds.Mode` / `BarWidgetDefinition.Thresholds.Mode`  
+    **Canonical model:** `NumericWidgetDefinition.Thresholds.Mode`  
     **JSON:** `thresholds.mode`
 
 
@@ -1946,7 +2088,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Controls how threshold colors are applied.
 
-    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=Fill
+    **Used by:** Gauge, Graph, Bar / [Mode](properties.md#bar-mode)=Fill
 
     **Hidden when:**
     - Bar: [Mode](properties.md#bar-mode)=`Image`.
@@ -1974,12 +2116,12 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 
     **Values:**
-    - Finite number within [Min](properties.md#min)..[Max](properties.md#max) when the slot is enabled.
+    - Finite number. Enabled boundaries must be within [Min](properties.md#min)..[Max](properties.md#max) for Gauge, Bar Fill, and Graph Fixed; Graph Auto accepts absolute boundaries outside its current visible range.
 
 
     Numeric boundary for the corresponding threshold slot.
 
-    **Used by:** Gauge, Bar / [Mode](properties.md#bar-mode)=`Fill`
+    **Used by:** Gauge, Graph, Bar / [Mode](properties.md#bar-mode)=`Fill`
 
     **Disabled / read-only when:**
     - The corresponding [Enabled](properties.md#threshold-enabled) property is `false`.
@@ -2191,12 +2333,12 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Editor name:** Unit  
     **Semantic key:** `data.value.unit / data.binary.unit / data.quantitative.unit`  
-    **Canonical model:** `ValueWidgetDefinition.Unit / BinaryWidgetDefinition.Unit / GaugeWidgetDefinition.Unit / BarWidgetDefinition.Unit`  
+    **Canonical model:** `ValueWidgetDefinition.Unit / BinaryWidgetDefinition.Unit / NumericWidgetDefinition.Unit`  
     **JSON:** `unit`
 
 
     **Values:**
-    - Duration: `raw`, `auto`, `seconds`, `minutes`, `hours`; Gauge/Bar exclude `auto`.
+    - Duration: `raw`, `auto`, `seconds`, `minutes`, `hours`; Gauge/Bar/Graph exclude `auto`.
     - Data size: `raw`, `B`, `KB`, `MB`, `GB`, `TB`, `KiB`, `MiB`, `GiB`, `TiB`.
     - Temperature: `raw`, `C`, `F`.
     - Frequency: `raw`, `Hz`, `kHz`, `MHz`, `GHz`.
@@ -2206,7 +2348,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Display unit and, where applicable, the conversion target.
 
-    **Used by:** Text / Value, Binary, Gauge, Bar
+    **Used by:** Text / Value, Binary, Gauge, Bar, Graph
 
     **Disabled / read-only when:**
     - Text / Value literal is not numeric.

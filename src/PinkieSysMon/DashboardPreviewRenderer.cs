@@ -18,7 +18,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     private readonly ImageVisual? _backgroundImage;
     private readonly ImageVisual? _foregroundImage;
 
-    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition)
+    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         _definition = definition;
@@ -49,7 +49,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             renderContext = new WidgetRenderContext(
                 new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
                 RenderQuality.Antialias,
-                typefaces);
+                typefaces, history);
             images = new ImageAssetCache(_definition.BaseDirectory);
             icons = new IconAssetCache(_definition.BaseDirectory);
             images.Preload(_definition.Widgets);
@@ -109,8 +109,8 @@ internal sealed class DashboardPreviewRenderer : IDisposable
 
     public int Width { get; }
     public int Height { get; }
-    public bool RequiresFrequentRefresh => _images.HasAnimatedAssets || _icons.HasAnimatedAssets || HasAnimatedValueOverflow();
-    public int RecommendedRefreshIntervalMs => HasAnimatedValueOverflow() ? 50 : (_images.HasAnimatedAssets || _icons.HasAnimatedAssets) ? 250 : 1000;
+    public bool RequiresFrequentRefresh => _definition.Widgets.Any(w => w is CanonicalDashboard.GraphWidgetDefinition) || _images.HasAnimatedAssets || _icons.HasAnimatedAssets || HasAnimatedValueOverflow();
+    public int RecommendedRefreshIntervalMs => HasAnimatedValueOverflow() ? 50 : _definition.Widgets.Any(w => w is CanonicalDashboard.GraphWidgetDefinition) ? 100 : (_images.HasAnimatedAssets || _icons.HasAnimatedAssets) ? 250 : 1000;
 
     private bool HasAnimatedValueOverflow() =>
         _definition.Widgets.Any(widget =>

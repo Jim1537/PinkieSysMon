@@ -36,28 +36,17 @@ internal sealed partial class EditorForm
         DashboardPreviewRenderer? replacement = null;
         try
         {
-            replacement = new DashboardPreviewRenderer(definition);
+            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History);
 
             // Prepare everything that can fail before replacing the currently usable preview.
             // This keeps reload/property edits transactional from the editor's point of view.
             var requiredMetrics = DashboardMetricUsage.Collect(definition);
-            var systemMetrics = GetRequiredSourceMetrics(_systemTelemetry, requiredMetrics);
-            var networkMetrics = GetRequiredSourceMetrics(_networkTelemetry, requiredMetrics);
-            var powerMetrics = GetRequiredSourceMetrics(_powerTelemetry, requiredMetrics);
-            var mediaMetrics = GetRequiredSourceMetrics(_mediaTelemetry, requiredMetrics);
-            var lhmMetrics = GetRequiredSourceMetrics(_lhmTelemetry, requiredMetrics);
-            var icueMetrics = GetRequiredSourceMetrics(_icueTelemetry, requiredMetrics);
 
+            _previewTelemetry.Configure(_appConfig, definition);
             var previous = _preview;
             _preview = replacement;
             replacement = null;
             _previewRequiredMetrics = requiredMetrics;
-            _previewSystemMetrics = systemMetrics;
-            _previewNetworkMetrics = networkMetrics;
-            _previewPowerMetrics = powerMetrics;
-            _previewMediaMetrics = mediaMetrics;
-            _previewLhmMetrics = lhmMetrics;
-            _previewIcueMetrics = icueMetrics;
             UpdatePreviewTimerState();
 
             if (_canvasImage is not null &&
@@ -79,25 +68,22 @@ internal sealed partial class EditorForm
     private void UpdatePreviewTimerState()
     {
         _previewTimer.Stop();
-        if (_preview is null || _dragging || WindowState == FormWindowState.Minimized || !_preview.RequiresFrequentRefresh)
+        _previewTelemetry.SetPaused(WindowState == FormWindowState.Minimized || _preview is null);
+        if (_previewShutdownStarted || _preview is null || _dragging || WindowState == FormWindowState.Minimized)
             return;
 
         _previewTimer.Interval = _preview.RecommendedRefreshIntervalMs;
         _previewTimer.Start();
     }
 
-    private static string[] GetRequiredSourceMetrics(
-        IMetricSource source,
-        IReadOnlySet<string> requiredMetrics) =>
-        requiredMetrics.Where(source.CanProvide).ToArray();
-
     private void RenderPreview(bool force = false, bool immediate = false)
     {
-        if (_definition is null || _preview is null || (!force && WindowState == FormWindowState.Minimized))
+        if (_previewShutdownStarted || IsDisposed || Disposing || _definition is null || _preview is null || (!force && WindowState == FormWindowState.Minimized))
             return;
 
         try
         {
+            _lastMetrics = ReadPreviewMetrics();
             var bitmap = EnsurePreviewBitmap();
             var bitmapRect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
             var data = bitmap.LockBits(bitmapRect, ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb);
@@ -142,21 +128,18 @@ internal sealed partial class EditorForm
 
     private void RefreshPreviewTelemetry()
     {
-        // Editor telemetry is deliberately snapshot-based. Never call this from the preview
-        // render timer: external providers may block briefly and make editing feel frozen.
-        _lastMetrics = CapturePreviewMetrics();
+        if (_previewShutdownStarted || IsDisposed || Disposing) return;
+        // Reconcile user/configuration actions; rendering only reads worker publications.
+        _previewTelemetry.Configure(_appConfig, _definition);
+        _lastMetrics = ReadPreviewMetrics();
     }
 
-    private IReadOnlyDictionary<string, object?> CapturePreviewMetrics()
+    private IReadOnlyDictionary<string, object?> ReadPreviewMetrics()
     {
-        var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, object?>(_previewTelemetry.Store.Snapshot(), StringComparer.OrdinalIgnoreCase);
 
         if (MetricProviderContract.IsEnabled(_appConfig.MetricProviders, MetricProviderContract.System))
         {
-            CaptureSourceMetrics(result, _systemTelemetry, _previewSystemMetrics);
-            CaptureSourceMetrics(result, _networkTelemetry, _previewNetworkMetrics);
-            CaptureSourceMetrics(result, _powerTelemetry, _previewPowerMetrics);
-            CaptureSourceMetrics(result, _mediaTelemetry, _previewMediaMetrics);
 
             AddPreviewMetric(result, RuntimeMetricContract.Version, RuntimeVersion.Current);
         }
@@ -187,11 +170,6 @@ internal sealed partial class EditorForm
             }
         }
 
-        if (MetricProviderContract.IsEnabled(_appConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor))
-            CaptureSourceMetrics(result, _lhmTelemetry, _previewLhmMetrics);
-
-        if (MetricProviderContract.IsEnabled(_appConfig.MetricProviders, MetricProviderContract.Icue))
-            CaptureSourceMetrics(result, _icueTelemetry, _previewIcueMetrics);
         return result;
     }
 
@@ -201,23 +179,15 @@ internal sealed partial class EditorForm
             target[metric] = value;
     }
 
-    private static void CaptureSourceMetrics(
-        IDictionary<string, object?> target,
-        IMetricSource source,
-        IReadOnlyCollection<string> requestedMetrics)
+    private EditorPreviewCatalog DiscoverPreviewCatalog(IReadOnlySet<string> providers)
     {
-        if (requestedMetrics.Count == 0)
-            return;
-
-        MergeMetrics(target, source.Capture(requestedMetrics));
-    }
-
-    private static void MergeMetrics(
-        IDictionary<string, object?> target,
-        IReadOnlyDictionary<string, object?> source)
-    {
-        foreach (var pair in source)
-            target[pair.Key] = pair.Value;
+        var lhm = false; var icue = false;
+        if (providers.Contains(MetricProviderContract.LibreHardwareMonitor))
+            try { lhm = _lhmTelemetry.RefreshCatalog(); } catch (Exception error) { _log.Warn("Preview LHM discovery failed.", error); }
+        if (providers.Contains(MetricProviderContract.Icue))
+            try { icue = _icueTelemetry.RefreshCatalog(); } catch (Exception error) { _log.Warn("Preview iCUE discovery failed.", error); }
+        return new EditorPreviewCatalog(lhm ? _lhmTelemetry.MetricEntries : [], icue ? _icueTelemetry.MetricEntries.ToArray() : [],
+            _previewTelemetry.Catalog.Endpoints, lhm, icue);
     }
 
     private void SaveDashboardSnapshot()

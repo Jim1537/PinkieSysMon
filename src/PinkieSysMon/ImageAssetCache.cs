@@ -36,6 +36,12 @@ internal sealed class ImageAssetCache : IDisposable
                     _ = Get(bar.Image.Source!);
                     break;
 
+                case CanonicalDashboard.GraphWidgetDefinition graph
+                    when CanonicalDashboard.ImageAssetSourceType.IsFile(graph.Image.Asset.SourceType) &&
+                         !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
+                    _ = Get(graph.Image.Asset.Source!);
+                    break;
+
                 case CanonicalDashboard.StateVisualWidgetDefinition stateWidget:
                     foreach (var profile in stateWidget.Profiles.Values)
                     {

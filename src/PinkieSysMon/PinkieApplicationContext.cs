@@ -9,7 +9,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 {
     private readonly string _baseDir;
     private readonly FileLogger _log;
-    private readonly MetricStore _metrics = new();
+    private readonly MetricStore _metrics = new(new MetricHistoryStore());
+    private long _historyConfigurationEpoch;
     private readonly IMetricSource[] _sources;
 
     private readonly NotifyIcon _trayIcon = new();
@@ -230,6 +231,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private void ReconcileTelemetryDemand()
     {
         var required = _outputSessions.GetRequiredMetrics();
+        ReconcileHistoryDemand();
         if (_lastRequiredMetrics.SetEquals(required))
             return;
 
@@ -456,8 +458,16 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         });
     }
 
+    private void ReconcileHistoryDemand(bool newConfiguration = false)
+    {
+        if (newConfiguration) _historyConfigurationEpoch++;
+        _telemetry.SetHistoryDemand(_outputSessions.GetRequiredHistoryDemands()
+            .Select(d => d with { OwnerGeneration = _historyConfigurationEpoch }));
+    }
+
     private void CommitRuntimeConfiguration(RuntimeConfigurationSnapshot snapshot)
     {
+        ReconcileHistoryDemand(newConfiguration: true);
         _config = snapshot.App;
         _telemetryConfig = snapshot.Telemetry;
         _boards = snapshot.Boards;
@@ -471,6 +481,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         var required = _outputSessions.GetRequiredMetrics();
         _telemetry.Reconfigure(_telemetryConfig,
             MetricProviderContract.GetEnabledProviderIds(config.MetricProviders), required);
+        ReconcileHistoryDemand(newConfiguration: true);
         _lastRequiredMetrics = required.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _config = config;
         _boards = _outputSessions.GetDashboardAssignments();
