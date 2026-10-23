@@ -92,7 +92,7 @@ internal static class Issue84EditorStartupTests
         }
     }
 
-    private static void CreateEditorIconFixtures(string root)
+    internal static void CreateEditorIconFixtures(string root)
     {
         // EditorForm loads toolbar and property-tab Lucide icons at construction.
         // Isolate document-startup behavior with minimal valid SVG assets rather

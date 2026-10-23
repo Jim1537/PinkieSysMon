@@ -74,6 +74,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private bool _fitZoom;
     private bool _loading;
     private bool _dirty;
+    private bool _loadRequiresSave;
     private string _savedJson = string.Empty;
     private CanonicalWidgetDefinition? _selectedWidget;
     private readonly HashSet<CanonicalWidgetDefinition> _selectedWidgets = new(ReferenceEqualityComparer.Instance);
@@ -967,9 +968,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _dashboardMetadataPath = metadataPath;
             _dashboardMetadata = metadata;
             _metadataSaveErrorShown = false;
-            var schemaMigrated = sourceSchemaVersion != DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion;
-            _savedJson = schemaMigrated ? string.Empty : DashboardJson.Serialize(definition, indented: false);
-            _dirty = schemaMigrated || hierarchyAdjusted || textOverflowAdjusted || literalNumericAdjusted;
+            var schemaMigrated = sourceSchemaVersion != DashboardSchemaMigration.CurrentSchemaVersion;
+            // Undo compares against the loaded canonical document, while migration and
+            // normalization separately require persistence even after undoing later edits.
+            _savedJson = DashboardJson.SerializeEditorSnapshot(definition);
+            _loadRequiresSave = schemaMigrated || hierarchyAdjusted || textOverflowAdjusted || literalNumericAdjusted;
+            _dirty = _loadRequiresSave;
             _selectedWidget = null;
             _selectedWidgets.Clear();
             _selectedTreeKeys.Clear();
@@ -991,7 +995,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             UpdateStatusBar();
             var normalizationParts = new List<string>();
             if (schemaMigrated)
-                normalizationParts.Add($"schema {sourceSchemaVersion}→{DashboardSchemaMigration.PropertyModelNormalizationSchemaVersion}");
+                normalizationParts.Add($"schema {sourceSchemaVersion}→{DashboardSchemaMigration.CurrentSchemaVersion}");
             if (hierarchyAdjusted)
                 normalizationParts.Add("layer Z-order");
             if (textOverflowAdjusted)

@@ -68,12 +68,14 @@ internal sealed partial class EditorForm
                 // JSON was written, but the associated Editor-only group tree was
                 // not. Keep Save available, and do not allow a destructive close
                 // to treat this as a successful save.
+                _loadRequiresSave = true;
                 _dirty = true;
                 UpdateTitle();
                 SetStatus("Dashboard JSON saved, but Editor group metadata was NOT saved. Correct the error and retry Save.");
                 UpdateCommandStates();
                 return false;
             }
+            _loadRequiresSave = false;
             _dirty = false;
             UpdateTitle();
             SetStatus($"Saved {_dashboardPath}. Use the selected Output → Reload to apply runtime changes.");
@@ -410,7 +412,8 @@ internal sealed partial class EditorForm
         UpdateStatusBar();
         RestoreScrollPositionDeferred(scroll);
 
-        _dirty = !string.Equals(_savedJson, DashboardJson.SerializeEditorSnapshot(_definition), StringComparison.Ordinal);
+        _dirty = _loadRequiresSave ||
+            !string.Equals(_savedJson, DashboardJson.SerializeEditorSnapshot(_definition), StringComparison.Ordinal);
         UpdateTitle();
         UpdateCommandStates();
         RenderPreview(force: true, immediate: true);
