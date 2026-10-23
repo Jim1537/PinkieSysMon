@@ -661,7 +661,13 @@ internal static class CanonicalPropertyViewBuilder
                     converter: new FixedStringConverter(["Line", "Columns"])),
                 Bool(graph, nameof(C.NumericWidgetDefinition.Reverse), "graph.reverse", "Reverse", () => graph.Reverse, v => graph.Reverse = v)
             ]),
+            Group("Processing", [
+                String(graph, nameof(C.GraphWidgetDefinition.Filter), "graph.filter", "Filter", () => graph.Filter,
+                    v => graph.Filter = Convert.ToString(v) ?? "None", converter: new FixedStringConverter(["None", "Median", "Mean", "Kalman"]))
+            ]),
             Group("Line", [
+                String(graph, nameof(C.GraphWidgetDefinition.Interpolation), "graph.interpolation", "Interpolation", () => graph.Interpolation,
+                    v => graph.Interpolation = Convert.ToString(v) ?? "Linear", disabled: lineDisabled, converter: new FixedStringConverter(["Linear", "Bezier"])),
                 Float(graph, nameof(C.GraphWidgetDefinition.StrokeWidth), "graph.stroke_width", "Stroke Width", () => graph.StrokeWidth, v => graph.StrokeWidth = Math.Max(.1f, v), lineDisabled),
                 Bool(graph, nameof(C.GraphWidgetDefinition.FillEnabled), "graph.fill_enabled", "Fill Enabled", () => graph.FillEnabled, v => graph.FillEnabled = v, lineDisabled),
                 Float(graph, nameof(C.GraphWidgetDefinition.FillOpacity), "graph.fill_opacity", "Fill Opacity", () => graph.FillOpacity, v => graph.FillOpacity = Math.Clamp(v, 0, 1),

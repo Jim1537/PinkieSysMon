@@ -41,8 +41,10 @@ internal static class GraphWidgetTests
             "New numeric widgets must default Reverse to false.");
         var schema23 = JsonNode.Parse(json)!.AsObject(); schema23["schemaVersion"] = 23;
         schema23["widgets"]![0]!.AsObject().Remove("reverse");
+        schema23["widgets"]![0]!.AsObject().Remove("interpolation");
+        schema23["widgets"]![0]!.AsObject().Remove("filter");
         var migrated = C.DashboardDefinition.Parse(schema23.ToJsonString(), Path.Combine(Path.GetTempPath(), "old-graph.json"));
-        Check(((C.GraphWidgetDefinition)migrated.Widgets.Single()).Reverse && migrated.SchemaVersion == 24,
+        Check(((C.GraphWidgetDefinition)migrated.Widgets.Single()).Reverse && migrated.SchemaVersion == 25,
             "Schema-23 Graph migration must retain its original right-to-left direction.");
         var migratedJson = DashboardJson.Serialize(migrated, indented: false);
         Check(migratedJson == json, "Migration must preserve every existing Graph field and rendered direction.");
@@ -325,6 +327,86 @@ internal static class GraphWidgetTests
                 "Reverse must not mirror the background, and file opacity must remain independent of icon tint.");
             imageGraph.Image.Opacity = .25f;
             Check(Math.Abs(RenderPixel(10).Alpha - 64) <= 1, "Rebuilt Graph preview must apply edited file opacity.");
+        }
+    }
+
+    public static void SignalRendering()
+    {
+        foreach (var interpolation in new[] { "Linear", "Bezier" })
+        foreach (var filter in new[] { "None", "Median", "Mean", "Kalman" })
+        foreach (var mode in new[] { "Line", "Columns" })
+        foreach (var scale in new[] { "Auto", "Fixed" })
+        foreach (var reverse in new[] { false, true })
+        foreach (var threshold in C.ThresholdModeContract.SupportedModes)
+        {
+            var graph = Graph(); graph.Interpolation = interpolation; graph.Filter = filter;
+            graph.Mode = mode; graph.ScaleMode = scale; graph.Reverse = reverse;
+            SetThresholds(graph); graph.Thresholds.Items[0].Value = 15; graph.Thresholds.Items[1].Value = 55;
+            graph.Thresholds.Items[2].Value = 85; graph.Thresholds.Mode = threshold;
+            using var f = new Fixture(graph); f.Publish(2, 10); f.Publish(8, 90); f.Now = T(10);
+            using var bitmap = f.Render(); using var repeated = f.Render();
+            var last = filter switch { "None" => 90d, "Kalman" => 10 + 80 * 11d / 21, _ => 50d };
+            var range = scale == "Auto" ? new GraphRange(10, last) : new GraphRange(0, 100);
+            var sample = mode == "Columns" ? last - 3 : last;
+            var colors = new QuantitativeColorScale(graph);
+            var expected = threshold == C.ThresholdModeContract.State
+                ? QuantitativeColorScale.StateColor(colors.BaseColor, colors.Thresholds, last) : colors.At(sample, range.Min);
+            Check(NearPixel(bitmap, reverse ? 80 : 20, (int)Math.Round(100 * (1 - range.Normalize(sample))), expected),
+                $"Processing raster mismatch: {interpolation}/{filter}/{mode}/{scale}/{reverse}/{threshold}.");
+            Check(bitmap.Bytes.AsSpan().SequenceEqual(repeated.Bytes), "Rendering the same publication twice must not advance filtering.");
+        }
+        foreach (var reverse in new[] { false, true })
+        {
+            var graph = Graph(); graph.Interpolation = "Bezier"; graph.Reverse = reverse; graph.FillEnabled = true; graph.FillOpacity = .4f;
+            using var f = new Fixture(graph); f.Publish(2, 0); f.Publish(5, 100); f.Publish(8, 0); f.Now = T(10);
+            using var bitmap = f.Render();
+            var x = reverse ? 35 : 65;
+            Check(NearPixel(bitmap, x, 37, SKColors.White) && Math.Abs(bitmap.GetPixel(x, 60).Alpha - 102) <= 1,
+                $"Bezier stroke and fill must follow the same curved boundary in both directions: reverse={reverse}, stroke={NearPixel(bitmap, x, 37, SKColors.White)}, fill={bitmap.GetPixel(x, 60)}.");
+        }
+        var clipped = Graph(); clipped.Interpolation = "Bezier"; clipped.FillEnabled = true;
+        using (var f = new Fixture(clipped))
+        {
+            f.Publish(2, -50); f.Publish(5, 150); f.Publish(8, -50); f.Now = T(10);
+            using var bitmap = f.Render();
+            Check(bitmap.GetPixel(21, 98).Alpha == 0 && bitmap.GetPixel(50, 50).Alpha > 0,
+                "Bezier Fixed clipping must preserve true crossings and the filled clipped peak.");
+        }
+        foreach (var reverse in new[] { false, true })
+        {
+            var graph = Graph(); graph.Interpolation = "Bezier"; graph.Reverse = reverse; graph.ScaleMode = "Auto";
+            using var f = new Fixture(graph); f.Publish(1, 100); f.Publish(3, 20); f.Publish(4, 30); f.Now = T(12);
+            using var bitmap = f.Render();
+            Check(NearPixel(bitmap, reverse ? 20 : 80, 1, SKColors.White) && bitmap.GetPixel(reverse ? 0 : 99, 1).Alpha == 0,
+                "Expired predecessors must clip the actual curve without setting Auto extrema or creating a border stroke.");
+        }
+        var budget = Graph(); budget.Filter = "Mean";
+        using (var f = new Fixture(budget))
+        {
+            f.Publish(2, 20); f.Publish(8, 80); f.Now = T(10);
+            var board = Board(budget); board.BaseDirectory = f.Root;
+            board.Widgets = Enumerable.Range(0, 45).Select(i =>
+            {
+                var graph = (C.GraphWidgetDefinition)DashboardJson.CloneWidget(budget); graph.Id = "budget-" + i; return (C.WidgetDefinition)graph;
+            }).ToList();
+            using (var filtered = new DashboardRenderer(board, history: f.History))
+                Throws<InvalidDataException>(() => { using var frame = filtered.RenderBgra(f.Metrics); });
+            foreach (var widget in board.Widgets.Cast<C.GraphWidgetDefinition>()) widget.Filter = "None";
+            using var raw = new DashboardRenderer(board, history: f.History); using var rawFrame = raw.RenderBgra(f.Metrics);
+            Check(rawFrame.Bitmap.Width == 100, "The existing scratch budget must admit 45 raw Graphs while charging the extra filter buffers.");
+        }
+        var gap = Graph(); gap.Interpolation = "Bezier"; gap.Filter = "Mean"; gap.FillEnabled = true;
+        using (var f = new Fixture(gap))
+        {
+            f.Publish(1, 20); f.Publish(3, null); f.Publish(7, 80); f.Publish(9, 90); f.Now = T(10);
+            using var bitmap = f.Render();
+            Check(bitmap.GetPixel(40, 90).Alpha == 0 && bitmap.GetPixel(40, 50).Alpha == 0,
+                "Bezier/filtering must not bridge gaps with stroke or fill.");
+            var board = Board(gap); board.BaseDirectory = f.Root; board.Canvas.BackgroundColor = "#00000000";
+            using var runtime = new DashboardRenderer(board, history: f.History);
+            using var preview = new DashboardPreviewRenderer(board, f.History);
+            using var actual = runtime.RenderBgra(f.Metrics); using var expected = SKBitmap.Decode(preview.RenderToPng(f.Metrics));
+            Check(actual.Bitmap.Bytes.AsSpan().SequenceEqual(expected.Bytes), "Bezier/filtering must use identical Runtime/Editor rasterization.");
         }
     }
 

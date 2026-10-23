@@ -467,6 +467,11 @@ internal static class Program
             ("Graph fill alpha and common image composition", GraphWidgetTests.FillAlphaAndCommonImageComposition),
             ("Graph geometry reuse and Runtime Editor parity", GraphWidgetTests.GeometryReuseAndRuntimeEditorParity),
             ("Graph reverse time direction and background edits", GraphWidgetTests.ReverseTimeDirectionAndBackgroundEdits),
+            ("Graph interpolation and filter schema", GraphSignalTests.SchemaAndDefaults),
+            ("Graph causal filter values and finite arithmetic", GraphSignalTests.FiltersAndFiniteArithmetic),
+            ("Graph filter publication cache and lifecycle", GraphSignalTests.PublicationCacheLifecycle),
+            ("Graph monotone Bezier geometry and clipping", GraphSignalTests.BezierGeometry),
+            ("Graph Bezier and filtering raster integration", GraphWidgetTests.SignalRendering),
             ("Graph telemetry publication and serialized discovery", GraphTelemetryTests.PublicationAndSerializedDiscovery),
             ("Graph telemetry pause and generation fences", GraphTelemetryTests.PausedCaptureAndSemanticGenerationFences),
             ("Graph catalog meaning and direct Output publication", GraphTelemetryTests.CatalogMeaningAndDynamicPublication),
@@ -11605,8 +11610,8 @@ internal static class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 24,
-            "The executable current dashboard contract must be schema 24.");
+               MetricContract.DashboardSchemaVersion == 25,
+            "The executable current dashboard contract must be schema 25.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

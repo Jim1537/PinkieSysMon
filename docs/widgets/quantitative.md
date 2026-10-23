@@ -18,11 +18,11 @@ Current-value numeric caching is keyed by metric, unit, component and precision;
 clock hands therefore remain independent. The unavailable state is preserved
 for migrated widgets without a selected Component.
 
-For Gauge/Bar and Graph Fixed, a valid **converted or projected** reading `v` has the bounded geometric position:
+For Gauge/Bar and Graph Fixed, a valid **displayed** reading `v` (after conversion/projection and Graph's optional [processing](graph.md#per-graph-signal-processing)) has the bounded geometric position:
 
 `ratio = clamp((v - Min) / (Max - Min), 0, 1)`
 
-`Min` and `Max` are interpreted **after conversion, in the selected unit**. The ratio is bounded to the configured interval; the original converted `v` remains available for threshold state-color evaluation. A value below `Min` is a **valid zero-position value**, distinct from an unavailable reading. `Max` must exceed `Min` and both bounds must be finite.
+`Min` and `Max` are interpreted **after conversion, in the selected unit**. The ratio is bounded to the configured interval; the unclipped displayed `v` remains available for threshold state-color evaluation. A value below `Min` is a **valid zero-position value**, distinct from an unavailable reading. `Max` must exceed `Min` and both bounds must be finite.
 
 What the ratio **moves or fills** is widget-specific: [Gauge](gauge.md#arc-geometry-and-direction) applies it to arc sweep and needle angle; [Bar](bar.md#geometry-and-reverse-direction) applies it to horizontal content progress and its Fill/Image transforms. Graph uses vertical position; its [Auto range and time geometry](graph.md#historical-projection-and-geometry) have their own contract.
 
@@ -36,7 +36,7 @@ For an **active threshold-color rendering path**, `QuantitativeColorScale` compi
 
 - `SegmentSolid`: the base color and enabled thresholds establish fixed color intervals along the scale.
 - `SegmentTransition`: the base color and enabled thresholds establish color stops for a continuous gradient along the scale, including reversed stop order when required.
-- `State`: the **active indicator** takes the base color until thresholds are crossed, then uses the color of the last crossed enabled threshold. A threshold `t` is crossed when the **converted** reading `v >= t`, even when the geometric ratio has been clamped.
+- `State`: the **active indicator** takes the base color until thresholds are crossed, then uses the color of the last crossed enabled threshold. A threshold `t` is crossed when the **displayed numeric** reading `v >= t`, even when the geometric ratio has been clamped.
 
 Gauge/Bar active progress still uses the bounded ratio; threshold `State` selection uses `v`. These modes do not automatically recolor the shared widget background, border, or unrelated pointer/needle paints.
 

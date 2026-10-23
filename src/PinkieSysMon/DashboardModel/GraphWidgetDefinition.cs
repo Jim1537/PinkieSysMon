@@ -6,6 +6,8 @@ internal sealed class GraphWidgetDefinition : NumericWidgetDefinition
 {
     [JsonIgnore] public override string Type => global::PinkieSysMon.WidgetTypeContract.Graph;
     [JsonPropertyName("mode")] public string Mode { get; set; } = "Line";
+    [JsonPropertyName("interpolation")] public string Interpolation { get; set; } = "Linear";
+    [JsonPropertyName("filter")] public string Filter { get; set; } = "None";
     [JsonPropertyName("windowSeconds")] public double WindowSeconds { get; set; } = 60;
     [JsonPropertyName("scaleMode")] public string ScaleMode { get; set; } = "Auto";
     [JsonPropertyName("strokeWidth")] public float StrokeWidth { get; set; } = 2;
@@ -22,6 +24,8 @@ internal sealed class GraphWidgetDefinition : NumericWidgetDefinition
         ValidateNumeric(validateThresholds: true, autoScale: AutoScale);
         if (Mode is not ("Line" or "Columns") || ScaleMode is not ("Auto" or "Fixed"))
             throw new InvalidDataException($"Graph '{Id}' requires Line/Columns and Auto/Fixed modes.");
+        if (Interpolation is not ("Linear" or "Bezier") || Filter is not ("None" or "Median" or "Mean" or "Kalman"))
+            throw new InvalidDataException($"Graph '{Id}' requires Linear/Bezier interpolation and None/Median/Mean/Kalman filtering.");
         RequireFinite(WindowSeconds, nameof(WindowSeconds));
         RequireFinite(StrokeWidth, nameof(StrokeWidth));
         RequireFinite(FillOpacity, nameof(FillOpacity));

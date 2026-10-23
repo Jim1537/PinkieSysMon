@@ -19,7 +19,8 @@ internal static class DashboardSchemaMigration
     public const int DateTimeComponentPrecisionSchemaVersion = 22;
     public const int GraphSchemaVersion = 23;
     public const int GraphReverseSchemaVersion = 24;
-    public const int CurrentSchemaVersion = GraphReverseSchemaVersion;
+    public const int GraphSignalSchemaVersion = 25;
+    public const int CurrentSchemaVersion = GraphSignalSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -32,11 +33,17 @@ internal static class DashboardSchemaMigration
                 widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
                 string.Equals(type, "graph", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException("Legacy graph widgets cannot be reinterpreted as the schema-23 Graph widget.");
+        if (schemaVersion < GraphSignalSchemaVersion && root["widgets"] is JsonArray signalWidgets &&
+            signalWidgets.OfType<JsonObject>().Any(widget =>
+                widget["type"] is JsonValue signalType && signalType.TryGetValue<string>(out var type) &&
+                string.Equals(type, "graph", StringComparison.OrdinalIgnoreCase) &&
+                (widget.ContainsKey("interpolation") || widget.ContainsKey("filter"))))
+            throw new InvalidDataException("Pre-25 Graph widgets cannot contain interpolation or filter fields.");
         if (schemaVersion == CurrentSchemaVersion)
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -85,6 +92,20 @@ internal static class DashboardSchemaMigration
             }
             root["schemaVersion"] = GraphReverseSchemaVersion;
             schemaVersion = GraphReverseSchemaVersion;
+        }
+
+        if (schemaVersion == GraphReverseSchemaVersion)
+        {
+            if (root["widgets"] is JsonArray widgets)
+                foreach (var graph in widgets.OfType<JsonObject>().Where(widget =>
+                    widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
+                    string.Equals(type, global::PinkieSysMon.WidgetTypeContract.Graph, StringComparison.OrdinalIgnoreCase)))
+                {
+                    graph["interpolation"] = "Linear";
+                    graph["filter"] = "None";
+                }
+            root["schemaVersion"] = GraphSignalSchemaVersion;
+            schemaVersion = GraphSignalSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

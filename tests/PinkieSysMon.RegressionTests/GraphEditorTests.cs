@@ -28,12 +28,22 @@ internal static class GraphEditorTests
             "Fixed must restore editing without replacing retained bounds.");
         var graphRows = View(EditorPropertySection.Graph);
         var line = Rows(graphRows, "Line");
-        GraphWidgetTests.Check(!line["StrokeWidth"]!.IsReadOnly && line["FillOpacity"]!.IsReadOnly, "Line-only and disabled-fill applicability is incorrect.");
+        GraphWidgetTests.Check(!line["Interpolation"]!.IsReadOnly && !line["StrokeWidth"]!.IsReadOnly && line["FillOpacity"]!.IsReadOnly, "Line-only and disabled-fill applicability is incorrect.");
         line["FillEnabled"]!.SetValue(null, true);
         GraphWidgetTests.Check(!line["FillOpacity"]!.IsReadOnly, "Enabling fill must enable its opacity.");
         Rows(graphRows, "Timeline")["GraphMode"]!.SetValue(null, "Columns");
-        GraphWidgetTests.Check(line["StrokeWidth"]!.IsReadOnly && line["FillEnabled"]!.IsReadOnly && line["FillOpacity"]!.IsReadOnly,
+        GraphWidgetTests.Check(line["Interpolation"]!.IsReadOnly && line["StrokeWidth"]!.IsReadOnly && line["FillEnabled"]!.IsReadOnly && line["FillOpacity"]!.IsReadOnly,
             "Columns must disable Line-only settings.");
+        var filter = Rows(graphRows, "Processing")["Filter"]!;
+        GraphWidgetTests.Check(!filter.IsReadOnly &&
+            ((IPropertySemanticKeyDescriptor)filter).SemanticKey == "graph.filter" &&
+            ((IPropertySemanticKeyDescriptor)line["Interpolation"]!).SemanticKey == "graph.interpolation",
+            "Filtering applies to both plot modes; interpolation is Line-only with canonical keys.");
+        filter.SetValue(null, "Median"); line["Interpolation"]!.SetValue(null, "Bezier");
+        GraphWidgetTests.Check(graph.Filter == "Median" && graph.Interpolation == "Bezier" &&
+            filter.Converter.GetStandardValues()!.Cast<string>().SequenceEqual(new[] { "None", "Median", "Mean", "Kalman" }) &&
+            line["Interpolation"]!.Converter.GetStandardValues()!.Cast<string>().SequenceEqual(new[] { "Linear", "Bezier" }),
+            "Graph processing choices must write independent canonical fields with fixed choices.");
         GraphWidgetTests.Check(graphRows["Background Image"] is null, "Graph must not duplicate image controls in its plot tab.");
         var source = Rows(general, "Background Image");
         var image = Rows(View(EditorPropertySection.Image), "Background Image");
@@ -113,10 +123,11 @@ internal static class GraphEditorTests
                 _ => System.Windows.Forms.DialogResult.Yes, _ => System.Windows.Forms.DialogResult.Yes) &&
                 File.Exists(Path.Combine(target, graph.Image.Asset.Source!)), "Graph clipboard import must copy its dashboard-local image.");
             var definition = GraphWidgetTests.Board(graph); definition.BaseDirectory = target;
+            graph.Filter = "Median"; graph.Interpolation = "Bezier";
             var before = DashboardJson.SerializeEditorSnapshot(definition);
-            graph.WindowSeconds = 30; graph.Mode = "Columns";
+            graph.WindowSeconds = 30; graph.Mode = "Columns"; graph.Filter = "Mean"; graph.Interpolation = "Linear";
             var restored = DashboardJson.ParseEditorSnapshot(before, Path.Combine(target, "dashboard.json"));
-            GraphWidgetTests.Check(restored.Widgets.Single() is C.GraphWidgetDefinition { WindowSeconds: 10, Mode: "Line" },
+            GraphWidgetTests.Check(restored.Widgets.Single() is C.GraphWidgetDefinition { WindowSeconds: 10, Mode: "Line", Filter: "Median", Interpolation: "Bezier" },
                 "Canonical undo snapshots must restore Graph settings without serializing history.");
             graph.Image.Asset.Source = "background.png";
             GraphWidgetTests.Check(EditorForm.ResolveClipboardImages([graph], source, target, [],

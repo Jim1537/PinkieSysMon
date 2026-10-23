@@ -16,7 +16,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         if (!_resources.TryGetValue(widget, out var r))
         {
             var capacity = context.History?.SamplesPerMetric ?? 0;
-            var bytes = capacity * 68L;
+            var bytes = capacity * (graph.Filter == "None" ? 68L : 92L) + (graph.Filter == "None" ? 0 : 40);
             if (bytes > MaximumScratchBytes - _scratchBytes)
                 throw new InvalidDataException("Graph render scratch exceeds the 32 MiB per-dashboard budget.");
             r = new Resources(graph, images, icons, capacity, context.Antialias);
@@ -49,7 +49,8 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
                 }
                 else if (i > 0 && point.Connects)
                 {
-                    r.DrawSegment(canvas, graph, r.Points[r.Selected[i - 1]], point);
+                    if (graph.Interpolation == "Bezier") r.DrawBezierSegment(canvas, i);
+                    else r.DrawSegment(canvas, graph, r.Points[r.Selected[i - 1]], point);
                 }
                 else if (point.X is >= 0 and <= 1 && point.Value >= r.Range.Min && point.Value <= r.Range.Max)
                 {
@@ -71,16 +72,15 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         _resources.Clear(); _scratchBytes = 0;
     }
 
-    internal readonly record struct Point(double X, double Value, bool Connects);
-
     private sealed class Resources : IDisposable
     {
         public readonly int Capacity;
         public readonly MetricHistorySample[] Raw;
-        public readonly Point[] Points;
+        public readonly GraphPoint[] Points;
         public readonly int[] Selected;
         public readonly QuantitativeColorScale Colors;
         public readonly bool Reverse;
+        private readonly GraphFilterProjection? _filter;
         public SKRect Bounds;
         public readonly SKRoundRect Clip = new();
         public readonly SKPaint Stroke;
@@ -96,8 +96,9 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public Resources(C.GraphWidgetDefinition graph, ImageAssetCache images, IconAssetCache icons, int capacity, bool antialias)
         {
             Capacity = capacity;
-            Raw = new MetricHistorySample[capacity]; Points = new Point[capacity]; Selected = new int[capacity];
+            Raw = new MetricHistorySample[capacity]; Points = new GraphPoint[capacity]; Selected = new int[capacity];
             Colors = new(graph); Reverse = graph.Reverse;
+            if (graph.Filter != "None") _filter = new(graph.Filter, capacity);
             UpdateGeometry(graph);
             Stroke = new() { IsAntialias = antialias, Style = SKPaintStyle.Stroke, StrokeWidth = graph.StrokeWidth, StrokeCap = SKStrokeCap.Round };
             Fill = new() { IsAntialias = antialias, Style = SKPaintStyle.Fill };
@@ -125,13 +126,17 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             _frame = context.FrameSequence; SelectedCount = 0;
             if (context.History is null || string.IsNullOrWhiteSpace(graph.Metric)) return;
             var query = context.History.CopyTo(graph.Metric, graph.WindowSeconds, context.HistoryTimestamp, Raw);
+            _filter?.Begin(query.Epoch, Raw.AsSpan(0, query.Count));
             var min = double.PositiveInfinity; var max = double.NegativeInfinity;
             var count = 0; var previousValid = false;
             for (var i = 0; i < query.Count; i++)
             {
                 var raw = Raw[i];
-                if (!MetricValueConverter.TryResolveQuantitative(raw, query.Descriptor,
-                        graph.Unit, graph.Component, graph.ComponentFormat, out var value))
+                double value;
+                var valid = _filter is not null ? _filter.TryResolve(raw, query.Descriptor, graph, out value)
+                    : MetricValueConverter.TryResolveQuantitative(raw, query.Descriptor,
+                        graph.Unit, graph.Component, graph.ComponentFormat, out value);
+                if (!valid)
                 { previousValid = false; continue; }
                 Points[count++] = new((raw.Timestamp - query.WindowStart) / (graph.WindowSeconds * TimeSpan.TicksPerSecond),
                     value, previousValid && raw.ConnectsToPrevious);
@@ -186,6 +191,60 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             if (!fill) Fill.Color = paint.Color;
         }
 
+        private GraphBezierSegment Curve(int index)
+        {
+            var a = Points[Selected[index - 1]]; var b = Points[Selected[index]];
+            GraphPoint? previous = index > 1 && a.Connects ? Points[Selected[index - 2]] : null;
+            GraphPoint? next = index + 1 < SelectedCount && Points[Selected[index + 1]].Connects
+                ? Points[Selected[index + 1]] : null;
+            var curve = GraphBezierSegment.Create(a, b, previous, next);
+            return a.X < 0 && b.X > a.X ? curve.Slice(-a.X / (b.X - a.X), 1) : curve;
+        }
+
+        private void AppendCurve(GraphBezierSegment curve)
+        {
+            var width = curve.X1 - curve.X0;
+            Builder.CubicTo(X(curve.X0 + width / 3), Y(curve.C1),
+                X(curve.X1 - width / 3), Y(curve.C2), X(curve.X1), Y(curve.V1));
+        }
+
+        public void DrawBezierSegment(SKCanvas canvas, int index)
+        {
+            var a = Points[Selected[index - 1]]; var b = Points[Selected[index]];
+            if (b.X < 0 || a.X > 1) return;
+            var curve = Curve(index);
+            if (curve.V0 < Range.Min && curve.V1 < Range.Min || curve.V0 > Range.Max && curve.V1 > Range.Max) return;
+            var lo = 0d; var hi = 1d;
+            if (curve.V0 < Range.Min) lo = curve.Crossing(Range.Min);
+            if (curve.V0 > Range.Max) lo = curve.Crossing(Range.Max);
+            if (curve.V1 < Range.Min) hi = curve.Crossing(Range.Min);
+            if (curve.V1 > Range.Max) hi = curve.Crossing(Range.Max);
+            if (lo > hi) return;
+            curve = curve.Slice(lo, hi);
+            Builder.Reset(); Builder.MoveTo(X(curve.X0), Y(curve.V0)); AppendCurve(curve);
+            SetColor(b.Value, fill: false);
+            using var path = Builder.Detach(); canvas.DrawPath(path, Stroke);
+        }
+
+        private void AppendBezierFill(GraphBezierSegment curve, Span<double> cuts)
+        {
+            var n = 0; cuts[n++] = 0;
+            for (var boundaryIndex = 0; boundaryIndex < 2; boundaryIndex++)
+            {
+                var boundary = boundaryIndex == 0 ? Range.Min : Range.Max;
+                if ((curve.V0 < boundary && curve.V1 > boundary) || (curve.V1 < boundary && curve.V0 > boundary))
+                    cuts[n++] = curve.Crossing(boundary);
+            }
+            cuts[n++] = 1; cuts[..n].Sort();
+            for (var j = 1; j < n; j++)
+            {
+                var part = curve.Slice(cuts[j - 1], cuts[j]);
+                var value = curve.Value((cuts[j - 1] + cuts[j]) / 2);
+                if (value > Range.Min && value < Range.Max) AppendCurve(part);
+                else Builder.LineTo(X(part.X1), Y(part.V1));
+            }
+        }
+
         public void DrawFills(SKCanvas canvas, C.GraphWidgetDefinition graph)
         {
             var active = false; var lastX = 0d; var lastColor = default(SKColor); var stateValue = 0d;
@@ -202,7 +261,12 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             {
                 var a = Points[Selected[i - 1]]; var b = Points[Selected[i]];
                 if (!b.Connects || b.X < 0 || a.X > 1) { Flush(); continue; }
-                if (a.X < 0 && b.X > a.X) a = a with { Value = Lerp(a.Value, b.Value, -a.X / (b.X - a.X)), X = 0 };
+                var curve = default(GraphBezierSegment);
+                if (graph.Interpolation == "Bezier")
+                {
+                    curve = Curve(i); a = a with { X = curve.X0, Value = curve.V0 };
+                }
+                else if (a.X < 0 && b.X > a.X) a = a with { Value = Lerp(a.Value, b.Value, -a.X / (b.X - a.X)), X = 0 };
                 var color = Colors.Mode == C.ThresholdModeContract.State
                     ? QuantitativeColorScale.StateColor(Colors.BaseColor, Colors.Thresholds, b.Value) : SKColors.White;
                 if (active && color != lastColor) Flush();
@@ -211,24 +275,30 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
                     Builder.Reset(); Builder.MoveTo(X(a.X), Bounds.Bottom); Builder.LineTo(X(a.X), Y(a.Value));
                     active = true; lastColor = color;
                 }
-                var n = 0;
-                for (var boundaryIndex = 0; boundaryIndex < 2; boundaryIndex++)
-                {
-                    var boundary = boundaryIndex == 0 ? Range.Min : Range.Max;
-                    if ((a.Value < boundary && b.Value > boundary) || (b.Value < boundary && a.Value > boundary))
-                        fractions[n++] = GraphRange.Fraction(boundary, a.Value, b.Value);
-                }
-                fractions[n++] = 1; fractions[..n].Sort();
-                for (var j = 0; j < n; j++)
-                {
-                    var t = fractions[j]; Builder.LineTo(X(Lerp(a.X, b.X, t)), Y(Lerp(a.Value, b.Value, t)));
-                }
+                if (graph.Interpolation == "Bezier") AppendBezierFill(curve, fractions);
+                else AppendLinearFill(a, b, fractions);
                 lastX = b.X; stateValue = b.Value;
             }
             Flush();
         }
 
-        public void DrawSegment(SKCanvas canvas, C.GraphWidgetDefinition graph, Point a, Point b)
+        private void AppendLinearFill(GraphPoint a, GraphPoint b, Span<double> fractions)
+        {
+            var n = 0;
+            for (var boundaryIndex = 0; boundaryIndex < 2; boundaryIndex++)
+            {
+                var boundary = boundaryIndex == 0 ? Range.Min : Range.Max;
+                if ((a.Value < boundary && b.Value > boundary) || (b.Value < boundary && a.Value > boundary))
+                    fractions[n++] = GraphRange.Fraction(boundary, a.Value, b.Value);
+            }
+            fractions[n++] = 1; fractions[..n].Sort();
+            for (var j = 0; j < n; j++)
+            {
+                var t = fractions[j]; Builder.LineTo(X(Lerp(a.X, b.X, t)), Y(Lerp(a.Value, b.Value, t)));
+            }
+        }
+
+        public void DrawSegment(SKCanvas canvas, C.GraphWidgetDefinition graph, GraphPoint a, GraphPoint b)
         {
             if (b.X < 0 || a.X > 1) return;
             if (a.X < 0 && b.X > a.X)

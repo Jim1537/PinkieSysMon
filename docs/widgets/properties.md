@@ -400,6 +400,36 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:fill-opacity] -->
 
 ---
+## Filter
+
+<!-- --8<-- [start:filter] -->
+
+!!! info ""
+
+    **Editor name:** Filter  
+    **Semantic key:** `graph.filter`  
+    **Canonical model:** `GraphWidgetDefinition.Filter`  
+    **JSON:** `filter` (schema 25)
+
+    **Values:** `None` (default), `Median`, `Mean`, `Kalman`.
+
+    Processes displayed observations before scaling, interpolation and threshold colors.
+
+    | Mode | Processing |
+    | --- | --- |
+    | None | Original converted values. |
+    | Median | Median of the latest five continuous observations, including the current one; the available count is used during startup, with the middle pair averaged for an even count. |
+    | Mean | Arithmetic mean of the latest five continuous observations, including the current one; the available count is used during startup. |
+    | Kalman | Scalar random-walk estimate, initialized at the first observation; fixed normalized noise ratio `Q/R=0.1` per publication and initial `P/R=1`. This is a display smoothing preset, not a calibrated sensor model. |
+
+    **Used by:** Graph Line and Columns. Filters can suppress peaks and delay response.
+    Missing data and continuity breaks restart the filter. Shared raw history is preserved;
+    repeated frames do not advance it. [Graph processing](graph.md#per-graph-signal-processing)
+    owns cache, priming and lifetime details.
+
+<!-- --8<-- [end:filter] -->
+
+---
 ## Font Family
 
 
@@ -881,6 +911,28 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Changing `file` ↔ `icon` uses canonical `ChangeSourceType()` and clears the current [Source](properties.md#image-source).
 
 <!-- --8<-- [end:image-source-type] -->
+
+---
+## Interpolation
+
+<!-- --8<-- [start:interpolation] -->
+
+!!! info ""
+
+    **Editor name:** Interpolation  
+    **Semantic key:** `graph.interpolation`  
+    **Canonical model:** `GraphWidgetDefinition.Interpolation`  
+    **JSON:** `interpolation` (schema 25)
+
+    **Values:** `Linear` (default), `Bezier`.
+
+    Chooses straight segments or a shape-preserving cubic Bezier curve through displayed
+    observations. Area fill follows the same boundary. This changes geometry without
+    averaging the values; [Filter](#filter) is independent.
+
+    **Used by:** Graph Line; visible but read-only in Columns mode, with its value retained.
+
+<!-- --8<-- [end:interpolation] -->
 
 ---
 ## Italic

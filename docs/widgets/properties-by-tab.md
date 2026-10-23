@@ -305,7 +305,16 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Reverse
     --8<-- "widgets/properties.md:reverse"
 
+    ### Processing
+
+    #### Filter
+    --8<-- "widgets/properties.md:filter"
+
     ### Line
+
+    #### Interpolation
+    --8<-- "widgets/properties.md:interpolation"
+
 
     #### Stroke Width
     --8<-- "widgets/properties.md:stroke-width"
