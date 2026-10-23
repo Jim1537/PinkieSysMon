@@ -48,13 +48,10 @@ internal static class ShortcutRenderTests
     public static void LabelsEffectsAndSharedArtwork()
     {
         var sourceRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
-        var root = Path.Combine(Path.GetTempPath(), "Pinkie-Shortcut-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(root, "config"));
-        Directory.CreateDirectory(Path.Combine(root, "assets", "fonts", "Roboto"));
+        // Keep global fonts at application scope; the fixture owns only generated artwork.
+        // A nested dashboard resolves the existing application root without copying font files.
+        var root = Path.Combine(sourceRoot, "artifacts", "shortcut-render-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "images"));
-        File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
-        File.Copy(Path.Combine(sourceRoot, "assets", "fonts", "Roboto", "Roboto-Regular.ttf"),
-            Path.Combine(root, "assets", "fonts", "Roboto", "Roboto-Regular.ttf"));
         try
         {
             using (var bitmap = new SKBitmap(2, 1))
