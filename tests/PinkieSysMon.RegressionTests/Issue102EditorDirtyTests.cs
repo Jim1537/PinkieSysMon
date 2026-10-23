@@ -108,7 +108,10 @@ internal static class Issue102EditorDirtyTests
 
     private static void WithEditor(Action<string, EditorForm> test)
     {
-        var root = Path.Combine(Path.GetTempPath(), "psm-issue102-" + Guid.NewGuid().ToString("N"));
+        // Borrow the application's bundled fonts without copying/deleting native font files.
+        // Only the uniquely named scratch directory belongs to this regression.
+        var applicationRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
+        var root = Path.Combine(applicationRoot, "artifacts", "issue102-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
