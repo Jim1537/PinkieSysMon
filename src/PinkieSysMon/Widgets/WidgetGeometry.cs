@@ -100,6 +100,15 @@ internal static class WidgetGeometry
         if (context.GetContainerResources(widget).BorderPaint is not null)
             rect = Inflate(rect, widget.BorderWidth / 2f + 1f);
 
+        if (widget is CanonicalDashboard.ShortcutWidgetDefinition shortcut &&
+            ShortcutLabelLayout.GetBounds(shortcut, context) is { } label)
+        {
+            // The label shares the graphic pivot, but never enlarges its container.
+            var outline = shortcut.TextPresentation.OutlineWidth / 2f + 1f;
+            label = new SKRect(label.Left, label.Top - outline, label.Right, label.Bottom + outline);
+            rect = Union(rect, label);
+        }
+
         return Normalize(rect);
     }
 
@@ -402,6 +411,8 @@ internal static class WidgetEffects
             widget.CornerRadius <= 0f)
         {
             renderer.Render(canvas, widget, context);
+            if (renderer is IWidgetOverlayRenderer overlay)
+                overlay.RenderOverlay(canvas, widget, context);
             return;
         }
 
@@ -433,6 +444,8 @@ internal static class WidgetEffects
         }
 
         DrawContainerBorder(canvas, widget, container, bounds, radius);
+        if (renderer is IWidgetOverlayRenderer overlayRenderer)
+            overlayRenderer.RenderOverlay(canvas, widget, context);
     }
 
     private static void DrawContainerBackground(

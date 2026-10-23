@@ -44,7 +44,7 @@ internal static class GraphWidgetTests
         schema23["widgets"]![0]!.AsObject().Remove("interpolation");
         schema23["widgets"]![0]!.AsObject().Remove("filter");
         var migrated = C.DashboardDefinition.Parse(schema23.ToJsonString(), Path.Combine(Path.GetTempPath(), "old-graph.json"));
-        Check(((C.GraphWidgetDefinition)migrated.Widgets.Single()).Reverse && migrated.SchemaVersion == 25,
+        Check(((C.GraphWidgetDefinition)migrated.Widgets.Single()).Reverse && migrated.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion,
             "Schema-23 Graph migration must retain its original right-to-left direction.");
         var migratedJson = DashboardJson.Serialize(migrated, indented: false);
         Check(migratedJson == json, "Migration must preserve every existing Graph field and rendered direction.");

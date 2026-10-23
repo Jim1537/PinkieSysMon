@@ -117,7 +117,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Bump Pause  
-    **Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state)  
+    **Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state); `text.shortcut.overflow.bump_pause` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.BumpPauseMs`  
     **JSON:** `textPresentation.bumpPauseMs` (Text / Value); `profiles.{state}.textPresentation.bumpPauseMs` (Value state)
 
@@ -128,7 +129,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Pause at the edges during Bump.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
     **Disabled / read-only when:**
     - [Overflow Mode](properties.md#overflow-mode)!=`Bump`.
@@ -438,7 +439,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Family  
-    **Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state)  
+    **Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state); `text.shortcut.font.family` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.FontFamily`  
     **JSON:** `textPresentation.fontFamily` (Text / Value); `profiles.{state}.textPresentation.fontFamily` (Value state)
 
@@ -449,7 +451,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     The Editor provides an editable drop-down listing families discovered under the application's `assets/fonts` directory. You may type a family name, but Runtime rendering requires that font to be bundled; system-installed fonts are not used.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:font-family] -->
 
@@ -462,7 +464,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Size  
-    **Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state)  
+    **Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state); `text.shortcut.font.size` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.FontSize`  
     **JSON:** `textPresentation.fontSize` (Text / Value); `profiles.{state}.textPresentation.fontSize` (Value state)
 
@@ -473,7 +476,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Font size.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:font-size] -->
 
@@ -486,7 +489,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Weight  
-    **Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state)  
+    **Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state); `text.shortcut.font.weight` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.FontWeight`  
     **JSON:** `textPresentation.fontWeight` (Text / Value); `profiles.{state}.textPresentation.fontWeight` (Value state)
 
@@ -497,7 +501,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Font weight.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:font-weight] -->
 
@@ -521,7 +525,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Primary foreground color. For state-driven widgets, it serves as a fallback when the active profile does not define its own Color.
 
-    **Used by:** Text / Value, Gauge, Graph, Binary, Power, Media System, Media Player, Bar in Fill mode, Image in Icon mode
+    **Used by:** Text / Value, Gauge, Graph, Binary, Power, Media System, Media Player, Bar in Fill mode, Image/Shortcut with a tintable Icon source
 
     **Disabled / read-only when:**
     - Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
@@ -638,7 +642,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 
     **Values:**
-    - **Bar / Image:** `> 0`.
+    - **Bar / Image / Graph / Shortcut:** `> 0`.
     - **Gauge:** derived and equal to [Width](properties.md#width).
     - **Text / Value:** derived from the active text layout.
     - **State-driven:** derived only when all states use `Value`; otherwise a persisted positive dimension.
@@ -684,7 +688,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Horizontal  
-    **Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state)  
+    **Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state); `text.shortcut.align.horizontal` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.Align`  
     **JSON:** `textPresentation.align` (Text / Value); `profiles.{state}.textPresentation.align` (Value state)
 
@@ -697,7 +702,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Horizontal alignment.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:horizontal-alignment] -->
 
@@ -738,7 +743,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Controls how an image source is fitted inside the target bounds.
 
-    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
     - Canvas/Graph layer Fit is read-only when [Source](properties.md#image-source) is empty.
@@ -818,7 +823,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Controls looping of an animated graphical source.
 
-    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
     - Icon-backed Image/state content is read-only when the selected icon does not expose animated capability.
@@ -865,7 +870,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Active graphical source. An empty source is a valid unconfigured image for Image, Graph background, Bar Image mode, Canvas layers, and graphical state profiles; any nonempty source must still resolve.
 
-    **Used by:** Graph background image, Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
+    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 
     **Context notes:**
     - State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
@@ -896,19 +901,21 @@ Individual widgets retain their own geometry validation, source-specific meaning
     - Canvas background: `canvas.backgroundImage.asset.sourceType`
     - Canvas foreground: `canvas.foregroundImage.asset.sourceType`
     - Graph background: `image.asset.sourceType`
+    - Shortcut: `asset.sourceType`
 
 
     **Values:**
     - Editor `Image` → canonical/JSON `file`.
     - Editor `Icon` → canonical/JSON `icon`.
+    - Shortcut only: Editor `Auto` → `auto` (default); obtain the Windows Shell icon from Target.
 
 
     Selects whether a shared image asset uses a dashboard-relative file or a global icon.
 
-    **Used by:** Graph background image, Image, Canvas background image layer, Canvas foreground image layer
+    **Used by:** Graph background image, Image, Shortcut, Canvas background image layer, Canvas foreground image layer
 
     **Notes:**
-    - Changing `file` ↔ `icon` uses canonical `ChangeSourceType()` and clears the current [Source](properties.md#image-source).
+    - Changing the source type clears the current [Source](properties.md#image-source). Auto is admitted only by Shortcut; it stores no custom Source. An empty custom Source also displays the Shell icon.
 
 <!-- --8<-- [end:image-source-type] -->
 
@@ -943,7 +950,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Italic  
-    **Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state)  
+    **Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state); `text.shortcut.font.italic` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.Italic`  
     **JSON:** `textPresentation.italic` (Text / Value); `profiles.{state}.textPresentation.italic` (Value state)
 
@@ -954,7 +962,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Italic.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:italic] -->
 
@@ -1271,6 +1279,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **Canonical model:**
     - `ImageWidgetDefinition.Opacity`
+    - `ShortcutWidgetDefinition.Opacity`
     - `StateVisualProfileDefinition.Opacity`
     - `CanvasImageLayerDefinition.Opacity`
 
@@ -1288,7 +1297,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Opacity of the visual content represented by the current context.
 
-    **Used by:** Graph background image, Image, Value/graphical state profiles, Canvas background/foreground image layers
+    **Used by:** Graph background image, Image, Shortcut, Value/graphical state profiles, Canvas background/foreground image layers
 
     **Context notes:**
     - Canvas/Graph layer Opacity is read-only when [Source](properties.md#image-source) is empty.
@@ -1331,7 +1340,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Color  
-    **Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state)  
+    **Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state); `text.shortcut.outline.color` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.OutlineColor`  
     **JSON:** `textPresentation.outlineColor` (Text / Value); `profiles.{state}.textPresentation.outlineColor` (Value state)
 
@@ -1342,7 +1352,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Text outline color.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:outline-color] -->
 
@@ -1355,7 +1365,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Width  
-    **Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state)  
+    **Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state); `text.shortcut.outline.width` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.OutlineWidth`  
     **JSON:** `textPresentation.outlineWidth` (Text / Value); `profiles.{state}.textPresentation.outlineWidth` (Value state)
 
@@ -1366,7 +1377,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Text outline width.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:outline-width] -->
 
@@ -1379,7 +1390,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Mode  
-    **Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state)  
+    **Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state); `text.shortcut.overflow.mode` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.OverflowMode`  
     **JSON:** `textPresentation.overflowMode` (Text / Value); `profiles.{state}.textPresentation.overflowMode` (Value state)
 
@@ -1396,12 +1408,13 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Controls text behavior when the available width is constrained.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
     **Notes:**
     - `None` is the auto-width mode.
     - Text / Value allows `None` only when [Width](properties.md#width)=0; fixed Width normalizes `None` to `Clip`.
     - A state-driven widget allows `None` only when **all** states have [Source Type](properties.md#state-source-type)=`Value` and [Width](properties.md#width)=0. Mixed Value/Image/Icon state widgets use constrained modes.
+    - Shortcut labels always use the graphic Width and one of the constrained modes; default `Clip`. `None` is rejected. Shared text properties use the `text.shortcut.*` semantic prefix and `textPresentation` JSON owner.
 
 <!-- --8<-- [end:overflow-mode] -->
 
@@ -1647,7 +1660,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Scroll Speed  
-    **Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state)  
+    **Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state); `text.shortcut.overflow.scroll_speed` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.ScrollSpeed`  
     **JSON:** `textPresentation.scrollSpeed` (Text / Value); `profiles.{state}.textPresentation.scrollSpeed` (Value state)
 
@@ -1658,7 +1672,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Scroll/Bump speed.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
     **Disabled / read-only when:**
     - [Overflow Mode](properties.md#overflow-mode) is neither `Scroll` nor `Bump`.
@@ -2438,7 +2452,8 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Vertical  
-    **Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state)  
+    **Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state); `text.shortcut.align.vertical` (Shortcut label)
+
     **Canonical model:** `TextPresentationDefinition.VerticalAlign`  
     **JSON:** `textPresentation.verticalAlign` (Text / Value); `profiles.{state}.textPresentation.verticalAlign` (Value state)
 
@@ -2452,7 +2467,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     Vertical alignment.
 
-    **Used by:** Text / Value and Value state profiles
+    **Used by:** Text / Value, Shortcut label and Value state profiles
 
 <!-- --8<-- [end:vertical-alignment] -->
 
@@ -2473,7 +2488,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Values:**
     - **Text / Value:** `>= 0`; `0` enables auto width.
     - **Gauge:** `> 0`; [Height](properties.md#height) is derived and equal to Width.
-    - **Bar / Image:** `> 0`.
+    - **Bar / Image / Graph / Shortcut:** `> 0`.
     - **Binary / Power / Media System / Media Player:** `>= 0` only when all states use [Source Type](properties.md#state-source-type) = `Value`; otherwise `> 0`.
     - **Canvas:** positive integer.
 
@@ -2538,3 +2553,157 @@ Individual widgets retain their own geometry validation, source-specific meaning
 <!-- --8<-- [end:y] -->
 
 ---
+
+---
+
+## Shortcut Target
+
+<!-- --8<-- [start:shortcut-target] -->
+
+!!! info ""
+
+    **Editor name:** Target
+
+    **Semantic key:** `shortcut.target`
+
+    **Canonical model:** `ShortcutWidgetDefinition.Target`
+
+    **JSON:** `target`
+
+    Editable string; default empty. Any Windows Shell target is allowed, including unavailable targets. The file picker selects without importing or rewriting the target.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-target] -->
+
+---
+
+## Shortcut Arguments
+
+<!-- --8<-- [start:shortcut-arguments] -->
+
+!!! info ""
+
+    **Editor name:** Arguments
+
+    **Semantic key:** `shortcut.arguments`
+
+    **Canonical model:** `ShortcutWidgetDefinition.Arguments`
+
+    **JSON:** `arguments`
+
+    Editable string; default empty. Passed to Windows separately from Target, unchanged. No command-line splitting or file-type filtering occurs.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-arguments] -->
+
+---
+
+## Shortcut Activation
+
+<!-- --8<-- [start:shortcut-activation] -->
+
+!!! info ""
+
+    **Editor name:** Activation
+
+    **Semantic key:** `shortcut.activation`
+
+    **Canonical model:** `ShortcutWidgetDefinition.Activation`
+
+    **JSON:** `activation`
+
+    Editor Single click / Double click; JSON Single / Double. Default Double. Determines the explicit Runtime gesture; editing and rendering never invoke it.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-activation] -->
+
+---
+
+## Shortcut Label
+
+<!-- --8<-- [start:shortcut-label] -->
+
+!!! info ""
+
+    **Editor name:** Label
+
+    **Semantic key:** `shortcut.label`
+
+    **Canonical model:** `ShortcutWidgetDefinition.Label`
+
+    **JSON:** `label`
+
+    Literal text; default empty. No filename, Editor Name, metric or numeric-format fallback. Empty draws nothing and reserves no text height.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-label] -->
+
+---
+
+## Shortcut Label Position
+
+<!-- --8<-- [start:shortcut-label-position] -->
+
+!!! info ""
+
+    **Editor name:** Position
+
+    **Semantic key:** `shortcut.label_position`
+
+    **Canonical model:** `ShortcutWidgetDefinition.LabelPosition`
+
+    **JSON:** `labelPosition`
+
+    Top, Middle, Bottom; default Bottom. For graphic (X,Y,W,H) and measured text-block height T: Top starts at Y−Gap−T; Bottom at Y+H+Gap; Middle at Y+(H−T)/2 and ignores Gap. Text width is W.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-label-position] -->
+
+---
+
+## Shortcut Label Gap
+
+<!-- --8<-- [start:shortcut-label-gap] -->
+
+!!! info ""
+
+    **Editor name:** Gap
+
+    **Semantic key:** `shortcut.gap`
+
+    **Canonical model:** `ShortcutWidgetDefinition.Gap`
+
+    **JSON:** `gap`
+
+    Any finite signed number; default 4 logical pixels. Positive separates the label from the graphic, zero touches it, negative overlaps. Read-only for Middle. Does not change graphic geometry, border, pivot or activation bounds.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-label-gap] -->
+
+---
+
+## Shortcut Label Color
+
+<!-- --8<-- [start:shortcut-label-color] -->
+
+!!! info ""
+
+    **Editor name:** Color
+
+    **Semantic key:** `shortcut.label_color`
+
+    **Canonical model:** `ShortcutWidgetDefinition.LabelColor`
+
+    **JSON:** `labelColor`
+
+    Label foreground color; default #FFFFFFFF. Independent of graphic tint. Font, alignment, outline and overflow belong to the shared TextPresentationDefinition.
+
+    **Used by:** Shortcut
+
+<!-- --8<-- [end:shortcut-label-color] -->

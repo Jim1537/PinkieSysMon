@@ -18,6 +18,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     private readonly FileLogger _log;
     private readonly IDesktopOutputWindow _window;
     private DashboardRenderer _renderer;
+    private ShortcutInteractionMap _interactions;
     private AppConfig _config;
     private OutputTargetConfig _target;
     private bool _started;
@@ -52,18 +53,20 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
 
+        _interactions = new ShortcutInteractionMap(dashboard);
         _renderer = new DashboardRenderer(dashboard, history: _metrics.History);
         IDesktopOutputWindow? window = null;
         try
         {
             window = (windowFactory ?? (render => new DesktopOutputWindow(render,
                 point => PersistPosition(dashboard.BaseDirectory, point),
-                () => _restoreStack?.Invoke())))(DrawFrame)
+                () => _restoreStack?.Invoke(), error => _log.Warn($"Desktop Shortcut Shell failed; nativeCode={error}."))))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
             var size = FrameGeometry.GetLogicalSize(
                 dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
             window.Configure(target.Name, size, LocationFor(target), IntervalFor(config, target),
                 target.Desktop?.Lock ?? true);
+            window.ConfigureInteractions(_interactions);
             _window = window;
         }
         catch
@@ -156,7 +159,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var size = FrameGeometry.GetLogicalSize(
             dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, new DashboardRenderer(dashboard, history: _metrics.History));
+        return new PreparedReconfiguration(config, target, size, new ShortcutInteractionMap(dashboard), new DashboardRenderer(dashboard, history: _metrics.History));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(
@@ -173,7 +176,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var size = FrameGeometry.GetLogicalSize(
             dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, _renderer.Retain());
+        return new PreparedReconfiguration(config, target, size, _interactions, _renderer.Retain());
     }
 
     public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration)
@@ -188,9 +191,11 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _window.Configure(prepared.Target.Name, prepared.Size,
             LocationFor(prepared.Target), IntervalFor(prepared.Config, prepared.Target),
             prepared.Target.Desktop?.Lock ?? true);
+        _window.ConfigureInteractions(prepared.Interactions);
         var previous = _renderer;
         var wasPublishing = Publishing;
         _renderer = prepared.TakeRenderer();
+        _interactions = prepared.Interactions;
         _config = prepared.Config;
         _target = prepared.Target;
         if (wasPublishing && !Publishing)
@@ -349,13 +354,14 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     }
 
     private sealed class PreparedReconfiguration(
-        AppConfig config, OutputTargetConfig target, Size size, DashboardRenderer renderer)
+        AppConfig config, OutputTargetConfig target, Size size, ShortcutInteractionMap interactions, DashboardRenderer renderer)
         : IOutputSessionReconfiguration
     {
         private DashboardRenderer? _renderer = renderer;
         public AppConfig Config { get; } = config;
         public OutputTargetConfig Target { get; } = target;
         public Size Size { get; } = size;
+        public ShortcutInteractionMap Interactions { get; } = interactions;
         public DashboardRenderer TakeRenderer()
         {
             var owned = _renderer ?? throw new ObjectDisposedException(nameof(PreparedReconfiguration));
@@ -371,7 +377,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 }
 
 // Native per-pixel layered-window hit-testing is independent of the pixels:
-// locked panels ignore *all* mouse input, including over opaque widgets.
+// locked visual HWNDs ignore all mouse input, including over opaque widgets.
+// A separate region-restricted companion owns Shortcut input.
 // Preserve unrelated extended styles and WS_EX_LAYERED through each toggle.
 internal static class DesktopPointerStyle
 {
@@ -417,6 +424,7 @@ internal interface IDesktopOutputWindow : IDisposable
 {
     bool IsVisible { get; }
     void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked);
+    void ConfigureInteractions(ShortcutInteractionMap interactions) { }
     void ShowWindow();
     void HideWindow();
     void RequestFrame();
@@ -437,6 +445,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private readonly System.Windows.Forms.Timer _refresh = new();
     private readonly System.Windows.Forms.Timer _moveDebounce = new() { Interval = 500 };
     private DesktopLayeredSurface? _surface;
+    private DesktopShortcutInput? _input;
+    private readonly Action<int> _reportShortcutFailure;
     private Size _canvas;
     private Point _lastPosition;
     private bool _locked = true;
@@ -447,7 +457,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 
     public bool IsVisible => Visible;
     internal bool IsBelowDesktop => !_disposed && Visible && IsHandleCreated &&
-        DesktopBottomPlacement.IsBelowDesktop(Handle);
+        (DesktopBottomPlacement.IsBelowDesktop(Handle) || _input?.IsPairBroken == true);
 
     protected override CreateParams CreateParams
     {
@@ -461,11 +471,12 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
     }
 
-    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack)
+    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack, Action<int>? reportShortcutFailure = null)
     {
         _render = render ?? throw new ArgumentNullException(nameof(render));
         _savePosition = savePosition ?? throw new ArgumentNullException(nameof(savePosition));
         _restoreStack = restoreStack ?? throw new ArgumentNullException(nameof(restoreStack));
+        _reportShortcutFailure = reportShortcutFailure ?? (_ => { });
         FormBorderStyle = FormBorderStyle.None;
         // Desktop panels are managed through the Runtime tray, not Windows taskbar buttons.
         ShowInTaskbar = false;
@@ -493,6 +504,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         _configuring = true;
         try
         {
+            _input?.Hide();
             _moveDebounce.Stop();
             Text = title;
             _canvas = clientPixels;
@@ -505,6 +517,30 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
         finally { _configuring = false; }
     }
+
+    public void ConfigureInteractions(ShortcutInteractionMap interactions)
+    {
+        DesktopShortcutInput? candidate = null;
+        try
+        {
+            if (!interactions.IsEmpty)
+                candidate = new DesktopShortcutInput(interactions, this, _locked, BeginShortcutDrag, _reportShortcutFailure);
+            var previous = _input; _input = candidate; candidate = null;
+            previous?.Dispose();
+            if (Visible) _input?.ShowRestricted();
+        }
+        finally { candidate?.Dispose(); }
+    }
+
+    private void BeginShortcutDrag(Point screen)
+    {
+        if (_locked || _disposed || !Visible) return;
+        var packed = new IntPtr(unchecked((int)((ushort)screen.X | ((uint)(ushort)screen.Y << 16))));
+        SendMessage(Handle, 0x00a1, new IntPtr(2), packed);
+    }
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
     // Lock updates an existing window immediately on Runtime configuration reload.
     // WS_EX_TRANSPARENT with WS_EX_LAYERED bypasses hit-testing for all pixels.
@@ -543,7 +579,10 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     internal void PlaceAtDesktopBack()
     {
         if (!_disposed && IsVisible && IsHandleCreated)
+        {
             DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
+            _input?.PlaceAboveVisual();
+        }
     }
 
     public void ShowWindow()
@@ -552,12 +591,14 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             Show();
         RecoverVisible();
         PlaceAtDesktopBack();
+        _input?.ShowRestricted();
         _refresh.Start();
         _render();
     }
 
     public void HideWindow()
     {
+        _input?.Hide();
         _moveDebounce.Stop();
         _refresh.Stop();
         Hide();
@@ -586,6 +627,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     protected override void OnMove(EventArgs e)
     {
         base.OnMove(e);
+        _input?.MoveWithVisual();
         if (_configuring || _locked || _disposed || !Visible)
             return;
         _moveDebounce.Stop();
@@ -626,6 +668,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
         if (m.Msg == WmDpiChanged)
         {
+            _input?.Hide();
             _configuring = true;
             try
             {
@@ -636,7 +679,10 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             }
             finally { _configuring = false; }
             if (Visible)
+            {
+                _input?.ShowRestricted();
                 _render();
+            }
             return;
         }
         base.WndProc(ref m);
@@ -679,11 +725,26 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     protected override void OnPaint(PaintEventArgs e) { }
     protected override void OnPaintBackground(PaintEventArgs e) { }
 
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible) _input?.Hide();
+        else if (!_configuring) _input?.ShowRestricted();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        _input?.Hide();
+        base.OnHandleDestroyed(e);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing && !_disposed)
         {
             _disposed = true;
+            _input?.Dispose();
+            _input = null;
             SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
             _refresh.Dispose();
             _moveDebounce.Dispose();

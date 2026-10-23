@@ -110,6 +110,12 @@ internal sealed class TypefaceCache : IDisposable
 
     private static IEnumerable<FontRequest> GetFontRequests(CanonicalWidgetDefinition widget)
     {
+        if (widget is CanonicalDashboard.ShortcutWidgetDefinition shortcut && shortcut.Label.Length > 0)
+        {
+            var text = shortcut.TextPresentation;
+            yield return new FontRequest(text.FontFamily.Trim(), Math.Clamp(text.FontWeight, 1, 1000), text.Italic);
+            yield break;
+        }
         if (widget is CanonicalDashboard.ValueWidgetDefinition value)
         {
             var text = value.TextPresentation;

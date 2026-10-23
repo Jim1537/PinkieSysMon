@@ -38,10 +38,13 @@ internal sealed class TextContentRenderer : IDisposable
         string? colorOverride = null,
         float opacity = 1f,
         TextContentLayoutMode layoutMode = TextContentLayoutMode.Anchor,
-        TextPresentation? presentationOverride = null)
+        TextPresentation? presentationOverride = null,
+        SKRect? boundsOverride = null)
     {
         var id = widget.Id ?? string.Empty;
         var presentation = presentationOverride ?? widget.GetTextPresentation();
+        if (boundsOverride.HasValue)
+            layoutMode = TextContentLayoutMode.Container;
         var style = GetStyle(widget, context, presentation, colorOverride, opacity);
 
         if (widget.Width <= 0f)
@@ -87,14 +90,14 @@ internal sealed class TextContentRenderer : IDisposable
         }
 
         var mode = ValueOverflowContract.Normalize(presentation.OverflowMode);
-        var containerBounds = IsContainerLayout(layoutMode)
+        var containerBounds = boundsOverride ?? (IsContainerLayout(layoutMode)
             ? ValueTextLayout.ResolveContainerBounds(
                 widget,
                 context,
                 text,
                 presentation,
                 autoHeight: UsesAutoHeight(layoutMode))
-            : default;
+            : default);
         var cached = GetLayout(widget, context, text, mode, layoutMode, containerBounds, presentation);
         var layout = cached.Layout;
         var font = cached.Font;
@@ -105,11 +108,18 @@ internal sealed class TextContentRenderer : IDisposable
         canvas.Save();
         try
         {
-            if (IsContainerLayout(layoutMode))
+            if (IsContainerLayout(layoutMode) && !boundsOverride.HasValue)
             {
                 // Container-hosted content must not paint outside its effective bounds. Those
                 // bounds may use explicit Height or content-driven height depending on owner mode.
                 canvas.ClipRect(alignmentBounds);
+            }
+            else if (boundsOverride.HasValue)
+            {
+                // Detached labels constrain width while retaining the actual canvas/layer's
+                // vertical clip. Large signed Gap must not acquire an arbitrary coordinate limit.
+                var clip = canvas.LocalClipBounds;
+                canvas.ClipRect(new SKRect(alignmentBounds.Left, clip.Top, alignmentBounds.Right, clip.Bottom));
             }
             else
             {
@@ -160,6 +170,7 @@ internal sealed class TextContentRenderer : IDisposable
             text,
             mode,
             layoutMode,
+            containerBounds,
             widget.X,
             widget.Y,
             widget.Width,
@@ -427,6 +438,7 @@ internal sealed class TextContentRenderer : IDisposable
         string Text,
         string Mode,
         TextContentLayoutMode LayoutMode,
+        SKRect ContainerBounds,
         float X,
         float Y,
         float Width,

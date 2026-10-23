@@ -28,6 +28,7 @@ nav:
       - Bar: widgets/bar.md
       - Graph: widgets/graph.md
       - Image: widgets/image.md
+      - Shortcut: widgets/shortcut.md
       - Power: widgets/power.md
       - Media System: widgets/media-system.md
       - Media Player: widgets/media-player.md

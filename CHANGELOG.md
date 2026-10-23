@@ -4,6 +4,9 @@ Notable changes to PinkieSysMon, newest first.
 
 ## [Unreleased]
 
+### Added
+- **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26. Windows acceptance remains open in [#101](https://github.com/Jim1537/PinkieSysMon/issues/101).
+
 ### Fixed
 - **Runtime tray:** Left-button double-click on the notification-area icon opens Control Center through its existing menu action ([#85](https://github.com/Jim1537/PinkieSysMon/issues/85)).
 

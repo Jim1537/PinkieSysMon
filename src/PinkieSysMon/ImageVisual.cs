@@ -178,7 +178,19 @@ internal sealed class ImageVisual : IDisposable
             throw new InvalidDataException($"Unsupported image source type '{sourceType}'.");
         }
 
-        var image = images.Get(source);
+        return CreateImage(images.Get(source), fit, loop, opacity, antialias);
+    }
+
+    // Borrows the asset exactly like the dashboard caches. Its acquisition owner disposes it.
+    internal static ImageVisual CreateImage(ImageAsset image, string? fit, bool loop, float opacity, bool antialias)
+    {
+        var normalizedFit = NormalizeFit(fit);
+        var fitName = normalizedFit switch
+        {
+            FitMode.Stretch => StateVisualProfileContract.FitStretch,
+            FitMode.Cover => StateVisualProfileContract.FitCover,
+            _ => StateVisualProfileContract.FitContain
+        };
         SKPaint? paint = null;
         if (opacity < 0.999f)
         {

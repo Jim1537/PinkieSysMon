@@ -56,6 +56,17 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Image Source
     --8<-- "widgets/properties.md:image-source"
 
+    ### Activation
+
+    #### Target
+    --8<-- "widgets/properties.md:shortcut-target"
+
+    #### Arguments
+    --8<-- "widgets/properties.md:shortcut-arguments"
+
+    #### Activation
+    --8<-- "widgets/properties.md:shortcut-activation"
+
     ### Geometry
 
     #### X
@@ -421,7 +432,21 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     ## Text
 
-    For **Text / Value**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; foreground state color/opacity remain fields of the profile itself.
+    For **Text / Value** and **Shortcut labels**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; foreground state color/opacity remain fields of the profile itself.
+
+    ### Label
+
+    #### Label
+    --8<-- "widgets/properties.md:shortcut-label"
+
+    #### Label Position
+    --8<-- "widgets/properties.md:shortcut-label-position"
+
+    #### Label Gap
+    --8<-- "widgets/properties.md:shortcut-label-gap"
+
+    #### Label Color
+    --8<-- "widgets/properties.md:shortcut-label-color"
 
     ### Foreground
 

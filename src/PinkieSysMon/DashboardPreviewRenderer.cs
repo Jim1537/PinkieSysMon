@@ -109,7 +109,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
 
     public int Width { get; }
     public int Height { get; }
-    public bool RequiresFrequentRefresh => _definition.Widgets.Any(w => w is CanonicalDashboard.GraphWidgetDefinition) || _images.HasAnimatedAssets || _icons.HasAnimatedAssets || HasAnimatedValueOverflow();
+    public bool RequiresFrequentRefresh => _renderEntries.Any(entry => entry.Renderer is ShortcutWidgetRenderer { HasPendingResources: true }) || _definition.Widgets.Any(w => w is CanonicalDashboard.GraphWidgetDefinition) || _images.HasAnimatedAssets || _icons.HasAnimatedAssets || HasAnimatedValueOverflow();
     public int RecommendedRefreshIntervalMs => HasAnimatedValueOverflow() ? 50 : _definition.Widgets.Any(w => w is CanonicalDashboard.GraphWidgetDefinition) ? 100 : (_images.HasAnimatedAssets || _icons.HasAnimatedAssets) ? 250 : 1000;
 
     private bool HasAnimatedValueOverflow() =>
@@ -117,6 +117,8 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             widget.Width > 0f &&
             (widget is CanonicalDashboard.ValueWidgetDefinition value
                 ? ValueOverflowContract.IsAnimated(value.TextPresentation.OverflowMode)
+                : widget is CanonicalDashboard.ShortcutWidgetDefinition shortcut
+                    ? shortcut.Label.Length > 0 && ValueOverflowContract.IsAnimated(shortcut.TextPresentation.OverflowMode)
                 : widget is CanonicalDashboard.StateVisualWidgetDefinition stateWidget &&
                   stateWidget.Profiles.Values.Any(profile =>
                       profile.UsesValueContent &&

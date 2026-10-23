@@ -4,6 +4,12 @@ using CanonicalWidgetDefinition = global::PinkieSysMon.DashboardModel.WidgetDefi
 
 namespace PinkieSysMon.Widgets;
 
+// Content which must be drawn after its owner's container border and graphic clip.
+internal interface IWidgetOverlayRenderer
+{
+    void RenderOverlay(SKCanvas canvas, CanonicalWidgetDefinition widget, WidgetRenderContext context);
+}
+
 internal interface IWidgetRenderer
 {
     string Type { get; }

@@ -269,6 +269,10 @@ internal sealed partial class EditorForm
         {
             switch (widget)
             {
+                case C.ShortcutWidgetDefinition shortcut
+                    when C.ImageAssetSourceType.IsFile(shortcut.Asset.SourceType) && !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
+                    sources.Add(new ImageSourceSlot(shortcut.Asset.Source!, value => shortcut.Asset.Source = value));
+                    break;
                 case C.ImageWidgetDefinition image
                     when C.ImageAssetSourceType.IsFile(image.Asset.SourceType) &&
                          !string.IsNullOrWhiteSpace(image.Asset.Source):

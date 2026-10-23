@@ -24,6 +24,11 @@ internal sealed class ImageAssetCache : IDisposable
         {
             switch (widget)
             {
+                case CanonicalDashboard.ShortcutWidgetDefinition shortcut
+                    when CanonicalDashboard.ImageAssetSourceType.IsFile(shortcut.Asset.SourceType) &&
+                         !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
+                    _ = Get(shortcut.Asset.Source!);
+                    break;
                 case CanonicalDashboard.ImageWidgetDefinition image
                     when CanonicalDashboard.ImageAssetSourceType.IsFile(image.Asset.SourceType) &&
                          !string.IsNullOrWhiteSpace(image.Asset.Source):
@@ -227,6 +232,16 @@ internal sealed class ImageAsset : IDisposable
     public int FrameCount => _frames.Length;
     public bool IsAnimated => _frames.Length > 1;
     public long DecodedByteCount => _decodedByteCount;
+
+    // Takes ownership only after validating the same per-image decoded-memory contract.
+    internal static ImageAsset FromBitmap(SKBitmap bitmap)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        var bytes = checked((long)bitmap.RowBytes * bitmap.Height);
+        if (bitmap.Width <= 0 || bitmap.Height <= 0 || bytes > MaximumDecodedBytes)
+            throw new InvalidDataException("Extracted image exceeds the supported image dimensions or memory budget.");
+        return new ImageAsset([bitmap], [0], 0, bytes);
+    }
 
     public static ImageAsset Load(string path)
     {

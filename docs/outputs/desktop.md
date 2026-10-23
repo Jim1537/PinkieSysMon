@@ -25,7 +25,7 @@ Transparent Canvas, image and widget pixels remain transparent on the Windows de
 | --- | --- |
 | **Enabled** | Permits the panel to appear and render its dashboard. |
 | **Provider Enabled** | Makes this Output's own status/performance metrics available for use in dashboards. It does not show the panel or enable the telemetry providers its widgets need. See the [Output metric reference](../telemetry/system.md#runtime-and-output-performance-metrics). |
-| **Lock (click-through)** | Passes mouse input through the panel to the underlying Explorer desktop surface. Clear it to move the panel with the mouse. |
+| **Lock (click-through)** | Passes input through except at [Shortcut](../widgets/shortcut.md) graphic rectangles. Clear it to move the panel with the mouse. |
 | **Refresh interval (ms)** | Requested redraw interval, at least 10 ms. A smaller value may increase rendering load; sensor polling follows its [separate schedule](../development/architecture.md#runtime-data-path). |
 | **Position X / Position Y** | Panel position in physical desktop pixels, including negative coordinates on monitors left of or above the primary monitor. |
 
@@ -47,7 +47,7 @@ The shared [Settings save/apply transaction](../development/architecture.md#sett
 
 1. Clear **Lock (click-through)** for the panel and apply with **OK**, or clear **&lt;panel name&gt; → Lock** in Runtime's tray menu.
 2. Drag a visible part of the panel to its new position. Fully transparent areas may let input through even while unlocked. Deliberate moves save that panel's X/Y automatically after a short debounce; check the local Runtime log if placement fails to persist.
-3. Restore **Lock** when you want clicks to reach the applications underneath. You can always adjust **Position X/Y** in Settings instead of dragging.
+3. Restore **Lock** when you want ordinary dashboard areas to pass clicks through. Shortcut graphic rectangles remain interactive. You can always adjust **Position X/Y** in Settings instead of dragging.
 
 For overlapping panels, drag their **list entries in Desktop**; the horizontal insertion line shows the exact destination before releasing the mouse. Click **OK** to commit the new order. Earlier entries are behind later entries. This order controls stacking among the **owned** Desktop panels; dashboard widget layers are separate. Clicking or finishing a drag does not establish a new saved stacking order. Panels are ordinary non-topmost top-level windows, not Explorer children. Runtime puts them near the back when they appear, reload, resume, or complete an unlocked drag, but it cannot guarantee they will always remain behind every other application's window. Desktop icons are not guaranteed to stay above the panels.
 
@@ -142,7 +142,11 @@ The change replaces Explorer child-window hosting following unsuccessful visible
 
 `DesktopPositionStore` patches only the matching Desktop target's X/Y in `app.json`, preserving unrelated and unknown JSON fields. The 500 ms move debounce avoids a save on each native movement event; programmatic recovery and locked/configuration moves do not overwrite saved placement.
 
-`DesktopPointerStyle` preserves layered and unrelated extended styles. A locked layered window adds `WS_EX_TRANSPARENT`, passing opaque-widget hits through to the next eligible window beneath it. Unlock removes that flag and maps client hit-testing to native caption dragging. A Lock reload updates the existing window without changing alpha, Canvas dimensions or physical sessions.
+`DesktopPointerStyle` preserves layered and unrelated extended styles. A locked layered visual window adds `WS_EX_TRANSPARENT`; Unlock removes it and maps client hit-testing to native caption dragging. A Lock reload updates the existing window without changing alpha, Canvas dimensions or physical sessions.
+
+An Output containing Shortcuts also owns one non-layered `NOREDIRECTIONBITMAP | NOACTIVATE | TOOLWINDOW` input companion immediately above its visual HWND. Its native region is the union of rotated **graphic rectangles**, clipped to the logical Canvas. Transparent or opacity-zero graphic pixels remain interactive; label, border, rounded corners, shadow and other widgets do not enlarge input regions. Native scanlines and dispatch use the same pixel-center rule, with right/bottom edges exclusive. Overlapping Shortcuts dispatch by descending widget Z, then descending original list index. The region has a separate 4 MiB RECT budget (262,144 scanline rectangles); exceeding it fails configuration rather than installing unrestricted input.
+
+The companion follows the visual's location and normal panel stacking. No extra DPI multiplier or physical wire rotation applies. In unlocked mode a completed click can activate a Shortcut; crossing the Windows drag threshold hands a caption drag to this panel's visual HWND. Hiding, reconfiguration, capture cancellation and teardown cancel pending gestures; queued Shell requests are generation-checked. Existing renderer retention also retains the matching interaction snapshot for rollback. No global input hook, cross-process event replay, alpha fill or `HTTRANSPARENT` fallback is used. Native lifecycle and touchscreen acceptance remain tracked in [Issue #101](https://github.com/Jim1537/PinkieSysMon/issues/101).
 
 ### Sibling stacking and shared boundaries
 

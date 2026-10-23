@@ -7,6 +7,7 @@ internal static class WidgetTypeContract
     public const string Gauge = "gauge";
     public const string Graph = "graph";
     public const string Image = "image";
+    public const string Shortcut = "shortcut";
     public const string Binary = "binary";
     public const string Power = "power";
     public const string MediaSystem = "media.system";
@@ -19,6 +20,7 @@ internal static class WidgetTypeContract
         Gauge,
         Graph,
         Image,
+        Shortcut,
         Binary,
         Power,
         MediaSystem,
@@ -32,6 +34,7 @@ internal static class WidgetTypeContract
         Gauge,
         Graph,
         Image,
+        Shortcut,
         Binary,
         Power,
         MediaSystem,

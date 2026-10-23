@@ -30,6 +30,15 @@ internal static class Program
         var tests = new (string Name, Action Run)[]
         {
             ("Issue101 prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
+            ("Issue101 Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
+            ("Issue101 Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),
+            ("Issue101 Shortcut validation and source ownership", ShortcutModelTests.ValidationAndSourceOwnership),
+            ("Issue101 production input raster and snapshot", ShortcutInteractionTests.RasterAndSnapshot),
+            ("Issue101 production gesture and Shell boundary", ShortcutInteractionTests.GesturesAndShellBoundary),
+            ("Issue101 label composition effects and shared artwork", ShortcutRenderTests.LabelsEffectsAndSharedArtwork),
+            ("Issue101 Shell artwork cache and retirement", ShortcutRenderTests.ShellArtworkCacheLifetime),
+            ("Issue101 Editor properties and applicability", ShortcutEditorTests.PropertiesAndApplicability),
+            ("Issue101 clipboard imports artwork without targets", ShortcutEditorTests.ClipboardCopiesOnlyArtwork),
             ("Issue101 prototype separated union and overlap order", ShortcutInputPrototypeTests.UnionAndOverlap),
             ("Issue101 prototype click modes and cancellation", ShortcutInputPrototypeTests.ClickModesAndCancellation),
             ("Issue101 prototype timing distance and generation", ShortcutInputPrototypeTests.TimeDistanceAndIdentity),
@@ -11618,8 +11627,8 @@ internal static class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 25,
-            "The executable current dashboard contract must be schema 25.");
+               MetricContract.DashboardSchemaVersion == 26,
+            "The executable current dashboard contract must be schema 26.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

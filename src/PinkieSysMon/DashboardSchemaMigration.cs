@@ -20,7 +20,8 @@ internal static class DashboardSchemaMigration
     public const int GraphSchemaVersion = 23;
     public const int GraphReverseSchemaVersion = 24;
     public const int GraphSignalSchemaVersion = 25;
-    public const int CurrentSchemaVersion = GraphSignalSchemaVersion;
+    public const int ShortcutSchemaVersion = 26;
+    public const int CurrentSchemaVersion = ShortcutSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -28,6 +29,11 @@ internal static class DashboardSchemaMigration
         ArgumentNullException.ThrowIfNull(root);
 
         var schemaVersion = ReadSchemaVersion(root);
+        if (schemaVersion < ShortcutSchemaVersion && root["widgets"] is JsonArray shortcutWidgets &&
+            shortcutWidgets.OfType<JsonObject>().Any(widget =>
+                widget["type"] is JsonValue shortcutType && shortcutType.TryGetValue<string>(out var type) &&
+                WidgetTypeContract.Is(type, WidgetTypeContract.Shortcut)))
+            throw new InvalidDataException("Pre-26 documents cannot contain Shortcut widgets.");
         if (schemaVersion < GraphSchemaVersion && root["widgets"] is JsonArray inputWidgets &&
             inputWidgets.OfType<JsonObject>().Any(widget =>
                 widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
@@ -43,7 +49,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -106,6 +112,13 @@ internal static class DashboardSchemaMigration
                 }
             root["schemaVersion"] = GraphSignalSchemaVersion;
             schemaVersion = GraphSignalSchemaVersion;
+        }
+
+        if (schemaVersion == GraphSignalSchemaVersion)
+        {
+            // No existing widget changes meaning; do not synthesize Shortcut fields.
+            root["schemaVersion"] = ShortcutSchemaVersion;
+            schemaVersion = ShortcutSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

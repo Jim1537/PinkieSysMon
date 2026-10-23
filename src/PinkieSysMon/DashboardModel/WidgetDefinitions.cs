@@ -9,6 +9,7 @@ namespace PinkieSysMon.DashboardModel;
 [JsonDerivedType(typeof(BarWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Bar)]
 [JsonDerivedType(typeof(GraphWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Graph)]
 [JsonDerivedType(typeof(ImageWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Image)]
+[JsonDerivedType(typeof(ShortcutWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Shortcut)]
 [JsonDerivedType(typeof(PowerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Power)]
 [JsonDerivedType(typeof(MediaSystemWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaSystem)]
 [JsonDerivedType(typeof(MediaPlayerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaPlayer)]

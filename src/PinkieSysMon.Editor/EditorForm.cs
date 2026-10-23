@@ -1141,7 +1141,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     internal static bool IsPropertyContextSwitch(string propertyName) =>
-        propertyName is "Source" or "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled";
+        propertyName is "Source" or "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled" or "LabelPosition";
 
     private bool ApplyWidgetPropertyChange(
         CanonicalWidgetDefinition widget,
@@ -1238,6 +1238,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
             refreshPropertyView = true;
         }
         else if (widget is CanonicalStateVisualWidgetDefinition && propertyName.Equals("Width", StringComparison.OrdinalIgnoreCase))
+        {
+            refreshPropertyView = true;
+        }
+        else if (widget is PinkieSysMon.DashboardModel.ShortcutWidgetDefinition && propertyName == "OverflowMode")
         {
             refreshPropertyView = true;
         }
@@ -2095,6 +2099,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     Id = id, Z = nextZ, X = 100, Y = 100, Width = 300, Height = 120,
                     Metric = SystemMetricContract.Uptime
                 },
+                WidgetTypeContract.Shortcut => new PinkieSysMon.DashboardModel.ShortcutWidgetDefinition
+                {
+                    Id = id, Z = nextZ, X = 100, Y = 100, Width = 96, Height = 96
+                },
                 WidgetTypeContract.Bar => new CanonicalBarWidgetDefinition
                 {
                     Id = id,
@@ -2425,7 +2433,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     private static string WidgetTypeDisplayName(string type) =>
-        WidgetTypeContract.Is(type, WidgetTypeContract.Value) ? "Text / Value" : WidgetTypeContract.Is(type, WidgetTypeContract.Graph) ? "Graph" : type;
+        WidgetTypeContract.Is(type, WidgetTypeContract.Value) ? "Text / Value" : WidgetTypeContract.Is(type, WidgetTypeContract.Graph) ? "Graph" : WidgetTypeContract.Is(type, WidgetTypeContract.Shortcut) ? "Shortcut" : type;
 
     private static string WidgetCaption(CanonicalWidgetDefinition widget)
     {
