@@ -71,6 +71,7 @@ internal static class ShortcutNativeDiagnostic
     {
         private readonly Action<string> _write;
         private int _clicks;
+        private bool _painted;
         public Underlay(Action<string> write)
         {
             _write = write;
@@ -91,7 +92,7 @@ internal static class ShortcutNativeDiagnostic
         }
         private async Task ReadLifetimeAsync()
         {
-            try { while (await Console.In.ReadLineAsync() is { } line) if (line == "close") break; }
+            try { await ShortcutProbeLifetime.WaitForExitAsync(Console.In); }
             finally { if (!IsDisposed) Close(); }
         }
         private void PublishBounds()
@@ -116,6 +117,11 @@ internal static class ShortcutNativeDiagnostic
             for (var y = 0; y < Canvas.Height; y += 20) e.Graphics.DrawLine(pen, 0, y, Canvas.Width, y);
             e.Graphics.DrawString($"UNDERLAY releases: {_clicks}\nReal user clicks only. Empty space / purple rectangle must reach this process.",
                 Font, Brushes.Black, new RectangleF(10, 230, 530, 80));
+            if (!_painted)
+            {
+                _painted = true;
+                _write(JsonSerializer.Serialize(new { kind = "painted" }));
+            }
         }
         protected override void WndProc(ref Message m)
         {
@@ -145,6 +151,7 @@ internal static class ShortcutNativeDiagnostic
         private bool _closing;
         private bool _desktopPlacement;
         private bool _sibling;
+        private bool _underlayPainted;
         public bool Failed { get; private set; }
 
         public Controller(Action<string> write)
@@ -216,6 +223,14 @@ internal static class ShortcutNativeDiagnostic
                 if (first is null) throw new InvalidOperationException("Underlay exited before readiness.");
                 ApplyChildMessage(first);
                 if (_underlay == IntPtr.Zero) throw new InvalidOperationException("No underlay window was observed.");
+                while (!_closing && !_underlayPainted)
+                {
+                    var ready = await _child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(15));
+                    if (_closing) return;
+                    if (ready is null) throw new InvalidOperationException("Underlay exited before painting.");
+                    ApplyChildMessage(ready);
+                }
+                if (_closing) return;
                 _write($"Processes: controller={Environment.ProcessId}; underlay={_child.Id}; canvas={Canvas.Width}x{Canvas.Height}; dpi={DeviceDpi}");
                 Rebuild();
                 while (!_closing && await _child.StandardOutput.ReadLineAsync() is { } line)
@@ -244,12 +259,16 @@ internal static class ShortcutNativeDiagnostic
                     _write("UNDERLAY " + line);
                     UpdateStatus();
                     break;
+                case "painted":
+                    _underlayPainted = true;
+                    _write("UNDERLAY ready: first paint observed before experiment surfaces are shown.");
+                    break;
                 default: throw new InvalidDataException("Unexpected experiment child message.");
             }
         }
         private void Rebuild()
         {
-            if (_underlay == IntPtr.Zero) return;
+            if (_underlay == IntPtr.Zero || !_underlayPainted) return;
             foreach (var panel in _panels) panel.Dispose();
             _panels.Clear();
             var map = CreateMap(++_generation, (double)_angle.Value, _empty.Checked);

@@ -34,6 +34,7 @@ internal static class Program
             ("Issue101 prototype click modes and cancellation", ShortcutInputPrototypeTests.ClickModesAndCancellation),
             ("Issue101 prototype timing distance and generation", ShortcutInputPrototypeTests.TimeDistanceAndIdentity),
             ("Issue101 native experiment explicit admission", ShortcutInputPrototypeTests.DiagnosticAdmission),
+            ("Issue101 underlay stdin preserves message-loop responsiveness", ShortcutInputPrototypeTests.LifetimeReadDoesNotBlockCaller),
             ("Issue95 live Test WorkerCompletionAndVirtualBoard", Issue95LiveTestTests.WorkerCompletionAndVirtualBoard),
             ("Issue95 live Test StrictWorkerFailureAndCleanup", Issue95LiveTestTests.StrictWorkerFailureAndCleanup),
             ("Issue95 live Test CancellationWaitsForNativeRelease", Issue95LiveTestTests.CancellationWaitsForNativeRelease),

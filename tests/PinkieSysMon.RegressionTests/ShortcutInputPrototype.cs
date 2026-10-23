@@ -2,6 +2,17 @@ using System.Drawing;
 
 namespace PinkieSysMon.RegressionTests;
 
+internal static class ShortcutProbeLifetime
+{
+    // Console.In is synchronized: even ReadLineAsync can synchronously block.
+    // The borrowed reader stays owned by the host until the controller closes stdin.
+    public static Task WaitForExitAsync(TextReader input) => Task.Run(() =>
+    {
+        while (input.ReadLine() is { } line)
+            if (line == "close") break;
+    });
+}
+
 // Stage 02 experiment only. No canonical widget, schema or production input path.
 internal sealed record ShortcutProbeGraphic(string Id, RectangleF Bounds, double Rotation, int Z, int Order)
 {

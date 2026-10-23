@@ -4,6 +4,61 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class ShortcutInputPrototypeTests
 {
+    public static void LifetimeReadDoesNotBlockCaller()
+    {
+        using var input = new BlockingReader();
+        using var returned = new ManualResetEventSlim();
+        Task? lifetime = null;
+        Exception? failure = null;
+        var callerThread = 0;
+        var caller = new Thread(() =>
+        {
+            callerThread = Environment.CurrentManagedThreadId;
+            try { lifetime = ShortcutProbeLifetime.WaitForExitAsync(TextReader.Synchronized(input)); }
+            catch (Exception error) { failure = error; }
+            finally { returned.Set(); }
+        }) { IsBackground = true };
+        caller.Start();
+        bool returnedBeforeEof;
+        bool readWhileOpen;
+        try
+        {
+            returnedBeforeEof = returned.Wait(TimeSpan.FromSeconds(5));
+            readWhileOpen = input.Entered.Wait(TimeSpan.FromSeconds(5));
+            Check(returnedBeforeEof && readWhileOpen && failure is null && lifetime is not null && !lifetime.IsCompleted,
+                "An open console-style stdin must not block the caller/message loop or complete its lifetime early.");
+            Check(input.ReadThread != callerThread, "Blocking console reads must run outside the window's caller thread.");
+        }
+        finally
+        {
+            input.Eof.Set();
+            Check(caller.Join(TimeSpan.FromSeconds(5)), "Lifetime fixture caller did not terminate.");
+            if (lifetime is not null) Check(lifetime.Wait(TimeSpan.FromSeconds(5)), "Stdin EOF must complete the lifetime wait.");
+        }
+        using var commands = new StringReader("ignore\nclose\nnot-consumed\n");
+        ShortcutProbeLifetime.WaitForExitAsync(commands).GetAwaiter().GetResult();
+        Check(commands.ReadLine() == "not-consumed", "Only EOF or the exact close command terminates the borrowed reader loop.");
+    }
+
+    private sealed class BlockingReader : TextReader
+    {
+        public readonly ManualResetEventSlim Entered = new();
+        public readonly ManualResetEventSlim Eof = new();
+        public int ReadThread;
+        public override string? ReadLine()
+        {
+            ReadThread = Environment.CurrentManagedThreadId;
+            Entered.Set();
+            Eof.Wait();
+            return null;
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { Entered.Dispose(); Eof.Dispose(); }
+            base.Dispose(disposing);
+        }
+    }
+
     public static void RegionAndDispatchAgree()
     {
         foreach (var angle in new[] { 0d, 30, 90, -37, 390 })
