@@ -300,7 +300,7 @@ internal static class CanonicalPropertyViewBuilder
         if (widget is C.ShortcutWidgetDefinition shortcutActivation)
             result.Add(Group("Activation", [
                 new CanonicalPropertyDescriptor("Target", "shortcut.target", "Target", shortcutActivation, typeof(string),
-                    () => shortcutActivation.Target, v => shortcutActivation.Target = Convert.ToString(v) ?? string.Empty, editor: new ShortcutTargetEditor()),
+                    () => shortcutActivation.Target, v => ShortcutTargetEditing.SetTarget(shortcutActivation, Convert.ToString(v) ?? string.Empty), editor: new ShortcutTargetEditor()),
                 String(shortcutActivation, "Arguments", "shortcut.arguments", "Arguments", () => shortcutActivation.Arguments, v => shortcutActivation.Arguments = Convert.ToString(v) ?? string.Empty),
                 new CanonicalPropertyDescriptor("Activation", "shortcut.activation", "Activation", shortcutActivation, typeof(string),
                     () => string.Equals(shortcutActivation.Activation, ShortcutContract.SingleClick, StringComparison.OrdinalIgnoreCase) ? "Single click" : "Double click",

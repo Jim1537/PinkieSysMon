@@ -8,6 +8,7 @@ Notable changes to PinkieSysMon, newest first.
 - **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26. Windows acceptance remains open in [#101](https://github.com/Jim1537/PinkieSysMon/issues/101).
 
 ### Fixed
+- **Shortcut Label:** An explicit Editor Target edit suggests a filename-based caption only when Label is empty, preserving nonempty captions and existing saved boards ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
 - **Runtime tray:** Left-button double-click on the notification-area icon opens Control Center through its existing menu action ([#85](https://github.com/Jim1537/PinkieSysMon/issues/85)).
 
 ## [2.46.239] - 2026-10-17 (development build)

@@ -7,6 +7,38 @@ namespace PinkieSysMon.RegressionTests;
 
 internal static class ShortcutEditorTests
 {
+    public static void TargetEditingAndSnapshots()
+    {
+        var shortcut = ShortcutModelTests.Shortcut(); shortcut.Label = "";
+        var board = ShortcutModelTests.Board(shortcut);
+        var before = DashboardJson.SerializeEditorSnapshot(board);
+        var general = new EditorPropertyView(shortcut, section: EditorPropertySection.General).GetProperties();
+        var target = (CanonicalPropertyDescriptor)TypeDescriptor.GetProperties(general["Activation"]!.GetValue(null)!)["Target"]!;
+        string? checkpoint = null;
+        target.BeforeValueChange = () => checkpoint = DashboardJson.SerializeEditorSnapshot(board);
+        target.SetValue(null, Path.Combine(Path.GetTempPath(), "Chosen shortcut.lnk"));
+        Check(shortcut.Label == "Chosen shortcut" && checkpoint == before,
+            "The actual Target property must fill the label after the existing pre-edit undo checkpoint.");
+        var after = DashboardJson.SerializeEditorSnapshot(board);
+        var path = Path.Combine(Path.GetTempPath(), "shortcut-label-history.json");
+        var undone = (C.ShortcutWidgetDefinition)DashboardJson.ParseEditorSnapshot(checkpoint!, path).Widgets[0];
+        var redone = (C.ShortcutWidgetDefinition)DashboardJson.ParseEditorSnapshot(after, path).Widgets[0];
+        Check(undone.Label == "" && undone.Target != shortcut.Target && redone.Label == shortcut.Label && redone.Target == shortcut.Target,
+            "Target and the initial label must share one snapshot transition for undo/redo.");
+
+        var manual = ShortcutModelTests.Shortcut(); manual.Label = "Keep this label";
+        shortcut.Label = "";
+        var multi = new EditorMultiPropertyView([
+            new EditorPropertyView(shortcut, section: EditorPropertySection.General),
+            new EditorPropertyView(manual, section: EditorPropertySection.General)
+        ]);
+        var activation = TypeDescriptor.GetProperties(multi.GetProperties()["Activation"]!.GetValue(null)!);
+        var selected = Path.Combine(Path.GetTempPath(), "Shared choice.exe");
+        activation["Target"]!.SetValue(null, selected);
+        Check(shortcut.Target == selected && manual.Target == selected && shortcut.Label == "Shared choice" && manual.Label == "Keep this label",
+            "Multi-selection must apply the same Target while preserving each widget's independent label policy.");
+    }
+
     public static void PropertiesAndApplicability()
     {
         var s = ShortcutModelTests.Shortcut(); s.LabelPosition = ShortcutContract.Bottom;

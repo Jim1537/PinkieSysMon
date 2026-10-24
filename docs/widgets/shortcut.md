@@ -20,7 +20,7 @@ The shared [image source selector](properties.md#image-source-type) clears only 
 
 ## Add a label
 
-**Text → Label** configures [Label](properties.md#shortcut-label), [Position](properties.md#shortcut-label-position), [Gap](properties.md#shortcut-label-gap) and [Color](properties.md#shortcut-label-color). An empty Label paints nothing and reserves no text area. It is independent of the Editor Name and Target.
+**Text → Label** configures [Label](properties.md#shortcut-label), [Position](properties.md#shortcut-label-position), [Gap](properties.md#shortcut-label-gap) and [Color](properties.md#shortcut-label-color). See the Label reference for the Editor's initial-name suggestion when changing Target. Edit the stored text or clear it to omit the caption.
 
 The label shares the graphic width and uses the standard bundled-font, alignment, outline and [constrained overflow](properties.md#overflow-mode) properties. Its height follows the measured text block, including wrapped lines. The graphic center remains the rotation pivot for both artwork and label. The label paints after the graphic border, outside the rounded graphic clip; selection and shadow bounds include it.
 

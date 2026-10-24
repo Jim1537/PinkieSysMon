@@ -2636,7 +2636,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
     **JSON:** `label`
 
-    Literal text; default empty. No filename, Editor Name, metric or numeric-format fallback. Empty draws nothing and reserves no text height.
+    Literal text; default empty. An explicit change to Target in Editor fills an empty Label from the selected file/shortcut name without its last extension. Any nonempty Label is preserved, including a previous suggestion or whitespace. The suggestion remains editable and can be cleared; reassigning the same Target does not refill it. Loading, cloning, Undo/Redo and rendering never infer a label or rewrite old dashboards. Empty draws nothing and reserves no text height; Editor Name, metrics and numeric formatting do not supply fallback text.
 
     **Used by:** Shortcut
 
