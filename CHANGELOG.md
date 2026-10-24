@@ -5,7 +5,7 @@ Notable changes to PinkieSysMon, newest first.
 ## [Unreleased]
 
 ### Added
-- **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26. Windows acceptance remains open in [#101](https://github.com/Jim1537/PinkieSysMon/issues/101).
+- **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26 ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
 
 ### Fixed
 - **Shortcut Label:** An explicit Editor Target edit suggests a filename-based caption only when Label is empty, preserving nonempty captions and existing saved boards ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).

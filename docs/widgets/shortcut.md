@@ -24,7 +24,7 @@ The shared [image source selector](properties.md#image-source-type) clears only 
 
 The label shares the graphic width and uses the standard bundled-font, alignment, outline and [constrained overflow](properties.md#overflow-mode) properties. Its height follows the measured text block, including wrapped lines. The graphic center remains the rotation pivot for both artwork and label. The label paints after the graphic border, outside the rounded graphic clip; selection and shadow bounds include it.
 
-See [Desktop input routing](../outputs/desktop.md#placement-dpi-and-mouse-routing) for Lock, activation geometry and panel dragging. Physical Outputs share rendering; this adds no inbound USB touch transport. Windows-promoted touch mouse events use the same recognizer, but touchscreen behavior requires device-specific acceptance. Current Windows acceptance is tracked in [Issue #101](https://github.com/Jim1537/PinkieSysMon/issues/101).
+See [Desktop input routing](../outputs/desktop.md#placement-dpi-and-mouse-routing) for Lock, activation geometry and panel dragging. Physical Outputs share rendering; this adds no inbound USB touch transport. Windows-promoted touch mouse events use the same recognizer, but touchscreen behavior requires device-specific acceptance. Implementation and acceptance history is recorded in [Issue #101](https://github.com/Jim1537/PinkieSysMon/issues/101).
 
 ## Persistence and resources
 
