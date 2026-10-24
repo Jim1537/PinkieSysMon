@@ -6,10 +6,24 @@ Notable changes to PinkieSysMon, newest first.
 
 ### Added
 - **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26 ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
+- **Physical displays:** Native TURZX 12.3-inch JPEG output alongside Trofeo, including concurrent use and connection recovery diagnostics ([#71](https://github.com/Jim1537/PinkieSysMon/issues/71)).
+- **USB device onboarding:** Catalog-scoped passive discovery, user-defined name and dimensions, protocol selection, a Runtime-owned visual Test, and explicit Save, Remove and Forget actions. Recognized hardware is not automatically treated as compatible ([#77](https://github.com/Jim1537/PinkieSysMon/issues/77), [#95](https://github.com/Jim1537/PinkieSysMon/issues/95)).
+- **Graph widget:** Rolling single-metric Line or Columns history with scaling, thresholds, reverse direction, optional Bezier interpolation and display filters ([#100](https://github.com/Jim1537/PinkieSysMon/issues/100)).
+- **Binary setpoints:** Pipe-separated numeric alternatives and inclusive ranges in the existing Setpoint field ([#89](https://github.com/Jim1537/PinkieSysMon/issues/89)).
+- **System telemetry:** Six PC device-information metrics for name, processor, installed RAM, system type, manufacturer and model ([#92](https://github.com/Jim1537/PinkieSysMon/issues/92)).
+- **Editor navigation:** Middle-button drag pans large dashboards without changing their content ([#98](https://github.com/Jim1537/PinkieSysMon/issues/98)).
+
+### Changed
+- **Default dashboards:** New Dashboard generates an editable board for the chosen size and orientation; initial Desktop and physical Output assignments generate size-appropriate boards. The bundled `Default` board and global fallback are retired without deleting existing user boards ([#94](https://github.com/Jim1537/PinkieSysMon/issues/94)).
+- **Device settings compatibility:** Former model-specific application/device records are unsupported by the new onboarding contract; existing dashboard documents are preserved ([#95](https://github.com/Jim1537/PinkieSysMon/issues/95)).
+- **DateTime components:** Gauge, Bar and Binary can select per-widget numeric precision; existing dashboards retain whole-component behavior by default ([#96](https://github.com/Jim1537/PinkieSysMon/issues/96)).
+- **Control Center and feedback:** Ordinary Editor launch starts with no dashboard open; the Outputs menu groups Desktop and physical devices, and Windows notifications show concise outcomes while detailed diagnostics remain available ([#84](https://github.com/Jim1537/PinkieSysMon/issues/84), [#87](https://github.com/Jim1537/PinkieSysMon/issues/87), [#86](https://github.com/Jim1537/PinkieSysMon/issues/86)).
 
 ### Fixed
 - **Shortcut Label:** An explicit Editor Target edit suggests a filename-based caption only when Label is empty, preserving nonempty captions and existing saved boards ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
 - **Runtime tray:** Left-button double-click on the notification-area icon opens Control Center through its existing menu action ([#85](https://github.com/Jim1537/PinkieSysMon/issues/85)).
+- **Dashboard editing:** New Dashboard uses the current schema; opening an unchanged current-schema board no longer marks it modified or prompts for an unnecessary Save ([#93](https://github.com/Jim1537/PinkieSysMon/issues/93), [#102](https://github.com/Jim1537/PinkieSysMon/issues/102)).
+- **Desktop panel dragging:** Prevented jumps while moving an unlocked panel across monitor boundaries, including negative virtual-desktop coordinates ([#97](https://github.com/Jim1537/PinkieSysMon/issues/97)).
 
 ## [2.46.239] - 2026-10-17 (development build)
 
