@@ -2,7 +2,7 @@
 
 Notable changes to PinkieSysMon, newest first.
 
-## v2.65.363
+## v2.65.364
 
 ### Added
 - **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26 ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
