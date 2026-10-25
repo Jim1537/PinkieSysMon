@@ -2,7 +2,7 @@
 
 Notable changes to PinkieSysMon, newest first.
 
-## [Unreleased]
+## v2.65.363
 
 ### Added
 - **Shortcut widget:** Canonical Shell target/arguments, shared artwork, optional styled label and selective Desktop input regions; schema 26 ([#101](https://github.com/Jim1537/PinkieSysMon/issues/101)).
@@ -25,7 +25,7 @@ Notable changes to PinkieSysMon, newest first.
 - **Dashboard editing:** New Dashboard uses the current schema; opening an unchanged current-schema board no longer marks it modified or prompts for an unnecessary Save ([#93](https://github.com/Jim1537/PinkieSysMon/issues/93), [#102](https://github.com/Jim1537/PinkieSysMon/issues/102)).
 - **Desktop panel dragging:** Prevented jumps while moving an unlocked panel across monitor boundaries, including negative virtual-desktop coordinates ([#97](https://github.com/Jim1537/PinkieSysMon/issues/97)).
 
-## [2.46.239] - 2026-10-17 (development build)
+## v2.46.239 (development build)
 
 This [published development release](https://github.com/Jim1537/PinkieSysMon/releases/tag/2.46.239) records the major v2 snapshot since the 1.20.0 test candidate. Its release notes identify source commit [`dc6ba63`](https://github.com/Jim1537/PinkieSysMon/commit/dc6ba63b3152ee3f86ea5d372267a4f9938107ea). Later `main` changes belong under **Unreleased**.
 
@@ -54,7 +54,7 @@ This [published development release](https://github.com/Jim1537/PinkieSysMon/rel
 - **Desktop and Output reliability:** Addressed Win+D stacking recovery, taskbar visibility, first-frame telemetry refresh, and live Output-menu synchronization ([#78](https://github.com/Jim1537/PinkieSysMon/issues/78), [#69](https://github.com/Jim1537/PinkieSysMon/issues/69), [#72](https://github.com/Jim1537/PinkieSysMon/issues/72), [#73](https://github.com/Jim1537/PinkieSysMon/issues/73)).
 - **Other fixes:** Resolved assorted Editor property/dropdown/font, Desktop Settings selection, widget image-mode, launcher lifecycle, image rollback, and Output shutdown issues ([#32](https://github.com/Jim1537/PinkieSysMon/issues/32), [#67](https://github.com/Jim1537/PinkieSysMon/issues/67), [#68](https://github.com/Jim1537/PinkieSysMon/issues/68), [#75](https://github.com/Jim1537/PinkieSysMon/issues/75), [#76](https://github.com/Jim1537/PinkieSysMon/issues/76)).
 
-## [1.20.0] - 2026-10-10 (test candidate)
+## v1.20.0 (test candidate)
 
 ### Added
 - Optional bounded USB diagnostic journal and expanded transport/lifecycle regression checks.
