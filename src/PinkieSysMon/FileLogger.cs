@@ -1,33 +1,36 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace PinkieSysMon;
 
 internal sealed class FileLogger
 {
-    private const long MaxLogBytes = 5L * 1024 * 1024;
-    private const int MaxArchiveCount = 5;
-
-    private readonly string _path;
+    internal const int MaximumThrottleKeys = 1024;
+    private const int MaximumFieldCharacters = 1024 * 1024;
     private readonly object _sync = new();
+    private readonly ConditionalWeakTable<Exception, RecordedFailure> _recordedFailures = new();
     private readonly Dictionary<string, ThrottleState> _throttle = new(StringComparer.Ordinal);
+    private long _lastFallbackAt;
+    private int _lostRecords;
 
-    public FileLogger(string path)
+    public FileLogger(string path) : this(path, "Diagnostic") { }
+
+    internal FileLogger(string path, string component)
     {
-        _path = path;
-        try
-        {
-            var directory = System.IO.Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(directory))
-                Directory.CreateDirectory(directory);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"PinkieSysMon logger initialization failed: {ex}");
-        }
+        Path = System.IO.Path.GetFullPath(path);
+        Component = component;
+        ErrorsPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!,
+            "PinkieSysMon.Errors.log");
     }
 
-    public string Path => _path;
+    public string Path { get; }
+    internal string ErrorsPath { get; }
+    internal string Component { get; }
+    internal string SessionId { get; } = Guid.NewGuid().ToString("N");
 
     public void Info(string message) => Write("INFO", message, null);
     public void Warn(string message, Exception? ex = null) => Write("WARN", message, ex);
@@ -41,104 +44,179 @@ internal sealed class FileLogger
 
     private void Write(string level, string message, Exception? ex)
     {
-        try
-        {
-            lock (_sync)
-                WriteLocked(level, message, ex);
-        }
-        catch (Exception logEx)
-        {
-            ReportLoggingFailure(level, message, ex, logEx);
-        }
+        try { lock (_sync) WriteLocked(level, message, ex); }
+        catch (Exception failure) { ReportFailure(failure); }
     }
 
-    private void WriteThrottled(
-        string key,
-        TimeSpan interval,
-        string level,
-        string message,
-        Exception? ex)
+    private void WriteThrottled(string key, TimeSpan interval, string level,
+        string message, Exception? ex)
     {
         if (string.IsNullOrWhiteSpace(key))
             throw new ArgumentException("Throttle key cannot be empty.", nameof(key));
-        if (interval < TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(interval));
-
+        if (interval < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(interval));
         try
         {
             lock (_sync)
             {
-                var now = DateTimeOffset.UtcNow;
-                if (_throttle.TryGetValue(key, out var state) && now - state.LastWrite < interval)
+                var now = Stopwatch.GetTimestamp();
+                var signature = Signature(level, message, ex);
+                if (_throttle.TryGetValue(key, out var state))
                 {
-                    _throttle[key] = state with { Suppressed = state.Suppressed + 1 };
-                    return;
+                    if (state.Signature == signature && Stopwatch.GetElapsedTime(state.LastWrite, now) < interval)
+                    {
+                        state.Suppressed++;
+                        state.LastOccurrence = DateTimeOffset.Now;
+                        return;
+                    }
+                    FlushSummaryLocked(key, state);
+                }
+                else if (_throttle.Count >= MaximumThrottleKeys)
+                {
+                    var oldest = _throttle.MinBy(pair => pair.Value.LastWrite);
+                    FlushSummaryLocked(oldest.Key, oldest.Value);
+                    _throttle.Remove(oldest.Key);
                 }
 
-                var suppressed = state?.Suppressed ?? 0;
-                _throttle[key] = new ThrottleState(now, 0);
-                if (suppressed > 0)
-                    message += $" ({suppressed} repeated messages suppressed)";
-
-                WriteLocked(level, message, ex);
+                var eventId = WriteLocked(level, message, ex);
+                _throttle[key] = new ThrottleState(signature, level == "ERROR" || ex is not null,
+                    eventId, now, DateTimeOffset.Now);
             }
         }
-        catch (Exception logEx)
-        {
-            ReportLoggingFailure(level, message, ex, logEx);
-        }
+        catch (Exception failure) { ReportFailure(failure); }
     }
 
-    private void WriteLocked(string level, string message, Exception? ex)
-    {
-        var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{level}] {message}";
-        if (ex is not null)
-            line += Environment.NewLine + ex;
-        line += Environment.NewLine;
-
-        TryRotateLocked(Encoding.UTF8.GetByteCount(line));
-        File.AppendAllText(_path, line);
-    }
-
-    private void TryRotateLocked(int incomingBytes)
+    internal void FlushSuppressed()
     {
         try
         {
-            if (!File.Exists(_path))
-                return;
-
-            var length = new FileInfo(_path).Length;
-            if (length + incomingBytes <= MaxLogBytes)
-                return;
-
-            var oldest = ArchivePath(MaxArchiveCount);
-            if (File.Exists(oldest))
-                File.Delete(oldest);
-
-            for (var i = MaxArchiveCount - 1; i >= 1; i--)
+            lock (_sync)
             {
-                var source = ArchivePath(i);
-                if (File.Exists(source))
-                    File.Move(source, ArchivePath(i + 1), overwrite: true);
+                foreach (var errors in new[] { true, false })
+                {
+                    var totals = _throttle.Where(pair => pair.Value.IsError == errors && pair.Value.Suppressed > 0)
+                        .Select(pair => new
+                        {
+                            key = pair.Key, firstEvent = pair.Value.EventId,
+                            suppressed = pair.Value.Suppressed,
+                            first = pair.Value.FirstOccurrence, last = pair.Value.LastOccurrence
+                        }).ToArray();
+                    if (totals.Length > 0)
+                        WriteLocked(errors ? "ERROR" : "INFO",
+                            "Repeated event final summary: " + JsonSerializer.Serialize(totals), null);
+                }
+                _throttle.Clear();
             }
-
-            File.Move(_path, ArchivePath(1), overwrite: true);
         }
-        catch (Exception ex)
-        {
-            // Rotation failure must not turn diagnostics into a runtime failure.
-            Debug.WriteLine($"PinkieSysMon log rotation failed: {ex}");
-        }
+        catch (Exception failure) { ReportFailure(failure); }
     }
 
-    private string ArchivePath(int index) => $"{_path}.{index}";
-
-    private static void ReportLoggingFailure(string level, string message, Exception? ex, Exception logEx)
+    private void FlushSummaryLocked(string key, ThrottleState state)
     {
-        Debug.WriteLine($"PinkieSysMon logging failed [{level}] {message}: {logEx}");
-        if (ex is not null)
-            Debug.WriteLine(ex);
+        if (state.Suppressed == 0) return;
+        WriteLocked(state.IsError ? "ERROR" : "INFO",
+            $"Repeated event summary: key={key}; firstEvent={state.EventId}; " +
+            $"suppressed={state.Suppressed}; first={state.FirstOccurrence:O}; last={state.LastOccurrence:O}.",
+            null);
+        state.Suppressed = 0;
     }
 
-    private sealed record ThrottleState(DateTimeOffset LastWrite, int Suppressed);
+    private string WriteLocked(string level, string message, Exception? ex)
+    {
+        var eventId = Guid.NewGuid().ToString("N");
+        var isError = level == "ERROR" || ex is not null;
+        if (!isError)
+        {
+            TryAppend(Path, Format(level, eventId, message, null), durable: false);
+            return eventId;
+        }
+
+        bool stored;
+        if (ex is not null && _recordedFailures.TryGetValue(ex, out var prior))
+        {
+            eventId = prior.EventId;
+            // Preserve the new reporting boundary without duplicating the stack.
+            stored = message == prior.Message || TryAppend(ErrorsPath,
+                Format("ERROR_CONTEXT", eventId, message, null, level), durable: true);
+        }
+        else
+        {
+            stored = TryAppend(ErrorsPath, Format("ERROR", eventId, message, ex, level), durable: true);
+            if (stored && ex is not null) _recordedFailures.Add(ex, new RecordedFailure(eventId, message));
+        }
+        // The session reference contains no original failure text or exception.
+        TryAppend(Path, Format(stored ? "ERROR_REF" : "LOGGING_FAILURE", eventId,
+            stored ? "Full failure is recorded in PinkieSysMon.Errors.log."
+                : "Failure persistence was not confirmed; inspect log storage/access.",
+            null), durable: false);
+        return eventId;
+    }
+
+    private string Format(string level, string eventId, string message, Exception? ex,
+        string? reportedLevel = null) =>
+        $"{DateTimeOffset.Now:O} [{level}] " + JsonSerializer.Serialize(new
+        {
+            component = Component,
+            session = SessionId,
+            pid = Environment.ProcessId,
+            eventId,
+            reportedLevel,
+            message = Bound(message),
+            exception = ex is null ? null : Bound(ex.ToString()),
+            exceptionType = ex?.GetType().FullName,
+            hResult = ex is null ? null : $"0x{ex.HResult:X8}",
+            nativeCode = ex is Win32Exception native ? (int?)native.NativeErrorCode : null,
+            loggingFailures = Volatile.Read(ref _lostRecords)
+        });
+
+    private static string Bound(string value) => value.Length <= MaximumFieldCharacters
+        ? value : value[..MaximumFieldCharacters] + " [TRUNCATED: field limit exceeded]";
+
+    private bool TryAppend(string path, string record, bool durable)
+    {
+        try { LogFileWriter.Append(path, record, durable); return true; }
+        catch (Exception failure) { ReportFailure(failure); return false; }
+    }
+
+    private void ReportFailure(Exception failure)
+    {
+        Interlocked.Increment(ref _lostRecords);
+        var now = Stopwatch.GetTimestamp();
+        var previous = Interlocked.Read(ref _lastFallbackAt);
+        if (previous != 0 && Stopwatch.GetElapsedTime(previous, now) < TimeSpan.FromSeconds(10)) return;
+        Interlocked.Exchange(ref _lastFallbackAt, now);
+        // No recursion into a failed sink and no original error payload in session logs.
+        try { Console.Error.WriteLine($"PinkieSysMon logging unavailable: {failure.GetType().Name}: {failure.Message}"); }
+        catch { }
+        try { Trace.WriteLine($"PinkieSysMon logging unavailable: {failure}"); }
+        catch { }
+    }
+
+    private static string Signature(string level, string message, Exception? error)
+    {
+        var causes = new List<object>();
+        for (var depth = 0; error is not null && depth < 8; depth++, error = error.InnerException)
+            causes.Add(new
+            {
+                type = error.GetType().FullName,
+                text = Bound(error.Message),
+                hResult = error.HResult,
+                nativeCode = error is Win32Exception native ? (int?)native.NativeErrorCode : null
+            });
+        var text = JsonSerializer.Serialize(new { level, message = Bound(message), causes });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+    }
+
+    private sealed record RecordedFailure(string EventId, string Message);
+
+    private sealed class ThrottleState(string signature, bool isError, string eventId,
+        long lastWrite, DateTimeOffset firstOccurrence)
+    {
+        public string Signature { get; } = signature;
+        public bool IsError { get; } = isError;
+        public string EventId { get; } = eventId;
+        public long LastWrite { get; } = lastWrite;
+        public DateTimeOffset FirstOccurrence { get; } = firstOccurrence;
+        public DateTimeOffset LastOccurrence { get; set; } = firstOccurrence;
+        public long Suppressed { get; set; }
+    }
 }

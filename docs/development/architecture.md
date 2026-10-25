@@ -147,6 +147,24 @@ Completed requests are checked against observed assignment and active-session st
 
 **Source anchors:** [Editor Output commands](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.Commands.cs), [Reload workflow](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorOutputStartWorkflow.cs), [Choice dialogs](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorDialogs.cs).
 
+## Application logging
+
+| Core file in `logs/` | Lifetime |
+| --- | --- |
+| `PinkieSysMon.Runtime.log` | The admitted ordinary or test-only Runtime session. A rejected duplicate launch appends its refusal without resetting the active owner's file. |
+| `PinkieSysMon.Editor.log` | One overlapping group of Editor processes: the first resets the file, later Editors append, and only a launch after every previous Editor exits starts a new file. |
+| `PinkieSysMon.Errors.log` | Append-only across process launches and upgrades; no automatic rotation, expiration or deletion. |
+
+Each record has a timestamp with offset and a JSON payload containing component, process/session and event identity. Error entries and warnings carrying exceptions store their complete message/exception in Errors; the originating session receives only a correlated reference. Re-reporting the same exception object through the same logger reuses that error identity; a changed reporting message is retained as ERROR_CONTEXT without repeating the exception dump. Fields beyond 1,048,576 characters carry an explicit truncation marker. Successful Error writes request an OS/disk flush; this cannot guarantee survival of a host freeze, power loss or storage failure.
+
+Path-derived Windows named mutexes serialize complete records. A separate named-event lifetime lease coordinates session admission without service files; Windows closes a crashed process's handles. Helpers do not reset files, and Editor Program passes its logger into the form. Startup logging begins once the application root can be resolved; failures before that point cannot be promised in these files. SESSION_READY identifies completed application-context/form construction; SESSION_END normalExit=true identifies normal return after application-context/form and dispatcher disposal, not merely an exit request. It is not an assertion that every subsystem was fault-free or every native resource release succeeded; per-Output cleanup records retain that evidence.
+
+### Writer failure and retention
+
+The writer preserves an interrupted final record before starting a new boundary. Failed writes do not replace the application exception: a viable session gets LOGGING_FAILURE when error persistence is unconfirmed, and available console/Trace channels receive a rate-limited sink failure. Later records carry cumulative logging-failure counts. Gate acquisition has a two-second limit; filesystem calls themselves have no promised deadline. Repetition accounting uses monotonic intervals, flushes pending totals at session end, and distinguishes changed native error codes. The throttle key set is bounded.
+
+Historical files remain on disk. Legacy optional per-target USB journals still follow their device integration contract until [#104](https://github.com/Jim1537/PinkieSysMon/issues/104) removes them. Additional producer classification, event coverage and post-incident collection remain tracked in [#105](https://github.com/Jim1537/PinkieSysMon/issues/105); this core infrastructure does not establish complete incident capture. Development build transcripts and external iCUE CSV inputs are outside the core application-log lifetime policy.
+
 ## Persistence and schema boundary
 
 These files have different owners and must not be conflated:

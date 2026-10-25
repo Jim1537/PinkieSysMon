@@ -18,7 +18,7 @@ internal sealed class PhysicalHandshakeDiagnostics
     private string _stage = "dispatch";
 
     internal static T Observe<T>(OutputTargetConfig target, int timeoutMs,
-        CancellationToken token, Func<PhysicalHandshakeDiagnostics, T> open, Action<string> reportFailure)
+        CancellationToken token, Func<PhysicalHandshakeDiagnostics, T> open, Action<string, Exception> reportFailure)
     {
         var diagnostics = new PhysicalHandshakeDiagnostics();
         try { return open(diagnostics); }
@@ -26,7 +26,7 @@ internal sealed class PhysicalHandshakeDiagnostics
         catch (Exception error)
         {
             // A diagnostic sink or formatter must never replace the I/O error.
-            try { reportFailure(diagnostics.FormatFailure(target, timeoutMs, error)); }
+            try { reportFailure(diagnostics.FormatFailure(target, timeoutMs, error), error); }
             catch { }
             throw;
         }

@@ -54,6 +54,6 @@ internal static class PhysicalFrameTransportFactory
             (OutputTargetContract.PhysicalKind, OutputTargetContract.EncryptedJpegTransport) =>
                 TurzxFrameTransport.TryOpen(target, timeoutMs, journalEnabled, log, token, diagnostics),
             _ => throw new InvalidOperationException("Unsupported physical frame transport.")
-        }, message => log.Warn(message));
+        }, (message, error) => log.Error(message, error));
     }
 }

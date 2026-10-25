@@ -180,10 +180,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    public EditorForm(string root, string? initialDashboard)
+    public EditorForm(string root, string? initialDashboard) : this(root, initialDashboard, null) { }
+
+    internal EditorForm(string root, string? initialDashboard, FileLogger? logger)
     {
         _root = root;
-        _log = new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"));
+        _log = logger ?? new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"), "Editor");
         _appConfigPath = Path.Combine(root, "config", "app.json");
         _appConfig = AppConfig.Load(_appConfigPath, _log);
         _systemTelemetry = new WindowsSystemTelemetrySource(_log);

@@ -147,7 +147,7 @@ Provider descriptors and unavailable values are defined by the [Output metric ow
 
 ### Connection and synchronization failure diagnostics
 
-Every Runtime physical-transport open runs inside `PhysicalHandshakeDiagnostics` in the shared factory, including Trofeo and TURZX. A failed discovery, native open/initialization or synchronization writes a `PHYSICAL_OPEN_FAILURE` record to the ordinary private `logs/PinkieSysMon.log`. No extra option or detailed USB journal is required. Successful opens, missing bindings and requested lifecycle cancellation produce no such failure record.
+Every Runtime physical-transport open runs inside `PhysicalHandshakeDiagnostics` in the shared factory, including Trofeo and TURZX. A failed discovery, native open/initialization or synchronization writes a `PHYSICAL_OPEN_FAILURE` error to the shared private `logs/PinkieSysMon.Errors.log`, with a correlation reference in the Runtime session log. No extra option or detailed USB journal is required. Successful opens, missing bindings and requested lifecycle cancellation produce no such failure record.
 
 | Recorded evidence | Limits and meaning |
 | --- | --- |

@@ -40,16 +40,16 @@ internal static class PhysicalHandshakeDiagnosticTests
     {
         var reports = new List<string>();
         var target = Target(OutputTargetContract.LyBulkTransport);
-        Check(PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => null, reports.Add) is null && reports.Count == 0, "Missing binding is quiet.");
-        Check(PhysicalHandshakeDiagnostics.Observe(target, 1000, default, _ => 42, reports.Add) == 42 && reports.Count == 0, "Healthy opening is quiet.");
+        Check(PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => null, (message, _) => reports.Add(message)) is null && reports.Count == 0, "Missing binding is quiet.");
+        Check(PhysicalHandshakeDiagnostics.Observe(target, 1000, default, _ => 42, (message, _) => reports.Add(message)) == 42 && reports.Count == 0, "Healthy opening is quiet.");
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
         var cancellation = new OperationCanceledException(canceled.Token);
-        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, canceled.Token, _ => throw cancellation, reports.Add)), cancellation) && reports.Count == 0, "Lifecycle cancellation propagates without failure diagnostics.");
+        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, canceled.Token, _ => throw cancellation, (message, _) => reports.Add(message))), cancellation) && reports.Count == 0, "Lifecycle cancellation propagates without failure diagnostics.");
         var error = new IOException("original I/O error");
         var calls = 0;
-        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => { calls++; throw error; }, _ => throw new IOException("broken sink"))), error) && calls == 1, "A broken logger must neither replace the original error nor retry acquisition.");
+        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => { calls++; throw error; }, (_, _) => throw new IOException("broken sink"))), error) && calls == 1, "A broken logger must neither replace the original error nor retry acquisition.");
         var unexpectedCancellation = new OperationCanceledException();
-        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => throw unexpectedCancellation, reports.Add)), unexpectedCancellation) && reports.Count == 1, "Unrequested cancellation remains a failure.");
+        Check(ReferenceEquals(Capture(() => PhysicalHandshakeDiagnostics.Observe<object?>(target, 1000, default, _ => throw unexpectedCancellation, (message, _) => reports.Add(message))), unexpectedCancellation) && reports.Count == 1, "Unrequested cancellation remains a failure.");
     }
 
     public static void TrofeoHandshakeReplies()
@@ -157,8 +157,12 @@ internal static class PhysicalHandshakeDiagnosticTests
         target.DeviceEnabled = true;
         Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, true, log, default)) is NotSupportedException, "Unsupported TURZX journal option remains rejected before native discovery.");
         var lines = File.ReadAllLines(path);
-        Check(lines.Length == 1 && lines[0].Contains("PHYSICAL_OPEN_FAILURE ", StringComparison.Ordinal), "The default shared factory writes one bounded failure entry to the ordinary logger.");
-        using var json = Parse(lines[0][lines[0].IndexOf("PHYSICAL_OPEN_FAILURE ", StringComparison.Ordinal)..]);
+        var errors = File.ReadAllLines(log.ErrorsPath);
+        Check(lines.Length == 1 && lines[0].Contains("[ERROR_REF]", StringComparison.Ordinal) &&
+              !lines[0].Contains("PHYSICAL_OPEN_FAILURE", StringComparison.Ordinal) && errors.Length == 1,
+              "The factory retains the complete failure only in Errors and a session reference.");
+        using var record = JsonDocument.Parse(errors[0][errors[0].IndexOf('{')..]);
+        using var json = Parse(record.RootElement.GetProperty("message").GetString()!);
         Check(json.RootElement.GetProperty("stage").GetString() == "options" && json.RootElement.GetProperty("operations").GetArrayLength() == 0, "A pre-I/O failure must not fabricate a handshake.");
         // Leave fixture logs available if this test fails; never touch application logs.
     }

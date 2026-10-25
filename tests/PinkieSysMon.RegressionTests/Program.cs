@@ -19,6 +19,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (Issue105LoggingTests.TryRunChild(args) is { } loggingChildExit)
+            return loggingChildExit;
         if (ShortcutNativeDiagnostic.TryRun(args, Console.WriteLine) is { } shortcutNativeExit)
             return shortcutNativeExit;
         if (TurzxRuntimeDiagnostic.TryRun(args, Console.WriteLine) is { } runtimeCheckExit)
@@ -29,6 +31,12 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 Errors routing and exception correlation", Issue105LoggingTests.ErrorRoutingAndPropagation),
+            ("Issue105 throttle totals and changed native failures", Issue105LoggingTests.ThrottledFinalTotalsAndChangedNativeError),
+            ("Issue105 retained history and failed sink", Issue105LoggingTests.AppendHistoryPartialTailAndSinkFailure),
+            ("Issue105 component and overlapping Editor sessions", Issue105LoggingTests.ComponentAndOverlappingEditorSessions),
+            ("Issue105 concurrent writers and abandoned gate", Issue105LoggingTests.ConcurrentWritersAndAbandonedGate),
+            ("Issue105 crashed final Editor session", Issue105LoggingTests.CrashedLastEditorReleasesSession),
             ("Issue101 prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
             ("Issue101 Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
             ("Issue101 Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),

@@ -92,7 +92,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             (message, kind) =>
             {
                 if (kind == RuntimeNotificationKind.Error)
-                    _log.Warn($"Runtime command feedback: {message}");
+                    _log.Error($"Runtime command feedback: {message}");
                 else
                     _log.Info($"Runtime command feedback: {message}");
             });
