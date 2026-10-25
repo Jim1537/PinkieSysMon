@@ -94,13 +94,25 @@ internal static class Issue105LoggingTests
         Sandbox(root =>
         {
             var log = new FileLogger(Path.Combine(root, "runtime.log"), "Runtime");
-            File.WriteAllText(log.ErrorsPath, new string('x', 5 * 1024 * 1024 + 16));
+            var priorHistory = new string('x', 5 * 1024 * 1024 + 16);
+            File.WriteAllText(log.ErrorsPath, priorHistory);
             var priorLength = new FileInfo(log.ErrorsPath).Length;
             log.Error("after interrupted history");
-            Check(new FileInfo(log.ErrorsPath).Length > priorLength &&
-                  Directory.GetFiles(root, "*.log.*").Length == 0,
-                "Errors history is appended, including beyond the retired rotation threshold.");
-            Check(File.ReadAllLines(log.ErrorsPath).Length == 2, "An interrupted tail is preserved with a new record boundary.");
+            var currentLength = new FileInfo(log.ErrorsPath).Length;
+            Check(currentLength > priorLength,
+                $"Errors history must grow beyond the retired rotation threshold; before={priorLength}, after={currentLength}.");
+            // Win32 wildcard matching lets "*.log.*" include an ordinary ".log".
+            // Compare the complete file set instead of treating that match as an archive.
+            var files = Directory.GetFiles(root).Select(path => Path.GetFileName(path)!)
+                .OrderBy(name => name, StringComparer.Ordinal).ToArray();
+            Check(files.SequenceEqual(new[] { "PinkieSysMon.Errors.log", "runtime.log" }),
+                "Only the error history and session file may exist; found: " + string.Join(", ", files));
+            var lines = File.ReadAllLines(log.ErrorsPath);
+            Check(lines.Length == 2 && lines[0] == priorHistory,
+                "The complete interrupted tail is preserved with exactly one new record boundary.");
+            using var appended = JsonDocument.Parse(lines[1][lines[1].IndexOf('{')..]);
+            Check(appended.RootElement.GetProperty("message").GetString() == "after interrupted history",
+                "The appended error record remains complete and parseable.");
         });
         Sandbox(root =>
         {
