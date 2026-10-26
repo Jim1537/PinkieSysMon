@@ -44,6 +44,9 @@ internal sealed class LogOperation : IDisposable
     internal void RecordFailure(Exception error, string phase, string? detail = null) =>
         Write("failure", detail, error, phase);
 
+    internal void Pending(string phase, string detail) =>
+        Write("pending", detail, phase: phase, errorRecord: true);
+
     private void Finish(string outcome, string? detail)
     {
         if (_finished) return;
@@ -51,7 +54,8 @@ internal sealed class LogOperation : IDisposable
         Write(outcome, detail);
     }
 
-    private void Write(string outcome, string? detail = null, Exception? error = null, string? phase = null)
+    private void Write(string outcome, string? detail = null, Exception? error = null, string? phase = null,
+        bool errorRecord = false)
     {
         var message = JsonSerializer.Serialize(new
         {
@@ -60,7 +64,7 @@ internal sealed class LogOperation : IDisposable
             subject = _subject, phase = phase ?? _phase, outcome,
             elapsedMs = Stopwatch.GetElapsedTime(_started).TotalMilliseconds, detail
         });
-        if (error is null) _log.Info(message);
+        if (error is null && !errorRecord) _log.Info(message);
         else _log.Error(message, error);
     }
 

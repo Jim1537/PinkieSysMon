@@ -679,29 +679,36 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             return;
         }
         _exiting = true;
-        _log.Info("PinkieSysMon shutting down.");
+        using var cleanup = new CleanupOperation(_log, "runtime.shutdown");
 
-        _statusTimer.Stop();
-        _commandFeedback.Clear();
-        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        cleanup.Step("admission.stop", () =>
+        {
+            _statusTimer.Stop();
+            _commandFeedback.Clear();
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        });
 
-        _ipcServer.Dispose();
-        _desktopShellWatcher?.Dispose();
+        cleanup.Step("ipc.dispose", _ipcServer.Dispose);
+        cleanup.Step("desktop-watcher.dispose", () => _desktopShellWatcher?.Dispose());
         _telemetry.InitialValuesPublished -= OnInitialTelemetryPublished;
-        _outputSessions.Dispose();
-        _telemetry.Dispose();
+        cleanup.Step("outputs.dispose", _outputSessions.Dispose);
+        cleanup.Step("telemetry.drain", _telemetry.Dispose);
         foreach (var source in _sources.OfType<IDisposable>())
-            source.Dispose();
+            cleanup.Step("source.dispose." + source.GetType().Name, source.Dispose);
 
-        _notifications.Dispose();
-        _uiInvoker.Dispose();
-        _trayIcon.Visible = false;
-        _trayIcon.ContextMenuStrip = null;
-        _trayMenu.Dispose();
-        _trayIcon.Dispose();
-        _applicationIcon?.Dispose();
-        _statusTimer.Dispose();
+        cleanup.Step("notifications.dispose", _notifications.Dispose);
+        cleanup.Step("ui-invoker.dispose", _uiInvoker.Dispose);
+        cleanup.Step("tray.detach", () =>
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.ContextMenuStrip = null;
+        });
+        cleanup.Step("tray-menu.dispose", _trayMenu.Dispose);
+        cleanup.Step("tray-icon.dispose", _trayIcon.Dispose);
+        cleanup.Step("application-icon.dispose", () => _applicationIcon?.Dispose());
+        cleanup.Step("status-timer.dispose", _statusTimer.Dispose);
 
-        base.ExitThreadCore();
+        cleanup.Step("message-loop.exit", () => base.ExitThreadCore());
+        cleanup.Complete();
     }
 }

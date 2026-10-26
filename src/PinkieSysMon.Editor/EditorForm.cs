@@ -2519,16 +2519,24 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
     protected override void Dispose(bool disposing)
     {
+        using var cleanup = disposing && !IsDisposed && _log is not null
+            ? new CleanupOperation(_log, "editor.form.dispose") : null;
         try
         {
             // Programmatic Dispose has no asynchronous FormClosing handshake.
             if (disposing && !_previewShutdownComplete && _previewTelemetry is { } owner)
             {
-                owner.StopAsync().GetAwaiter().GetResult();
+                if (cleanup is null) owner.StopAsync().GetAwaiter().GetResult();
+                else cleanup.Step("preview.drain", () => owner.StopAsync().GetAwaiter().GetResult());
                 _previewShutdownComplete = true;
             }
         }
-        finally { base.Dispose(disposing); }
+        finally
+        {
+            if (cleanup is null) base.Dispose(disposing);
+            else cleanup.Step("form.dispose", () => base.Dispose(disposing));
+        }
+        cleanup?.Complete();
     }
 
     private async void OnFormClosing(object? sender, FormClosingEventArgs e)
@@ -2556,15 +2564,18 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         EndCanvasPan();
         SaveEditorSettings();
-        if (_wheelFilter is not null)
-            Application.RemoveMessageFilter(_wheelFilter);
-        _runtimeStatusTimer.Stop();
-        _previewTimer.Stop();
-        _runtimeStatusTimer.Dispose();
-        _previewTimer.Dispose();
-        _preview?.Dispose();
-        _canvasImage?.Dispose();
-        DisposePropertyTabImages();
-        DisposeToolbarImages();
+        using var cleanup = new CleanupOperation(_log, "editor.ui.cleanup");
+        cleanup.Step("message-filter.remove", () =>
+        {
+            if (_wheelFilter is not null) Application.RemoveMessageFilter(_wheelFilter);
+        });
+        cleanup.Step("timers.stop", () => { _runtimeStatusTimer.Stop(); _previewTimer.Stop(); });
+        cleanup.Step("runtime-status-timer.dispose", _runtimeStatusTimer.Dispose);
+        cleanup.Step("preview-timer.dispose", _previewTimer.Dispose);
+        cleanup.Step("preview-renderer.dispose", () => _preview?.Dispose());
+        cleanup.Step("canvas-image.dispose", () => _canvasImage?.Dispose());
+        cleanup.Step("property-tab-images.dispose", DisposePropertyTabImages);
+        cleanup.Step("toolbar-images.dispose", DisposeToolbarImages);
+        cleanup.Complete();
     }
 }

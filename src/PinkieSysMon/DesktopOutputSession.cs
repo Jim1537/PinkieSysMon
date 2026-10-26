@@ -344,13 +344,14 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             return;
         _disposed = true;
         _restoreStack = null;
-        try { _window.Dispose(); }
+        using var cleanup = new CleanupOperation(_log, "desktop.dispose", _id);
+        try { cleanup.Step("window.dispose", _window.Dispose); }
         finally
         {
-            _renderer.Dispose();
-            _metrics.Publish(OutputMetricContract.Unavailable(_target));
-            _log.Info($"Desktop output '{_id}' stopped and disposed.");
+            cleanup.Step("renderer.dispose", _renderer.Dispose);
+            cleanup.Step("metrics.unavailable", () => _metrics.Publish(OutputMetricContract.Unavailable(_target)));
         }
+        cleanup.Complete();
     }
 
     private sealed class PreparedReconfiguration(

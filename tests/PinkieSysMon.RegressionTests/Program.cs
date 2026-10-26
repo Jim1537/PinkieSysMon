@@ -31,6 +31,12 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 pending cleanup preserves ownership", Issue105CleanupLoggingTests.PendingCleanupDoesNotReleaseOwnership),
+            ("Issue105 cleanup finally and original failures", Issue105CleanupLoggingTests.CleanupFailuresKeepFinallyAndOriginalErrors),
+            ("Issue105 cleanup observer failure isolation", Issue105CleanupLoggingTests.ObserverFaultDoesNotReplaceCleanupFailure),
+            ("Issue105 Desktop truthful cleanup evidence", Issue105CleanupLoggingTests.DesktopCleanupDoesNotReportFalseSuccess),
+            ("Issue105 preview shutdown worker fence evidence", Issue105CleanupLoggingTests.PreviewShutdownEvidenceRespectsWorkerFence),
+            ("Issue105 preview source cleanup aggregate evidence", Issue105CleanupLoggingTests.PreviewSourceFailuresRemainOneAggregate),
             ("Issue105 USB observer failure preserves completion", Issue105UsbLoggingTests.ObserverFailurePreservesNativeCompletion),
             ("Issue105 USB bounded evidence and unknown counts", Issue105UsbLoggingTests.BoundedEvidenceAndUnknownCounts),
             ("Issue105 USB healthy sparse stream and exact I/O", Issue105UsbLoggingTests.HealthyStreamIsSparseAndExact),

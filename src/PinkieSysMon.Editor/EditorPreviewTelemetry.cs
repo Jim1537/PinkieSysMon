@@ -148,12 +148,18 @@ internal sealed class EditorPreviewTelemetry
             _engine.SetIdlePaused(true);
             _stopTask = Task.Run(() =>
             {
-                _engine.Dispose(); // Wait for terminal capture/discovery before disposing any source.
-                var failures = new List<Exception>();
-                foreach (var source in _sources.OfType<IDisposable>())
-                    try { source.Dispose(); } catch (Exception error) { failures.Add(error); }
-                History.SetDemand([]);
-                if (failures.Count > 0) throw new AggregateException("Editor preview source cleanup failed.", failures);
+                using var cleanup = new CleanupOperation(_log, "editor.preview.shutdown");
+                // Wait for terminal capture/discovery before disposing any source.
+                cleanup.Step("worker.drain", _engine.Dispose);
+                cleanup.Step("sources.dispose", () =>
+                {
+                    var failures = new List<Exception>();
+                    foreach (var source in _sources.OfType<IDisposable>())
+                        try { source.Dispose(); } catch (Exception error) { failures.Add(error); }
+                    History.SetDemand([]);
+                    if (failures.Count > 0) throw new AggregateException("Editor preview source cleanup failed.", failures);
+                });
+                cleanup.Complete();
             });
             return _stopTask;
         }
