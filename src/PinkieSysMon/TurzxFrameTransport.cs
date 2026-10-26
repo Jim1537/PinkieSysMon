@@ -48,6 +48,11 @@ internal static class PhysicalFrameTransportFactory
         ArgumentNullException.ThrowIfNull(target);
         token.ThrowIfCancellationRequested();
         if (!target.DeviceEnabled) throw new InvalidOperationException("A disabled physical Output cannot open a frame transport.");
+        // Reject unsupported Outputs before creating observers or touching their logger.
+        if (target.Kind != OutputTargetContract.PhysicalKind ||
+            (target.Transport != OutputTargetContract.LyBulkTransport &&
+             target.Transport != OutputTargetContract.EncryptedJpegTransport))
+            throw new InvalidOperationException("Unsupported physical frame transport.");
         return ObservedPhysicalFrameTransport.Open(target, timeoutMs, log, token, observation =>
             PhysicalHandshakeDiagnostics.Observe<IPhysicalFrameTransport?>(target, timeoutMs, token, diagnostics =>
             (target.Kind, target.Transport) switch
