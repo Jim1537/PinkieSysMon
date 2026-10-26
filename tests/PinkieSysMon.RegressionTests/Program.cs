@@ -31,6 +31,11 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 Settings persistence milestones and conflict", Issue105SettingsLoggingTests.PersistenceMilestonesAndConflict),
+            ("Issue105 Settings recovery and concurrent-writer evidence", Issue105SettingsLoggingTests.RecoveryAndConcurrentWriterEvidence),
+            ("Issue105 Settings physical card identity and privacy", Issue105SettingsLoggingTests.PhysicalCardIdentityAndPrivacy),
+            ("Issue105 Settings Remove partial and absent evidence", Issue105SettingsLoggingTests.RemovalPartialAndAbsentEvidence),
+            ("Issue105 Settings Runtime phases and recovery", SavedConfigurationReloadTests.LoggingPhasesAndRecovery),
             ("Issue105 Editor edit identities and property privacy", Issue105EditorLoggingTests.EditIdentitiesAndPrivacy),
             ("Issue105 Editor gesture checkpoint and no-op", Issue105EditorLoggingTests.GestureCheckpointAndNoOp),
             ("Issue105 Editor hierarchy and paste correlation", Issue105EditorLoggingTests.HierarchyAndPasteCorrelation),

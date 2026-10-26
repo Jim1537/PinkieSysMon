@@ -265,6 +265,43 @@ internal static class SavedConfigurationReloadTests
             "Missing common-reload wiring must fail visibly instead of falling back to board-only All or global startup.");
     }
 
+    public static void LoggingPhasesAndRecovery()
+    {
+        using var f = new Fixture();
+        Check(f.Reload().Success, "The ordinary fixture reload must succeed before checking evidence.");
+        var records = Issue105SettingsLoggingTests.Operations(f.Log);
+        var reload = records.Where(e => Issue105SettingsLoggingTests.Name(e) == "runtime.settings.reload").ToArray();
+        Check(reload.Last().GetProperty("outcome").GetString() == "succeeded" &&
+              new[] { "outputs.apply", "telemetry.apply", "media.apply", "catalog.apply", "runtime.commit" }
+                  .All(phase => reload.Any(e => e.GetProperty("phase").GetString() == phase)),
+            "Common reload must record the real Output/telemetry/media/catalog/root apply boundaries.");
+        var settings = new RuntimeOutputConfigurationControl(f.Manager, () => f.Current.App, f.Root, f.Log,
+            app => f.Current = new(app, f.Current.Telemetry, f.Manager.GetDashboardAssignments()));
+        Check(settings.Execute(new(RuntimeIpcCommandKind.SetDesktopLock, "b", Value: false)).Success,
+            "The existing disabled Desktop Lock transaction must remain valid.");
+        records = Issue105SettingsLoggingTests.Operations(f.Log);
+        var command = records.Last(e => Issue105SettingsLoggingTests.Name(e) == "runtime.settings.output.command");
+        var apply = records.Where(e => Issue105SettingsLoggingTests.Name(e) == "runtime.settings.output.apply").ToArray();
+        Check(apply.All(e => e.GetProperty("parentOperationId").GetString() == command.GetProperty("operationId").GetString()) &&
+              apply.Any(e => e.GetProperty("phase").GetString() == "file.committed") &&
+              apply.Last().GetProperty("outcome").GetString() == "succeeded",
+            "Selected-setting commit evidence must share the command parent and include the actual file commit.");
+        var original = new IOException("fixture-common-media-failure");
+        var calls = 0;
+        f.OnMedia = () => { if (++calls == 1) throw original; };
+        Exception? failure = null;
+        try { f.Reload(); } catch (Exception error) { failure = error; }
+        var errors = Issue105SettingsLoggingTests.Operations(f.Log, errors: true);
+        records = Issue105SettingsLoggingTests.Operations(f.Log);
+        Check(ReferenceEquals(failure, original) && calls == 2 &&
+              errors.Any(e => Issue105SettingsLoggingTests.Name(e) == "runtime.settings.reload" &&
+                  e.GetProperty("phase").GetString() == "media.apply") &&
+              records.Any(e => e.GetProperty("phase").GetString() == "rollback.media.returned") &&
+              records.Any(e => e.GetProperty("phase").GetString() == "rollback.outputs.returned") &&
+              !File.ReadAllText(f.Log.Path).Contains(original.Message),
+            "Runtime recovery must retain the original exception and observed rollback boundaries with full error text only in Errors.");
+    }
+
     private static JsonObject Target(JsonNode root, string id) => root["Outputs"]!["Targets"]!.AsArray()
         .OfType<JsonObject>().Single(t => t["Id"]!.GetValue<string>() == id);
     private static void Check(bool condition, string message)

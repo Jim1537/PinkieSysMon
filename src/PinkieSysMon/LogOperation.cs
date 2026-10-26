@@ -24,6 +24,7 @@ internal sealed class LogOperation : IDisposable
     }
 
     internal string Id { get; } = Guid.NewGuid().ToString("N");
+    internal string CurrentPhase => _phase;
 
     internal void Phase(string phase, string? detail = null)
     {
@@ -41,8 +42,8 @@ internal sealed class LogOperation : IDisposable
         Write("failed", detail, error);
     }
 
-    internal void RecordFailure(Exception error, string phase, string? detail = null) =>
-        Write("failure", detail, error, phase);
+    internal void RecordFailure(Exception? error, string phase, string? detail = null) =>
+        Write("failure", detail, error, phase, errorRecord: true);
 
     internal void Pending(string phase, string detail) =>
         Write("pending", detail, phase: phase, errorRecord: true);

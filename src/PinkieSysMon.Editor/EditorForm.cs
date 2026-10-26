@@ -752,6 +752,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         if (!startupChanged && !runtimeChanged && !interfaceChanged && !themeChanged)
             return;
 
+        using var operation = new LogOperation(_log, "editor.settings.general");
+        operation.Phase("draft.accepted", "changedProperties=" + string.Join(",", new[]
+        {
+            providersChanged ? "MetricProviders" : null, idleChanged ? "Runtime.IdleTimeoutMinutes" : null,
+            startupChanged ? "StartupTask" : null, interfaceChanged ? "ToolbarIconSize" : null,
+            themeChanged ? "Theme" : null
+        }.Where(name => name is not null)));
         try
         {
             var runtimeReloaded = false;
@@ -762,7 +769,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
                 runtimeReloaded = await ApplySettingsAndReloadRuntimeAsync(
-                    appConfigPath, runtimeConfig, originalConfigBytes);
+                    appConfigPath, runtimeConfig, originalConfigBytes, operation.Id);
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
                 _appConfig.Runtime = runtimeConfig.Runtime;
             }
@@ -800,6 +807,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 if (restart == DialogResult.Yes)
                 {
                     RequestEditorRestartForTheme();
+                    operation.Complete("settingsPathsReturned=true; themeRestartRequested=true");
                     return;
                 }
 
@@ -824,10 +832,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
             {
                 SetStatus($"Toolbar icon size: {_toolbarIconSize} × {_toolbarIconSize}.");
             }
+            operation.Complete($"settingsPathsReturned=true; runtimeReloadedReported={runtimeReloaded}");
         }
         catch (Exception ex)
         {
-            _log.Error("Editor Settings apply failed.", ex);
+            operation.Fail(ex, "Editor Settings apply failed; earlier completed sections may remain applied.");
             MessageBox.Show(this, ex.Message, "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -859,8 +868,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         using Form dialog = physical
             ? new PhysicalDeviceSettingsDialog(runtimeConfig, DashboardCatalog.Discover(_root),
                 applicationRoot: _root, log: _log,
-                persistAndApply: (updated, expected) =>
-                    ApplySettingsAndReloadRuntimeAsync(appConfigPath, updated, expected),
+                persistAndApplyObserved: (updated, expected, parentId) =>
+                    ApplySettingsAndReloadRuntimeAsync(appConfigPath, updated, expected, parentId),
                 runtimeProcessPresent: IsRuntimeProcessPresent,
                 launchRuntime: async () =>
                 {
@@ -888,15 +897,26 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         if (physical)
             return; // Every physical mutation has already committed on its card.
-        else
+        using var operation = new LogOperation(_log, "editor.settings.desktop");
+        operation.Phase("draft.validate", "section=Outputs.Desktop");
         {
             var desktopDialog = (DesktopSettingsDialog)dialog;
             if (!desktopDialog.DesktopChanged)
-                return;
-            try { desktopDialog.ApplyOutputChanges(runtimeConfig); }
+            { operation.Cancel("Draft unchanged."); return; }
+            try
+            {
+                desktopDialog.ApplyOutputChanges(runtimeConfig);
+                var participants = runtimeConfig.Outputs.Targets.Where(target => target.Kind == OutputTargetContract.DesktopKind).ToArray();
+                operation.Phase("draft.validated", JsonSerializer.Serialize(new
+                {
+                    section = "Outputs.Desktop", participantCount = participants.Length,
+                    participantOutputIds = participants.Select(target => target.Id).Take(64).ToArray(),
+                    participantsOmitted = participants.Length > 64
+                }));
+            }
             catch (Exception ex)
             {
-                _log.Error("Desktop Settings validation failed.", ex);
+                operation.Fail(ex, "Desktop Settings validation failed.");
                 MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -904,15 +924,18 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         try
         {
+            operation.Phase("dashboard.provision");
             // Only after Settings OK: create/reuse an initial Desktop board.
             // On failed configuration commit, dispose restores the filesystem
             // only if the previous config and generated bytes are still intact.
             using var provision = InitialOutputDashboardProvisioning.Prepare(
                 _root, appConfigPath, originalConfigBytes, originalOutputIds, runtimeConfig);
+            operation.Phase("dashboard.validate");
             _ = RuntimeConfigurationValidator.LoadAssignments(runtimeConfig, _root);
             var runtimeReloaded = await ApplySettingsAndReloadRuntimeAsync(
-                appConfigPath, runtimeConfig, originalConfigBytes);
+                appConfigPath, runtimeConfig, originalConfigBytes, operation.Id);
             provision.Commit();
+            operation.Phase("editor.refresh", "fileAndApplyReturned=true");
             _appConfig.Outputs = runtimeConfig.Outputs;
             SynchronizeScreenMenu();
             RefreshPreviewTelemetry();
@@ -921,18 +944,19 @@ internal sealed partial class EditorForm : PinkieEditorForm
             SetStatus(runtimeReloaded
                 ? "Output settings saved and applied to the running Runtime."
                 : "Output settings saved. Runtime will read them on its next start.");
+            operation.Complete($"fileAndApplyReturned=true; runtimeReloadedReported={runtimeReloaded}; editorRefreshReturned=true");
         }
         catch (Exception ex)
         {
-            _log.Error($"{caption} apply failed.", ex);
+            operation.Fail(ex, "Desktop Settings apply failed; prior commit/recovery checkpoints describe any partial state.");
             MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private async Task<bool> ApplySettingsAndReloadRuntimeAsync(
-        string configPath, AppConfig config, byte[]? originalBytes)
+        string configPath, AppConfig config, byte[]? originalBytes, string? parentOperationId = null)
     {
-        using var operation = new LogOperation(_log, "editor.settings.persistApply");
+        using var operation = new LogOperation(_log, "editor.settings.persistApply", parent: parentOperationId);
         try
         {
             operation.Phase("persistAndApply");
@@ -944,7 +968,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     if (!status.Success) return null;
                     operation.Phase("runtime.reload");
                     return await RuntimeIpc.ReloadAsync();
-                });
+                }, operation);
             operation.Complete($"configSaved=true; runtimeReloaded={reloaded}");
             return reloaded;
         }

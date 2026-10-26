@@ -10,7 +10,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private bool _testUiBusy;
     private bool _saveUiBusy;
     private bool _closeAfterTest;
-    private readonly Func<AppConfig, byte[]?, Task<bool>>? _persistAndApply;
+    private readonly Func<AppConfig, byte[]?, string?, Task<bool>>? _persistAndApply;
     private readonly Action<AppConfig, bool>? _onCommitted;
     private readonly Func<bool>? _runtimeProcessPresent;
     private readonly Func<Task<RuntimeIpcStatusResponse>>? _launchRuntime;
@@ -25,10 +25,13 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         Func<AppConfig, byte[]?, Task<bool>>? persistAndApply = null,
         Action<AppConfig, bool>? onCommitted = null,
         Func<bool>? runtimeProcessPresent = null,
-        Func<Task<RuntimeIpcStatusResponse>>? launchRuntime = null)
+        Func<Task<RuntimeIpcStatusResponse>>? launchRuntime = null,
+        Func<AppConfig, byte[]?, string?, Task<bool>>? persistAndApplyObserved = null)
     {
         _log = log;
-        _persistAndApply = persistAndApply;
+        if (persistAndApplyObserved is not null) _persistAndApply = persistAndApplyObserved;
+        else if (persistAndApply is not null)
+            _persistAndApply = (updated, expected, _) => persistAndApply(updated, expected);
         _onCommitted = onCommitted;
         _runtimeProcessPresent = runtimeProcessPresent;
         _launchRuntime = launchRuntime;
@@ -331,37 +334,46 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private async Task SaveCandidateAsync(OutputTargetConfig target)
     {
         if (_saveUiBusy || _testUiBusy || _persistAndApply is null || _log is null) return;
+        using var operation = new LogOperation(_log, "editor.settings.card.candidate.save", target.Id);
         _saveUiBusy = true;
         try
         {
+            operation.Phase("draft.prepare");
             RefreshDeviceDiscovery();
             var confirmed = _devices.PrepareCandidate(target);
             var node = _devices.CandidateDraft(target)!.PnpNodeKey;
             var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.SaveCandidateAsync(
                 _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
-                _log, confirmed, node, _discoverDevices, _persistAndApply);
+                _log, confirmed, node, _discoverDevices,
+                (nextConfig, expectedBytes) => _persistAndApply(nextConfig, expectedBytes, operation.Id), operation.Id);
             _devices.AcceptSavedCandidate(target, confirmed);
-            ReportCommitted(saved, reloaded);
+            operation.Phase("editor.refresh", "fileCommitted=true");
+            ReportCommitted(saved, reloaded, operation);
             _devicePages[target.Id].SetTestMessage(null);
             UpdateDevicePages();
+            operation.Complete("fileAndApplyReturned=true; editorRefreshed=true");
         }
-        catch (Exception ex) { ShowDeviceError(ex); }
+        catch (Exception ex) { operation.Fail(ex); ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
     private async Task SaveConfiguredAsync(OutputTargetConfig target)
     {
         if (_saveUiBusy || _testUiBusy || _persistAndApply is null || _log is null) return;
+        using var operation = new LogOperation(_log, "editor.settings.card.configured.save", target.Id);
         _saveUiBusy = true;
         try
         {
+            operation.Phase("draft.prepare");
             RefreshDeviceDiscovery();
             var (original, updated) = _devices.PrepareConfigured(target);
             var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.SaveConfiguredAsync(
                 _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
-                _log, original, updated, _discoverDevices, _persistAndApply);
+                _log, original, updated, _discoverDevices,
+                (nextConfig, expectedBytes) => _persistAndApply(nextConfig, expectedBytes, operation.Id), operation.Id);
             _devices.AcceptSavedConfigured(target, updated);
-            ReportCommitted(saved, reloaded);
+            operation.Phase("editor.refresh", "fileCommitted=true");
+            ReportCommitted(saved, reloaded, operation);
             var start = _runtimeProcessPresent is not null && _launchRuntime is not null
                 ? await ConfiguredDeviceRuntimeStart.AfterSaveAsync(reloaded,
                     () => RuntimeIpc.GetStatusAsync(), _runtimeProcessPresent,
@@ -374,6 +386,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     _launchRuntime)
                 : new ConfiguredDeviceRuntimeResult(reloaded
                     ? ConfiguredDeviceRuntimeState.Applied : ConfiguredDeviceRuntimeState.Declined);
+            operation.Phase("runtime.afterSave", "state=" + start.State);
             var message = start.State switch
             {
                 ConfiguredDeviceRuntimeState.Applied => "Saved and applied to the running Runtime.",
@@ -386,10 +399,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             _devicePages[target.Id].SetApplyMessage(message);
             if (start.State is ConfiguredDeviceRuntimeState.Unresponsive or
                 ConfiguredDeviceRuntimeState.AlreadyRunning or ConfiguredDeviceRuntimeState.StartFailed)
+            {
+                operation.RecordFailure(null, "runtime.afterSave", "fileCommitted=true; state=" + start.State + "; message=" + start.Message);
+                operation.Partial("fileCommitted=true; runtimeAfterSave=unconfirmed");
                 MessageBox.Show(this, message, "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             UpdateDevicePages();
+            operation.Complete("fileAndApplyReturned=true; editorRefreshed=true");
         }
-        catch (Exception ex) { ShowDeviceError(ex); }
+        catch (Exception ex) { operation.Fail(ex); ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
@@ -403,27 +421,34 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             "This specific device will not be offered or tested again. To allow it later, manually remove its hashed node key from config/app.json. No dashboard file is deleted.",
             "Forget Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
             MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        using var operation = new LogOperation(_log, "editor.settings.card.candidate.forget", target.Id);
         _saveUiBusy = true;
         try
         {
+            operation.Phase("draft.prepare");
             RefreshDeviceDiscovery();
             var node = _devices.PrepareForget(target);
             var (saved, reloaded) = await PhysicalDeviceSettingsTransaction.ForgetCandidateAsync(
                 Path.Combine(_help.ApplicationRoot!, "config", "app.json"), _log,
-                draft.InterfaceId, node, _discoverDevices, _persistAndApply);
+                draft.InterfaceId, node, _discoverDevices,
+                (nextConfig, expectedBytes) => _persistAndApply(nextConfig, expectedBytes, operation.Id), operation.Id);
             _devices.AcceptForgot(target, node);
-            ReportCommitted(saved, reloaded);
+            operation.Phase("editor.refresh", "fileCommitted=true");
+            ReportCommitted(saved, reloaded, operation);
             RefreshDeviceDiscovery();
+            operation.Complete("fileAndApplyReturned=true; editorRefreshed=true");
         }
-        catch (Exception ex) { ShowDeviceError(ex); }
+        catch (Exception ex) { operation.Fail(ex); ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
-    private void ReportCommitted(AppConfig saved, bool reloaded)
+    private void ReportCommitted(AppConfig saved, bool reloaded, LogOperation operation)
     {
         try { _onCommitted?.Invoke(saved, reloaded); }
         catch (Exception refreshError)
         {
+            operation.RecordFailure(refreshError, "editor.refresh", "fileCommitted=true; editorView=unconfirmed");
+            operation.Partial("fileCommitted=true; editorView=unconfirmed");
             MessageBox.Show(this,
                 $"Configuration was saved, but the Editor view could not refresh: {refreshError.Message}\nReopen Settings before further edits.",
                 "Device Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -432,8 +457,10 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
 
     private bool ChangeDeviceEnabled(OutputTargetConfig target, bool enabled)
     {
+        using var operation = _log is null ? null : new LogOperation(_log, "editor.settings.device.enableDraft", target.Id);
         try
         {
+            operation?.Phase("identity.validate");
             RefreshDeviceDiscovery();
             var confirmed = false;
             if (enabled)
@@ -449,14 +476,18 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     "Enable Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                 if (!confirmed)
+                {
+                    operation?.Cancel("Enablement consent declined; draft unchanged.");
                     return OutputTargetContract.IsEnabled(target);
+                }
                 RefreshDeviceDiscovery();
             }
             if (!_devices.SetEnabled(target, enabled, confirmed))
                 throw new InvalidOperationException("The device is no longer available or its identity is ambiguous.");
             UpdateDevicePages();
+            operation?.Complete("draftUpdated=true; persisted=false; saveRequired=true");
         }
-        catch (Exception ex) { ShowDeviceError(ex); }
+        catch (Exception ex) { operation?.Fail(ex); ShowDeviceError(ex); }
         return OutputTargetContract.IsEnabled(target);
     }
 
@@ -471,23 +502,28 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 "Remove Device", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes)
             return;
+        using var operation = new LogOperation(_log, "editor.settings.card.configured.remove", target.Id);
         _saveUiBusy = true;
         try
         {
+            operation.Phase("draft.prepare");
             var original = _devices.PrepareRemove(target, _desktopCount);
             var (saved, reloaded, warning) = await PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
                 Path.Combine(_help.ApplicationRoot!, "config", "app.json"), _log, original,
                 () => RuntimeIpc.GetStatusAsync(), RuntimeProcessLease.ExistsForCurrentUser,
                 () => RuntimeProcessLease.TryAcquireForCurrentUser(),
                 (id, hash) => RuntimeIpc.PreparePhysicalRemovalAsync(id, hash),
-                () => RuntimeIpc.ReloadAsync());
+                () => RuntimeIpc.ReloadAsync(), operation.Id);
             _devices.AcceptRemovedConfigured(target);
-            ReportCommitted(saved, reloaded);
+            operation.Phase("editor.refresh", "fileCommitted=true");
+            ReportCommitted(saved, reloaded, operation);
             RefreshDeviceDiscovery();
+            if (warning is null) operation.Complete("recordRemoved=true; editorRefreshed=true");
+            else operation.Partial("recordRemoved=true; runtimeReload=unconfirmed");
             if (warning is not null)
                 MessageBox.Show(this, warning, "Remove partially applied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-        catch (Exception ex) { ShowDeviceError(ex); }
+        catch (Exception ex) { operation.Fail(ex); ShowDeviceError(ex); }
         finally { _saveUiBusy = false; if (!IsDisposed) UpdateDevicePages(); }
     }
 
