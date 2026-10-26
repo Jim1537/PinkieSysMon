@@ -1189,7 +1189,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (canvasPropertyViewNeedsRefresh && _definition is not null)
                 RefreshCanvasPropertyViewDeferred(_definition.Canvas);
 
-            PushUndo(undoBefore);
+            CommitEdit(undoBefore, "property", widgets?.Select(widget => widget.Id),
+                properties: [propertyName], canvas: widgets is null);
             MarkDirty();
             RenderPreview(force: true);
         }
@@ -1779,7 +1780,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _workspaceViewport.Capture = false;
         UpdatePreviewTimerState();
         if (_dragUndoSnapshot is not null && SnapshotDiffers(_dragUndoSnapshot))
-            PushUndo(_dragUndoSnapshot);
+            CommitEdit(_dragUndoSnapshot, resize is null ? "geometry.move" : "geometry.resize",
+                resize is null ? _selectedWidgets.Select(widget => widget.Id) : [resize.Widget.Id],
+                properties: resize is null ? ["X", "Y"] : ["X", "Y", "Width", "Height"]);
         _dragUndoSnapshot = null;
         _dragOrigins.Clear();
 
@@ -2032,7 +2035,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
 
         _propertyGrid.Refresh();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "geometry.nudge", _selectedWidgets.Select(widget => widget.Id),
+            properties: ["X", "Y"]);
         MarkDirty();
         RenderPreview(force: true, immediate: true);
     }
@@ -2260,7 +2264,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             parent.Nodes.Add(treeNode);
             _widgetTreeNodes[widget] = treeNode;
             SelectWidget(widget);
-            PushUndo(undoBefore);
+            CommitEdit(undoBefore, "widget.add", [widget.Id]);
             MarkDirty();
             RebuildPreviewRenderer();
             RefreshPreviewTelemetry();
@@ -2340,7 +2344,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         parent.Nodes.Add(treeNode);
         _widgetTreeNodes[widget] = treeNode;
         SelectWidget(widget);
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "widget.add", [widget.Id]);
         MarkDirty();
         RebuildPreviewRenderer();
         RefreshPreviewTelemetry();

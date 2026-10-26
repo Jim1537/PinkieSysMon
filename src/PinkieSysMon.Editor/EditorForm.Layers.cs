@@ -479,6 +479,7 @@ internal sealed partial class EditorForm
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             return;
 
+        var affectedWidgetIds = _selectedWidgets.Select(widget => widget.Id).ToArray();
         var undoBefore = CaptureSnapshot();
         var previousOrder = GetLayerOrder();
         var widgetsDeleted = false;
@@ -515,7 +516,7 @@ internal sealed partial class EditorForm
         SetPropertyGridTarget(null);
         SaveDashboardMetadata();
         PopulateTree();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "layer.delete", affectedWidgetIds, explicitGroups);
 
         if (widgetsDeleted || layerOrderChanged)
         {
@@ -574,7 +575,7 @@ internal sealed partial class EditorForm
         if (_selectedWidget is not null)
             SetPropertyGridTarget(_selectedWidget);
         UpdateStatusBar();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "widget.duplicate", duplicates.Select(widget => widget.Id));
         MarkDirty();
         RebuildPreviewRenderer();
         RenderPreview(force: true);
@@ -683,7 +684,8 @@ internal sealed partial class EditorForm
                 groupNode.Expand();
         }
         ApplyTreeSelectionToWidgets();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "group.duplicate", _selectedWidgets.Select(widget => widget.Id),
+            duplicatedRootIds);
         MarkDirty();
         RebuildPreviewRenderer();
         RenderPreview(force: true);
@@ -888,7 +890,9 @@ internal sealed partial class EditorForm
         }
 
         _propertyGrid.Refresh();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "geometry.align",
+            movements.SelectMany(movement => GetAlignmentNodeWidgets(hierarchy, movement.Node))
+                .Select(widget => widget.Id), properties: ["X", "Y"]);
         MarkDirty();
         RenderPreview(force: true, immediate: true);
 
@@ -954,7 +958,9 @@ internal sealed partial class EditorForm
         if (_groupTreeNodes.TryGetValue(group.Id, out var createdGroupNode))
             createdGroupNode.Expand();
         ApplyTreeSelectionToWidgets();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "group.create", _selectedWidgets.Select(widget => widget.Id),
+            selected.Where(node => node.Kind == EditorLayerNodeKind.Group).Select(node => node.Id).Append(group.Id),
+            ["ParentGroupId"]);
         if (layerOrderChanged)
         {
             MarkDirty();
@@ -974,6 +980,7 @@ internal sealed partial class EditorForm
         if (selected.Count == 0)
             return;
 
+        var affectedWidgetIds = _selectedWidgets.Select(widget => widget.Id).ToArray();
         var undoBefore = CaptureSnapshot();
         var previousOrder = GetLayerOrder();
         var changed = false;
@@ -1019,7 +1026,9 @@ internal sealed partial class EditorForm
         _treeSelectionAnchorKey = null;
         ClearWidgetSelection();
         PopulateTree();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "group.ungroup", affectedWidgetIds,
+            selected.Where(node => node.Kind == EditorLayerNodeKind.Group).Select(node => node.Id),
+            ["ParentGroupId"]);
         if (layerOrderChanged)
         {
             MarkDirty();
@@ -1108,7 +1117,7 @@ internal sealed partial class EditorForm
             group.Name = name;
             SaveDashboardMetadata();
             PopulateTree();
-            PushUndo(undoBefore);
+            CommitEdit(undoBefore, "group.rename", groupIds: [group.Id], properties: ["Name"]);
             SetStatus($"Renamed group to '{name}'.");
             return;
         }
@@ -1136,7 +1145,7 @@ internal sealed partial class EditorForm
         if (_widgetTreeNodes.TryGetValue(_selectedWidget, out var treeNode))
             treeNode.Text = WidgetCaption(_selectedWidget);
         _propertyGrid.Refresh();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "widget.rename", [_selectedWidget.Id], properties: ["Name"]);
         MarkDirty();
     }
 
@@ -1318,7 +1327,10 @@ internal sealed partial class EditorForm
             PopulateTree();
             ApplyTreeSelectionToWidgets();
             RestoreLayerTreeViewport(viewportState);
-            PushUndo(undoBefore);
+            CommitEdit(undoBefore, "layer.reparent", _selectedWidgets.Select(widget => widget.Id),
+                moving.Where(node => node.Kind == EditorLayerNodeKind.Group).Select(node => node.Id)
+                    .Concat(destinationParentId is null ? [] : new[] { destinationParentId }),
+                ["ParentGroupId", "Z"]);
             if (layerOrderChanged)
             {
                 MarkDirty();
@@ -1401,7 +1413,8 @@ internal sealed partial class EditorForm
         SaveDashboardMetadata();
         PopulateTree();
         ApplyTreeSelectionToWidgets();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "layer.reorder", _selectedWidgets.Select(widget => widget.Id),
+            selected.Where(node => node.Kind == EditorLayerNodeKind.Group).Select(node => node.Id), ["Z"]);
         if (layerOrderChanged)
         {
             MarkDirty();
@@ -1448,7 +1461,8 @@ internal sealed partial class EditorForm
         SaveDashboardMetadata();
         PopulateTree();
         ApplyTreeSelectionToWidgets();
-        PushUndo(undoBefore);
+        CommitEdit(undoBefore, "layer.edge", _selectedWidgets.Select(widget => widget.Id),
+            selected.Where(node => node.Kind == EditorLayerNodeKind.Group).Select(node => node.Id), ["Z"]);
         if (layerOrderChanged)
         {
             MarkDirty();

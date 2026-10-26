@@ -31,6 +31,10 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 Editor edit identities and property privacy", Issue105EditorLoggingTests.EditIdentitiesAndPrivacy),
+            ("Issue105 Editor gesture checkpoint and no-op", Issue105EditorLoggingTests.GestureCheckpointAndNoOp),
+            ("Issue105 Editor hierarchy and paste correlation", Issue105EditorLoggingTests.HierarchyAndPasteCorrelation),
+            ("Issue105 Editor edit evidence bounds", Issue105EditorLoggingTests.EditEvidenceBounds),
             ("Fixture cleanup original failures and no retry", RegressionFixtureCleanupTests.OriginalFailuresAndNoRetry),
             ("Fixture cleanup held-file snapshot and native ABI", RegressionFixtureCleanupTests.HeldFileSnapshotAndNativeLayout),
             ("Issue105 pending cleanup preserves ownership", Issue105CleanupLoggingTests.PendingCleanupDoesNotReleaseOwnership),

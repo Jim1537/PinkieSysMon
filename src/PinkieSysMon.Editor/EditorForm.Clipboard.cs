@@ -265,7 +265,9 @@ internal sealed partial class EditorForm
             _selectedWidgets.Clear();
             PopulateTree();
             ApplyTreeSelectionToWidgets();
-            PushUndo(undoBefore);
+            CommitEdit(undoBefore, "clipboard.paste", _selectedWidgets.Select(widget => widget.Id),
+                plan.SelectionKeys.Where(key => key.StartsWith("g:", StringComparison.Ordinal)).Select(key => key[2..]),
+                parentOperationId: operation.Id);
             MarkDirty();
             UpdateStatusBar();
             RefreshPreviewTelemetry();

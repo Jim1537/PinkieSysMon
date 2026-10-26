@@ -1,5 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Drawing;
+using System.Windows.Forms;
 using PinkieSysMon;
 using PinkieSysMon.Editor;
 using C = PinkieSysMon.DashboardModel;
@@ -189,6 +191,173 @@ internal static class Issue105EditorLoggingTests
               session.Last().GetProperty("operationId").GetString() == failure.GetProperty("operationId").GetString(),
             "Metadata fallback must retain the source failure, backup result and partial load identity.");
     });
+
+    public static void EditIdentitiesAndPrivacy() => WithEditor((root, editor, log, messages) =>
+    {
+        var original = PrepareEditFixture(root, editor);
+        var firstId = original.Id;
+        Invoke(editor, "DuplicateSelectedWidgets");
+        var widget = Get<C.WidgetDefinition>(editor, "_selectedWidget");
+        var before = Invoke(editor, "CaptureSnapshot");
+        const string privateName = "private-fixture-name-do-not-log";
+        widget.Name = privateName;
+        Invoke(editor, "OnPropertyChanged", "Name", before);
+        var definition = Get<C.DashboardDefinition>(editor, "_definition");
+        Invoke(editor, "SetPropertyGridTarget", definition.Canvas);
+        before = Invoke(editor, "CaptureSnapshot");
+        definition.Canvas.Width += 10;
+        Invoke(editor, "OnPropertyChanged", "Width", before);
+        Invoke(editor, "SelectWidget", original);
+        Invoke(editor, "ToggleSelection", widget);
+        before = Invoke(editor, "CaptureSnapshot");
+        original.Name = widget.Name = privateName + "-bulk";
+        Invoke(editor, "OnPropertyChanged", "Name", before);
+
+        var edits = Edits(log);
+        Check(edits.Select(e => e.GetProperty("action").GetString()).SequenceEqual(
+                  new[] { "widget.add", "widget.duplicate", "property", "property", "property" }) &&
+              Sample(edits[0], "widgets").SequenceEqual(new[] { firstId }) &&
+              Sample(edits[1], "widgets").SequenceEqual(new[] { widget.Id }) && firstId != widget.Id &&
+              Sample(edits[2], "widgets").SequenceEqual(new[] { widget.Id }) &&
+              Sample(edits[2], "properties").SequenceEqual(new[] { "Name" }) &&
+              !edits[2].GetProperty("canvas").GetBoolean() &&
+              edits[3].GetProperty("canvas").GetBoolean() &&
+              Sample(edits[3], "widgets").Length == 0 &&
+              Sample(edits[3], "properties").SequenceEqual(new[] { "Width" }) &&
+              Sample(edits[4], "widgets").Order().SequenceEqual(new[] { firstId, widget.Id }.Order()) &&
+              Sample(edits[4], "properties").SequenceEqual(new[] { "Name" }),
+            "Add/duplicate/property checkpoints must identify the actual widget or Canvas and descriptor.");
+        Check(edits.All(e => e.GetProperty("scope").GetString() == "memory-and-history") &&
+              edits.Select(e => e.GetProperty("operationId").GetString()).Distinct().Count() == 5 &&
+              !File.ReadAllText(log.Path).Contains(privateName) && !File.Exists(log.ErrorsPath) && messages.Count == 0,
+            "Normal edit evidence must be independently identified, value-free and outside Errors.");
+    });
+
+    public static void GestureCheckpointAndNoOp() => WithEditor((root, editor, log, messages) =>
+    {
+        var widget = PrepareEditFixture(root, editor);
+        var startX = widget.X;
+        var startY = widget.Y;
+        Set(editor, "_dragUndoSnapshot", Invoke(editor, "CaptureSnapshot"));
+        Set(editor, "_dragging", true);
+        Set(editor, "_dragStartLogical", new PointF(0, 0));
+        Get<Dictionary<C.WidgetDefinition, (float X, float Y)>>(editor, "_dragOrigins")[widget] = (startX, startY);
+        foreach (var offset in new[] { 20, 30, 40 })
+            Invoke(editor, "CanvasMouseMove", null, new MouseEventArgs(MouseButtons.Left, 0, offset, offset, 0));
+        Check(Edits(log).Length == 1 && (widget.X != startX || widget.Y != startY),
+            "Actual mouse-move updates must not log per-motion commits.");
+        Invoke(editor, "CanvasMouseUp", null, new MouseEventArgs(MouseButtons.Left, 0, 40, 40, 0));
+        var move = Edits(log).Last();
+        Check(Edits(log).Length == 2 && move.GetProperty("action").GetString() == "geometry.move" &&
+              Sample(move, "widgets").SequenceEqual(new[] { widget.Id }) &&
+              Sample(move, "properties").SequenceEqual(new[] { "X", "Y" }),
+            "A completed drag must emit exactly one checkpoint with geometry field names.");
+        Invoke(editor, "MoveSelectedWidgets", 0f, 0f);
+        Invoke(editor, "PushUndo", Invoke(editor, "CaptureSnapshot"));
+        Check(Edits(log).Length == 2, "Unchanged nudge/checkpoints must not invent committed edits.");
+        Invoke(editor, "MoveSelectedWidgets", 1f, 0f);
+        Check(Edits(log).Last().GetProperty("action").GetString() == "geometry.nudge" && Edits(log).Length == 3,
+            "One keyboard nudge must emit one changed checkpoint.");
+    });
+
+    public static void HierarchyAndPasteCorrelation() => WithEditor((root, editor, log, messages) =>
+    {
+        var original = PrepareEditFixture(root, editor);
+        var definition = Get<C.DashboardDefinition>(editor, "_definition");
+        const string privateGroup = "private-fixture-group-do-not-log";
+        var transfer = DashboardJson.ParseEditorSnapshot(DashboardJson.SerializeEditorSnapshot(definition),
+            DashboardCatalog.GetDefinitionPath(root, "Edits"));
+        transfer.Widgets.Clear();
+        transfer.Widgets.Add(DashboardJson.CloneWidget(original));
+        var package = new WidgetTransferPackage
+        {
+            Version = 1, SourceDirectory = root,
+            SnapshotJson = DashboardJson.SerializeEditorSnapshot(transfer),
+            Groups = [new WidgetTransferGroup { Id = "transfer-group", Name = privateGroup }],
+            RootGroupIds = ["transfer-group"],
+            WidgetGroupIds = new() { [original.Id!] = "transfer-group" }
+        };
+        Invoke(editor, "PasteTransferredWidgets", package);
+        var paste = Edits(log).Last();
+        var operation = Operations(Read(log.Path), "editor.clipboard.paste").Last();
+        var groupId = Sample(paste, "groups").Single();
+        var pastedId = Sample(paste, "widgets").Single();
+        Check(paste.GetProperty("action").GetString() == "clipboard.paste" &&
+              paste.GetProperty("parentOperationId").GetString() == operation.GetProperty("operationId").GetString() &&
+              pastedId != original.Id && groupId != "transfer-group",
+            "Paste must identify destination IDs and correlate with its real containing operation.");
+        Invoke(editor, "DuplicateSelectedGroups");
+        var duplicate = Edits(log).Last();
+        var duplicateGroup = Sample(duplicate, "groups").Single();
+        var duplicateWidget = Sample(duplicate, "widgets").Single();
+        Check(duplicate.GetProperty("action").GetString() == "group.duplicate" &&
+              duplicateGroup != groupId && duplicateWidget != pastedId,
+            "Group duplication must report the newly created logical participants.");
+        Invoke(editor, "UngroupSelectedLayerNodes");
+        var ungroup = Edits(log).Last();
+        Check(ungroup.GetProperty("action").GetString() == "group.ungroup" &&
+              Sample(ungroup, "groups").SequenceEqual(new[] { duplicateGroup }) &&
+              Sample(ungroup, "widgets").SequenceEqual(new[] { duplicateWidget }) &&
+              Get<DashboardEditorMetadata>(editor, "_dashboardMetadata").GetGroup(duplicateGroup) is null &&
+              !File.ReadAllText(log.Path).Contains(privateGroup) && messages.Count == 0,
+            "Ungroup must retain affected identities after clearing selection, without group names.");
+    });
+
+    public static void EditEvidenceBounds() => WithEditor((root, editor, log, messages) =>
+    {
+        PrepareEditFixture(root, editor);
+        var definition = Get<C.DashboardDefinition>(editor, "_definition");
+        var before = Invoke(editor, "CaptureSnapshot");
+        definition.Canvas.Width++;
+        var identifiers = Enumerable.Range(0, 70).Select(i => i == 0 ? new string('x', 200) : "fixture-" + i).ToArray();
+        Invoke(editor, "CommitEdit", before, "fixture.bounds", identifiers, identifiers, identifiers, true, null);
+        var bounded = Edits(log).Last();
+        foreach (var field in new[] { "widgets", "groups", "properties" })
+        {
+            var data = bounded.GetProperty(field);
+            Check(data.GetProperty("count").GetInt32() == 70 &&
+                  data.GetProperty("omitted").GetInt32() == 6 &&
+                  data.GetProperty("truncated").GetBoolean() &&
+                  Sample(bounded, field).Length == 64 && Sample(bounded, field).All(value => value!.Length <= 128),
+                "Every edit identity field must expose bounded samples and honest omission counts.");
+        }
+        before = Invoke(editor, "CaptureSnapshot");
+        definition.Canvas.Width++;
+        var undoCount = Get<System.Collections.ICollection>(editor, "_undo").Count;
+        Invoke(editor, "CommitEdit", before, "fixture.broken-observer", BrokenIdentifiers(), null, null, true, null);
+        Check(Get<System.Collections.ICollection>(editor, "_undo").Count == undoCount + 1 &&
+              Get<C.DashboardDefinition>(editor, "_definition").Canvas.Width == definition.Canvas.Width &&
+              Read(log.ErrorsPath).Any(e => e.GetProperty("message").GetString() == "Editor edit checkpoint evidence unavailable."),
+            "A diagnostic enumeration failure must retain the accepted history and report the evidence gap.");
+    });
+
+    private static IEnumerable<string?> BrokenIdentifiers()
+    {
+        yield return "fixture";
+        throw new InvalidOperationException("fixture observation failure");
+    }
+
+    private static C.WidgetDefinition PrepareEditFixture(string root, EditorForm editor)
+    {
+        CreateDashboard(root, "Edits");
+        Check((bool)Invoke(editor, "LoadDashboard", "Edits")!, "Edit fixture document did not load.");
+        Invoke(editor, "AddWidget", WidgetTypeContract.Value);
+        return Get<C.WidgetDefinition>(editor, "_selectedWidget");
+    }
+
+    private static JsonElement[] Edits(FileLogger log) => Read(log.Path)
+        .Select(record => record.GetProperty("message").GetString())
+        .Where(message => message is not null && message.StartsWith('{'))
+        .Select(message => JsonSerializer.Deserialize<JsonElement>(message!))
+        .Where(value => value.TryGetProperty("eventName", out var name) && name.GetString() == "editor.edit.committed")
+        .ToArray();
+
+    private static string?[] Sample(JsonElement edit, string field) => edit.GetProperty(field)
+        .GetProperty("sample").EnumerateArray().Select(value => value.GetString()).ToArray();
+
+    private static void Set(EditorForm editor, string field, object? value) =>
+        (typeof(EditorForm).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing Editor field: " + field)).SetValue(editor, value);
 
     private static void WithEditor(Action<string, EditorForm, FileLogger, List<string>> test)
     {

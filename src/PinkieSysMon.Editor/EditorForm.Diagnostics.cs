@@ -14,11 +14,49 @@ internal sealed partial class EditorForm
         else MessageBox.Show(message, title, MessageBoxButtons.OK, icon);
     }
 
-    private void LogEditCommitted() => _log.Info(JsonSerializer.Serialize(new
+    private void LogEditCommitted(string action, IEnumerable<string?>? widgetIds,
+        IEnumerable<string?>? groupIds, IEnumerable<string?>? properties, bool canvas,
+        string? parentOperationId)
     {
-        eventName = "editor.edit.committed", operationId = Guid.NewGuid().ToString("N"),
-        subject = _dashboardName, widgetCount = _definition?.Widgets.Count ?? 0,
-        selectedWidgetIds = _selectedWidgets.Select(w => w.Id).Take(64).ToArray(),
-        selectionCount = _selectedWidgets.Count
-    }));
+        try
+        {
+            _log.Info(JsonSerializer.Serialize(new
+            {
+                eventName = "editor.edit.committed", operationId = Guid.NewGuid().ToString("N"),
+                parentOperationId, subject = _dashboardName, action, scope = "memory-and-history",
+                widgetCount = _definition?.Widgets.Count ?? 0, canvas,
+                widgets = BoundEditIdentifiers(widgetIds), groups = BoundEditIdentifiers(groupIds),
+                properties = BoundEditIdentifiers(properties)
+            }));
+        }
+        catch (Exception error)
+        {
+            // Evidence failure must not turn an accepted history checkpoint into
+            // an edit failure or trigger the caller's document rollback.
+            _log.Error("Editor edit checkpoint evidence unavailable.", error);
+        }
+    }
+
+    private static object BoundEditIdentifiers(IEnumerable<string?>? values)
+    {
+        const int maximumEntries = 64;
+        const int maximumCharacters = 128;
+        var sample = new List<string>(maximumEntries);
+        var count = 0;
+        var missing = 0;
+        var truncated = false;
+        foreach (var value in values ?? [])
+        {
+            count++;
+            if (string.IsNullOrEmpty(value)) { missing++; continue; }
+            if (sample.Count == maximumEntries) continue;
+            if (value.Length > maximumCharacters)
+            {
+                sample.Add(value[..(maximumCharacters - 14)] + "...[truncated]");
+                truncated = true;
+            }
+            else sample.Add(value);
+        }
+        return new { count, sample, missing, omitted = count - missing - sample.Count, truncated };
+    }
 }

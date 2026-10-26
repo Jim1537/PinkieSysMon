@@ -277,7 +277,13 @@ internal sealed partial class EditorForm
         (!string.Equals(snapshot.Json, DashboardJson.SerializeEditorSnapshot(_definition), StringComparison.Ordinal) ||
          !string.Equals(snapshot.EditorMetadataJson, _dashboardMetadata.ToCompactJson(), StringComparison.Ordinal));
 
-    private void PushUndo(EditorSnapshot? snapshot)
+    // Retain the single-argument checkpoint entry used by existing regressions.
+    private void PushUndo(EditorSnapshot? snapshot) =>
+        CommitEdit(snapshot, "checkpoint", _selectedWidgets?.Select(widget => widget.Id));
+
+    private void CommitEdit(EditorSnapshot? snapshot, string action,
+        IEnumerable<string?>? widgetIds = null, IEnumerable<string?>? groupIds = null,
+        IEnumerable<string?>? properties = null, bool canvas = false, string? parentOperationId = null)
     {
         // A subsequent non-property edit invalidates any incomplete PropertyGrid transaction.
         _propertyEditUndoSnapshot = null;
@@ -286,7 +292,7 @@ internal sealed partial class EditorForm
 
         PushHistorySnapshot(_undo, snapshot);
         _redo.Clear();
-        LogEditCommitted();
+        LogEditCommitted(action, widgetIds, groupIds, properties, canvas, parentOperationId);
         UpdateCommandStates();
     }
 
