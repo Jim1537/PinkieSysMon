@@ -86,13 +86,17 @@ internal sealed partial class EditorForm
     {
         if (!CanCopyWidgetsCommand() || _definition is null)
             return;
+        using var operation = new LogOperation(_log, "editor.clipboard.copy", _dashboardName);
         try
         {
             var hierarchy = new EditorLayerHierarchy(_definition, _dashboardMetadata);
             var selected = GetExplicitSelectedLayerNodes(hierarchy);
             var kind = EditorLayerSelection.GetHomogeneousKind(selected);
             if (kind is null)
+            {
+                operation.Cancel("Selection is not a homogeneous widget/group selection.");
                 return;
+            }
 
             var groups = new List<WidgetTransferGroup>();
             var widgetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -165,12 +169,15 @@ internal sealed partial class EditorForm
                 }
             }
 
+            operation.Phase("clipboard.write", $"widgets={widgets.Count}; groups={groups.Count}");
             EditorWidgetClipboard.Write(package);
             SetStatus($"Copied {widgets.Count} widget(s) to the Windows clipboard.");
+            operation.Complete($"widgets={widgets.Count}; groups={groups.Count}");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Copy widgets", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            operation.Fail(ex);
+            ShowDocumentMessage(ex.Message, "Copy widgets", MessageBoxIcon.Error);
         }
         UpdateCommandStates();
     }
@@ -191,13 +198,29 @@ internal sealed partial class EditorForm
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Paste widgets", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _log.Error($"Editor paste command failed; dashboard={_dashboardName}.", ex);
+            ShowDocumentMessage(ex.Message, "Paste widgets", MessageBoxIcon.Error);
         }
         UpdateCommandStates();
     }
 
     private void PasteTransferredWidgets(WidgetTransferPackage package)
     {
+        using var operation = new LogOperation(_log, "editor.clipboard.paste", _dashboardName);
+        try
+        {
+            PasteTransferredWidgetsCore(package, operation);
+        }
+        catch (Exception ex)
+        {
+            operation.Fail(ex);
+            throw;
+        }
+    }
+
+    private void PasteTransferredWidgetsCore(WidgetTransferPackage package, LogOperation operation)
+    {
+        operation.Phase("prepare");
         var undoBefore = CaptureSnapshot();
         var incoming = DashboardJson.ParseEditorSnapshot(package.SnapshotJson, _dashboardPath);
         if (incoming.Widgets.Count == 0 && package.Groups.Count == 0)
@@ -208,6 +231,7 @@ internal sealed partial class EditorForm
         var committed = false;
         try
         {
+            operation.Phase("images.import");
             if (!ResolveClipboardImages(
                 clones, package.SourceDirectory, Path.GetDirectoryName(_dashboardPath)!,
                 newlyCreatedAssets,
@@ -217,11 +241,17 @@ internal sealed partial class EditorForm
                 name => MessageBox.Show(
                     $"An image named '{name}' already exists and differs.\n\nYes: import under a new unique name\nNo: use the existing destination image\nCancel: cancel paste",
                     "Image filename conflict", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning)))
+            {
+                operation.Cancel("Image import was cancelled; document was not committed.");
                 return;
+            }
 
+            operation.Phase("document.prepare");
             var plan = WidgetPastePlanner.Prepare(
                 _definition!, _dashboardMetadata, clones, package, _dashboardPath);
+            operation.Phase("preview.prepare");
             ReplacePreviewRenderer(plan.Definition);
+            operation.Phase("document.publish");
             _definition = plan.Definition;
             _dashboardMetadata = plan.Metadata;
             committed = true;
@@ -240,10 +270,17 @@ internal sealed partial class EditorForm
             UpdateStatusBar();
             RefreshPreviewTelemetry();
             RenderPreview(force: true);
-            if (SaveDashboardMetadata())
+            operation.Phase("metadata.save");
+            if (SaveDashboardMetadata(operation))
+            {
                 SetStatus($"Pasted {clones.Count} widget(s).");
+                operation.Complete($"widgets={clones.Count}; importedAssets={newlyCreatedAssets.Count}; metadata=saved");
+            }
             else
+            {
                 SetStatus($"Pasted {clones.Count} widget(s) in memory, but group metadata was NOT saved. Retry Save.");
+                operation.Partial($"widgets={clones.Count}; documentChangedInMemory=true; metadata=failed");
+            }
         }
         finally
         {
@@ -252,7 +289,10 @@ internal sealed partial class EditorForm
                 foreach (var path in newlyCreatedAssets)
                 {
                     try { File.Delete(path); }
-                    catch (IOException) { /* Keep any file whose removal cannot be verified. */ }
+                    catch (IOException cleanupEx)
+                    {
+                        operation.RecordFailure(cleanupEx, "cleanup", "An uncommitted imported asset could not be removed.");
+                    }
                 }
             }
         }

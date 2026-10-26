@@ -6,7 +6,7 @@ namespace PinkieSysMon.Editor;
 
 internal sealed partial class EditorForm
 {
-    private bool SaveDashboardMetadata()
+    private bool SaveDashboardMetadata(LogOperation? operation = null)
     {
         if (string.IsNullOrWhiteSpace(_dashboardMetadataPath))
             return true;
@@ -19,21 +19,19 @@ internal sealed partial class EditorForm
         }
         catch (Exception ex)
         {
-            _log.ErrorThrottled(
-                "editor.metadata.save",
-                TimeSpan.FromSeconds(30),
-                $"Editor metadata could not be saved to '{_dashboardMetadataPath}'",
-                ex);
+            if (operation is not null)
+                operation.RecordFailure(ex, "metadata", "Editor group metadata was not saved.");
+            else
+                _log.ErrorThrottled("editor.metadata.save", TimeSpan.FromSeconds(30),
+                    $"Editor metadata save failed; dashboard={_dashboardName}.", ex);
             SetStatus($"Editor metadata was not saved: {ex.Message}");
 
             if (!_metadataSaveErrorShown)
             {
                 _metadataSaveErrorShown = true;
-                MessageBox.Show(
+                ShowDocumentMessage(
                     $"Editor group metadata could not be saved. The dashboard itself remains open and editable.\n\n{ex.Message}",
-                    "PinkieSysMon Editor",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                    "PinkieSysMon Editor", MessageBoxIcon.Warning);
             }
 
             return false;
@@ -56,14 +54,21 @@ internal sealed partial class EditorForm
         if (_definition is null || string.IsNullOrWhiteSpace(_dashboardPath))
             return false;
 
+        using var operation = new LogOperation(_log, "editor.dashboard.save", _dashboardName);
+        var jsonCommitted = false;
         try
         {
+            operation.Phase("serialize");
             var text = DashboardJson.Serialize(_definition, indented: true) + Environment.NewLine;
             var temp = _dashboardPath + ".tmp";
+            operation.Phase("json.write");
             File.WriteAllText(temp, text);
+            operation.Phase("json.commit");
             File.Move(temp, _dashboardPath, true);
+            jsonCommitted = true;
             _savedJson = DashboardJson.Serialize(_definition, indented: false);
-            if (!SaveDashboardMetadata())
+            operation.Phase("metadata");
+            if (!SaveDashboardMetadata(operation))
             {
                 // JSON was written, but the associated Editor-only group tree was
                 // not. Keep Save available, and do not allow a destructive close
@@ -73,6 +78,7 @@ internal sealed partial class EditorForm
                 UpdateTitle();
                 SetStatus("Dashboard JSON saved, but Editor group metadata was NOT saved. Correct the error and retry Save.");
                 UpdateCommandStates();
+                operation.Partial("json=committed; metadata=failed; editorRemainsDirty=true");
                 return false;
             }
             _loadRequiresSave = false;
@@ -80,11 +86,13 @@ internal sealed partial class EditorForm
             UpdateTitle();
             SetStatus($"Saved {_dashboardPath}. Use the selected Output → Reload to apply runtime changes.");
             UpdateCommandStates();
+            operation.Complete($"json=committed; metadata=saved; widgets={_definition.Widgets.Count}");
             return true;
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Dashboard was not saved.\n\n{ex.Message}", "PinkieSysMon Editor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            operation.Fail(ex, $"jsonCommitted={jsonCommitted}");
+            ShowDocumentMessage($"Dashboard was not saved.\n\n{ex.Message}", "PinkieSysMon Editor", MessageBoxIcon.Error);
             return false;
         }
     }
@@ -98,37 +106,48 @@ internal sealed partial class EditorForm
         while (dialog.ShowDialog(this) == DialogResult.OK)
         {
             var name = dialog.DashboardName;
+            using var operation = new LogOperation(_log, "editor.dashboard.clone", name);
             var validationError = ValidateDashboardName(name);
             if (validationError is not null)
             {
+                operation.Cancel("Name validation rejected the request.");
                 MessageBox.Show(validationError, "Clone Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 dialog.DialogResult = DialogResult.None;
                 continue;
             }
 
-            var dashboardsRoot = DashboardCatalog.GetRoot(_root);
-            Directory.CreateDirectory(dashboardsRoot);
-            var existing = Directory.EnumerateDirectories(dashboardsRoot)
-                .Select(Path.GetFileName)
-                .FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
-            {
-                MessageBox.Show($"Dashboard '{existing}' already exists.", "Clone Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                dialog.DialogResult = DialogResult.None;
-                continue;
-            }
-
-            var sourceDirectory = Path.GetDirectoryName(_dashboardPath)!;
-            var destinationPath = DashboardCatalog.GetDefinitionPath(_root, name);
-            var destinationDirectory = Path.GetDirectoryName(destinationPath)!;
-
+            string? destinationDirectory = null;
+            var copyStarted = false;
             try
             {
+                operation.Phase("directory.check");
+                var dashboardsRoot = DashboardCatalog.GetRoot(_root);
+                Directory.CreateDirectory(dashboardsRoot);
+                var existing = Directory.EnumerateDirectories(dashboardsRoot)
+                    .Select(Path.GetFileName)
+                    .FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    operation.Cancel("A dashboard with this name already exists.");
+                    MessageBox.Show($"Dashboard '{existing}' already exists.", "Clone Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    dialog.DialogResult = DialogResult.None;
+                    continue;
+                }
+
+                var sourceDirectory = Path.GetDirectoryName(_dashboardPath)!;
+                var destinationPath = DashboardCatalog.GetDefinitionPath(_root, name);
+                destinationDirectory = Path.GetDirectoryName(destinationPath)!;
+                operation.Phase("serialize");
                 var serialized = DashboardJson.Serialize(_definition, indented: true) + Environment.NewLine;
+                operation.Phase("directory.copy");
+                copyStarted = true;
                 CopyDashboardDirectory(sourceDirectory, destinationDirectory);
+                operation.Phase("json.write");
                 File.WriteAllText(destinationPath, serialized);
+                operation.Phase("metadata.save");
                 _dashboardMetadata.Save(Path.Combine(destinationDirectory, ".editor.json"));
 
+                operation.Phase("view.save");
                 SaveCurrentDashboardViewState();
                 var sourceView = _settings.GetDashboard(_dashboardName);
                 _settings.Dashboards[name] = new DashboardViewSettings
@@ -139,22 +158,30 @@ internal sealed partial class EditorForm
                 };
                 _settings.Save(_settingsPath);
 
-                LoadDashboard(name);
+                operation.Phase("document.open");
+                if (!LoadDashboardCore(name, operation.Id))
+                {
+                    operation.Partial("copyCreated=true; editorLoadFailed=true; copiedFilesPreserved=true");
+                    return;
+                }
                 SetStatus($"Cloned dashboard '{_dashboardName}'.");
+                operation.Complete("copyCreated=true; documentLoaded=true");
                 return;
             }
             catch (Exception ex)
             {
+                operation.Fail(ex);
                 try
                 {
-                    if (Directory.Exists(destinationDirectory))
+                    if (copyStarted && destinationDirectory is not null && Directory.Exists(destinationDirectory))
                         Directory.Delete(destinationDirectory, recursive: true);
                 }
-                catch
+                catch (Exception cleanupEx)
                 {
+                    operation.RecordFailure(cleanupEx, "cleanup", "Could not remove the incomplete cloned dashboard.");
                 }
 
-                MessageBox.Show($"Could not clone dashboard.\n\n{ex.Message}", "Clone Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowDocumentMessage($"Could not clone dashboard.\n\n{ex.Message}", "Clone Dashboard", MessageBoxIcon.Error);
                 return;
             }
         }
@@ -259,6 +286,7 @@ internal sealed partial class EditorForm
 
         PushHistorySnapshot(_undo, snapshot);
         _redo.Clear();
+        LogEditCommitted();
         UpdateCommandStates();
     }
 
@@ -310,24 +338,27 @@ internal sealed partial class EditorForm
         if (_undo.Count == 0)
             return;
 
-        var current = CaptureSnapshot();
-        var target = _undo.Peek();
+        using var operation = new LogOperation(_log, "editor.history.undo", _dashboardName);
         try
         {
-            RestoreSnapshot(target);
+            operation.Phase("snapshot.capture");
+            var current = CaptureSnapshot();
+            var target = _undo.Peek();
+            operation.Phase("snapshot.restore");
+            var metadataSaved = RestoreSnapshotCore(target, operation);
             _undo.Pop();
             if (current is not null)
                 PushHistorySnapshot(_redo, current);
             SetStatus("Undo");
+            if (metadataSaved) operation.Complete("documentRestored=true; metadata=saved");
+            else operation.Partial("documentRestored=true; metadata=failed");
         }
         catch (Exception ex)
         {
-            _log.Error("Undo restore failed", ex);
-            MessageBox.Show(
+            operation.Fail(ex);
+            ShowDocumentMessage(
                 $"Undo could not be completed. The current dashboard remains open.\n\n{ex.Message}",
-                "PinkieSysMon Editor",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                "PinkieSysMon Editor", MessageBoxIcon.Error);
         }
         finally
         {
@@ -340,24 +371,27 @@ internal sealed partial class EditorForm
         if (_redo.Count == 0)
             return;
 
-        var current = CaptureSnapshot();
-        var target = _redo.Peek();
+        using var operation = new LogOperation(_log, "editor.history.redo", _dashboardName);
         try
         {
-            RestoreSnapshot(target);
+            operation.Phase("snapshot.capture");
+            var current = CaptureSnapshot();
+            var target = _redo.Peek();
+            operation.Phase("snapshot.restore");
+            var metadataSaved = RestoreSnapshotCore(target, operation);
             _redo.Pop();
             if (current is not null)
                 PushHistorySnapshot(_undo, current);
             SetStatus("Redo");
+            if (metadataSaved) operation.Complete("documentRestored=true; metadata=saved");
+            else operation.Partial("documentRestored=true; metadata=failed");
         }
         catch (Exception ex)
         {
-            _log.Error("Redo restore failed", ex);
-            MessageBox.Show(
+            operation.Fail(ex);
+            ShowDocumentMessage(
                 $"Redo could not be completed. The current dashboard remains open.\n\n{ex.Message}",
-                "PinkieSysMon Editor",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                "PinkieSysMon Editor", MessageBoxIcon.Error);
         }
         finally
         {
@@ -365,10 +399,12 @@ internal sealed partial class EditorForm
         }
     }
 
-    private void RestoreSnapshot(EditorSnapshot snapshot)
+    private void RestoreSnapshot(EditorSnapshot snapshot) => RestoreSnapshotCore(snapshot, operation: null);
+
+    private bool RestoreSnapshotCore(EditorSnapshot snapshot, LogOperation? operation)
     {
         if (string.IsNullOrWhiteSpace(_dashboardPath))
-            return;
+            return false;
 
         _propertyEditUndoSnapshot = null;
         var scroll = CaptureScrollPosition();
@@ -417,7 +453,7 @@ internal sealed partial class EditorForm
         UpdateTitle();
         UpdateCommandStates();
         RenderPreview(force: true, immediate: true);
-        SaveDashboardMetadata();
+        return SaveDashboardMetadata(operation);
     }
 
 

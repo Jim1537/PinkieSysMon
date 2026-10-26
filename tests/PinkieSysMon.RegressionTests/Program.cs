@@ -31,6 +31,13 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 operation outcomes and parent correlation", Issue105EditorLoggingTests.OperationOutcomesAndCorrelation),
+            ("Issue105 per-incident recovery flush", Issue105EditorLoggingTests.RecoveryFlushPreservesOtherIncidents),
+            ("Issue105 Editor load save and history evidence", Issue105EditorLoggingTests.LoadSaveAndHistory),
+            ("Issue105 Editor locked JSON save evidence", Issue105EditorLoggingTests.LockedJsonSaveFailure),
+            ("Issue105 Editor metadata partial save evidence", Issue105EditorLoggingTests.MetadataPartialSave),
+            ("Issue105 Editor failed load preserves document", Issue105EditorLoggingTests.FailedLoadPreservesDocument),
+            ("Issue105 Editor invalid metadata backup evidence", Issue105EditorLoggingTests.InvalidMetadataLoadBackup),
             ("Issue105 Errors routing and exception correlation", Issue105LoggingTests.ErrorRoutingAndPropagation),
             ("Issue105 throttle totals and changed native failures", Issue105LoggingTests.ThrottledFinalTotalsAndChangedNativeError),
             ("Issue105 retained history and failed sink", Issue105LoggingTests.AppendHistoryPartialTailAndSinkFailure),

@@ -85,6 +85,22 @@ internal sealed class FileLogger
         catch (Exception failure) { ReportFailure(failure); }
     }
 
+    internal void FlushSuppressed(string key)
+    {
+        try
+        {
+            lock (_sync)
+            {
+                if (_throttle.TryGetValue(key, out var state))
+                {
+                    FlushSummaryLocked(key, state);
+                    _throttle.Remove(key);
+                }
+            }
+        }
+        catch (Exception failure) { ReportFailure(failure); }
+    }
+
     internal void FlushSuppressed()
     {
         try

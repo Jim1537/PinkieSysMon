@@ -183,7 +183,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
     public EditorForm(string root, string? initialDashboard) : this(root, initialDashboard, null) { }
 
     internal EditorForm(string root, string? initialDashboard, FileLogger? logger)
+        : this(root, initialDashboard, logger, null) { }
+
+    internal EditorForm(string root, string? initialDashboard, FileLogger? logger,
+        Action<string, string, MessageBoxIcon>? documentMessagePresenter)
     {
+        _documentMessagePresenter = documentMessagePresenter;
         _root = root;
         _log = logger ?? new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"), "Editor");
         _appConfigPath = Path.Combine(root, "config", "app.json");
@@ -483,55 +488,72 @@ internal sealed partial class EditorForm : PinkieEditorForm
         while (dialog.ShowDialog(this) == DialogResult.OK)
         {
             var name = dialog.DashboardName;
+            using var operation = new LogOperation(_log, "editor.dashboard.create", name);
             var validationError = ValidateDashboardName(name);
             if (validationError is not null)
             {
+                operation.Cancel("Name validation rejected the request.");
                 MessageBox.Show(validationError, "New Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 dialog.DialogResult = DialogResult.None;
                 continue;
             }
 
-            var dashboardsRoot = DashboardCatalog.GetRoot(_root);
-            Directory.CreateDirectory(dashboardsRoot);
-            var existing = Directory.EnumerateDirectories(dashboardsRoot)
-                .Select(Path.GetFileName)
-                .FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
-            if (existing is not null)
-            {
-                MessageBox.Show($"Dashboard '{existing}' already exists.", "New Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                dialog.DialogResult = DialogResult.None;
-                continue;
-            }
-
-            var directory = Path.Combine(dashboardsRoot, name);
+            string? directory = null;
+            var creationStarted = false;
             try
             {
+                operation.Phase("directory.check");
+                var dashboardsRoot = DashboardCatalog.GetRoot(_root);
+                Directory.CreateDirectory(dashboardsRoot);
+                var existing = Directory.EnumerateDirectories(dashboardsRoot)
+                    .Select(Path.GetFileName)
+                    .FirstOrDefault(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    operation.Cancel("A dashboard with this name already exists.");
+                    MessageBox.Show($"Dashboard '{existing}' already exists.", "New Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    dialog.DialogResult = DialogResult.None;
+                    continue;
+                }
+
+                directory = Path.Combine(dashboardsRoot, name);
                 SaveCurrentDashboardViewState();
                 var (width, height) = dialog.Resolution;
-                WriteNewDashboardFile(directory, width, height, dialog.Orientation);
-                LoadDashboard(name);
+                operation.Phase("document.create", $"width={width}; height={height}; orientation={dialog.Orientation}");
+                creationStarted = true;
+                WriteNewDashboardFile(directory, width, height, dialog.Orientation, operation);
+                operation.Phase("document.open");
+                if (!LoadDashboardCore(name, operation.Id))
+                {
+                    operation.Partial("fileCreated=true; editorLoadFailed=true; createdFilePreserved=true");
+                    return;
+                }
                 SetStatus($"Created dashboard '{name}'.");
+                operation.Complete("fileCreated=true; documentLoaded=true");
                 return;
             }
             catch (Exception ex)
             {
+                operation.Fail(ex);
                 try
                 {
-                    if (Directory.Exists(directory) && !Directory.EnumerateFileSystemEntries(directory).Any())
+                    if (creationStarted && directory is not null && Directory.Exists(directory) &&
+                        !Directory.EnumerateFileSystemEntries(directory).Any())
                         Directory.Delete(directory);
                 }
-                catch
+                catch (Exception cleanupEx)
                 {
+                    operation.RecordFailure(cleanupEx, "cleanup", "Could not remove the empty creation directory.");
                 }
 
-                MessageBox.Show($"Could not create dashboard.\n\n{ex.Message}", "New Dashboard", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ShowDocumentMessage($"Could not create dashboard.\n\n{ex.Message}", "New Dashboard", MessageBoxIcon.Error);
                 return;
             }
         }
     }
 
     // Shared by New Dashboard and its disk round-trip regression.
-    internal static void WriteNewDashboardFile(string directory, int width, int height, int orientation)
+    internal static void WriteNewDashboardFile(string directory, int width, int height, int orientation, LogOperation? operation = null)
     {
         // Reject invalid geometry and serialization before creating any directory.
         var definition = AdaptiveDashboardFactory.Create(width, height, orientation, directory);
@@ -553,7 +575,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (createdFile)
             {
                 try { File.Delete(path); }
-                catch { /* Preserve the original write failure. */ }
+                catch (Exception cleanupEx)
+                {
+                    operation?.RecordFailure(cleanupEx, "cleanup", "Could not remove the incomplete new dashboard file.");
+                }
             }
             throw;
         }
@@ -695,6 +720,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
+            _log.Error("Editor Settings read failed.", ex);
             MessageBox.Show(this, $"Could not read current settings.\n\n{ex.Message}",
                 "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
@@ -801,6 +827,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
+            _log.Error("Editor Settings apply failed.", ex);
             MessageBox.Show(this, ex.Message, "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -819,6 +846,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
+            _log.Error($"{caption} read failed.", ex);
             MessageBox.Show(this, $"Could not read current settings.\n\n{ex.Message}",
                 caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
@@ -868,6 +896,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             try { desktopDialog.ApplyOutputChanges(runtimeConfig); }
             catch (Exception ex)
             {
+                _log.Error("Desktop Settings validation failed.", ex);
                 MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -895,19 +924,35 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
+            _log.Error($"{caption} apply failed.", ex);
             MessageBox.Show(this, ex.Message, caption, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
-    private static async Task<bool> ApplySettingsAndReloadRuntimeAsync(
+    private async Task<bool> ApplySettingsAndReloadRuntimeAsync(
         string configPath, AppConfig config, byte[]? originalBytes)
     {
-        return await EditorSettingsPersistence.ApplyAsync(
-            configPath, config, originalBytes, async () =>
-            {
-                var status = await RuntimeIpc.GetStatusAsync();
-                return status.Success ? await RuntimeIpc.ReloadAsync() : null;
-            });
+        using var operation = new LogOperation(_log, "editor.settings.persistApply");
+        try
+        {
+            operation.Phase("persistAndApply");
+            var reloaded = await EditorSettingsPersistence.ApplyAsync(
+                configPath, config, originalBytes, async () =>
+                {
+                    operation.Phase("runtime.status");
+                    var status = await RuntimeIpc.GetStatusAsync();
+                    if (!status.Success) return null;
+                    operation.Phase("runtime.reload");
+                    return await RuntimeIpc.ReloadAsync();
+                });
+            operation.Complete($"configSaved=true; runtimeReloaded={reloaded}");
+            return reloaded;
+        }
+        catch (Exception ex)
+        {
+            operation.Fail(ex, "Persistence/apply did not finish successfully; rollback details remain in the exception chain.");
+            throw;
+        }
     }
 
     private void ShowAbout()
@@ -928,12 +973,17 @@ internal sealed partial class EditorForm : PinkieEditorForm
         UpdateCommandStates();
     }
 
-    private void LoadDashboard(string name)
+    private bool LoadDashboard(string name) => LoadDashboardCore(name, parentOperationId: null);
+
+    private bool LoadDashboardCore(string name, string? parentOperationId)
     {
+        using var operation = new LogOperation(_log, "editor.dashboard.load", name, parentOperationId);
         try
         {
             var path = DashboardCatalog.GetDefinitionPath(_root, name);
+            operation.Phase("json.read");
             var text = File.ReadAllText(path);
+            operation.Phase("json.parse");
             var sourceRoot = JsonNode.Parse(text, documentOptions: new JsonDocumentOptions
             {
                 CommentHandling = JsonCommentHandling.Skip,
@@ -942,11 +992,16 @@ internal sealed partial class EditorForm : PinkieEditorForm
             var sourceSchemaVersion = sourceRoot["schemaVersion"]?.GetValue<int>() ?? 0;
             var definition = CanonicalDashboardDefinition.Parse(text, path);
             var metadataPath = Path.Combine(Path.GetDirectoryName(path)!, ".editor.json");
+            operation.Phase("metadata.load");
             var metadata = DashboardEditorMetadata.Load(
                 metadataPath,
                 out var metadataLoadError,
                 out var invalidMetadataBackupPath);
+            if (metadataLoadError is not null)
+                operation.RecordFailure(metadataLoadError, "metadata.load",
+                    $"groupMetadataReset=true; backupPreserved={invalidMetadataBackupPath is not null}");
 
+            operation.Phase("normalize");
             var textOverflowAdjusted = NormalizePreparedTextOverflowState(definition);
             var literalNumericAdjusted = NormalizePreparedLiteralNumericState(definition);
 
@@ -962,8 +1017,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (hierarchyAdjusted)
                 NormalizePreparedLayerOrder(definition, hierarchicalOrder);
 
+            operation.Phase("preview.prepare");
             ReplacePreviewRenderer(definition);
 
+            operation.Phase("document.publish");
             _definition = definition;
             _dashboardName = name;
             _dashboardPath = path;
@@ -1016,18 +1073,26 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 var warning =
                     $"Editor metadata for dashboard '{name}' could not be loaded. " +
                     $"The dashboard itself is intact; group metadata was reset in memory. {backupNote}";
-                _log.Warn(warning, metadataLoadError);
-                MessageBox.Show(
-                    warning + $"\n\n{metadataLoadError.Message}",
-                    "PinkieSysMon Editor",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                ShowDocumentMessage(warning + $"\n\n{metadataLoadError.Message}",
+                    "PinkieSysMon Editor", MessageBoxIcon.Warning);
+                operation.Partial("documentLoaded=true; groupMetadataReset=true");
             }
+            else
+            {
+                operation.Complete(
+                    $"widgets={definition.Widgets.Count}; sourceSchema={sourceSchemaVersion}; " +
+                    $"currentSchema={DashboardSchemaMigration.CurrentSchemaVersion}; " +
+                    $"schemaMigrated={schemaMigrated}; hierarchyAdjusted={hierarchyAdjusted}; " +
+                    $"textOverflowAdjusted={textOverflowAdjusted}; literalNumericAdjusted={literalNumericAdjusted}; " +
+                    $"requiresSave={_loadRequiresSave}");
+            }
+            return true;
         }
         catch (Exception ex)
         {
-            _log.Error($"Could not load dashboard '{name}'", ex);
-            MessageBox.Show($"Could not load dashboard '{name}'.\n\n{ex.Message}", "PinkieSysMon Editor", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            operation.Fail(ex);
+            ShowDocumentMessage($"Could not load dashboard '{name}'.\n\n{ex.Message}", "PinkieSysMon Editor", MessageBoxIcon.Error);
+            return false;
         }
     }
 
@@ -1142,6 +1207,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 }
             }
 
+            _log.Error($"Editor property change failed; dashboard={_dashboardName}; property={propertyName}.", ex);
             SetStatus($"Property change error: {ex.Message}");
         }
     }
@@ -2202,7 +2268,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Add widget", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _log.Error($"Editor add widget failed; dashboard={_dashboardName}; type={type}.", ex);
+            ShowDocumentMessage(ex.Message, "Add widget", MessageBoxIcon.Error);
         }
     }
 
@@ -2434,7 +2501,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         catch (Exception ex)
         {
-            _log.Warn($"Editor settings save failed: {ex.Message}");
+            _log.ErrorThrottled("editor.settings.save", TimeSpan.FromSeconds(30),
+                "Editor view settings save failed.", ex);
         }
     }
 

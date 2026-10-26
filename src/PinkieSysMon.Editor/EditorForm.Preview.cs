@@ -19,6 +19,7 @@ namespace PinkieSysMon.Editor;
 
 internal sealed partial class EditorForm
 {
+    private bool _previewRenderFailed;
     private void RebuildPreviewRenderer()
     {
         if (_definition is null)
@@ -102,9 +103,19 @@ internal sealed partial class EditorForm
                 _workspaceViewport.Refresh();
             else
                 _workspaceViewport.Invalidate();
+
+            if (_previewRenderFailed)
+            {
+                _log.FlushSuppressed("editor.preview.render");
+                _log.Info($"Editor preview recovered; dashboard={_dashboardName}.");
+                _previewRenderFailed = false;
+            }
         }
         catch (Exception ex)
         {
+            _previewRenderFailed = true;
+            _log.ErrorThrottled("editor.preview.render", TimeSpan.FromSeconds(30),
+                $"Editor preview render failed; dashboard={_dashboardName}.", ex);
             SetStatus($"Preview: {ex.Message}");
         }
     }
@@ -208,15 +219,20 @@ internal sealed partial class EditorForm
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
 
+        using var operation = new LogOperation(_log, "editor.snapshot.save", _dashboardName);
         try
         {
+            operation.Phase("render", $"width={_preview.Width}; height={_preview.Height}");
             var png = _preview.RenderToPng(_lastMetrics);
+            operation.Phase("png.write", $"bytes={png.Length}");
             File.WriteAllBytes(dialog.FileName, png);
             SetStatus($"Saved dashboard snapshot {_preview.Width}×{_preview.Height}: {dialog.FileName}");
+            operation.Complete($"bytes={png.Length}");
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Dashboard snapshot was not saved.\n\n{ex.Message}", "Dashboard Snapshot", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            operation.Fail(ex);
+            ShowDocumentMessage($"Dashboard snapshot was not saved.\n\n{ex.Message}", "Dashboard Snapshot", MessageBoxIcon.Error);
         }
     }
 
