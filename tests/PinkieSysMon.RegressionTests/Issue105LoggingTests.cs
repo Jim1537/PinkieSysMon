@@ -118,7 +118,22 @@ internal static class Issue105LoggingTests
         {
             var log = new FileLogger(Path.Combine(root, "runtime.log"), "Runtime");
             Directory.CreateDirectory(log.ErrorsPath);
-            log.Error("must not leak into the session", new IOException("original failure"));
+            using var fallback = new StringWriter();
+            var originalError = Console.Error;
+            try
+            {
+                // Only this synchronous, deliberately denied write is captured.
+                Console.SetError(fallback);
+                log.Error("must not leak into the session", new IOException("original failure"));
+            }
+            finally { Console.SetError(originalError); }
+            var fallbackLines = fallback.ToString().Split(
+                new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            Check(fallbackLines.Length == 1 &&
+                  fallbackLines[0].StartsWith("PinkieSysMon logging unavailable: UnauthorizedAccessException:",
+                      StringComparison.Ordinal) &&
+                  fallbackLines[0].Contains(log.ErrorsPath, StringComparison.Ordinal),
+                "Expected exactly the denied fixture sink diagnostic; captured: " + fallback);
             Check(File.ReadAllText(log.Path).Contains("[LOGGING_FAILURE]") &&
                   !File.ReadAllText(log.Path).Contains("original failure"),
                 "An unusable error sink does not throw or claim a confirmed persisted error.");
