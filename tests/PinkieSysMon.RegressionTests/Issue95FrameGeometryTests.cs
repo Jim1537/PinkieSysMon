@@ -70,7 +70,7 @@ internal static class Issue95FrameGeometryTests
                 var profile = encrypted ? PhysicalFrameProfile.EncryptedJpeg : new PhysicalFrameProfile(180, TrofeoWireProtocol.MaximumImageBytes);
                 var transport = new Frames(profile);
                 using (var pump = new FramePump(new AppConfig(), target, board, new MetricStore(),
-                    new FileLogger(Path.Combine(root, "worker.log")), (_, _, _, _, _) => transport, maximumFrames: 1))
+                    new FileLogger(Path.Combine(root, "worker.log")), (_, _, _, _) => transport, maximumFrames: 1))
                 {
                     pump.Start();
                     Check(SpinWait.SpinUntil(() => pump.SentFrames == 1, 5000), "Ordinary worker must send the mismatched dashboard.");

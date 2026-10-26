@@ -13,7 +13,6 @@ PinkieSysMon renders dashboard frames in the native Windows Runtime, encodes the
 | USB interface enumeration and device identity | [`DeviceDiscovery.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/DeviceDiscovery.cs) |
 | Transport open, handshake, overlapped USB I/O, ACK | [`TrofeoTransport.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/TrofeoTransport.cs) |
 | JPEG wire record construction and transfer grouping | `TrofeoWireProtocol.cs` |
-| Optional bounded USB diagnostic journal | `TrofeoDiagnosticJournal.cs` |
 | Native cancellation/completion wait | `TrofeoOverlappedCompletionWait.cs` |
 | Per-target rendering, retry, connection state and metrics | [`FramePump.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/FramePump.cs) |
 | Output session coordination and reconfiguration | [`OutputSessionManager.cs`](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/OutputSessionManager.cs) |
@@ -75,7 +74,7 @@ Records are transferred through OUT `0x09` in writes of at most **4,096 bytes**,
 
 - The supported device's native frame size is **1920 × 480**. `FrameGeometry.DefaultNativeWidth/Height` are **historical/default and schema-migration constants**; actual dashboard geometry comes from the dashboard's canvas definition, not an unconditional hard-coded render size.
 - Logical dashboard orientation permits **0°, 90°, 180°, 270°**. The separate protocol-dependent wire rotation permits **0° or 180°**. `FrameGeometry.DrawLogicalToWire` applies the wire transform and the logical orientation in the established order.
-- Defaults from `AppConfig.cs`: `Renderer.JpegQuality = 92`, `Display.RefreshIntervalMs = 1000`, `Usb.RetryIntervalMs = 3000`, `Usb.TransferTimeoutMs = 3000` (milliseconds), and `Usb.DiagnosticJournalEnabled = false`. Each physical Output's `RefreshIntervalMs`, `JpegQuality` and `Usb` settings override these global defaults; a missing per-target value inherits its corresponding global value. The FramePump uses the selected target's retry interval, transfer timeout and diagnostics flag for USB operations, including transfer-failure retry scheduling and transport retirement on timeout/diagnostics changes. Configuration validation requires the display interval to be at least 10 ms; both USB intervals at least 500 ms; and JPEG quality from 10 through 100.
+- Defaults from `AppConfig.cs`: `Renderer.JpegQuality = 92`, `Display.RefreshIntervalMs = 1000`, `Usb.RetryIntervalMs = 3000`, `Usb.TransferTimeoutMs = 3000` (milliseconds). Each physical Output's `RefreshIntervalMs`, `JpegQuality` and `Usb` settings override these global defaults; a missing per-target value inherits its corresponding global value. The FramePump uses the selected target's retry interval and transfer timeout for USB operations, including transfer-failure retry scheduling and transport retirement on timeout changes. Configuration validation requires the display interval to be at least 10 ms; both USB intervals at least 500 ms; and JPEG quality from 10 through 100.
 - The general [physical Output configuration/identity contract](../../outputs/physical_devices.md#configuration-and-identity) owns the target record. This wire implementation is selected by `Transport = ly-bulk`; its model name is not a dispatch key.
 
 ## Connection lifetime and evidence limits
@@ -86,9 +85,9 @@ Ordinary session disposal, including disable and process shutdown, first prevent
 
 WinUSB reads and writes use overlapped completion. On cancellation, `CancelIoEx` requests termination of a pending native operation, and the worker waits for its terminal result before releasing pinned buffers and native handles. Cancellation can interrupt the device's protocol transaction; draining Windows completion does not prove that a subsequent handshake will recover the device. **This does not guarantee bounded shutdown if the underlying driver never completes the operation.**
 
-Connection/synchronization failures use the [common failure recorder](../../outputs/physical_devices.md#connection-and-synchronization-failure-diagnostics), independently of the optional journal below.
+Connection/synchronization failures use the [common failure recorder](../../outputs/physical_devices.md#connection-and-synchronization-failure-diagnostics).
 
-When explicitly enabled with `Usb.DiagnosticJournalEnabled`, the transport records bounded per-target event logs for connection, frame transfer, acknowledgment, failure, and lifecycle activity. The journal rotates files and periodically flushes to disk. The default is off; diagnostic writes introduce additional I/O and are not proof of the cause of a system-level failure.
+LY native-open/handshake events retain the effective timeout and established PM/SUB/wire-rotation values. Failed operations retain phase, frame sequence and elapsed time through [shared physical-device logging](../../outputs/physical_devices.md#automatic-device-logging).
 
 ### Maintenance and verification checklist
 

@@ -21,14 +21,14 @@ internal sealed class OutputSessionManager : IDisposable
     // Legacy regression-fixture constructor. Production uses per-Output definitions.
     public OutputSessionManager(AppConfig config, CanonicalDashboardDefinition dashboard,
         MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
+        Func<OutputTargetConfig, int, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
         : this(config, config.Outputs.Targets.ToDictionary(t => t.Id, _ => dashboard,
               StringComparer.OrdinalIgnoreCase), metrics, log, factory, physicalTransportFactory) { }
 
     public OutputSessionManager(AppConfig config,
         IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards,
         MetricStore metrics, FileLogger log, OutputSessionFactory? factory = null,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
+        Func<OutputTargetConfig, int, FileLogger, CancellationToken, IPhysicalFrameTransport?>? physicalTransportFactory = null)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _boards = ValidateBoards(config, boards);

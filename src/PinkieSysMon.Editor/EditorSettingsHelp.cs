@@ -170,7 +170,6 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string JpegQuality = "JPEG quality for this USB display, from 10 to 100.\nHigher values usually create larger frames and use more USB bandwidth.";
     public const string UsbRetry = "Wait this many milliseconds before another connection attempt after\na missing device or failed USB connection/transfer. It is not a transfer timeout.";
     public const string UsbTimeout = "Time limit requested for each USB read/write operation, in milliseconds.\nHigher values allow slower transfers but delay error recovery.";
-    public const string UsbJournal = "Write a rotating USB event journal in the application's logs folder.\nUse for troubleshooting: it adds disk I/O and does not fix USB faults.";
     public const string AddDevice = "After a clean Runtime Test and positive visual confirmation, save this candidate immediately.\nIts own editable working board is created or reused; the new Output remains disabled.";
     public const string RemoveDevice = "Stop and release only this physical Output, then remove its saved record immediately. Dashboard files remain.\nAt least one Output must remain; attached hardware returns as a fresh unconfigured candidate.";
 }

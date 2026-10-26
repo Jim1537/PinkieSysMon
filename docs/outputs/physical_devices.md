@@ -46,6 +46,12 @@ For an idle connected candidate, **Forget → Yes** saves its hashed physical Pn
 
 For a configured, connected Output, edit its name, saved dashboard assignment, refresh interval, Provider Enabled and supported encoding/USB options. Protocol, dimensions and binding are read-only; changing them requires Remove and fresh onboarding. A name-only edit does not require another Test. Hover over a control or its help icon for its effect and dependencies. Protocol-specific capabilities remain in the [LY](../development/devices/trofeo-vision-9.16.md#geometry-and-configuration) and [encrypted JPEG](../development/devices/turzx-12.3.md#application-configuration) references.
 
+### Automatic device logging
+
+Significant physical-device events are recorded automatically with Output ID/name and protocol: session start/reconfiguration, transport connection, the first completed frame per connection, recovery and retirement. LY failures additionally retain transport phase, frame sequence and elapsed time. Successful per-frame/chunk tracing is not enabled. Shared destinations, error correlation, durability and lifetimes are defined by [Application logging](../development/architecture.md#application-logging).
+
+Device cards have no USB diagnostics checkbox, placeholder, clearing button or related help row. **Diagnostics provider / Provider Enabled** remains an independent telemetry control. Retired global or per-target `DiagnosticJournalEnabled` JSON members are ignored on read and omitted on save; changing only these old values cannot block enablement or reconnect a transport. No new per-device journal is created; historical journals remain untouched.
+
 ### Step 4. Grant device-use consent and apply
 
 To permit hardware output for an already configured Output, turn on **Enabled**. Read the **Enable Device** Yes/No warning and confirm **Yes** only after closing competing display-control software. **No** is the default and leaves enablement unchanged. An unconfigured candidate cannot be enabled or adopted through this switch.
@@ -156,9 +162,9 @@ Every Runtime physical-transport open runs inside `PhysicalHandshakeDiagnostics`
 | Actual response bytes | Hexadecimal for at most 512 returned bytes per operation and eight operations per attempt; truncation/omissions are explicit. Invalid counts and failed reads supply no bytes. Primary and follow-up reads remain separate, so stale buffer contents cannot become evidence of a new response. |
 | Error chain | Exception types, HResults and available native Win32 codes, including nested errors; bounded exception messages remain private. The original error continues through the existing worker path even if diagnostic logging fails. |
 
-The recorder observes existing handshake calls only: it adds no USB commands, reads, retries, resets or changes to reply validation, cancellation or recovery. It retains no image payloads and is not used for frame exchanges. Each failed open attempt gets its own record under the application's existing log rotation (5 MiB per file, five archives); successful-attempt data is discarded. New physical adapters must describe their own handshake stages and completed I/O through this shared context rather than adding a model-specific failure logger.
+The recorder observes existing handshake calls only: it adds no USB commands, reads, retries, resets or changes to reply validation, cancellation or recovery. It retains no image payloads and is not used for frame exchanges. Each failed open attempt retains its own handshake context under the [shared application logging policy](../development/architecture.md#application-logging); successful-attempt data is discarded. New physical adapters must describe their own handshake stages and completed I/O through this shared context rather than adding a model-specific failure logger.
 
-If an intermittent failure recurs during normal use, preserve the main log and its rotated archives before further diagnostic actions. Raw responses and exception messages can contain device or machine identifiers: share these logs privately, never paste them into public Issues. A captured failure can identify the failing boundary; it does not by itself establish firmware state, root cause or successful recovery. Adapter-specific frame/lifecycle journals remain separate.
+If an intermittent failure recurs during normal use, preserve the current session logs, cumulative error history and any historical archives before further diagnostic actions. Raw responses and exception messages can contain device or machine identifiers: share these logs privately, never paste them into public Issues. A captured failure can identify the failing boundary; it does not by itself establish firmware state, root cause or successful recovery. Device event coverage follows [Automatic device logging](#automatic-device-logging).
 
 ### Passive inventory and explicit adoption
 

@@ -48,7 +48,7 @@ internal static class Issue71SettingsTests
         try
         {
             using var manager = new OutputSessionManager(config, boards, new MetricStore(), new FileLogger(Path.Combine(root, "worker.log")),
-                physicalTransportFactory: (target, _, _, _, _) => frames.GetOrAdd(target.Id,
+                physicalTransportFactory: (target, _, _, _) => frames.GetOrAdd(target.Id,
                     _ => new RecordedFrames(target.Transport == "encrypted-jpeg" ? PhysicalFrameProfile.EncryptedJpeg : new PhysicalFrameProfile(180))));
             manager.Start();
             if (!SpinWait.SpinUntil(() => manager.GetStatuses().All(s => s.SentFrames >= 2), 5000))

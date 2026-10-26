@@ -6,12 +6,10 @@ internal sealed class EncryptedJpegOutputConfig
 {
     public int? BrightnessPercent { get; set; }
 
-    internal static void ValidateFrameOptions(int? brightnessPercent, bool journalEnabled)
+    internal static void ValidateFrameOptions(int? brightnessPercent)
     {
         if (brightnessPercent is not null)
             throw new NotSupportedException("TURZX brightness-to-frame sequencing is not verified; preserve current brightness (null) for this image path.");
-        if (journalEnabled)
-            throw new NotSupportedException("The detailed TURZX USB journal is not implemented; disable that option for this image path.");
     }
 
     public static byte ToControllerBrightness(int percent)

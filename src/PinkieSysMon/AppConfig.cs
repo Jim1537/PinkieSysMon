@@ -298,12 +298,11 @@ internal static class OutputTargetContract
             target.Usb ??= new UsbConfig
             {
                 RetryIntervalMs = defaults.RetryIntervalMs,
-                TransferTimeoutMs = defaults.TransferTimeoutMs,
-                DiagnosticJournalEnabled = defaults.DiagnosticJournalEnabled
+                TransferTimeoutMs = defaults.TransferTimeoutMs
             };
             if (encryptedJpeg && target.DeviceEnabled)
             {
-                try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg!.BrightnessPercent, target.Usb.DiagnosticJournalEnabled); }
+                try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg!.BrightnessPercent); }
                 catch (NotSupportedException error) { throw new InvalidDataException($"Output '{target.Id}': {error.Message}", error); }
             }
             if (target.Usb.RetryIntervalMs < 500 || target.Usb.TransferTimeoutMs < 500)
@@ -337,7 +336,6 @@ internal sealed class UsbConfig
 {
     public int RetryIntervalMs { get; set; } = 3000;
     public int TransferTimeoutMs { get; set; } = 3000;
-    public bool DiagnosticJournalEnabled { get; set; }
 }
 
 internal sealed class MediaConfig

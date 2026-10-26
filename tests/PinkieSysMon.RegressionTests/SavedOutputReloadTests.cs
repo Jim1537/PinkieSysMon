@@ -72,7 +72,7 @@ internal static class SavedOutputReloadTests
         var bytes = File.ReadAllBytes(f.Path);
         Check(f.Reload("c").Success && f.Session("c").Width == 640 &&
               f.Session("c").Target is { Dashboard: "device_1920x480_default", RefreshIntervalMs: 730, JpegQuality: 81,
-                  Usb: { RetryIntervalMs: 2200, TransferTimeoutMs: 3300, DiagnosticJournalEnabled: true } } &&
+                  Usb: { RetryIntervalMs: 2200, TransferTimeoutMs: 3300 } } &&
               ReferenceEquals(f.Current.Renderer, previous.Renderer) && ReferenceEquals(f.Current.Usb, previous.Usb) &&
               f.Current.Display.RefreshIntervalMs == 1000 && f.Created.Count == 3 &&
               f.Session("a").Prepares == 0 && f.Session("b").Prepares == 0 &&

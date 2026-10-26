@@ -13,7 +13,7 @@ internal static class TurzxRuntimeDiagnostic
 
     public static int? TryRun(string[] args, Action<string> write,
         Func<IReadOnlyList<OutputDeviceDescriptor>>? capture = null,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? open = null,
+        Func<OutputTargetConfig, int, FileLogger, CancellationToken, IPhysicalFrameTransport?>? open = null,
         Func<C.DashboardDefinition>? loadBoard = null, Func<FileLogger>? createLog = null,
         int frameLimit = 20, int refreshMs = 500, Func<DateTime>? now = null)
     {
@@ -61,13 +61,13 @@ internal static class TurzxRuntimeDiagnostic
             };
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
             var state = new CheckpointState();
-            IPhysicalFrameTransport? OpenOnce(OutputTargetConfig selected, int timeout, bool journal, FileLogger logger, CancellationToken token)
+            IPhysicalFrameTransport? OpenOnce(OutputTargetConfig selected, int timeout, FileLogger logger, CancellationToken token)
             {
                 if (Interlocked.CompareExchange(ref state.OpenAttempts, 1, 0) != 0)
                     throw new InvalidOperationException("The checkpoint does not reopen a failed connection.");
                 try
                 {
-                    var transport = (open ?? PhysicalFrameTransportFactory.TryOpen)(selected, timeout, journal, logger, token);
+                    var transport = (open ?? PhysicalFrameTransportFactory.TryOpen)(selected, timeout, logger, token);
                     if (transport is null) throw new IOException("The selected binding disappeared before open.");
                     return new ObservedTransport(transport, state);
                 }

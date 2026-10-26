@@ -28,7 +28,7 @@ internal sealed class FramePump : IOutputSession
     {
         if (_stopOnFailure) Interlocked.CompareExchange(ref _testFailure, error, null);
     }
-    private readonly Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?> _transportFactory;
+    private readonly Func<OutputTargetConfig, int, FileLogger, CancellationToken, IPhysicalFrameTransport?> _transportFactory;
     private readonly Func<IReadOnlyList<OutputDeviceDescriptor>> _turzxRecoveryDiscovery;
 
     private AppConfig _config;
@@ -61,6 +61,8 @@ internal sealed class FramePump : IOutputSession
     private long _lastRuntimeMetricsPublishAtMs;
     private string _usbState = "WAITING";
     private bool _isConnected;
+    private bool _connectionHasFrame;
+    private string LogTarget => $"Output target '{TargetName}' [targetId={_targetId}; protocol={_target.Transport}]";
     private int _disposeState;
 
     public FramePump(
@@ -69,7 +71,7 @@ internal sealed class FramePump : IOutputSession
         global::PinkieSysMon.DashboardModel.DashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<OutputTargetConfig, int, bool, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null,
+        Func<OutputTargetConfig, int, FileLogger, CancellationToken, IPhysicalFrameTransport?>? transportFactory = null,
         int? maximumFrames = null, Func<IReadOnlyList<OutputDeviceDescriptor>>? turzxRecoveryDiscovery = null,
         Func<DateTime>? frameClockNow = null, bool stopOnFailure = false)
     {
@@ -79,7 +81,7 @@ internal sealed class FramePump : IOutputSession
 
         if (maximumFrames is < 1) throw new ArgumentOutOfRangeException(nameof(maximumFrames));
         if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
-            TurzxFrameTransport.ValidateOptions(target, (target.Usb ?? config.Usb).DiagnosticJournalEnabled);
+            TurzxFrameTransport.ValidateOptions(target);
         _maximumFrames = maximumFrames;
         _stopOnFailure = stopOnFailure;
         _config = config;
@@ -92,8 +94,8 @@ internal sealed class FramePump : IOutputSession
         _frameClockNow = frameClockNow;
         _transportIoCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _transportFactory = transportFactory ??
-            (static (selectedTarget, timeoutMs, journalEnabled, logger, ioToken) =>
-                PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, journalEnabled, logger, ioToken));
+            (static (selectedTarget, timeoutMs, logger, ioToken) =>
+                PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, logger, ioToken));
         _renderer = new DashboardRenderer(dashboard, _frameClockNow, _metrics.History);
     }
 
@@ -113,9 +115,7 @@ internal sealed class FramePump : IOutputSession
         if (_worker is not null)
             return;
 
-        _log.Info(
-            $"Output session '{TargetName}' started. USB diagnostic journal=" +
-            ((_target.Usb ?? _config.Usb).DiagnosticJournalEnabled ? "enabled." : "disabled."));
+        _log.Info($"{LogTarget} started.");
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
 
@@ -179,7 +179,6 @@ internal sealed class FramePump : IOutputSession
             var newUsb = prepared.Target.Usb ?? prepared.Config.Usb;
             var outputConnectionChanged =
                 oldUsb.TransferTimeoutMs != newUsb.TransferTimeoutMs ||
-                oldUsb.DiagnosticJournalEnabled != newUsb.DiagnosticJournalEnabled ||
                 !OutputTargetContract.ConnectionEquals(_target, prepared.Target);
             var runtimeMetricsWereEnabled = RuntimeMetricsEnabled;
 
@@ -202,7 +201,7 @@ internal sealed class FramePump : IOutputSession
             {
                 _transportAbsenceObserved = false;
                 RequestTransportRetirementLocked(
-                    "Output target, USB timeout, or USB diagnostics changed; reconnecting.",
+                    "Output target or USB timeout changed; reconnecting.",
                     "WAITING");
             }
 
@@ -215,12 +214,12 @@ internal sealed class FramePump : IOutputSession
         }
         catch (Exception ex)
         {
-            _log.Warn($"Output target '{TargetName}' previous renderer disposal failed after reconfiguration.", ex);
+            _log.Warn($"{LogTarget} previous renderer disposal failed after reconfiguration.", ex);
         }
 
         SignalWake();
         _log.Info(
-            $"Output session '{TargetName}' reconfigured. refresh={prepared.Target.RefreshIntervalMs ?? prepared.Config.Display.RefreshIntervalMs}ms; " +
+            $"{LogTarget} reconfigured. refresh={prepared.Target.RefreshIntervalMs ?? prepared.Config.Display.RefreshIntervalMs}ms; " +
             $"canvas={prepared.CanvasWidth}x{prepared.CanvasHeight}; orientation={prepared.Orientation}; " +
             $"targetId={_targetId}; jpegQuality={prepared.Target.JpegQuality ?? prepared.Config.Renderer.JpegQuality}.");
     }
@@ -277,7 +276,7 @@ internal sealed class FramePump : IOutputSession
             RequestTransportRetirementLocked("System suspend.", "SUSPENDED");
         }
 
-        _log.Info($"Output session '{TargetName}' suspended.");
+        _log.Info($"{LogTarget} suspended.");
         SignalWake();
     }
 
@@ -292,7 +291,7 @@ internal sealed class FramePump : IOutputSession
                 _idlePaused ? "IDLE_PAUSED" : "WAITING");
         }
 
-        _log.Info($"Output session '{TargetName}' resumed.");
+        _log.Info($"{LogTarget} resumed.");
         SignalWake();
     }
 
@@ -334,7 +333,7 @@ internal sealed class FramePump : IOutputSession
                 _log.ErrorThrottled(
                     $"frame.loop.{_targetId}",
                     HotPathErrorLogThrottleInterval,
-                    $"Output target '{TargetName}' frame loop error",
+                    $"{LogTarget} frame loop error",
                     ex);
                 delayMs = Math.Max(1, intervalMs);
                 nextFrameAt = Stopwatch.GetTimestamp();
@@ -467,7 +466,7 @@ internal sealed class FramePump : IOutputSession
 
     private void CloseTransportWorker(IPhysicalFrameTransport display, string reason, string nextState)
     {
-        _log.Info($"Output target '{TargetName}' disconnected. {reason}");
+        _log.Info($"{LogTarget} retiring transport; nextState={nextState}; reason={reason}");
         try
         {
             display.RecordLifecycle(nextState, reason);
@@ -475,19 +474,20 @@ internal sealed class FramePump : IOutputSession
         catch (Exception ex)
         {
             RecordTestFailure(ex);
-            _log.Warn($"Output target '{TargetName}' transport lifecycle diagnostics failed.", ex);
+            _log.Warn($"{LogTarget} transport lifecycle diagnostics failed.", ex);
         }
 
         try
         {
             display.Dispose();
+            _log.Info($"{LogTarget} transport retired; nextState={nextState}; framesSent={SentFrames}.");
         }
         catch (Exception ex)
         {
             RecordTestFailure(ex);
             Volatile.Write(ref _nativeReleaseFailed, true);
             if (_stopOnFailure) Volatile.Write(ref _testCleanupFailed, true);
-            _log.Warn($"Output target '{TargetName}' transport disposal failed during {nextState}.", ex);
+            _log.Warn($"{LogTarget} transport disposal failed during {nextState}.", ex);
             lock (_sync)
             {
                 // A failed release is unsafe for either protocol to reacquire.
@@ -504,7 +504,6 @@ internal sealed class FramePump : IOutputSession
         OutputTargetConfig target;
         int timeoutMs;
         int retryMs;
-        bool journalEnabled;
         CancellationToken ioToken;
         long generation;
         bool faulted;
@@ -525,7 +524,6 @@ internal sealed class FramePump : IOutputSession
             var usb = target.Usb ?? _config.Usb;
             timeoutMs = usb.TransferTimeoutMs;
             retryMs = usb.RetryIntervalMs;
-            journalEnabled = usb.DiagnosticJournalEnabled;
             ioToken = _transportIoCancellation.Token;
             generation = _connectionGeneration;
             faulted = _transportFaulted;
@@ -539,7 +537,7 @@ internal sealed class FramePump : IOutputSession
         {
             // Discovery, CreateFile, WinUSB handshake and their failure cleanup run
             // OUTSIDE the general session state lock.
-            opened = _transportFactory(target, timeoutMs, journalEnabled, _log, ioToken);
+            opened = _transportFactory(target, timeoutMs, _log, ioToken);
         }
         catch (OperationCanceledException) when (ioToken.IsCancellationRequested)
         {
@@ -550,10 +548,10 @@ internal sealed class FramePump : IOutputSession
         catch (OutputDeviceResolutionException ex)
         {
             RecordTestFailure(ex);
-            _log.WarnThrottled(
+            _log.ErrorThrottled(
                 $"frame.usb-resolution.{_targetId}",
                 ConnectionErrorLogThrottleInterval,
-                $"Output target '{TargetName}' device resolution failed: {ex.Message}");
+                $"{LogTarget} device resolution failed.", ex);
 
             lock (_sync)
             {
@@ -579,7 +577,7 @@ internal sealed class FramePump : IOutputSession
             _log.ErrorThrottled(
                 $"frame.usb-connect.{_targetId}",
                 ConnectionErrorLogThrottleInterval,
-                $"Output target '{TargetName}' connection failed",
+                $"{LogTarget} connection failed",
                 ex);
 
             lock (_sync)
@@ -620,6 +618,7 @@ internal sealed class FramePump : IOutputSession
                 _disposeState == 0 && !token.IsCancellationRequested)
             {
                 _display = opened;
+                _connectionHasFrame = false;
                 SetUsbStateLocked("CONNECTED");
                 Volatile.Write(ref _isConnected, true);
                 _nextUsbAttemptAtMs = 0;
@@ -634,6 +633,7 @@ internal sealed class FramePump : IOutputSession
             return null;
         }
 
+        _log.Info($"{LogTarget} transport connected; timeoutMs={timeoutMs}; retryMs={retryMs}.");
         return opened;
     }
 
@@ -660,7 +660,7 @@ internal sealed class FramePump : IOutputSession
         catch (Exception ex)
         {
             _log.WarnThrottled($"frame.usb-recovery.{_targetId}", ConnectionErrorLogThrottleInterval,
-                $"Output target '{TargetName}' passive recovery discovery failed.", ex);
+                $"{LogTarget} passive recovery discovery failed.", ex);
             lock (_sync)
                 if (generation == _connectionGeneration && !_transportRetirePending && !_suspended && !_idlePaused && _disposeState == 0)
                     SetUsbStateLocked("ERROR");
@@ -675,7 +675,7 @@ internal sealed class FramePump : IOutputSession
             if (resolution.Status == OutputDeviceResolutionStatus.Missing)
             {
                 if (!_transportAbsenceObserved)
-                    _log.Info($"Output target '{TargetName}' binding absent after transport failure; awaiting reattachment.");
+                    _log.Info($"{LogTarget} binding absent after transport failure; awaiting reattachment.");
                 _transportAbsenceObserved = true;
                 SetUsbStateLocked("WAITING");
                 return false;
@@ -691,7 +691,7 @@ internal sealed class FramePump : IOutputSession
             _transportFaulted = false;
             _transportAbsenceObserved = false;
             SetUsbStateLocked("WAITING");
-            _log.Info($"Output target '{TargetName}' binding reattached; permitting a fresh connection.");
+            _log.Info($"{LogTarget} binding reattached; permitting a fresh connection.");
             return true;
         }
     }
@@ -737,7 +737,7 @@ internal sealed class FramePump : IOutputSession
             _log.ErrorThrottled(
                 $"frame.render.{_targetId}",
                 HotPathErrorLogThrottleInterval,
-                $"Output target '{TargetName}' frame render/encode failed",
+                $"{LogTarget} frame render/encode failed",
                 ex);
             return;
         }
@@ -771,7 +771,7 @@ internal sealed class FramePump : IOutputSession
                 _log.ErrorThrottled(
                     $"frame.usb-transfer.{_targetId}",
                     ConnectionErrorLogThrottleInterval,
-                    $"Output target '{TargetName}' frame USB transfer failed",
+                    $"{LogTarget} frame USB transfer failed",
                     ex);
 
                 var detached = false;
@@ -801,6 +801,7 @@ internal sealed class FramePump : IOutputSession
             }
 
             var frameCompletedAt = Stopwatch.GetTimestamp();
+            string? firstFrameMessage = null;
             lock (_sync)
             {
                 // Do not publish a stale CONNECTED status after Suspend or reconfiguration
@@ -809,6 +810,9 @@ internal sealed class FramePump : IOutputSession
                     return;
 
                 var frameNumber = Interlocked.Increment(ref _sentFrames);
+                if (!_connectionHasFrame)
+                    firstFrameMessage = $"{LogTarget} first frame completed; jpegBytes={rendered.Length}.";
+                _connectionHasFrame = true;
                 if (_lastFrameTimestamp != 0)
                 {
                     var seconds = (frameCompletedAt - _lastFrameTimestamp) / (double)Stopwatch.Frequency;
@@ -827,6 +831,8 @@ internal sealed class FramePump : IOutputSession
 
                 PublishRuntimeMetricsIfDue(frameNumber);
             }
+            if (firstFrameMessage is not null)
+                _log.Info(firstFrameMessage);
         }
     }
 
@@ -915,7 +921,7 @@ internal sealed class FramePump : IOutputSession
                 }
                 catch (TimeoutException)
                 {
-                    _log.Warn($"Output target '{TargetName}' did not finish its pending USB operation within {graceMs} ms; cancelling I/O.");
+                    _log.Warn($"{LogTarget} did not finish its pending USB operation within {graceMs} ms; cancelling I/O.");
                     _cts.Cancel();
                     // Cancellation is only a request. Keep buffers and handles alive
                     // until the worker has drained actual native completion.

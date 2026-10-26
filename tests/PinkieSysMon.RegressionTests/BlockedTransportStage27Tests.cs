@@ -76,7 +76,7 @@ internal static class BlockedTransportStage27Tests
                 (app, target, board, store, logger) =>
                     target.Kind == OutputTargetContract.PhysicalKind
                         ? new FramePump(app, target, board, store, logger,
-                            (device, timeout, journal, transportLog, token) => transport)
+                            (device, timeout, transportLog, token) => transport)
                         : new DesktopOutputSession(app, target, board, store, logger,
                             draw => panel = new FakeWindow(draw)));
 

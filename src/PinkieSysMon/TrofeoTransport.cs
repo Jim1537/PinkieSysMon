@@ -25,7 +25,6 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
     private readonly OutputTargetConfig _target;
     private readonly OutputDeviceDescriptor _device;
     private readonly byte[] _ackBuffer = new byte[512];
-    private readonly TrofeoDiagnosticJournal? _diagnostics;
     private readonly CancellationToken _ioCancellation;
     private SafeFileHandle? _deviceHandle;
     private IntPtr _interfaceHandle;
@@ -41,26 +40,12 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         FileLogger log,
         OutputTargetConfig target,
         OutputDeviceDescriptor device,
-        bool diagnosticJournalEnabled,
         CancellationToken ioCancellation)
     {
         _log = log;
         _ioCancellation = ioCancellation;
         _target = target;
         _device = device;
-
-        if (diagnosticJournalEnabled)
-        {
-            try
-            {
-                _diagnostics = new TrofeoDiagnosticJournal(
-                    TrofeoDiagnosticJournal.GetPath(log.Path, target.Id));
-            }
-            catch (Exception ex)
-            {
-                _log.Warn($"Output target '{target.Name}' USB diagnostic journal could not be opened.", ex);
-            }
-        }
     }
 
     public int WireRotationDegrees { get; private set; }
@@ -70,7 +55,6 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
     public static TrofeoTransport? TryOpen(
         OutputTargetConfig target,
         int transferTimeoutMs,
-        bool diagnosticJournalEnabled,
         FileLogger log,
         CancellationToken ioCancellation,
         PhysicalHandshakeDiagnostics? diagnostics = null)
@@ -90,7 +74,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
 
         ioCancellation.ThrowIfCancellationRequested();
-        var transport = new TrofeoTransport(log, target, resolution.Device, diagnosticJournalEnabled, ioCancellation);
+        var transport = new TrofeoTransport(log, target, resolution.Device, ioCancellation);
         var openStartedAt = Stopwatch.GetTimestamp();
         try
         {
@@ -109,13 +93,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
     private void Open(string path, int transferTimeoutMs, PhysicalHandshakeDiagnostics? diagnostics)
     {
         _ioCancellation.ThrowIfCancellationRequested();
-        _diagnostics?.Write(
-            "OPEN_BEGIN",
-            ("runtime", RuntimeVersion.Current),
-            ("targetId", _target.Id),
-            ("targetName", _target.Name),
-            ("device", _device.ShortId),
-            ("timeoutMs", transferTimeoutMs));
+        _log.Info($"{LogTarget} native open beginning; timeoutMs={transferTimeoutMs}.");
 
         diagnostics?.Stage("native-open");
         _deviceHandle = CreateFileW(
@@ -152,17 +130,8 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         ProtocolSub = response[22] + 1;
         WireRotationDegrees = ProtocolSub is < 2 or > 4 ? 180 : 0;
 
-        _diagnostics?.Write(
-            "OPEN_COMPLETE",
-            ("runtime", RuntimeVersion.Current),
-            ("targetId", _target.Id),
-            ("device", _device.ShortId),
-            ("pm", ProtocolPm),
-            ("sub", ProtocolSub),
-            ("wireRotation", WireRotationDegrees));
-
         _log.Info(
-            $"Output target '{_target.Name}' connected to {_device.DisplayName} [{_device.ShortId}]. " +
+            $"{LogTarget} connected to {_device.DisplayName} [{_device.ShortId}]. " +
             $"PM={ProtocolPm}, SUB={ProtocolSub}, wireRotation={WireRotationDegrees}.");
     }
 
@@ -253,21 +222,6 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         var sequence = Interlocked.Increment(ref _frameSequence);
         var startedAt = Stopwatch.GetTimestamp();
         var stage = "prepare";
-        var layout = TrofeoWireProtocol.GetFrameLayout(jpeg.Length);
-        var writeCount = checked((layout.FrameLength + TrofeoWireProtocol.TransferBlockSize - 1) /
-                                 TrofeoWireProtocol.TransferBlockSize);
-
-        _diagnostics?.Write(
-            "FRAME_BEGIN",
-            ("seq", sequence),
-            ("jpegBytes", jpeg.Length),
-            ("renderMs", renderDiagnostics.RenderMs),
-            ("encodeMs", renderDiagnostics.EncodeMs),
-            ("chunks", layout.ChunkCount),
-            ("paddedChunks", layout.PaddedChunkCount),
-            ("wireBytes", layout.FrameLength),
-            ("writes", writeCount));
-
         try
         {
             var frameLength = PrepareLyFrame(jpeg);
@@ -280,24 +234,10 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
                 offset += count;
             }
 
-            _diagnostics?.Write(
-                "FRAME_SENT",
-                ("seq", sequence),
-                ("wireBytes", frameLength),
-                ("writes", writeCount),
-                ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
-
             stage = "ack";
             var ackLength = ReadInto(PipeIn, _ackBuffer);
             if (ackLength == 0)
                 throw new IOException("Trofeo returned an empty frame ACK.");
-
-            _diagnostics?.Write(
-                "FRAME_COMPLETE",
-                ("seq", sequence),
-                ("ackBytes", ackLength),
-                ("ackPrefix", AckPrefixHex(ackLength)),
-                ("usbMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds));
         }
         catch (Exception ex)
         {
@@ -306,30 +246,19 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         }
     }
 
-    public void RecordLifecycle(string state, string reason)
-    {
-        _diagnostics?.Write(
-            "LIFECYCLE",
-            ("state", state),
-            ("reason", reason));
-    }
+    // The shared worker records lifecycle intent and confirmed retirement.
+    public void RecordLifecycle(string state, string reason) { }
 
-    private string AckPrefixHex(int ackLength)
-    {
-        var count = Math.Min(16, ackLength);
-        return count <= 0 ? string.Empty : Convert.ToHexString(_ackBuffer.AsSpan(0, count));
-    }
+    private string LogTarget => $"Output target '{_target.Name}' [targetId={_target.Id}; protocol={_target.Transport}]";
 
     private void WriteFailure(string eventName, long sequence, string stage, long startedAt, Exception ex)
     {
-        _diagnostics?.Write(
-            eventName,
-            ("seq", sequence),
-            ("stage", stage),
-            ("elapsedMs", Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds),
-            ("exception", ex.GetType().Name),
-            ("win32", ex is Win32Exception win32 ? win32.NativeErrorCode : null),
-            ("message", ex.Message));
+        var context = $"{LogTarget} {eventName}; seq={sequence}; stage={stage}; " +
+            $"elapsedMs={Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds:F3}.";
+        if (ex is OperationCanceledException && _ioCancellation.IsCancellationRequested)
+            _log.Info(context + " Lifecycle cancellation observed.");
+        else
+            _log.Error(context, ex);
     }
 
     private int PrepareLyFrame(ReadOnlySpan<byte> payload)
@@ -484,7 +413,6 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
     public void Dispose()
     {
-        _diagnostics?.Write("TRANSPORT_DISPOSE", ("targetId", _target.Id));
         ReleaseTransferBuffer();
 
         if (_interfaceHandle != IntPtr.Zero)
@@ -505,8 +433,6 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         }
         _completionEvent?.Dispose();
         _completionEvent = null;
-
-        _diagnostics?.Dispose();
     }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]

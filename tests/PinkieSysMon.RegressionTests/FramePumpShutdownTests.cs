@@ -24,7 +24,7 @@ internal static class FramePumpShutdownTests
             (app, selected, board, store, log) =>
             {
                 var pump = new FramePump(app, selected, board, store, log,
-                    (_, _, _, _, token) =>
+                    (_, _, _, token) =>
                     {
                         if (Interlocked.Increment(ref opens) != 1)
                             return new TransactionTransport(token);
@@ -85,7 +85,7 @@ internal static class FramePumpShutdownTests
         using var releaseOpen = new ManualResetEventSlim();
         TransactionTransport? transport = null;
         using var pump = new FramePump(new AppConfig(), Target(15_000), root.Board(), new MetricStore(), root.Log,
-            (_, _, _, _, token) =>
+            (_, _, _, token) =>
             {
                 transport = new TransactionTransport(token);
                 entered.Set();
@@ -126,7 +126,7 @@ internal static class FramePumpShutdownTests
         var config = new AppConfig { Usb = new UsbConfig { TransferTimeoutMs = 15_000 } };
         var nativeCompleted = 0;
         using var pump = new FramePump(config, Target(500), root.Board(), new MetricStore(), root.Log,
-            (_, _, _, _, token) =>
+            (_, _, _, token) =>
             {
                 entered.Set();
                 if (!token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10)))
@@ -176,7 +176,7 @@ internal static class FramePumpShutdownTests
         var selectedCreated = 0;
         using var manager = new OutputSessionManager(config, root.Board(), new MetricStore(), root.Log,
             (app, target, board, store, log) => new FramePump(app, target, board, store, log,
-                (_, _, _, _, token) =>
+                (_, _, _, token) =>
                 {
                     if (target.Id == selected.Id)
                     {
@@ -219,7 +219,7 @@ internal static class FramePumpShutdownTests
             new AppConfig { Outputs = new OutputConfig { Targets = [selected] } }, root.Board(),
             new MetricStore(), root.Log,
             (app, target, board, store, log) => new FramePump(app, target, board, store, log,
-                (_, _, _, _, _) => failedTransport));
+                (_, _, _, _) => failedTransport));
         failed.Start();
         Check(SpinWait.SpinUntil(() => failedTransport.CompletedFrames > 0, TimeSpan.FromSeconds(5)),
             "Synthetic failed-release transport must be active first.");
@@ -241,7 +241,7 @@ internal static class FramePumpShutdownTests
         var opens = 0;
         using var manager = new OutputSessionManager(config, root.Board(), new MetricStore(), root.Log,
             (app, selected, board, store, log) => new FramePump(app, selected, board, store, log,
-                (_, _, _, _, _) =>
+                (_, _, _, _) =>
                 {
                     Interlocked.Increment(ref opens);
                     throw new PhysicalTransportCleanupException(

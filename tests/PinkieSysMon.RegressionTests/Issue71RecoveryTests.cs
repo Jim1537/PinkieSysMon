@@ -13,7 +13,7 @@ internal static class Issue71RecoveryTests
             var target = EnabledTarget();
             var present = 0; var opens = 0; var disposed = 0; var scans = 0;
             using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(),
-                (selected, _, _, _, _) =>
+                (selected, _, _, _) =>
                 {
                     Check(selected.DeviceId == device.DeviceId, "Recovery cannot substitute another binding.");
                     var attempt = Interlocked.Increment(ref opens);
@@ -44,7 +44,7 @@ internal static class Issue71RecoveryTests
         var device = Device("encrypted-jpeg", 'b');
         var phase = 0; var opens = 0; var scans = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
-            (_, _, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
+            (_, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
             turzxRecoveryDiscovery: () =>
             {
                 Interlocked.Increment(ref scans);
@@ -90,7 +90,7 @@ internal static class Issue71RecoveryTests
         using var release = new ManualResetEventSlim();
         var device = Device("encrypted-jpeg", 'b'); var opens = 0; var scans = 0; var missing = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
-            (_, _, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
+            (_, _, _, _) => new Frame(Interlocked.Increment(ref opens) == 1),
             turzxRecoveryDiscovery: () =>
             {
                 if (Interlocked.Increment(ref scans) == 1)
@@ -124,7 +124,7 @@ internal static class Issue71RecoveryTests
     {
         var opens = 0; var scans = 0; var disposed = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
-            (_, _, _, _, _) => { Interlocked.Increment(ref opens); return new Frame(true, () => Interlocked.Increment(ref disposed)); },
+            (_, _, _, _) => { Interlocked.Increment(ref opens); return new Frame(true, () => Interlocked.Increment(ref disposed)); },
             maximumFrames: 1, turzxRecoveryDiscovery: () => { Interlocked.Increment(ref scans); return []; });
         pump.Start();
         Check(SpinWait.SpinUntil(() => Volatile.Read(ref disposed) == 1, 5000), "Failed bounded checkpoint must retire its transport.");
@@ -137,7 +137,7 @@ internal static class Issue71RecoveryTests
     {
         var opens = 0; var scans = 0; var cleanup = 0;
         using var pump = new FramePump(new AppConfig(), EnabledTarget(), Board(), new MetricStore(), Log(),
-            (_, _, _, _, _) =>
+            (_, _, _, _) =>
             {
                 Interlocked.Increment(ref opens);
                 return new Frame(true, () => { Interlocked.Increment(ref cleanup); throw new IOException("Synthetic cleanup failure"); });

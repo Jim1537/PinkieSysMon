@@ -232,7 +232,7 @@ internal sealed class DeviceSettingsModel
             return false;
         if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
         {
-            try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent, (target.Usb ?? _defaults.Usb).DiagnosticJournalEnabled); }
+            try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent); }
             catch (NotSupportedException) { return false; }
         }
         var resolved = OutputDeviceSelection.Resolve(target, _discovered);
@@ -318,8 +318,7 @@ internal sealed class DeviceSettingsModel
     private static UsbConfig CopyUsb(UsbConfig source) => new()
     {
         RetryIntervalMs = source.RetryIntervalMs,
-        TransferTimeoutMs = source.TransferTimeoutMs,
-        DiagnosticJournalEnabled = source.DiagnosticJournalEnabled
+        TransferTimeoutMs = source.TransferTimeoutMs
     };
 
     private OutputTargetConfig Copy(OutputTargetConfig source) => new()

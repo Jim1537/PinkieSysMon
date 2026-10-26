@@ -81,14 +81,14 @@ internal static class Issue71RuntimeTests
     public static void AdapterAdmission()
     {
         var target = new OutputTargetConfig { Width = 1920, Height = 720, DeviceId = "usb-interface:a58aa4db4b66b15856a50a29fe447ab2d9bd64d1dcd4749e2b8e4799094051b2", Kind = "physical", Transport = "encrypted-jpeg", EncryptedJpeg = new() };
-        TurzxFrameTransport.ValidateOptions(target, false);
+        TurzxFrameTransport.ValidateOptions(target);
         target.EncryptedJpeg.BrightnessPercent = 0;
-        Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target, false));
+        Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target));
         target.EncryptedJpeg.BrightnessPercent = null;
-        Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target, true));
-        Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, false, null!, default));
+        TurzxFrameTransport.ValidateOptions(target);
+        Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, null!, default));
         target.DeviceEnabled = true; target.Kind = "desktop";
-        Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, false, null!, default));
+        Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, null!, default));
         using var primary = new TurzxTransport(new Usb(), syncDelay: _ => { }, replyMode: TurzxReplyMode.PrimaryOnly);
         Throws<ArgumentException>(() => new TurzxFrameTransport(primary, default));
     }
@@ -106,7 +106,7 @@ internal static class Issue71RuntimeTests
         Check(captures == 0 && Run(Consent) == 1 && captures == 0, "Invalid arguments or failed preflight cannot discover/open USB.");
         foreach (var count in new[] { 0, 2 })
             Check(TurzxRuntimeDiagnostic.TryRun(Consent, _ => { }, () => Enumerable.Repeat(Device, count).ToArray(),
-                (_, _, _, _, _) => throw new Exception("Unexpected open"), () => Board(), Log) == 1,
+                (_, _, _, _) => throw new Exception("Unexpected open"), () => Board(), Log) == 1,
                 "Missing/ambiguous discovery must not open any interface.");
     }
 
@@ -188,7 +188,7 @@ internal static class Issue71RuntimeTests
         var target = new OutputTargetConfig { Width = 1920, Height = 720, DeviceId = "usb-interface:64ffed526613e9e9f8fd0631449fab4ab291be11007a2434f6655bb83903c557", Id = "budget", Name = "Synthetic", Kind = "physical", Transport = "encrypted-jpeg",
             DeviceEnabled = true, RefreshIntervalMs = 10 };
         var config = new AppConfig();
-        using (var pump = new FramePump(config, target, Board(), new MetricStore(), Log(), (_, _, _, _, token) =>
+        using (var pump = new FramePump(config, target, Board(), new MetricStore(), Log(), (_, _, _, token) =>
         {
             var inner = new TurzxTransport(usb, syncDelay: _ => { });
             inner.Synchronize(token);
@@ -208,11 +208,11 @@ internal static class Issue71RuntimeTests
     private static readonly string[] Consent = [TurzxRuntimeDiagnostic.Argument, "--consent", "YES"];
     private static readonly OutputDeviceDescriptor Device = new("usb-interface:synthetic-private-binding", "encrypted-jpeg", "Synthetic", "synthetic-private-path");
     private static int Run(Action<string> write, Usb usb, Action opened, Func<DateTime> now) =>
-        TurzxRuntimeDiagnostic.TryRun(Consent, write, () => [Device], (target, timeout, journal, log, token) =>
+        TurzxRuntimeDiagnostic.TryRun(Consent, write, () => [Device], (target, timeout, log, token) =>
         {
             opened();
-            Check(target.DeviceEnabled && target.DeviceId == Device.DeviceId && target.EncryptedJpeg?.BrightnessPercent is null && !journal,
-                "Only the selected in-memory target, without brightness or detailed journal, may reach open.");
+            Check(target.DeviceEnabled && target.DeviceId == Device.DeviceId && target.EncryptedJpeg?.BrightnessPercent is null,
+                "Only the selected in-memory target, without a brightness command, may reach open.");
             var inner = new TurzxTransport(usb, syncDelay: _ => { });
             try { inner.Synchronize(token); return new TurzxFrameTransport(inner, token); }
             catch { inner.Dispose(); throw; }

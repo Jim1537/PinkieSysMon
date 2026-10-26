@@ -280,8 +280,10 @@ internal static class Program
             ("Output provider active isolation without System", OutputProviderStage07Tests.LiveIsolation),
             ("Trofeo wire framing contract", TrofeoWireFramingContract),
             ("Trofeo USB transfer segmentation contract", TrofeoUsbTransferSegmentationContract),
-            ("USB diagnostic config contract", UsbDiagnosticConfigContract),
-            ("USB diagnostic journal contract", UsbDiagnosticJournalContract),
+            ("Issue104 retired USB options ignored and omitted", Issue104LoggingTests.RetiredOptionsIgnoredAndOmitted),
+            ("Issue104 diagnostics row removed and provider retained", Issue104LoggingTests.RowsRemovedAndProviderRetained),
+            ("Issue104 shared physical events and error routing", Issue104LoggingTests.SharedPhysicalEventsAndFailures),
+            ("Issue104 stale logging changes do not reconnect", Issue104LoggingTests.RetiredFlagDoesNotReconnect),
             ("Trofeo overlapped wait completed", TrofeoOverlappedWaitCompleted),
             ("Trofeo overlapped wait canceled and drained", TrofeoOverlappedWaitCanceledAndDrained),
             ("Trofeo overlapped wait cancellation failure drains", TrofeoOverlappedWaitCancellationFailureDrains),
@@ -902,101 +904,6 @@ internal static class Program
             "A 10240-byte Trofeo wire frame must preserve repeated 4096-byte transfers plus the tail.");
     }
 
-    private static void UsbDiagnosticConfigContract()
-    {
-        var config = new AppConfig();
-        Assert(!config.Usb.DiagnosticJournalEnabled,
-            "USB diagnostic journal must remain opt-in by default.");
-
-        var tempRoot = Path.Combine(Path.GetTempPath(), "PinkieSysMon-usb-diagnostic-config-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempRoot);
-        try
-        {
-            var configPath = Path.Combine(tempRoot, "app.json");
-            var log = new FileLogger(Path.Combine(tempRoot, "runtime.log"));
-
-            config.Usb.DiagnosticJournalEnabled = true;
-            config.Save(configPath);
-            var persisted = AppConfig.Load(configPath, log);
-            Assert(persisted.Usb.DiagnosticJournalEnabled,
-                "USB diagnostic journal opt-in must persist through AppConfig save/load.");
-
-            File.WriteAllText(
-                configPath,
-                """
-                {
-                  "Usb": {
-                    "RetryIntervalMs": 3000,
-                    "TransferTimeoutMs": 3000
-                  }
-                }
-                """);
-            var legacy = AppConfig.Load(configPath, log);
-            Assert(!legacy.Usb.DiagnosticJournalEnabled,
-                "Existing config without DiagnosticJournalEnabled must keep diagnostics disabled.");
-        }
-        finally
-        {
-            try { Directory.Delete(tempRoot, recursive: true); } catch { }
-        }
-    }
-
-    private static void UsbDiagnosticJournalContract()
-    {
-        var tempRoot = Path.Combine(Path.GetTempPath(), "PinkieSysMon-usb-diagnostic-journal-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempRoot);
-        try
-        {
-            var mainLogPath = Path.Combine(tempRoot, "runtime.log");
-            var targetId = "screen:one/unsafe-for-filename";
-            var derived = TrofeoDiagnosticJournal.GetPath(mainLogPath, targetId);
-            Assert(
-                string.Equals(Path.GetDirectoryName(derived), tempRoot, StringComparison.OrdinalIgnoreCase) &&
-                !Path.GetFileName(derived).Contains(targetId, StringComparison.Ordinal),
-                "USB diagnostic journal path must stay beside the runtime log without embedding raw target identity.");
-
-            var journalPath = Path.Combine(tempRoot, "usb-test.journal.log");
-            using (var journal = new TrofeoDiagnosticJournal(
-                       journalPath,
-                       maxBytes: 512,
-                       maxArchiveCount: 2,
-                       durableFlushInterval: TimeSpan.Zero))
-            {
-                for (var i = 0; i < 20; i++)
-                    journal.Write("FILL", ("index", i), ("payload", new string('x', 80)));
-
-                journal.Write(
-                    "FRAME_TEST",
-                    ("seq", 7),
-                    ("text", "row\twith\ncontrol"),
-                    ("duration", 12.5));
-            }
-
-            Assert(File.Exists(journalPath),
-                "USB diagnostic journal must keep an active log after rotation.");
-            Assert(File.Exists(journalPath + ".1"),
-                "USB diagnostic journal must rotate when its bounded size is exceeded.");
-            Assert(!File.Exists(journalPath + ".3"),
-                "USB diagnostic journal must not exceed its configured archive count.");
-
-            var allText = string.Join(
-                Environment.NewLine,
-                new[] { journalPath, journalPath + ".1", journalPath + ".2" }
-                    .Where(File.Exists)
-                    .Select(File.ReadAllText));
-            Assert(allText.Contains("FRAME_TEST", StringComparison.Ordinal),
-                "USB diagnostic journal must persist event names.");
-            Assert(allText.Contains("text=row\\twith\\ncontrol", StringComparison.Ordinal),
-                "USB diagnostic journal must escape control characters into one-line records.");
-            Assert(allText.Contains("duration=12.5", StringComparison.Ordinal),
-                "USB diagnostic journal must format numeric fields with invariant culture.");
-        }
-        finally
-        {
-            try { Directory.Delete(tempRoot, recursive: true); } catch { }
-        }
-    }
-
     private static void TrofeoOverlappedCancelAwaitsCompletion()
     {
         using var eventNotYetSignaled = new ManualResetEvent(initialState: false);
@@ -1146,7 +1053,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "cancel.log")),
-            (target, timeout, journal, log, ioToken) =>
+            (target, timeout, log, ioToken) =>
             {
                 entered.Set();
                 try
@@ -1192,7 +1099,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "cancel.log")),
-            (target, timeout, journal, log, ioToken) =>
+            (target, timeout, log, ioToken) =>
                 new CancellationAwareTrofeoTestTransport(
                     ioToken, sendEntered, () => Interlocked.Increment(ref disposalCount)));
 
@@ -1227,7 +1134,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (target, timeout, journal, log, ioToken) =>
+            (target, timeout, log, ioToken) =>
             {
                 openStarted.Set();
                 if (!allowOpen.Wait(TimeSpan.FromSeconds(10)))
@@ -1273,7 +1180,7 @@ internal static class Program
             new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") },
             new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (target, timeout, journal, log, ioToken) => fake);
+            (target, timeout, log, ioToken) => fake);
 
         try
         {
@@ -1316,7 +1223,7 @@ internal static class Program
         var pump = new FramePump(
             config, target, new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") }, new MetricStore(),
             new FileLogger(Path.Combine(root, "ownership.log")),
-            (selectedTarget, timeout, journal, log, ioToken) =>
+            (selectedTarget, timeout, log, ioToken) =>
                 Interlocked.Increment(ref opens) == 1 ? original : replacement);
 
         try
@@ -1358,7 +1265,7 @@ internal static class Program
         using var allowSend = new ManualResetEventSlim();
         var firstTransport = new BlockingTrofeoTestTransport(sendStarted, allowSend);
         var secondTransport = new BlockingTrofeoTestTransport();
-        var attempts = new System.Collections.Concurrent.ConcurrentQueue<(int TimeoutMs, bool Journal)>();
+        var attempts = new System.Collections.Concurrent.ConcurrentQueue<int>();
         var opens = 0;
 
         var config = new AppConfig();
@@ -1367,16 +1274,15 @@ internal static class Program
             Usb = new UsbConfig
             {
                 RetryIntervalMs = 700,
-                TransferTimeoutMs = 1100,
-                DiagnosticJournalEnabled = true
+                TransferTimeoutMs = 1100
             }
         };
         var board = new C.DashboardDefinition { BaseDirectory = Path.Combine(root, "dashboards") };
         var pump = new FramePump(config, target, board, new MetricStore(),
             new FileLogger(Path.Combine(root, "target-usb.log")),
-            (selected, timeout, journal, log, token) =>
+            (selected, timeout, log, token) =>
             {
-                attempts.Enqueue((timeout, journal));
+                attempts.Enqueue(timeout);
                 return Interlocked.Increment(ref opens) == 1 ? firstTransport : secondTransport;
             });
 
@@ -1386,7 +1292,7 @@ internal static class Program
             Assert(sendStarted.Wait(TimeSpan.FromSeconds(5)),
                 "Initial physical session must reach its injected transport without USB hardware.");
             Assert(attempts.TryPeek(out var initial) &&
-                   initial.TimeoutMs == 1100 && initial.Journal,
+                   initial == 1100,
                 "Transport handshake must use the physical target's USB settings, not global defaults.");
 
             var newConfig = new AppConfig();
@@ -1395,8 +1301,7 @@ internal static class Program
                 Usb = new UsbConfig
                 {
                     RetryIntervalMs = 1500,
-                    TransferTimeoutMs = 1800,
-                    DiagnosticJournalEnabled = false
+                    TransferTimeoutMs = 1800
                 }
             };
             using var plan = pump.PrepareReconfiguration(newConfig, changedTarget, board);
@@ -1407,10 +1312,10 @@ internal static class Program
             allowSend.Set();
             Assert(SpinWait.SpinUntil(() => firstTransport.DisposeCount == 1 &&
                    Volatile.Read(ref opens) >= 2, TimeSpan.FromSeconds(5)),
-                "Changing per-target USB timeout/diagnostics must retire and reopen only this output.");
+                "Changing per-target USB timeout must retire and reopen only this output.");
             var values = attempts.ToArray();
             Assert(values.Length >= 2 &&
-                   values[1].TimeoutMs == 1800 && !values[1].Journal,
+                   values[1] == 1800,
                 "Reconnected physical output must use updated per-target USB parameters.");
             Assert(config.Usb.TransferTimeoutMs == 3000 &&
                    newConfig.Usb.TransferTimeoutMs == 3000,

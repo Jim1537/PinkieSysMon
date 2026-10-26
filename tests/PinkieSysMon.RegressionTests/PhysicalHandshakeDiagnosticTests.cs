@@ -153,9 +153,10 @@ internal static class PhysicalHandshakeDiagnosticTests
         var log = new FileLogger(path);
         var target = Target(OutputTargetContract.EncryptedJpegTransport);
         target.DeviceEnabled = false;
-        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, false, log, default)) is InvalidOperationException && !File.Exists(path), "Disabled Output is rejected before diagnostics and I/O.");
+        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is InvalidOperationException && !File.Exists(path), "Disabled Output is rejected before diagnostics and I/O.");
         target.DeviceEnabled = true;
-        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, true, log, default)) is NotSupportedException, "Unsupported TURZX journal option remains rejected before native discovery.");
+        target.EncryptedJpeg = new() { BrightnessPercent = 0 };
+        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is NotSupportedException, "Unsupported brightness sequencing remains rejected before native discovery.");
         var lines = File.ReadAllLines(path);
         var errors = File.ReadAllLines(log.ErrorsPath);
         Check(lines.Length == 1 && lines[0].Contains("[ERROR_REF]", StringComparison.Ordinal) &&

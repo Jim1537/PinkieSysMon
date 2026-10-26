@@ -39,12 +39,11 @@ internal static class Issue71AdoptionTests
     {
         var device = Device("encrypted-jpeg", 'b');
         var config = new AppConfig();
-        config.Usb.DiagnosticJournalEnabled = true;
         var draft = new DeviceSettingsModel(config);
         draft.Refresh([device]);
         var target = draft.Entries.Single().Target;
         Check(draft.Entries.Single().CanEdit && !draft.IsDirty && !target.DeviceEnabled &&
-            target.EncryptedJpeg?.BrightnessPercent is null && target.Usb?.DiagnosticJournalEnabled == false,
+            target.EncryptedJpeg?.BrightnessPercent is null && target.Usb is not null,
             "A passive candidate must default to supported options and remain unsaved/disabled.");
         Check(!draft.SetEnabled(target, true, false) && !draft.IsDirty && draft.ConfiguredCount == 0,
             "Declined consent cannot enable or adopt a candidate.");
@@ -94,9 +93,7 @@ internal static class Issue71AdoptionTests
             selected.EncryptedJpeg!.BrightnessPercent = brightness;
             _ = Catch<InvalidDataException>(() => OutputTargetContract.ValidateAndNormalize([selected]));
         }
-        selected.EncryptedJpeg!.BrightnessPercent = null; selected.Usb!.DiagnosticJournalEnabled = true;
-        _ = Catch<InvalidDataException>(() => OutputTargetContract.ValidateAndNormalize([selected]));
-        selected.Usb.DiagnosticJournalEnabled = false;
+        selected.EncryptedJpeg!.BrightnessPercent = null;
         OutputTargetContract.ValidateAndNormalize([selected]);
     }
 
@@ -124,7 +121,7 @@ internal static class Issue71AdoptionTests
         target.Usb!.RetryIntervalMs = 500;
         var config = new AppConfig(); var opens = 0; var disposed = 0;
         var board = Board();
-        using var pump = new FramePump(config, target, board, new MetricStore(), Log(), (_, _, _, _, _) =>
+        using var pump = new FramePump(config, target, board, new MetricStore(), Log(), (_, _, _, _) =>
         { Interlocked.Increment(ref opens); return new FailedFrame(() => Interlocked.Increment(ref disposed)); },
             turzxRecoveryDiscovery: () => [Device("encrypted-jpeg", 'b')]);
         pump.Start();
@@ -145,7 +142,7 @@ internal static class Issue71AdoptionTests
             var target = Target(Device(transport, transport == "encrypted-jpeg" ? 'b' : 'a'));
             target.DeviceEnabled = true; target.RefreshIntervalMs = 10; target.Usb!.RetryIntervalMs = 500;
             var attempts = 0;
-            using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(), (_, _, _, _, _) =>
+            using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(), (_, _, _, _) =>
             { Interlocked.Increment(ref attempts); throw new IOException("Synthetic native open failure"); },
                 turzxRecoveryDiscovery: () => [Device("encrypted-jpeg", 'b')]);
             pump.Start();
@@ -164,7 +161,7 @@ internal static class Issue71AdoptionTests
     {
         var target = Target(Device("encrypted-jpeg", 'b')); target.DeviceEnabled = true; target.RefreshIntervalMs = 10;
         target.Usb!.RetryIntervalMs = 500; var scans = 0;
-        using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(), (_, _, _, _, _) =>
+        using var pump = new FramePump(new AppConfig(), target, Board(), new MetricStore(), Log(), (_, _, _, _) =>
         { Interlocked.Increment(ref scans); return null; });
         pump.Start();
         Check(SpinWait.SpinUntil(() => Volatile.Read(ref scans) >= 2, 3000) && pump.UsbState == "WAITING" && pump.SentFrames == 0,

@@ -439,7 +439,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             if (enabled)
             {
                 if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
-                    EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent, target.Usb?.DiagnosticJournalEnabled == true);
+                    EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent);
                 if (!_devices.CanEnable(target))
                     throw new InvalidOperationException("This device needs an explicit, unambiguous connected identity before it can be enabled.");
                 confirmed = MessageBox.Show(this,
@@ -628,7 +628,6 @@ internal sealed class DeviceSettingsPage : TabPage
                     {
                         target.Transport = choice.Id;
                         target.EncryptedJpeg = choice.Id == OutputTargetContract.EncryptedJpegTransport ? new() : null;
-                        target.Usb!.DiagnosticJournalEnabled = false;
                     });
                 };
                 protocols.Controls.Add(option);
@@ -694,21 +693,6 @@ internal sealed class DeviceSettingsPage : TabPage
                 brightness = clear;
             }
             Row("Brightness", brightness, "Brightness adjustment is not yet available. Current device brightness is preserved. A previously saved percentage can be cleared without sending a brightness command.");
-            Control diagnostics = new Label { Name = "DeviceNoJournal", Text = "Application log", AutoSize = true };
-            if (usb.DiagnosticJournalEnabled)
-            {
-                var clear = new Button { Name = "DeviceNoJournal", Text = "Use application log only", AutoSize = true };
-                clear.Click += (_, _) => Change(() => { usb.DiagnosticJournalEnabled = false; clear.Enabled = false; });
-                diagnostics = clear;
-            }
-            Row("USB diagnostics", diagnostics, "Detailed TURZX USB journaling is not yet available. A previously saved option can be cleared. Runtime lifecycle and errors remain in the application log.");
-        }
-        else
-        {
-            var journal = new CheckBox { Text = "USB diagnostic journal", Name = "DeviceJournal",
-                Checked = usb.DiagnosticJournalEnabled, AutoSize = true };
-            journal.CheckedChanged += (_, _) => Change(() => usb.DiagnosticJournalEnabled = journal.Checked);
-            Row("USB diagnostics", journal, EditorSettingsHelp.UsbJournal);
         }
 
         AddButtons();

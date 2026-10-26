@@ -19,16 +19,16 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
     public PhysicalFrameProfile Profile => PhysicalFrameProfile.EncryptedJpeg;
 
     public static TurzxFrameTransport? TryOpen(OutputTargetConfig target, int timeoutMs,
-        bool journalEnabled, FileLogger log, CancellationToken token, PhysicalHandshakeDiagnostics? diagnostics = null)
+        FileLogger log, CancellationToken token, PhysicalHandshakeDiagnostics? diagnostics = null)
     {
         diagnostics?.Stage("options");
-        ValidateOptions(target, journalEnabled);
+        ValidateOptions(target);
         var transport = TurzxTransport.TryOpen(target, timeoutMs, token, diagnostics);
         return transport is null ? null : new TurzxFrameTransport(transport, token);
     }
 
-    internal static void ValidateOptions(OutputTargetConfig target, bool journalEnabled) =>
-        EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent, journalEnabled);
+    internal static void ValidateOptions(OutputTargetConfig target) =>
+        EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent);
 
     public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics) =>
         _transport.SendImage(TurzxImageFormat.Jpeg, jpeg, _ioToken);
@@ -41,7 +41,7 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
 internal static class PhysicalFrameTransportFactory
 {
     public static IPhysicalFrameTransport? TryOpen(OutputTargetConfig target, int timeoutMs,
-        bool journalEnabled, FileLogger log, CancellationToken token)
+        FileLogger log, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(target);
         token.ThrowIfCancellationRequested();
@@ -50,9 +50,9 @@ internal static class PhysicalFrameTransportFactory
             (target.Kind, target.Transport) switch
         {
             (OutputTargetContract.PhysicalKind, OutputTargetContract.LyBulkTransport) =>
-                TrofeoTransport.TryOpen(target, timeoutMs, journalEnabled, log, token, diagnostics),
+                TrofeoTransport.TryOpen(target, timeoutMs, log, token, diagnostics),
             (OutputTargetContract.PhysicalKind, OutputTargetContract.EncryptedJpegTransport) =>
-                TurzxFrameTransport.TryOpen(target, timeoutMs, journalEnabled, log, token, diagnostics),
+                TurzxFrameTransport.TryOpen(target, timeoutMs, log, token, diagnostics),
             _ => throw new InvalidOperationException("Unsupported physical frame transport.")
         }, (message, error) => log.Error(message, error));
     }

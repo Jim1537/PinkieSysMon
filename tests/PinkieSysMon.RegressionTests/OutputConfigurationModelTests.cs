@@ -40,8 +40,7 @@ internal static class OutputConfigurationModelTests
                             Usb = new UsbConfig
                             {
                                 RetryIntervalMs = 900,
-                                TransferTimeoutMs = 1100,
-                                DiagnosticJournalEnabled = true
+                                TransferTimeoutMs = 1100
                             }
                         }
                     ]
@@ -66,7 +65,7 @@ internal static class OutputConfigurationModelTests
                   loaded[0].Usb is null && loaded[0].DeviceId.Length == 0,
                   "Desktop outputs must not own JPEG/USB settings.");
             Check(loaded[2].JpegQuality == 67 &&
-                  loaded[2].Usb is { RetryIntervalMs: 900, TransferTimeoutMs: 1100, DiagnosticJournalEnabled: true },
+                  loaded[2].Usb is { RetryIntervalMs: 900, TransferTimeoutMs: 1100 },
                   "Trofeo JPEG and USB settings must persist.");
 
             var second = AppConfig.Load(path, log);

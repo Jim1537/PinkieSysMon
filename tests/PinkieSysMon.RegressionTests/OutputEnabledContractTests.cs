@@ -58,7 +58,7 @@ internal static class OutputEnabledContractTests
                       device.Dashboard == OutputDefaultDashboardPolicy.PhysicalProfile(device).Name &&
                       panel.RefreshIntervalMs == 740 && device.RefreshIntervalMs == 740 &&
                       device.DeviceId == "usb-interface:" + new string('a', 64) && device.JpegQuality == 81 &&
-                      device.Usb is { RetryIntervalMs: 850, TransferTimeoutMs: 950, DiagnosticJournalEnabled: true } &&
+                      device.Usb is { RetryIntervalMs: 850, TransferTimeoutMs: 950 } &&
                       panel.ProviderEnabled == providerEnabled && device.ProviderEnabled == !providerEnabled,
                     "Enablement policy must preserve identity, placement, publication and inherited settings.");
                 using (var json = JsonDocument.Parse(firstSave))

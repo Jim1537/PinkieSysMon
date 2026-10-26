@@ -141,7 +141,7 @@ internal static class RuntimeIdleTests
                     ? new DesktopOutputSession(app, target, dashboard, metrics, logger,
                         render => window = new CountingWindow(render))
                     : new FramePump(app, target, dashboard, metrics, logger,
-                        (device, timeout, journal, l, token) =>
+                        (device, timeout, l, token) =>
                         {
                             var transport = new CountingTransport();
                             lock (transports) transports.Add(transport);
@@ -228,7 +228,7 @@ internal static class RuntimeIdleTests
             };
             var transport = new CountingTransport();
             using var pump = new FramePump(config, target, board, new MetricStore(), log,
-                (device, timeout, journal, logger, token) => transport);
+                (device, timeout, logger, token) => transport);
             pump.Start();
             Check(SpinWait.SpinUntil(() => transport.Sends == 1, TimeSpan.FromSeconds(5)),
                 "Physical Output must send the first frame immediately.");
@@ -270,7 +270,7 @@ internal static class RuntimeIdleTests
             var config = new AppConfig { Outputs = new OutputConfig { Targets = [target] } };
             var transport = new BlockingFirstTransport(entered, release);
             using var pump = new FramePump(config, target, board, new MetricStore(), log,
-                (device, timeout, journal, l, token) => transport);
+                (device, timeout, l, token) => transport);
             try
             {
                 pump.Start();
