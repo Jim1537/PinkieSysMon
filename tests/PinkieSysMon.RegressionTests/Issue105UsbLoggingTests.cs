@@ -190,6 +190,38 @@ internal static class Issue105UsbLoggingTests
             "Failed acquisition must keep original identity, reached phase and single-attempt behavior.");
     });
 
+    public static void ObserverFailurePreservesNativeCompletion() => Sandbox((root, log) =>
+    {
+        var clock = new FailingClock();
+        using var trace = new PhysicalIoDiagnostics(Target(), 500, log, default, clock, monitor: false);
+        trace.Begin("frame");
+        clock.FailTimestamp = true;
+        trace.IoBegin("native.write", false, 0x01, 512);
+        using var completed = new ManualResetEvent(false);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var drained = 0;
+        var cancelled = TrofeoOverlappedCompletionWait.Wait(completed, cancellation.Token,
+            () => trace.Stage("native.cancel"),
+            () => { trace.Stage("native.cancel.drain"); drained++; });
+        Check(cancelled && drained == 1 && trace.CaptureFailures > 0,
+            "A failing diagnostic clock must not skip the existing mandatory terminal drain.");
+        var original = new Win32Exception(31, "original native failure with broken observer");
+        trace.Fail(original);
+        var errors = Read(log.ErrorsPath);
+        Check(errors.Length == 1 &&
+              errors[0].GetProperty("exception").GetString()!.Contains(original.Message) &&
+              errors[0].GetProperty("message").GetString()!.Contains("CONTEXT_UNAVAILABLE"),
+            "Unavailable diagnostic context must not replace or prevent retention of the original error.");
+    });
+
+    private sealed class FailingClock : TimeProvider
+    {
+        public bool FailTimestamp;
+        public override long GetTimestamp() => FailTimestamp
+            ? throw new InvalidOperationException("Injected observer clock failure.") : 0;
+    }
+
     private static IPhysicalFrameTransport OpenStream(FileLogger log, Clock clock, Replies connection) =>
         ObservedPhysicalFrameTransport.Open(Target(), 500, log, default, trace =>
         {

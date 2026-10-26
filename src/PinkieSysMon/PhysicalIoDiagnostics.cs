@@ -22,6 +22,8 @@ internal sealed class PhysicalIoDiagnostics : IDisposable
     private long _operation, _ioSequence, _frames, _failures, _lastSummary, _lastPendingReport;
     private long _operationStarted, _phaseStarted;
     private int _polling;
+    private long _captureFailures;
+    internal long CaptureFailures => Interlocked.Read(ref _captureFailures);
     private string _operationName = "none", _phase = "none";
     private int _recentIndex, _recentCount, _payloadBytes;
     private double _renderMs, _encodeMs, _maximumPhaseMs;
@@ -41,121 +43,161 @@ internal sealed class PhysicalIoDiagnostics : IDisposable
 
     internal void Begin(string operation, int payloadBytes = 0, FrameRenderDiagnostics render = default)
     {
-        string? message = null;
-        lock (_sync)
+        try
         {
-            _operation++;
-            _operationName = operation; _phase = operation;
-            _operationStarted = _phaseStarted = _time.GetTimestamp();
-            _payloadBytes = payloadBytes; _renderMs = render.RenderMs; _encodeMs = render.EncodeMs;
-            _active = true; _slowReported = _unexpectedNativeFailure = false; _current = null;
-            _maximumPhaseMs = 0;
-            if (operation != "frame") message = FormatLocked("begin");
+            string? message = null;
+            lock (_sync)
+            {
+                _operation++;
+                _operationName = operation; _phase = operation;
+                _operationStarted = _phaseStarted = _time.GetTimestamp();
+                _payloadBytes = payloadBytes; _renderMs = render.RenderMs; _encodeMs = render.EncodeMs;
+                _active = true; _slowReported = _unexpectedNativeFailure = false; _current = null;
+                _maximumPhaseMs = 0;
+                if (operation != "frame") message = FormatLocked("begin");
+            }
+            if (message is not null) _log.Info(message);
         }
-        if (message is not null) _log.Info(message);
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void Stage(string phase)
     {
-        lock (_sync)
+        try
         {
-            ObservePhaseAgeLocked();
-            _phase = phase; _phaseStarted = _time.GetTimestamp();
+            lock (_sync)
+            {
+                ObservePhaseAgeLocked();
+                _phase = phase; _phaseStarted = _time.GetTimestamp();
+            }
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void IoBegin(string stage, bool read, byte pipe, int requested)
     {
-        lock (_sync)
+        try
         {
-            ObservePhaseAgeLocked();
-            _phase = stage; _phaseStarted = _time.GetTimestamp();
-            _current = new IoRecord(++_ioSequence, stage, read ? "read" : "write", $"0x{pipe:X2}", requested, _phaseStarted);
-            AddLocked(_current);
+            lock (_sync)
+            {
+                ObservePhaseAgeLocked();
+                _phase = stage; _phaseStarted = _time.GetTimestamp();
+                _current = new IoRecord(++_ioSequence, stage, read ? "read" : "write", $"0x{pipe:X2}", requested, _phaseStarted);
+                AddLocked(_current);
+            }
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void IoResult(bool success, uint actual, int nativeCode, string completion)
     {
-        lock (_sync)
+        try
         {
-            if (_current is not null)
+            lock (_sync)
             {
-                _current.ElapsedMs = _time.GetElapsedTime(_current.Started, _time.GetTimestamp()).TotalMilliseconds;
-                _current.Completion = completion;
-                _current.NativeCode = nativeCode;
-                _current.ActualBytes = success ? actual : null;
+                if (_current is not null)
+                {
+                    _current.ElapsedMs = _time.GetElapsedTime(_current.Started, _time.GetTimestamp()).TotalMilliseconds;
+                    _current.Completion = completion;
+                    _current.NativeCode = nativeCode;
+                    _current.ActualBytes = success ? actual : null;
+                }
+                if (!success && nativeCode != 995) _unexpectedNativeFailure = true;
             }
-            if (!success && nativeCode != 995) _unexpectedNativeFailure = true;
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void CancellationFailure(Exception error)
     {
-        lock (_sync)
+        try
         {
-            _unexpectedNativeFailure = true;
-            if (_current is not null)
+            lock (_sync)
             {
-                _current.CancellationErrorType = error.GetType().FullName;
-                _current.CancellationHResult = error.HResult;
-                _current.CancellationNativeCode = error is Win32Exception native ? native.NativeErrorCode : null;
+                _unexpectedNativeFailure = true;
+                if (_current is not null)
+                {
+                    _current.CancellationErrorType = error.GetType().FullName;
+                    _current.CancellationHResult = error.HResult;
+                    _current.CancellationNativeCode = error is Win32Exception native ? native.NativeErrorCode : null;
+                }
             }
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void ReturnedWrite(int actual)
     {
-        lock (_sync)
+        try
         {
-            if (_current is null) return;
-            _current.ReturnedCount = actual;
-            _current.ActualBytes = actual >= 0 ? (uint)actual : null;
-            _current.ElapsedMs = _time.GetElapsedTime(_current.Started, _time.GetTimestamp()).TotalMilliseconds;
-            _current.Completion ??= "connection-returned";
+            lock (_sync)
+            {
+                if (_current is null) return;
+                _current.ReturnedCount = actual;
+                _current.ActualBytes = actual >= 0 ? (uint)actual : null;
+                _current.ElapsedMs = _time.GetElapsedTime(_current.Started, _time.GetTimestamp()).TotalMilliseconds;
+                _current.Completion ??= "connection-returned";
+            }
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void Reply(byte[] response, int actual)
     {
-        lock (_sync)
+        try
         {
-            if (_current is null) return;
-            _current.ReturnedCount = actual;
-            _current.ActualBytes = actual >= 0 ? (uint)actual : null;
-            if (actual >= 0 && actual <= response.Length)
+            lock (_sync)
             {
-                _current.Response = response.AsSpan(0, Math.Min(actual, ResponseByteLimit)).ToArray();
-                _current.ResponseTruncated = actual > ResponseByteLimit;
-                if (actual > 0) _lastNonemptyReply = _current;
+                if (_current is null) return;
+                _current.ReturnedCount = actual;
+                _current.ActualBytes = actual >= 0 ? (uint)actual : null;
+                if (actual >= 0 && actual <= response.Length)
+                {
+                    _current.Response = response.AsSpan(0, Math.Min(actual, ResponseByteLimit)).ToArray();
+                    _current.ResponseTruncated = actual > ResponseByteLimit;
+                    if (actual > 0) _lastNonemptyReply = _current;
+                }
             }
         }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void Complete(string outcome)
     {
-        string? message;
-        bool unexpected;
-        lock (_sync)
+        try
         {
-            ObservePhaseAgeLocked();
-            unexpected = _unexpectedNativeFailure || (!_slowReported && _maximumPhaseMs >= _timeoutMs + 250.0);
-            if (_operationName == "frame" && outcome == "completed") _frames++;
-            _active = false;
-            message = _operationName != "frame" || _frames == 1 || _slowReported || unexpected
-                ? FormatLocked(outcome) : null;
+            string? message;
+            bool unexpected;
+            lock (_sync)
+            {
+                ObservePhaseAgeLocked();
+                unexpected = _unexpectedNativeFailure || (!_slowReported && _maximumPhaseMs >= _timeoutMs + 250.0);
+                if (_operationName == "frame" && outcome == "completed") _frames++;
+                _active = false;
+                message = _operationName != "frame" || _frames == 1 || _slowReported || unexpected
+                    ? FormatLocked(outcome) : null;
+            }
+            if (message is not null)
+            {
+                if (unexpected) _log.Error(message);
+                else _log.Info(message);
+            }
         }
-        if (message is not null)
-        {
-            if (unexpected) _log.Error(message);
-            else _log.Info(message);
-        }
+        catch { Interlocked.Increment(ref _captureFailures); }
     }
 
     internal void Fail(Exception error)
     {
         string message;
-        lock (_sync) { ObservePhaseAgeLocked(); _failures++; _active = false; message = FormatLocked("failed"); }
+        try
+        {
+            lock (_sync) { ObservePhaseAgeLocked(); _failures++; _active = false; message = FormatLocked("failed"); }
+        }
+        catch
+        {
+            Interlocked.Increment(ref _captureFailures);
+            message = "PHYSICAL_IO_CONTEXT_UNAVAILABLE; original failure retained.";
+        }
         _log.Error(message, error); // The propagated original is deduplicated by FileLogger.
     }
 
@@ -202,9 +244,15 @@ internal sealed class PhysicalIoDiagnostics : IDisposable
         finally { Volatile.Write(ref _polling, 0); }
     }
 
-    private void ObservePhaseAgeLocked() =>
-        _maximumPhaseMs = Math.Max(_maximumPhaseMs,
-            _time.GetElapsedTime(_phaseStarted, _time.GetTimestamp()).TotalMilliseconds);
+    private void ObservePhaseAgeLocked()
+    {
+        try
+        {
+            _maximumPhaseMs = Math.Max(_maximumPhaseMs,
+                _time.GetElapsedTime(_phaseStarted, _time.GetTimestamp()).TotalMilliseconds);
+        }
+        catch { Interlocked.Increment(ref _captureFailures); }
+    }
 
     private void AddLocked(IoRecord record)
     {
@@ -216,38 +264,49 @@ internal sealed class PhysicalIoDiagnostics : IDisposable
     // Caller holds only this observer's lock. No disk I/O or native handle access.
     private string FormatLocked(string outcome, int? releaseError = null)
     {
-        var now = _time.GetTimestamp();
-        return "PHYSICAL_IO " + JsonSerializer.Serialize(new
+        try
         {
-            runtime = RuntimeVersion.Current, connectionId = _connectionId,
-            targetId = _targetId, targetName = _targetName, protocol = _protocol,
-            operation = _operationName, operationId = _operation, phase = _phase, outcome,
-            observedAt = _time.GetUtcNow(), configuredTimeoutMs = _timeoutMs,
-            elapsedMs = _time.GetElapsedTime(_operationStarted, now).TotalMilliseconds,
-            phaseAgeMs = _time.GetElapsedTime(_phaseStarted, now).TotalMilliseconds,
-            maximumPhaseMs = _maximumPhaseMs,
-            currentIoElapsedMs = _current is null ? (double?)null :
-                _current.ElapsedMs ?? _time.GetElapsedTime(_current.Started, now).TotalMilliseconds,
-            connectionAgeMs = _time.GetElapsedTime(_created, now).TotalMilliseconds,
-            activeAtObservation = _active, cancellationRequested = _token.IsCancellationRequested,
-            framesCompleted = _frames, failures = _failures, ioSequence = _ioSequence,
-            payloadBytes = _payloadBytes,
-            renderMs = double.IsFinite(_renderMs) ? (double?)_renderMs : null,
-            encodeMs = double.IsFinite(_encodeMs) ? (double?)_encodeMs : null,
-            unexpectedNativeFailure = _unexpectedNativeFailure, releaseError,
-            omittedIoOperations = _ioSequence - _recentCount,
-            lastNonemptyReply = _lastNonemptyReply is null ? null : new
+            var now = _time.GetTimestamp();
+            return "PHYSICAL_IO " + JsonSerializer.Serialize(new
             {
-                _lastNonemptyReply.Sequence, _lastNonemptyReply.Stage, _lastNonemptyReply.ActualBytes,
-                responseHex = _lastNonemptyReply.Response is null ? null : Convert.ToHexString(_lastNonemptyReply.Response)
-            },
-            recent = Enumerable.Range(0, _recentCount)
-                .Select(i => _recent[(_recentIndex - _recentCount + i + RecentOperationLimit) % RecentOperationLimit]!)
-                .Select(r => new { r.Sequence, r.Stage, r.Direction, r.Pipe, r.RequestedBytes,
-                    r.ActualBytes, r.ReturnedCount, r.NativeCode, r.Completion, r.ElapsedMs,
-                    r.CancellationErrorType, r.CancellationHResult, r.CancellationNativeCode,
-                    responseHex = r.Response is null ? null : Convert.ToHexString(r.Response), r.ResponseTruncated })
-        });
+                runtime = RuntimeVersion.Current, connectionId = _connectionId,
+                targetId = _targetId, targetName = _targetName, protocol = _protocol,
+                operation = _operationName, operationId = _operation, phase = _phase, outcome,
+                observedAt = _time.GetUtcNow(), configuredTimeoutMs = _timeoutMs,
+                elapsedMs = _time.GetElapsedTime(_operationStarted, now).TotalMilliseconds,
+                phaseAgeMs = _time.GetElapsedTime(_phaseStarted, now).TotalMilliseconds,
+                maximumPhaseMs = _maximumPhaseMs,
+                currentIoElapsedMs = _current is null ? (double?)null :
+                    _current.ElapsedMs ?? _time.GetElapsedTime(_current.Started, now).TotalMilliseconds,
+                connectionAgeMs = _time.GetElapsedTime(_created, now).TotalMilliseconds,
+                activeAtObservation = _active, cancellationRequested = _token.IsCancellationRequested,
+                framesCompleted = _frames, failures = _failures, ioSequence = _ioSequence,
+                payloadBytes = _payloadBytes,
+                renderMs = double.IsFinite(_renderMs) ? (double?)_renderMs : null,
+                encodeMs = double.IsFinite(_encodeMs) ? (double?)_encodeMs : null,
+                unexpectedNativeFailure = _unexpectedNativeFailure, releaseError,
+                captureFailures = CaptureFailures,
+                omittedIoOperations = _ioSequence - _recentCount,
+                lastNonemptyReply = _lastNonemptyReply is null ? null : new
+                {
+                    _lastNonemptyReply.Sequence, _lastNonemptyReply.Stage, _lastNonemptyReply.ActualBytes,
+                    responseHex = _lastNonemptyReply.Response is null ? null : Convert.ToHexString(_lastNonemptyReply.Response)
+                },
+                recent = Enumerable.Range(0, _recentCount)
+                    .Select(i => _recent[(_recentIndex - _recentCount + i + RecentOperationLimit) % RecentOperationLimit]!)
+                    .Select(r => new { r.Sequence, r.Stage, r.Direction, r.Pipe, r.RequestedBytes,
+                        r.ActualBytes, r.ReturnedCount, r.NativeCode, r.Completion, r.ElapsedMs,
+                        r.CancellationErrorType, r.CancellationHResult, r.CancellationNativeCode,
+                        responseHex = r.Response is null ? null : Convert.ToHexString(r.Response), r.ResponseTruncated })
+            });
+        }
+        catch
+        {
+            // Formatting is optional evidence, never a reason to skip native
+            // completion/cleanup or replace the original application failure.
+            Interlocked.Increment(ref _captureFailures);
+            return "PHYSICAL_IO_CONTEXT_UNAVAILABLE; inspect diagnostic capture failures.";
+        }
     }
 
     public void Dispose()
