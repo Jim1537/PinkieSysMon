@@ -31,6 +31,8 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Fixture cleanup original failures and no retry", RegressionFixtureCleanupTests.OriginalFailuresAndNoRetry),
+            ("Fixture cleanup held-file snapshot and native ABI", RegressionFixtureCleanupTests.HeldFileSnapshotAndNativeLayout),
             ("Issue105 pending cleanup preserves ownership", Issue105CleanupLoggingTests.PendingCleanupDoesNotReleaseOwnership),
             ("Issue105 cleanup finally and original failures", Issue105CleanupLoggingTests.CleanupFailuresKeepFinallyAndOriginalErrors),
             ("Issue105 cleanup observer failure isolation", Issue105CleanupLoggingTests.ObserverFaultDoesNotReplaceCleanupFailure),

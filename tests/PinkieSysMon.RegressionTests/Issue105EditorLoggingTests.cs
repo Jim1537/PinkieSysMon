@@ -195,15 +195,18 @@ internal static class Issue105EditorLoggingTests
         var applicationRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
         var root = Path.Combine(applicationRoot, "artifacts", "issue105-editor-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        Exception? scenarioFailure = null;
+        EditorForm? editor = null;
         try
         {
             Issue84EditorStartupTests.CreateEditorIconFixtures(root);
             var log = new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"), "Editor");
             var messages = new List<string>();
-            using var editor = new EditorForm(root, null, log, (message, _, _) => messages.Add(message));
-            test(root, editor, log, messages);
+            using (editor = new EditorForm(root, null, log, (message, _, _) => messages.Add(message)))
+                test(root, editor, log, messages);
         }
-        finally { Directory.Delete(root, recursive: true); }
+        catch (Exception error) { scenarioFailure = error; throw; }
+        finally { RegressionFixtureCleanup.Delete(root, scenarioFailure, editor?.IsDisposed); }
     }
 
     private static string CreateDashboard(string root, string name)

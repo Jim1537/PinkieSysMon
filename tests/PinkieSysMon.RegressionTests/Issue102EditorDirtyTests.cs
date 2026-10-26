@@ -113,16 +113,19 @@ internal static class Issue102EditorDirtyTests
         var applicationRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
         var root = Path.Combine(applicationRoot, "artifacts", "issue102-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        Exception? scenarioFailure = null;
+        EditorForm? editor = null;
         try
         {
             Issue84EditorStartupTests.CreateEditorIconFixtures(root);
-            using var editor = new EditorForm(root, initialDashboard: null);
-            test(root, editor);
+            using (editor = new EditorForm(root, initialDashboard: null))
+                test(root, editor);
         }
+        catch (Exception error) { scenarioFailure = error; throw; }
         finally
         {
             if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
+                RegressionFixtureCleanup.Delete(root, scenarioFailure, editor?.IsDisposed);
         }
     }
 
