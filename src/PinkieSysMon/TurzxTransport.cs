@@ -14,6 +14,7 @@ internal sealed class TurzxTransport : IDisposable
     private readonly object _gate = new();
     private readonly CancellationTokenSource _shutdown = new();
     private readonly ITurzxUsbConnection _connection;
+    private readonly PhysicalIoDiagnostics? _ioDiagnostics;
     private readonly Func<uint> _milliseconds;
     private readonly Action<CancellationToken> _syncDelay;
     private readonly byte[] _response = new byte[TurzxWireProtocol.HeaderLength];
@@ -23,24 +24,28 @@ internal sealed class TurzxTransport : IDisposable
     public TurzxReplyMode ReplyMode { get; }
 
     internal TurzxTransport(ITurzxUsbConnection connection, Func<uint>? milliseconds = null,
-        Action<CancellationToken>? syncDelay = null, TurzxReplyMode replyMode = TurzxReplyMode.JpegStream)
+        Action<CancellationToken>? syncDelay = null, TurzxReplyMode replyMode = TurzxReplyMode.JpegStream,
+        PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         if (replyMode is not (TurzxReplyMode.JpegStream or TurzxReplyMode.PrimaryOnly))
             throw new ArgumentOutOfRangeException(nameof(replyMode));
         ReplyMode = replyMode;
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        _ioDiagnostics = ioDiagnostics;
         _milliseconds = milliseconds ?? (() => (uint)DateTime.Now.TimeOfDay.TotalMilliseconds);
         _syncDelay = syncDelay ?? (token => { if (token.WaitHandle.WaitOne(200)) token.ThrowIfCancellationRequested(); });
     }
 
     public static TurzxTransport? TryOpen(OutputTargetConfig target, int timeoutMs, CancellationToken token,
-        PhysicalHandshakeDiagnostics? diagnostics = null) =>
-        TryOpen(target, timeoutMs, token, () => PhysicalDeviceDiscovery.CaptureForTarget(target), OpenConnection, diagnostics: diagnostics);
+        PhysicalHandshakeDiagnostics? diagnostics = null, PhysicalIoDiagnostics? ioDiagnostics = null) =>
+        TryOpen(target, timeoutMs, token, () => PhysicalDeviceDiscovery.CaptureForTarget(target),
+            (device, timeout) => OpenConnection(device, timeout, ioDiagnostics),
+            diagnostics: diagnostics, ioDiagnostics: ioDiagnostics);
 
-    private static ITurzxUsbConnection OpenConnection(OutputDeviceDescriptor device, int timeoutMs)
+    private static ITurzxUsbConnection OpenConnection(OutputDeviceDescriptor device, int timeoutMs, PhysicalIoDiagnostics? ioDiagnostics)
     {
-        var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeoutMs);
-        try { return new TurzxUsbConnection(native, timeoutMs); }
+        var native = WindowsTurzxNativeIo.Open(device.DevicePath, timeoutMs, ioDiagnostics);
+        try { return new TurzxUsbConnection(native, timeoutMs, ioDiagnostics); }
         catch (Exception error)
         {
             try { native.Dispose(); } catch (Exception cleanup) { throw new PhysicalTransportCleanupException(error, cleanup); }
@@ -52,7 +57,7 @@ internal sealed class TurzxTransport : IDisposable
         Func<IReadOnlyList<OutputDeviceDescriptor>> discover,
         Func<OutputDeviceDescriptor, int, ITurzxUsbConnection> open,
         Action<CancellationToken>? syncDelay = null, TurzxReplyMode replyMode = TurzxReplyMode.JpegStream,
-        PhysicalHandshakeDiagnostics? diagnostics = null)
+        PhysicalHandshakeDiagnostics? diagnostics = null, PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         diagnostics?.Stage("discovery");
         ArgumentNullException.ThrowIfNull(target);
@@ -79,7 +84,7 @@ internal sealed class TurzxTransport : IDisposable
         TurzxTransport? transport = null;
         try
         {
-            transport = new TurzxTransport(connection, syncDelay: syncDelay, replyMode: replyMode);
+            transport = new TurzxTransport(connection, syncDelay: syncDelay, replyMode: replyMode, ioDiagnostics: ioDiagnostics);
             transport.Synchronize(token, diagnostics);
             return transport;
         }
@@ -97,6 +102,7 @@ internal sealed class TurzxTransport : IDisposable
         if (_synchronized) throw new InvalidOperationException("TURZX is already synchronized.");
         var result = Exchange(10, TurzxWireProtocol.Sync(_milliseconds()), linked, diagnostics);
         diagnostics?.Stage("sync-settle");
+        _ioDiagnostics?.Stage("sync.settle");
         _syncDelay(linked);
         linked.ThrowIfCancellationRequested();
         if (ReplyMode == TurzxReplyMode.JpegStream) result = CompleteReplyBoundary(result, linked, diagnostics);
@@ -143,7 +149,9 @@ internal sealed class TurzxTransport : IDisposable
         // the command lock and native owner through this second read as well.
         token.ThrowIfCancellationRequested();
         diagnostics?.Begin("sync-follow-up-read", "read", TurzxUsbConnection.PipeIn, _response.Length);
+        _ioDiagnostics?.IoBegin("command.follow-up.read", true, TurzxUsbConnection.PipeIn, _response.Length);
         var received = _connection.Read(_response, token);
+        _ioDiagnostics?.Reply(_response, received);
         diagnostics?.CompleteRead(_response, received);
         diagnostics?.Stage("sync-follow-up-validation");
         if (received < 0 || received > _response.Length)
@@ -177,12 +185,16 @@ internal sealed class TurzxTransport : IDisposable
     {
         token.ThrowIfCancellationRequested();
         diagnostics?.Begin("sync-write", "write", TurzxUsbConnection.PipeOut, packet.Length);
+        _ioDiagnostics?.IoBegin("command.write", false, TurzxUsbConnection.PipeOut, packet.Length);
         var written = _connection.Write(packet, token);
+        _ioDiagnostics?.ReturnedWrite(written);
         diagnostics?.CompleteWrite(written);
         if (written != packet.Length) throw new IOException($"TURZX short USB write: {written}/{packet.Length} bytes.");
         token.ThrowIfCancellationRequested();
         diagnostics?.Begin("sync-primary-read", "read", TurzxUsbConnection.PipeIn, _response.Length);
+        _ioDiagnostics?.IoBegin("command.primary.read", true, TurzxUsbConnection.PipeIn, _response.Length);
         var received = _connection.Read(_response, token);
+        _ioDiagnostics?.Reply(_response, received);
         diagnostics?.CompleteRead(_response, received);
         diagnostics?.Stage("sync-primary-validation");
         if (received < 0 || received > _response.Length) throw new IOException("TURZX USB read returned an invalid length.");

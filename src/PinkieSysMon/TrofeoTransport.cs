@@ -23,6 +23,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
     private readonly FileLogger _log;
     private readonly OutputTargetConfig _target;
+    private readonly PhysicalIoDiagnostics? _ioDiagnostics;
     private readonly OutputDeviceDescriptor _device;
     private readonly byte[] _ackBuffer = new byte[512];
     private readonly CancellationToken _ioCancellation;
@@ -40,9 +41,10 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         FileLogger log,
         OutputTargetConfig target,
         OutputDeviceDescriptor device,
-        CancellationToken ioCancellation)
+        CancellationToken ioCancellation, PhysicalIoDiagnostics? ioDiagnostics)
     {
         _log = log;
+        _ioDiagnostics = ioDiagnostics;
         _ioCancellation = ioCancellation;
         _target = target;
         _device = device;
@@ -57,7 +59,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         int transferTimeoutMs,
         FileLogger log,
         CancellationToken ioCancellation,
-        PhysicalHandshakeDiagnostics? diagnostics = null)
+        PhysicalHandshakeDiagnostics? diagnostics = null, PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         diagnostics?.Stage("discovery");
         ArgumentNullException.ThrowIfNull(target);
@@ -74,7 +76,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             throw new OutputDeviceResolutionException(resolution.Status, resolution.Message);
 
         ioCancellation.ThrowIfCancellationRequested();
-        var transport = new TrofeoTransport(log, target, resolution.Device, ioCancellation);
+        var transport = new TrofeoTransport(log, target, resolution.Device, ioCancellation, ioDiagnostics);
         var openStartedAt = Stopwatch.GetTimestamp();
         try
         {
@@ -96,6 +98,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         _log.Info($"{LogTarget} native open beginning; timeoutMs={transferTimeoutMs}.");
 
         diagnostics?.Stage("native-open");
+        _ioDiagnostics?.Stage("native.open");
         _deviceHandle = CreateFileW(
             path,
             GenericRead | GenericWrite,
@@ -110,13 +113,16 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
         _ioCancellation.ThrowIfCancellationRequested();
         diagnostics?.Stage("native-initialize");
+        _ioDiagnostics?.Stage("native.initialize");
         if (!WinUsb_Initialize(_deviceHandle, out _interfaceHandle))
             throw new Win32Exception(Marshal.GetLastWin32Error(), "WinUsb_Initialize failed");
 
         _ioCancellation.ThrowIfCancellationRequested();
         diagnostics?.Stage("interface-validation");
+        _ioDiagnostics?.Stage("native.interface-validation");
         ValidateBulkInterface();
         diagnostics?.Stage("configure-out-pipe");
+        _ioDiagnostics?.Stage("native.pipe.configure");
         ConfigurePipe(PipeOut, transferTimeoutMs);
         diagnostics?.Stage("configure-in-pipe");
         ConfigurePipe(PipeIn, transferTimeoutMs);
@@ -236,6 +242,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
             stage = "ack";
             var ackLength = ReadInto(PipeIn, _ackBuffer);
+            _ioDiagnostics?.Reply(_ackBuffer, ackLength);
             if (ackLength == 0)
                 throw new IOException("Trofeo returned an empty frame ACK.");
         }
@@ -354,6 +361,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
             overlapped,
             fDeleteOld: false);
 
+        _ioDiagnostics?.IoBegin(isRead ? "native.read" : "native.write", isRead, pipeId, length);
         var started = isRead
             ? WinUsb_ReadPipe(
                 _interfaceHandle, pipeId, buffer, checked((uint)length), out _, overlapped)
@@ -364,9 +372,13 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
         {
             var immediateError = Marshal.GetLastWin32Error();
             if (immediateError != ErrorIoPending)
+            {
+                _ioDiagnostics?.IoResult(false, 0, immediateError, "submit-failed");
                 throw new Win32Exception(immediateError,
                     $"WinUsb_{(isRead ? "Read" : "Write")}Pipe(0x{pipeId:X2}) failed");
+            }
 
+            _ioDiagnostics?.Stage("native.pending");
             var cancelled = TrofeoOverlappedCompletionWait.Wait(
                 completion,
                 _ioCancellation,
@@ -374,26 +386,38 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
                 {
                     // ERROR_NOT_FOUND means completion may have beaten the request.
                     // Either way, the terminal result MUST still be drained.
+                    _ioDiagnostics?.Stage("native.cancel");
                     if (!CancelIoEx(_deviceHandle!, overlapped))
                     {
                         var error = Marshal.GetLastWin32Error();
                         if (error != ErrorNotFound)
-                            throw new Win32Exception(error, "CancelIoEx(Trofeo) failed");
+                        {
+                            var failure = new Win32Exception(error, "CancelIoEx(Trofeo) failed");
+                            _ioDiagnostics?.CancellationFailure(failure);
+                            throw failure;
+                        }
                     }
                 },
                 () =>
                 {
                     // This waits for actual kernel completion, not just for
                     // CancelIoEx to acknowledge its cancellation request.
-                    _ = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out _, true);
+                    _ioDiagnostics?.Stage("native.cancel.drain");
+                    var drained = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var actual, true);
+                    var error = drained ? 0 : Marshal.GetLastWin32Error();
+                    _ioDiagnostics?.IoResult(drained, actual, error, "cancel-drain-terminal");
                 });
 
             if (cancelled)
                 throw new OperationCanceledException(_ioCancellation);
         }
 
-        if (!WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var transferred, true))
-            throw new Win32Exception(Marshal.GetLastWin32Error(),
+        _ioDiagnostics?.Stage("native.terminal-completion");
+        var completed = WinUsb_GetOverlappedResult(_interfaceHandle, overlapped, out var transferred, true);
+        var completionError = completed ? 0 : Marshal.GetLastWin32Error();
+        _ioDiagnostics?.IoResult(completed, transferred, completionError, "terminal");
+        if (!completed)
+            throw new Win32Exception(completionError,
                 $"WinUsb_GetOverlappedResult(0x{pipeId:X2}) failed");
 
         _ioCancellation.ThrowIfCancellationRequested();
@@ -404,6 +428,7 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
     {
         var buffer = new byte[length];
         var transferred = ReadInto(pipeId, buffer);
+        _ioDiagnostics?.Reply(buffer, transferred);
         if (transferred == buffer.Length)
             return buffer;
 
@@ -417,7 +442,12 @@ internal sealed class TrofeoTransport : IPhysicalFrameTransport
 
         if (_interfaceHandle != IntPtr.Zero)
         {
-            WinUsb_Free(_interfaceHandle);
+            _ioDiagnostics?.Stage("native.free");
+            if (!WinUsb_Free(_interfaceHandle))
+            {
+                var error = Marshal.GetLastWin32Error();
+                _ioDiagnostics?.NativeReleaseFailure(error);
+            }
             _interfaceHandle = IntPtr.Zero;
         }
 

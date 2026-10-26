@@ -31,6 +31,12 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 USB bounded evidence and unknown counts", Issue105UsbLoggingTests.BoundedEvidenceAndUnknownCounts),
+            ("Issue105 USB healthy sparse stream and exact I/O", Issue105UsbLoggingTests.HealthyStreamIsSparseAndExact),
+            ("Issue105 USB malformed frame evidence and no retry", Issue105UsbLoggingTests.MalformedFrameBoundariesRetained),
+            ("Issue105 USB pending cancellation and native ownership", Issue105UsbLoggingTests.PendingCancellationKeepsNativeOwnership),
+            ("Issue105 USB native failure during cancellation", Issue105UsbLoggingTests.NativeFailureDuringCancellationIsRetained),
+            ("Issue105 USB slow completion and failed acquisition", Issue105UsbLoggingTests.SlowCompletionAndOpenFailure),
             ("Issue105 operation outcomes and parent correlation", Issue105EditorLoggingTests.OperationOutcomesAndCorrelation),
             ("Issue105 per-incident recovery flush", Issue105EditorLoggingTests.RecoveryFlushPreservesOtherIncidents),
             ("Issue105 Editor load save and history evidence", Issue105EditorLoggingTests.LoadSaveAndHistory),

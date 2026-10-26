@@ -48,7 +48,20 @@ For a configured, connected Output, edit its name, saved dashboard assignment, r
 
 ### Automatic device logging
 
-Significant physical-device events are recorded automatically with Output ID/name and protocol: session start/reconfiguration, transport connection, the first completed frame per connection, recovery and retirement. LY failures additionally retain transport phase, frame sequence and elapsed time. Successful per-frame/chunk tracing is not enabled. Shared destinations, error correlation, durability and lifetimes are defined by [Application logging](../development/architecture.md#application-logging).
+Significant physical-device events are recorded automatically with Output ID/name and protocol: session start/reconfiguration, transport connection, the first completed frame per connection, recovery and retirement. Shared destinations, error correlation, durability and lifetimes are defined by [Application logging](../development/architecture.md#application-logging).
+
+The production factory adds a per-connection `PhysicalIoDiagnostics` observer for LY and EncJPEG open/frame/disposal boundaries. Each retained `PHYSICAL_IO` record identifies the connection and operation, reached phase, configured timeout, monotonic ages, observed cancellation, completed-frame/failure totals, and bounded recent I/O. Records include pipe, direction, requested/known actual count, returned native code and cancellation-request failure where available. Failed or pending completion has an unknown actual count, not a fabricated empty success. Returned control replies retain at most 512 bytes per record; the recent window is 16 operations with explicit eviction counts and the last nonempty reply. JPEG/image bytes, raw interface paths and serials are not captured.
+
+| Observation | Recording policy |
+| --- | --- |
+| Acquisition and disposal | Begin and returned outcome; a missing exact binding is informational. A returned Dispose is not independent proof every native release succeeded; failed WinUSB release is recorded as unconfirmed. |
+| Healthy frames | First completed frame and approximately 30-second progress snapshots; per-write/chunk success stays in bounded memory rather than producing a disk record. |
+| Failed exchange | Full original failure and recent context through the shared error route; propagation reuses the original exception identity. No automatic protocol retry is added. |
+| Long pending phase | A managed timer samples once per second. Phase age beyond configured timeout plus 250 ms is recorded as a pending observation, repeated at most once per 30 seconds while unchanged. This is a diagnostic threshold, not an I/O deadline or proof of a stuck driver. |
+| Returned slow operation | Slow phase duration is retained even if it completes between timer samples. Completion after a pending observation remains distinct from an operation still outstanding. |
+| Cancellation/drain | Actual cancellation-request and terminal-drain phases remain separate. An observed non-cancellation native failure is retained even when caller cancellation determines the thrown exception. Expired shutdown grace is also retained as incomplete work. |
+
+The observer copies only managed diagnostic state and writes outside its state lock; it never owns native handles, cancels I/O, requests additional USB reads, changes replies, or frees a pending buffer. A queued callback may describe its earlier sampled instant after completion has raced the disk write; use `observedAt` and `activeAtObservation`. Managed timers can be delayed or prevented by scheduling, a blocked logging sink, or a whole-host stop. A hard freeze before the next snapshot/error write can therefore leave only earlier milestones; absence of a record neither proves healthy USB nor identifies the initiating cause. No Windows-event import or cause attribution is implied.
 
 Device cards have no USB diagnostics checkbox, placeholder, clearing button or related help row. **Diagnostics provider / Provider Enabled** remains an independent telemetry control. Retired global or per-target `DiagnosticJournalEnabled` JSON members are ignored on read and omitted on save; changing only these old values cannot block enablement or reconnect a transport. No new per-device journal is created; historical journals remain untouched.
 

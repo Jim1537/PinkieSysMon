@@ -19,11 +19,13 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
     public PhysicalFrameProfile Profile => PhysicalFrameProfile.EncryptedJpeg;
 
     public static TurzxFrameTransport? TryOpen(OutputTargetConfig target, int timeoutMs,
-        FileLogger log, CancellationToken token, PhysicalHandshakeDiagnostics? diagnostics = null)
+        FileLogger log, CancellationToken token, PhysicalHandshakeDiagnostics? diagnostics = null,
+        PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         diagnostics?.Stage("options");
+        ioDiagnostics?.Stage("options");
         ValidateOptions(target);
-        var transport = TurzxTransport.TryOpen(target, timeoutMs, token, diagnostics);
+        var transport = TurzxTransport.TryOpen(target, timeoutMs, token, diagnostics, ioDiagnostics);
         return transport is null ? null : new TurzxFrameTransport(transport, token);
     }
 
@@ -46,14 +48,15 @@ internal static class PhysicalFrameTransportFactory
         ArgumentNullException.ThrowIfNull(target);
         token.ThrowIfCancellationRequested();
         if (!target.DeviceEnabled) throw new InvalidOperationException("A disabled physical Output cannot open a frame transport.");
-        return PhysicalHandshakeDiagnostics.Observe<IPhysicalFrameTransport?>(target, timeoutMs, token, diagnostics =>
+        return ObservedPhysicalFrameTransport.Open(target, timeoutMs, log, token, observation =>
+            PhysicalHandshakeDiagnostics.Observe<IPhysicalFrameTransport?>(target, timeoutMs, token, diagnostics =>
             (target.Kind, target.Transport) switch
         {
             (OutputTargetContract.PhysicalKind, OutputTargetContract.LyBulkTransport) =>
-                TrofeoTransport.TryOpen(target, timeoutMs, log, token, diagnostics),
+                TrofeoTransport.TryOpen(target, timeoutMs, log, token, diagnostics, observation),
             (OutputTargetContract.PhysicalKind, OutputTargetContract.EncryptedJpegTransport) =>
-                TurzxFrameTransport.TryOpen(target, timeoutMs, log, token, diagnostics),
+                TurzxFrameTransport.TryOpen(target, timeoutMs, log, token, diagnostics, observation),
             _ => throw new InvalidOperationException("Unsupported physical frame transport.")
-        }, (message, error) => log.Error(message, error));
+        }, (message, error) => log.Error(message, error)));
     }
 }

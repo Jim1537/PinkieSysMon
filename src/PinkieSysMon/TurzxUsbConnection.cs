@@ -17,16 +17,18 @@ internal sealed class TurzxUsbConnection : ITurzxUsbConnection
     public const byte PipeIn = 0x81;
     private readonly object _gate = new();
     private readonly ITurzxNativeIo _native;
+    private readonly PhysicalIoDiagnostics? _ioDiagnostics;
     private readonly int _timeoutMs;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly EventWaitHandle _completion;
     private IntPtr _overlapped;
     private int _closing;
 
-    public TurzxUsbConnection(ITurzxNativeIo native, int timeoutMs)
+    public TurzxUsbConnection(ITurzxNativeIo native, int timeoutMs, PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         ValidateTimeout(timeoutMs);
         _native = native ?? throw new ArgumentNullException(nameof(native));
+        _ioDiagnostics = ioDiagnostics;
         _timeoutMs = timeoutMs;
         try { _completion = new(false, EventResetMode.ManualReset); }
         catch { _native.Dispose(); _shutdown.Dispose(); throw; }
@@ -59,23 +61,35 @@ internal sealed class TurzxUsbConnection : ITurzxUsbConnection
             var pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             try
             {
+                _ioDiagnostics?.Stage("native.submit");
                 var immediate = _native.Submit(read, read ? PipeIn : PipeOut, pinned.AddrOfPinnedObject(),
                     (uint)buffer.Length, _overlapped, out var submitError);
                 if (!immediate && submitError != 997)
+                {
+                    _ioDiagnostics?.IoResult(false, 0, submitError, "submit-failed");
                     throw Failure(submitError, "submit");
+                }
                 bool completed;
                 uint transferred;
                 int completionError;
                 try
                 {
+                    _ioDiagnostics?.Stage(immediate ? "native.immediate" : "native.pending");
                     if (!immediate && WaitHandle.WaitAny([_completion, linked.Token.WaitHandle]) == 1)
-                        _native.Cancel(_overlapped);
+                    {
+                        _ioDiagnostics?.Stage(deadline.IsCancellationRequested ? "native.deadline.cancel" : "native.cancel");
+                        try { _native.Cancel(_overlapped); }
+                        catch (Exception error) { _ioDiagnostics?.CancellationFailure(error); throw; }
+                    }
                 }
                 finally
                 {
                     // CancelIoEx is only a request. Complete MUST wait for the
                     // terminal native result, even if cancellation itself fails.
+                    _ioDiagnostics?.Stage("native.terminal-completion");
                     completed = _native.Complete(_overlapped, out transferred, out completionError);
+                    _ioDiagnostics?.IoResult(completed, transferred, completionError, "terminal");
+                    _ioDiagnostics?.Stage("native.returned");
                 }
                 if (token.IsCancellationRequested) throw new OperationCanceledException(token);
                 if (_shutdown.IsCancellationRequested) throw new OperationCanceledException(_shutdown.Token);

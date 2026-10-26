@@ -921,7 +921,8 @@ internal sealed class FramePump : IOutputSession
                 }
                 catch (TimeoutException)
                 {
-                    _log.Warn($"{LogTarget} did not finish its pending USB operation within {graceMs} ms; cancelling I/O.");
+                    _log.Error($"{LogTarget} USB_SHUTDOWN_GRACE_EXPIRED; graceMs={graceMs}; " +
+                        "workerCompletion=unconfirmed; requesting cancellation; native resources remain owned until terminal completion.");
                     _cts.Cancel();
                     // Cancellation is only a request. Keep buffers and handles alive
                     // until the worker has drained actual native completion.

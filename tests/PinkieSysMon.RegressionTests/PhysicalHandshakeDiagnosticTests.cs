@@ -159,11 +159,29 @@ internal static class PhysicalHandshakeDiagnosticTests
         Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is NotSupportedException, "Unsupported brightness sequencing remains rejected before native discovery.");
         var lines = File.ReadAllLines(path);
         var errors = File.ReadAllLines(log.ErrorsPath);
-        Check(lines.Length == 1 && lines[0].Contains("[ERROR_REF]", StringComparison.Ordinal) &&
-              !lines[0].Contains("PHYSICAL_OPEN_FAILURE", StringComparison.Ordinal) && errors.Length == 1,
-              "The factory retains the complete failure only in Errors and a session reference.");
-        using var record = JsonDocument.Parse(errors[0][errors[0].IndexOf('{')..]);
-        using var json = Parse(record.RootElement.GetProperty("message").GetString()!);
+        // The production observer now adds one acquisition milestone and a
+        // correlated PHYSICAL_IO context, without another full exception dump.
+        var session = lines.Select(line =>
+        {
+            using var value = JsonDocument.Parse(line[line.IndexOf('{')..]);
+            return value.RootElement.Clone();
+        }).ToArray();
+        var failures = errors.Select(line =>
+        {
+            using var value = JsonDocument.Parse(line[line.IndexOf('{')..]);
+            return value.RootElement.Clone();
+        }).ToArray();
+        var original = failures.Single(r => r.GetProperty("exception").ValueKind == JsonValueKind.String);
+        var id = original.GetProperty("eventId").GetString();
+        Check(lines.Length >= 3 && errors.Length >= 2 &&
+              session.Count(r => r.GetProperty("eventId").GetString() == id) == 2 &&
+              failures.Count(r => r.GetProperty("eventId").GetString() == id) == 2 &&
+              failures.All(r => r.GetProperty("message").GetString()!.StartsWith("PHYSICAL_IO ", StringComparison.Ordinal) ||
+                  r.GetProperty("message").GetString()!.StartsWith("PHYSICAL_OPEN_FAILURE ", StringComparison.Ordinal)) &&
+              !File.ReadAllText(path).Contains("PHYSICAL_OPEN_FAILURE", StringComparison.Ordinal) &&
+              !File.ReadAllText(path).Contains("Unsupported", StringComparison.Ordinal),
+              "Acquisition context and references must preserve one full exception only in Errors.");
+        using var json = Parse(original.GetProperty("message").GetString()!);
         Check(json.RootElement.GetProperty("stage").GetString() == "options" && json.RootElement.GetProperty("operations").GetArrayLength() == 0, "A pre-I/O failure must not fabricate a handshake.");
         // Leave fixture logs available if this test fails; never touch application logs.
     }

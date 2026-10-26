@@ -10,17 +10,21 @@ internal sealed class WindowsTurzxNativeIo : ITurzxNativeIo
 {
     private SafeFileHandle? _file;
     private IntPtr _usb;
+    private PhysicalIoDiagnostics? _ioDiagnostics;
     private WindowsTurzxNativeIo() { }
 
-    public static WindowsTurzxNativeIo Open(string path, int timeoutMs)
+    public static WindowsTurzxNativeIo Open(string path, int timeoutMs, PhysicalIoDiagnostics? ioDiagnostics = null)
     {
         TurzxUsbConnection.ValidateTimeout(timeoutMs);
-        var io = new WindowsTurzxNativeIo();
+        var io = new WindowsTurzxNativeIo { _ioDiagnostics = ioDiagnostics };
         try
         {
+            ioDiagnostics?.Stage("native.open");
             io._file = CreateFileW(path, 0xC0000000, 3, IntPtr.Zero, 3, 0x40000080, IntPtr.Zero);
             if (io._file.IsInvalid) throw Error("open");
+            ioDiagnostics?.Stage("native.initialize");
             if (!WinUsb_Initialize(io._file, out io._usb)) throw Error("initialize");
+            ioDiagnostics?.Stage("native.interface-validation");
             if (!WinUsb_GetCurrentAlternateSetting(io._usb, out var currentSetting)) throw Error("alternate setting");
             if (currentSetting != 0) throw new IOException("TURZX current alternate setting is unsupported.");
             if (!WinUsb_QueryInterfaceSettings(io._usb, 0, out var descriptor)) throw Error("interface descriptor");
@@ -34,6 +38,7 @@ internal sealed class WindowsTurzxNativeIo : ITurzxNativeIo
                 pipes.Add(pipe);
             }
             ValidatePipes(pipes);
+            ioDiagnostics?.Stage("native.pipe.configure");
             var timeout = (uint)timeoutMs;
             foreach (var pipe in new[] { TurzxUsbConnection.PipeOut, TurzxUsbConnection.PipeIn })
                 if (!WinUsb_SetPipePolicy(io._usb, pipe, 3, sizeof(uint), ref timeout)) throw Error("pipe timeout");
@@ -80,7 +85,16 @@ internal sealed class WindowsTurzxNativeIo : ITurzxNativeIo
 
     public void Dispose()
     {
-        if (_usb != IntPtr.Zero) { WinUsb_Free(_usb); _usb = IntPtr.Zero; }
+        if (_usb != IntPtr.Zero)
+        {
+            _ioDiagnostics?.Stage("native.free");
+            if (!WinUsb_Free(_usb))
+            {
+                var error = Marshal.GetLastWin32Error();
+                _ioDiagnostics?.NativeReleaseFailure(error);
+            }
+            _usb = IntPtr.Zero;
+        }
         _file?.Dispose();
         _file = null;
     }
