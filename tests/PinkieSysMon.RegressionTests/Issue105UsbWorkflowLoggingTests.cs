@@ -193,16 +193,16 @@ internal static class Issue105UsbWorkflowLoggingTests
         var clientDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task Serve()
         {
-            await server.WaitForConnectionAsync(deadline.Token);
+            await server.WaitForConnectionAsync(deadline.Token).ConfigureAwait(false);
             using var reader = new StreamReader(server, Encoding.UTF8, false, 1024, leaveOpen: true);
             using var writer = new StreamWriter(server, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true };
-            Check(await reader.ReadLineAsync(deadline.Token) == command, "The test server must receive the original command exactly once.");
-            if (cancelAfterRead) { canceled.Cancel(); await clientDone.Task.WaitAsync(deadline.Token); }
-            else await writer.WriteLineAsync(reply.AsMemory(), deadline.Token);
+            Check(await reader.ReadLineAsync(deadline.Token).ConfigureAwait(false) == command, "The test server must receive the original command exactly once.");
+            if (cancelAfterRead) { canceled.Cancel(); await clientDone.Task.WaitAsync(deadline.Token).ConfigureAwait(false); }
+            else await writer.WriteLineAsync(reply.AsMemory(), deadline.Token).ConfigureAwait(false);
         }
         var serving = Serve();
-        try { return await RuntimeIpc.SendCoreAsync(command, pipeName, 5000, canceled.Token, log); }
-        finally { clientDone.TrySetResult(); await serving; }
+        try { return await RuntimeIpc.SendCoreAsync(command, pipeName, 5000, canceled.Token, log).ConfigureAwait(false); }
+        finally { clientDone.TrySetResult(); await serving.ConfigureAwait(false); }
     }
 
     private const string Private = "PRIVATE-USB-WORKFLOW-SENTINEL";
