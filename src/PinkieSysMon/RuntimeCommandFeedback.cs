@@ -9,7 +9,7 @@ internal sealed class RuntimeCommandFeedback(
     private sealed record Result(RuntimeIpcResponse Response, RuntimeNotificationKind Kind,
         bool Pending = false, NotificationOutcome Outcome = NotificationOutcome.Default);
     private sealed record PendingCommand(RuntimeIpcCommand Command, RuntimeStatusSnapshot Before,
-        RuntimeOutputStatus[] Expected);
+        RuntimeOutputStatus[] Expected, RuntimeIpcTrace? Request);
     private readonly List<PendingCommand> _pending = [];
 
     public RuntimeIpcResponse Execute(RuntimeIpcCommand command, Func<RuntimeIpcResponse> apply,
@@ -62,7 +62,7 @@ internal sealed class RuntimeCommandFeedback(
                 displayedOutputs = Select(command, after);
                 result = Assess(command, response, before, after);
                 if (result.Pending)
-                    _pending.Add(new(command, new(before.Dashboard, Select(command, before)), Select(command, after)));
+                    _pending.Add(new(command, new(before.Dashboard, Select(command, before)), Select(command, after), RuntimeIpcTrace.Current));
             }
             catch (Exception ex)
             {
@@ -81,6 +81,7 @@ internal sealed class RuntimeCommandFeedback(
     {
         foreach (var pending in _pending.ToArray())
         {
+            using var requestContext = RuntimeIpcTrace.Enter(pending.Request);
             // A later configuration/session owner supersedes this command's completion.
             var current = Select(pending.Command, status);
             if (current.Length != pending.Expected.Length || pending.Expected.Any(expected =>

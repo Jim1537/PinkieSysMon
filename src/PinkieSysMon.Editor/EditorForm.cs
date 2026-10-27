@@ -657,7 +657,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _runtimeStatusProbeInProgress = true;
         try
         {
-            var response = await RuntimeIpc.GetStatusAsync();
+            var response = await RuntimeClient.GetStatusAsync();
             if (!IsDisposed && !_screenCommandInProgress && generation == _runtimeStateGeneration)
             {
                 _runtimeRunning = response.Success;
@@ -964,10 +964,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 configPath, config, originalBytes, async () =>
                 {
                     operation.Phase("runtime.status");
-                    var status = await RuntimeIpc.GetStatusAsync();
+                    var status = await RuntimeClient.GetStatusAsync();
                     if (!status.Success) return null;
                     operation.Phase("runtime.reload");
-                    return await RuntimeIpc.ReloadAsync();
+                    return await RuntimeClient.ReloadAsync();
                 }, operation);
             operation.Complete($"configSaved=true; runtimeReloaded={reloaded}");
             return reloaded;
@@ -2551,6 +2551,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             ? new CleanupOperation(_log, "editor.form.dispose") : null;
         try
         {
+            if (disposing) _runtimeIpc?.Dispose();
             // Programmatic Dispose has no asynchronous FormClosing handshake.
             if (disposing && !_previewShutdownComplete && _previewTelemetry is { } owner)
             {

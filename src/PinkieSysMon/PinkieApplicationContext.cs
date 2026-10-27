@@ -343,13 +343,16 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             return Task.FromResult(new RuntimeIpcResponse(true, LegacyDashboardStatus()));
 
         if (_exiting || _uiInvoker.IsDisposed)
+        {
+            RuntimeIpcTrace.Current?.Progress(_log, "refused.runtime-stopping");
             return Task.FromResult(new RuntimeIpcResponse(false, "PinkieSysMon runtime is shutting down."));
+        }
 
         if (parsed.Kind == RuntimeIpcCommandKind.Invalid)
             return Task.FromResult(new RuntimeIpcResponse(false, parsed.Error ?? "Invalid IPC command."));
 
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
-            return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus())));
+            return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus() with { IpcDiagnosticsVersion = RuntimeIpcDiagnostics.Version })));
 
         if (parsed.Kind is RuntimeIpcCommandKind.UsbTestBegin or
             RuntimeIpcCommandKind.UsbTestStatus or RuntimeIpcCommandKind.UsbTestCancel)
@@ -390,6 +393,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         if (cancellationToken.IsCancellationRequested)
             return Task.FromCanceled<RuntimeIpcResponse>(cancellationToken);
 
+        var request = RuntimeIpcTrace.Current;
+        request?.Progress(_log, "ui.queued");
         var completion = new TaskCompletionSource<RuntimeIpcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
         var cancellationRegistration = cancellationToken.Register(
             static state =>
@@ -410,6 +415,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         {
             _uiInvoker.BeginInvoke((Action)(() =>
             {
+                using var requestContext = RuntimeIpcTrace.Enter(request);
                 if (cancellationToken.IsCancellationRequested)
                 {
                     completion.TrySetCanceled(cancellationToken);
@@ -418,6 +424,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
                 try
                 {
+                    request?.Progress(_log, "ui.executing");
                     completion.TrySetResult(action());
                 }
                 catch (Exception ex)
@@ -429,6 +436,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            _log.Error("Runtime IPC UI dispatch failed.", ex);
             completion.TrySetResult(new RuntimeIpcResponse(false, ex.Message));
         }
 
@@ -490,7 +498,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private RuntimeIpcResponse ExecuteOutputCommandOnUi(RuntimeIpcCommand command)
     {
         if ((_usbTests.HasActive || _exitAfterTests) && command.Kind is not (RuntimeIpcCommandKind.Exit or RuntimeIpcCommandKind.StopAll))
+        {
+            RuntimeIpcTrace.Current?.Progress(_log, "refused.usb-test-active");
             return new(false, "Finish or cancel USB Test before applying Output configuration changes. Existing Outputs continue running.");
+        }
         var response = _commandFeedback.Execute(command, () =>
         {
             var applied = command.Kind switch

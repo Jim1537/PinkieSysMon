@@ -31,6 +31,11 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 IPC shared request and original error identity", Issue105IpcLoggingTests.SharedRequestAndOriginalError),
+            ("Issue105 IPC legacy compatibility and strict envelope", Issue105IpcLoggingTests.LegacyCompatibilityAndEnvelopeAdmission),
+            ("Issue105 IPC lost response never repeats command", Issue105IpcLoggingTests.LostResponseNeverRepeatsCommand),
+            ("Issue105 IPC context lifetime and deferred feedback", Issue105IpcLoggingTests.ContextIsolationAndDeferredFeedback),
+            ("Issue105 IPC counted status and observer isolation", Issue105IpcLoggingTests.CountedStatusAndObserverIsolation),
             ("Issue105 USB workflow phase and visual evidence", Issue105UsbWorkflowLoggingTests.EditorPhasesAndVisualOutcome),
             ("Issue105 USB Runtime admission and worker failures", Issue105UsbWorkflowLoggingTests.RuntimeAdmissionAndWorkerFailures),
             ("Issue105 USB IPC unknown reply and original exception", Issue105UsbWorkflowLoggingTests.TransportUnknownReplyAndOriginalException),

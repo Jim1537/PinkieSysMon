@@ -138,11 +138,12 @@ internal sealed class FileLogger
 
     private string WriteLocked(string level, string message, Exception? ex)
     {
+        var request = RuntimeIpcTrace.Current;
         var eventId = Guid.NewGuid().ToString("N");
         var isError = level == "ERROR" || ex is not null;
         if (!isError)
         {
-            TryAppend(Path, Format(level, eventId, message, null), durable: false);
+            TryAppend(Path, Format(level, eventId, message, null, request), durable: false);
             return eventId;
         }
 
@@ -151,24 +152,25 @@ internal sealed class FileLogger
         {
             eventId = prior.EventId;
             // Preserve the new reporting boundary without duplicating the stack.
-            stored = message == prior.Message || TryAppend(ErrorsPath,
-                Format("ERROR_CONTEXT", eventId, message, null, level), durable: true);
+            stored = (message == prior.Message && request?.Id == prior.RequestId) || TryAppend(ErrorsPath,
+                Format("ERROR_CONTEXT", eventId, message, null, request, level), durable: true);
         }
         else
         {
-            stored = TryAppend(ErrorsPath, Format("ERROR", eventId, message, ex, level), durable: true);
-            if (stored && ex is not null) _recordedFailures.Add(ex, new RecordedFailure(eventId, message));
+            stored = TryAppend(ErrorsPath, Format("ERROR", eventId, message, ex, request, level), durable: true);
+            if (stored && ex is not null) _recordedFailures.Add(ex, new RecordedFailure(eventId, message, request?.Id));
         }
+        if (stored) request?.ObserveError(eventId);
         // The session reference contains no original failure text or exception.
         TryAppend(Path, Format(stored ? "ERROR_REF" : "LOGGING_FAILURE", eventId,
             stored ? "Full failure is recorded in PinkieSysMon.Errors.log."
                 : "Failure persistence was not confirmed; inspect log storage/access.",
-            null), durable: false);
+            null, request), durable: false);
         return eventId;
     }
 
     private string Format(string level, string eventId, string message, Exception? ex,
-        string? reportedLevel = null) =>
+        RuntimeIpcTrace? request, string? reportedLevel = null) =>
         $"{DateTimeOffset.Now:O} [{level}] " + JsonSerializer.Serialize(new
         {
             component = Component,
@@ -176,6 +178,10 @@ internal sealed class FileLogger
             pid = Environment.ProcessId,
             eventId,
             reportedLevel,
+            ipcRequestId = request?.Id.ToString("N"),
+            ipcActor = request?.Actor,
+            ipcVerb = request?.Command.Kind.ToString(),
+            ipcTarget = RuntimeIpcTrace.BoundTarget(request?.Command.TargetId),
             message = Bound(message),
             exception = ex is null ? null : Bound(ex.ToString()),
             exceptionType = ex?.GetType().FullName,
@@ -222,7 +228,7 @@ internal sealed class FileLogger
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
     }
 
-    private sealed record RecordedFailure(string EventId, string Message);
+    private sealed record RecordedFailure(string EventId, string Message, Guid? RequestId);
 
     private sealed class ThrottleState(string signature, bool isError, string eventId,
         long lastWrite, DateTimeOffset firstOccurrence)

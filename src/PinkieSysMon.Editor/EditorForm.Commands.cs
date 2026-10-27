@@ -19,6 +19,8 @@ namespace PinkieSysMon.Editor;
 
 internal sealed partial class EditorForm
 {
+    private RuntimeIpcClient? _runtimeIpc;
+    private RuntimeIpcClient RuntimeClient => _runtimeIpc ??= new(_log);
     private ToolStripMenuItem _openDashboardMenuItem = null!;
     private ToolStripMenuItem _saveMenuItem = null!;
     private ToolStripMenuItem _cloneDashboardMenuItem = null!;
@@ -605,7 +607,7 @@ internal sealed partial class EditorForm
             return;
         var dashboard = _dashboardName;
         var actions = new EditorOutputStartActions(
-            () => RuntimeIpc.GetStatusAsync(),
+            () => RuntimeClient.GetStatusAsync(),
             IsRuntimeProcessPresent,
             () => EditorOutputStartWorkflow.FromConfiguration(AppConfig.Load(_appConfigPath, _log)),
             LaunchRuntimeForOutputCommandAsync,
@@ -615,9 +617,9 @@ internal sealed partial class EditorForm
                     throw new InvalidOperationException("The Editor dashboard changed while preparing Reload. Retry the action.");
                 return EditorDialogs.ChooseOutputDashboard(this, output, dashboard);
             },
-            (id, board) => RuntimeIpc.AssignDashboardAsync(id, board),
-            id => RuntimeIpc.StartOrReloadTargetAsync(id),
-            () => RuntimeIpc.StartOrReloadAllAsync());
+            (id, board) => RuntimeClient.AssignDashboardAsync(id, board),
+            id => RuntimeClient.StartOrReloadTargetAsync(id),
+            () => RuntimeClient.StartOrReloadAllAsync());
         await ExecuteOutputCommandAsync(
             () => EditorOutputStartWorkflow.RunAsync(dashboard, targetId, actions),
             dialogTitle: targetId is null ? "Reload All Outputs" : "Reload Output",
@@ -629,7 +631,7 @@ internal sealed partial class EditorForm
     private async Task ExecuteStopAllOutputsAsync()
     {
         await ExecuteOutputCommandAsync(
-            async () => await RuntimeIpc.StopAllOutputsAsync(),
+            async () => await RuntimeClient.StopAllOutputsAsync(),
             dialogTitle: "Stop All Outputs",
             fallbackSuccessMessage: "All output targets stopped and unloaded.",
             synchronizeRuntimeShutdown: true);
@@ -714,7 +716,7 @@ internal sealed partial class EditorForm
 
     private async Task<RuntimeIpcStatusResponse> LaunchRuntimeForOutputCommandAsync()
     {
-        var existing = await RuntimeIpc.GetStatusAsync();
+        var existing = await RuntimeClient.GetStatusAsync();
         if (existing.Success)
         {
             _runtimeRunning = true;
@@ -748,7 +750,7 @@ internal sealed partial class EditorForm
         for (var attempt = 0; attempt < 15; attempt++)
         {
             await Task.Delay(200);
-            var response = await RuntimeIpc.GetStatusAsync();
+            var response = await RuntimeClient.GetStatusAsync();
             if (!response.Success)
                 continue;
 

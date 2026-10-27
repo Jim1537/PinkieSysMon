@@ -6,6 +6,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly IReadOnlyList<string> _dashboardChoices;
     private readonly int _desktopCount;
     private readonly EditorUsbTestClient _testClient;
+    private readonly RuntimeIpcClient _runtimeIpc;
     private CancellationTokenSource? _testCancellation;
     private bool _testUiBusy;
     private bool _saveUiBusy;
@@ -29,6 +30,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         Func<AppConfig, byte[]?, string?, Task<bool>>? persistAndApplyObserved = null)
     {
         _log = log;
+        _runtimeIpc = new(log);
         if (persistAndApplyObserved is not null) _persistAndApply = persistAndApplyObserved;
         else if (persistAndApply is not null)
             _persistAndApply = (updated, expected, _) => persistAndApply(updated, expected);
@@ -81,7 +83,10 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            _runtimeIpc.Dispose();
             _help.Dispose();
+        }
         base.Dispose(disposing);
     }
 
@@ -377,7 +382,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             ReportCommitted(saved, reloaded, operation);
             var start = _runtimeProcessPresent is not null && _launchRuntime is not null
                 ? await ConfiguredDeviceRuntimeStart.AfterSaveAsync(reloaded,
-                    () => RuntimeIpc.GetStatusAsync(), _runtimeProcessPresent,
+                    () => _runtimeIpc.GetStatusAsync(), _runtimeProcessPresent,
                     () => MessageBox.Show(this,
                         "Configuration saved. Runtime is not running.\n\n" +
                         "Runtime sends dashboards to saved enabled Outputs. Start it now? " +
@@ -511,10 +516,10 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             var original = _devices.PrepareRemove(target, _desktopCount);
             var (saved, reloaded, warning) = await PhysicalDeviceSettingsTransaction.RemoveConfiguredAsync(
                 Path.Combine(_help.ApplicationRoot!, "config", "app.json"), _log, original,
-                () => RuntimeIpc.GetStatusAsync(), RuntimeProcessLease.ExistsForCurrentUser,
+                () => _runtimeIpc.GetStatusAsync(), RuntimeProcessLease.ExistsForCurrentUser,
                 () => RuntimeProcessLease.TryAcquireForCurrentUser(),
-                (id, hash) => RuntimeIpc.PreparePhysicalRemovalAsync(id, hash),
-                () => RuntimeIpc.ReloadAsync(), operation.Id);
+                (id, hash) => _runtimeIpc.PreparePhysicalRemovalAsync(id, hash),
+                () => _runtimeIpc.ReloadAsync(), operation.Id);
             _devices.AcceptRemovedConfigured(target);
             operation.Phase("editor.refresh", "fileCommitted=true");
             ReportCommitted(saved, reloaded, operation);

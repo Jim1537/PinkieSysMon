@@ -179,7 +179,7 @@ Runtime common/selected settings operations record their apply and recovery boun
 
 Records separate Runtime preparation, attempted Begin dispatch, admission, connection, timed observation, cancellation and native-release outcome from the user's later visual Yes/No. Protocol and geometry describe the selected attempt without logging raw candidate paths, names or command/response payloads. Editor status progress records only phase changes and a final poll count; countdown ticks and healthy status/ping replies are quiet. Client transport failures retain their original exceptions and whether a write was attempted; repeated USB status transport failures are throttled for thirty seconds and a recognized reply flushes that incident's repeat count. Runtime admission diagnostics are emitted outside its session-state gate.
 
-A lost/invalid reply, pending cleanup or cancellation request remains distinct from technical release, visual approval and saved configuration. The diagnostic records preserve the coordinator's existing uncertainty and ownership policy; they add no retry or native timeout. This covers the USB Test attempt only: ordinary IPC command correlation and broader event coverage remain tracked in [#105](https://github.com/Jim1537/PinkieSysMon/issues/105).
+A lost/invalid reply, pending cleanup or cancellation request remains distinct from technical release, visual approval and saved configuration. The diagnostic records preserve the coordinator's existing uncertainty and ownership policy; they add no retry or native timeout. Ordinary commands use the [negotiated request protocol](#correlated-ordinary-ipc-commands); remaining event coverage is tracked in [#105](https://github.com/Jim1537/PinkieSysMon/issues/105).
 
 ### Cleanup observation
 
@@ -220,6 +220,22 @@ The shared IPC server rejects any request line longer than 8192 characters and b
 Runtime owns session reconfiguration and shared-subsystem recovery. The [selected saved reload](#selected-output-saved-reload) and [aggregate saved configuration](#reload-all-saved-configuration) contracts below define their distinct preparation, scope and recovery boundaries. New renderers are prepared from saved documents while each previously live renderer is retained for transactional rollback without reopening its image files. A deleted asset referenced only by the former in-memory dashboard must not block a valid saved replacement. The retained native resources are released after successful commit or transferred back on rollback.
 
 The control plane additionally governs global output lifetime, system suspend/resume, and shutdown. An Output's saved enablement is its only per-target activation policy: Desktop uses `Desktop.BoardEnabled`, and physical Outputs use `DeviceEnabled`. There is no independent manually stopped target set. A normal Runtime launch starts sessions for saved enabled Outputs. Applying disabled configuration unloads that session; applying enabled configuration starts it while Runtime's global output lifetime is running. Disabling the final Output keeps Runtime available for configuration. Global Stop All/Exit shuts down Runtime without changing saved enablement; target reload and configuration requests cannot bypass a globally stopped lifetime. Suspend/resume preserves saved enablement and suppresses frame work through the existing session primitives.
+
+### Correlated ordinary IPC commands
+
+Before each ordinary command, the Editor's observed `RuntimeIpcClient` reads STATUS on the existing pipe. Ordinary Runtime advertises the additive `IpcDiagnosticsVersion = 1` field. Discovery has its own maximum 750 ms timeout; the command retains its existing timeout. No USB probe or configuration write is added.
+
+| Boundary | Contract |
+| --- | --- |
+| Matching capability | Send one `IPC_REQUEST_V1` envelope: request GUID, declared `Editor` actor and original command. |
+| Reply | Echo the GUID, result, user-facing message and first successfully persisted error event ID, when available. |
+| Legacy compatibility | Missing/unavailable/unsupported capability uses the original command/reply format. New servers also accept older clients. |
+| Admission | Validate required metadata and the existing 8192-character limit. Reject malformed, nested, extended or unsupported envelopes without invoking the handler or echoing payloads. An oversized wrapper fails before its command write. |
+| Uncertainty | Never fall back or resend after a possible write, including a lost/malformed/mismatched reply or Runtime replacement between discovery and dispatch. Acceptance, reply delivery, native release and visible output remain distinct. |
+
+Records add request ID, actor, verb and bounded logical target context. Runtime distinguishes receipt, UI queueing/execution, refusal, handler return and reply write. Editor references a returned Runtime error identity without copying its exception. Legacy requests have Runtime-local IDs; fallback Editor operations explicitly record local-only correlation. Declared actors/GUIDs provide correlation; they are not authentication or an idempotency/replay guard. Deferred readiness feedback re-enters its captured request; disposed ambient scopes stop attributing unrelated future worker errors to an old command. Independent worker evidence keeps its existing Output/session correlation.
+
+Each UI owner's STATUS observer records first availability, state changes, thirty-second counted summaries and final completed-response totals. Summaries omit names/dashboard values/payloads; at most 64 logical IDs of 128 characters are retained with omission/truncation markers. Expected pre-contact absence or caller cancellation is not an application error. Failed reads after sending STATUS and malformed data retain throttled actual errors and recovery totals; observer failure preserves the response. A diagnostic-only gate serializes observation/closure without holding application/session state or waiting for network I/O. Independent incident keys flush on disposal; late responses are not joined and cannot write STATUS diagnostics after disposal.
 
 ### Transient USB Test coordination
 

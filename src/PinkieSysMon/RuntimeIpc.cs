@@ -8,6 +8,8 @@ namespace PinkieSysMon;
 internal sealed record RuntimeIpcResponse(bool Success, string Message)
 {
     internal bool ResponseReceived { get; init; }
+    internal Guid? RequestId { get; init; }
+    internal string? ErrorEventId { get; init; }
 }
 
 internal static class RuntimeStartupOptions
@@ -42,7 +44,11 @@ internal sealed record RuntimeOutputStatus(
 
 internal sealed record RuntimeStatusSnapshot(
     string Dashboard,
-    RuntimeOutputStatus[] Outputs);
+    RuntimeOutputStatus[] Outputs)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public int? IpcDiagnosticsVersion { get; init; }
+}
 
 internal sealed record RuntimeIpcStatusResponse(
     bool Success,
@@ -273,9 +279,11 @@ internal static class RuntimeIpc
         SendCoreAsync(command, PipeName, timeoutMs, cancellationToken, log);
 
     // A distinct pipe can be supplied by deterministic tests; production always
-    // uses the same v1 endpoint, one command, timeout and response format.
+    // uses the same v1 endpoint. A negotiated wrapper still carries one command.
     internal static async Task<RuntimeIpcResponse> SendCoreAsync(string command, string pipeName,
-        int timeoutMs = 1500, CancellationToken cancellationToken = default, FileLogger? log = null)
+        int timeoutMs = 1500, CancellationToken cancellationToken = default, FileLogger? log = null,
+        RuntimeIpcTrace? request = null, bool correlated = false,
+        Action<Exception, string>? observeStatusFailure = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Math.Max(100, timeoutMs));
@@ -284,16 +292,29 @@ internal static class RuntimeIpc
             command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase) ||
             command.StartsWith(CatalogUsbTestIpcProtocol.StatusCommand + "\t", StringComparison.OrdinalIgnoreCase);
 
-        var parsed = log is null ? null : RuntimeIpcProtocol.ParseCommand(command);
+        using var requestContext = RuntimeIpcTrace.Enter(request);
+        var parsed = request?.Command ?? (log is null ? null : RuntimeIpcProtocol.ParseCommand(command));
         var attempt = parsed?.UsbTestBegin?.Intent.AttemptId ?? parsed?.UsbTestHandle?.AttemptId;
-        using var operation = log is not null && (parsed?.Kind is RuntimeIpcCommandKind.UsbTestBegin or RuntimeIpcCommandKind.UsbTestCancel)
-            ? new LogOperation(log, "editor.ipc.usb-test", "usb-test-" + attempt?.ToString("N"), attempt?.ToString("N")) : null;
+        using var operation = log is not null && request is not null
+            ? new LogOperation(log, "editor.ipc.command", RuntimeIpcTrace.BoundTarget(parsed?.TargetId), request.Id.ToString("N"))
+            : log is not null && (parsed?.Kind is RuntimeIpcCommandKind.UsbTestBegin or RuntimeIpcCommandKind.UsbTestCancel)
+                ? new LogOperation(log, "editor.ipc.usb-test", "usb-test-" + attempt?.ToString("N"), attempt?.ToString("N")) : null;
         var statusIncident = "ipc.usb-test.status." + attempt?.ToString("N");
         var phase = "connect";
         void ObserveFailure(Exception error)
         {
             var detail = $"verb={parsed?.Kind}; requestAttempted={requestAttempted}; readOnly={readOnly}; outcome={(requestAttempted && !readOnly ? "unknown-after-send" : "unavailable")}";
-            if (operation is not null) operation.Fail(error, detail);
+            if (operation is not null && request is not null && error is OperationCanceledException &&
+                cancellationToken.IsCancellationRequested && !requestAttempted)
+                operation.Cancel("callerCancelledBeforeWrite=true; commandNotDispatched=true");
+            else if (operation is not null) operation.Fail(error, detail);
+            else if (parsed?.Kind == RuntimeIpcCommandKind.Status && requestAttempted &&
+                !cancellationToken.IsCancellationRequested)
+            {
+                if (observeStatusFailure is not null) observeStatusFailure(error, phase);
+                else log?.ErrorThrottled("ipc.status.transport", TimeSpan.FromSeconds(30),
+                    $"Runtime status transport failed; phase={phase}; responseUnavailable=true.", error);
+            }
             else if (log is not null && parsed?.Kind == RuntimeIpcCommandKind.UsbTestStatus)
                 log.ErrorThrottled(statusIncident, TimeSpan.FromSeconds(30), JsonSerializer.Serialize(new
                 {
@@ -303,7 +324,7 @@ internal static class RuntimeIpc
         }
         try
         {
-            operation?.Phase(phase, $"verb={parsed?.Kind}");
+            operation?.Phase(phase, $"verb={parsed?.Kind}; actor={request?.Actor}; correlation={(request is null ? "usb-attempt-or-none" : correlated ? "shared" : "legacy-local-only")}");
             using var pipe = new NamedPipeClientStream(
                 ".",
                 pipeName,
@@ -337,12 +358,35 @@ internal static class RuntimeIpc
             var separator = line.IndexOf('\t');
             var status = separator >= 0 ? line[..separator] : line;
             var message = separator >= 0 ? line[(separator + 1)..] : string.Empty;
+            if (request is not null && correlated && (status.Equals("OK", StringComparison.OrdinalIgnoreCase) || status.Equals("ERR", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    var reply = RuntimeIpcDiagnostics.Unwrap(new(status.Equals("OK", StringComparison.OrdinalIgnoreCase), message)
+                        { ResponseReceived = true }, request);
+                    if (reply.Success) operation?.Complete("replyReceived=true; visibleOutputNotAsserted=true");
+                    else if (reply.ErrorEventId is not null)
+                    {
+                        operation?.RecordFailure(null, "remote.failure", $"originErrorEventId={reply.ErrorEventId}; remoteExceptionNotDuplicated=true");
+                        operation?.Partial("replyReceived=true; responseSuccess=false; visibleOutputNotAsserted=true");
+                    }
+                    else operation?.Cancel("replyReceived=true; rejectionReported=true");
+                    return reply;
+                }
+                catch (Exception error) when (error is JsonException or InvalidDataException or NotSupportedException)
+                {
+                    operation?.Fail(error, "requestAttempted=true; outcome=unknown-after-send; commandNotRetried=true");
+                    return new(false, DescribeUnavailableResponse(true, "Runtime returned invalid IPC correlation data."));
+                }
+            }
             if (status.Equals("OK", StringComparison.OrdinalIgnoreCase)) operation?.Complete("response=OK; replyOnly=true; technicalReleaseNotAsserted=true");
             else if (status.Equals("ERR", StringComparison.OrdinalIgnoreCase)) operation?.Cancel("response=ERR; rejectionReported=true; releaseNotAsserted=true");
             else
             {
                 operation?.RecordFailure(null, "response.invalid", $"verb={parsed?.Kind}; recognizedStatus=false; outcome=unknown-after-send");
                 operation?.Partial("responseReceived=false; outcome=unknown-after-send");
+                if (request is not null)
+                    return new(false, DescribeUnavailableResponse(true, "Runtime returned an unrecognized IPC response."));
             }
             if (log is not null && parsed?.Kind == RuntimeIpcCommandKind.UsbTestStatus &&
                 (status.Equals("OK", StringComparison.OrdinalIgnoreCase) || status.Equals("ERR", StringComparison.OrdinalIgnoreCase)))
@@ -431,14 +475,16 @@ internal sealed class RuntimeIpcServer : IDisposable
 
     private readonly Func<string, CancellationToken, Task<RuntimeIpcResponse>> _handler;
     private readonly FileLogger _log;
+    private readonly string _pipeName;
     private readonly CancellationTokenSource _stop = new();
     private Task? _loop;
     private int _disposeState;
 
-    public RuntimeIpcServer(Func<string, CancellationToken, Task<RuntimeIpcResponse>> handler, FileLogger log)
+    public RuntimeIpcServer(Func<string, CancellationToken, Task<RuntimeIpcResponse>> handler, FileLogger log, string? pipeName = null)
     {
         _handler = handler;
         _log = log;
+        _pipeName = pipeName ?? RuntimeIpc.PipeName;
     }
 
     public void Start()
@@ -455,7 +501,7 @@ internal sealed class RuntimeIpcServer : IDisposable
             try
             {
                 using var pipe = new NamedPipeServerStream(
-                    RuntimeIpc.PipeName,
+                    _pipeName,
                     PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
@@ -476,10 +522,12 @@ internal sealed class RuntimeIpcServer : IDisposable
                 receiveDeadline.CancelAfter(TimeSpan.FromSeconds(10));
                 var command = await RuntimeIpcRequestReader.ReadLineAsync(reader,
                     receiveDeadline.Token).ConfigureAwait(false) ?? string.Empty;
-                var response = await _handler(command.Trim(), cancellationToken).ConfigureAwait(false);
-                var status = response.Success ? "OK" : "ERR";
-                var message = (response.Message ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ');
-                await writer.WriteLineAsync($"{status}\t{message}".AsMemory(), cancellationToken).ConfigureAwait(false);
+                await RuntimeIpcDiagnostics.DispatchAsync(command.Trim(), _handler, _log, cancellationToken, async response =>
+                {
+                    var status = response.Success ? "OK" : "ERR";
+                    var message = (response.Message ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ');
+                    await writer.WriteLineAsync($"{status}\t{message}".AsMemory(), cancellationToken).ConfigureAwait(false);
+                }).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
