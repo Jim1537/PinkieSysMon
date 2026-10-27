@@ -155,8 +155,9 @@ internal static class Issue105UsbWorkflowLoggingTests
             if (mode == "canceled") Check(errors.Any(e =>
                 e.GetProperty("exceptionType").GetString()?.Contains("OperationCanceledException", StringComparison.Ordinal) == true ||
                 e.GetProperty("exceptionType").GetString()?.Contains("TaskCanceledException", StringComparison.Ordinal) == true) &&
-                operations.Any(e => e.GetProperty("phase").GetString() == "response" && e.GetProperty("outcome").GetString() == "failed"),
-                "Cancellation after the server reads the command retains the actual response-phase exception.");
+                operations.Any(e => (e.GetProperty("phase").GetString() is "write" or "response") &&
+                    e.GetProperty("outcome").GetString() == "failed" && Detail(e).Contains("outcome=unknown-after-send", StringComparison.Ordinal)),
+                "Cancellation after server receipt retains the actual write/response exception and unknown outcome.");
         });
     }
 
