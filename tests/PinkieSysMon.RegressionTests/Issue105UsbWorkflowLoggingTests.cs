@@ -107,8 +107,8 @@ internal static class Issue105UsbWorkflowLoggingTests
             var response = service.Execute(new(RuntimeIpcCommandKind.UsbTestBegin, UsbTestBegin: request));
             if (mode == "worker")
             {
-                Check(response.Success && SpinWait.SpinUntil(() => File.Exists(log.Path) &&
-                    File.ReadAllText(log.Path).Contains("runtime.usb-test.worker.partial", StringComparison.Ordinal), 5000),
+                Check(response.Success && SpinWait.SpinUntil(() =>
+                    ReadText(log.Path).Contains("runtime.usb-test.worker.partial", StringComparison.Ordinal), 5000),
                     "Worker failure must finish with evidence after releasing its unused reservation.");
                 log.Info("Test observation fence.");
                 for (var i = 0; i < 25; i++)
@@ -121,6 +121,9 @@ internal static class Issue105UsbWorkflowLoggingTests
             }
             else Check(!response.Success, "Discovery failure remains an admission rejection.");
             var session = Read(log.Path); var errors = Read(log.ErrorsPath);
+            Check(session.Concat(errors).All(e => e.GetProperty("loggingFailures").GetInt32() == 0) &&
+                (mode != "worker" || session.Any(e => e.GetProperty("message").GetString() == "Test observation fence.")),
+                "USB workflow verification must fail on unconfirmed diagnostic writes, including a missing observation fence.");
             var records = Operations(session.Concat(errors), mode == "worker" ? "runtime.usb-test.worker" : "runtime.usb-test.request");
             Check(records.Length > 0 && records.All(e => e.GetProperty("parentOperationId").GetString() == request.Intent.AttemptId.ToString("N")),
                 "Runtime uses the same existing cross-process attempt as the Editor.");
@@ -214,10 +217,15 @@ internal static class Issue105UsbWorkflowLoggingTests
     private static RuntimeIpcResponse Reply(CatalogUsbTestHandle handle, RuntimeUsbTestStatus status) =>
         new(true, JsonSerializer.Serialize(new CatalogUsbTestReply(handle, status)));
     private static string Detail(JsonElement e) => e.GetProperty("detail").GetString() ?? "";
-    private static JsonElement[] Read(string path) => !File.Exists(path) ? [] : File.ReadAllLines(path).Select(line =>
-    {
-        using var json = JsonDocument.Parse(line[line.IndexOf('{')..]); return json.RootElement.Clone();
-    }).ToArray();
+    // The polling fixture is a cooperating log reader. Use the writer's gate
+    // for a complete snapshot; File.ReadAllText alone can deny its next append.
+    private static string ReadText(string path) => LogFileWriter.UnderGate(path, "write",
+        () => File.Exists(path) ? File.ReadAllText(path) : string.Empty);
+    private static JsonElement[] Read(string path) => ReadText(path)
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line =>
+        {
+            using var json = JsonDocument.Parse(line[line.IndexOf('{')..]); return json.RootElement.Clone();
+        }).ToArray();
     private static JsonElement[] Operations(IEnumerable<JsonElement> records, string operation) => records
         .Select(e => e.GetProperty("message").GetString()).Where(message => message?.StartsWith('{') == true)
         .Select(message => { using var json = JsonDocument.Parse(message!); return json.RootElement.Clone(); })
