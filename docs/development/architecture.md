@@ -173,6 +173,14 @@ Settings transactions retain separate validation/conflict, file-commit, Runtime-
 
 Runtime common/selected settings operations record their apply and recovery boundaries with logical Output identities. Manager callbacks that run under its state gate retain phase/commit observations in memory; their diagnostic records are emitted after return or unwind. These later records cannot establish progress during a blocked callback or guarantee survival of a host freeze. Transaction checks add no retry, ownership route or configuration writer.
 
+### USB Test workflow evidence
+
+[Transient USB Test coordination](#transient-usb-test-coordination) uses its existing immutable `AttemptId` as `parentOperationId` in Editor workflow/transport/visual records and Runtime admission/worker records. Each operation retains its own identity; the subject `usb-test-<AttemptId>` also links the transient Output's transport evidence. No diagnostic envelope, capability negotiation or extra IPC request is added.
+
+Records separate Runtime preparation, attempted Begin dispatch, admission, connection, timed observation, cancellation and native-release outcome from the user's later visual Yes/No. Protocol and geometry describe the selected attempt without logging raw candidate paths, names or command/response payloads. Editor status progress records only phase changes and a final poll count; countdown ticks and healthy status/ping replies are quiet. Client transport failures retain their original exceptions and whether a write was attempted; repeated USB status transport failures are throttled for thirty seconds and a recognized reply flushes that incident's repeat count. Runtime admission diagnostics are emitted outside its session-state gate.
+
+A lost/invalid reply, pending cleanup or cancellation request remains distinct from technical release, visual approval and saved configuration. The diagnostic records preserve the coordinator's existing uncertainty and ownership policy; they add no retry or native timeout. This covers the USB Test attempt only: ordinary IPC command correlation and broader event coverage remain tracked in [#105](https://github.com/Jim1537/PinkieSysMon/issues/105).
+
 ### Cleanup observation
 
 Ordinary/test-only Runtime shutdown, Desktop disposal, Editor preview shutdown and form/UI cleanup record each observed cleanup phase and its return or failure. A Desktop window-disposal failure no longer produces a successful full-disposal record from its renderer-cleanup `finally` path. Preview source disposal still follows terminal acquisition/discovery completion; its existing aggregate source-failure policy is retained. A cleanup failure preserves its original exception and an unconfirmed scope ends as incomplete, even if a later `finally` phase returns.

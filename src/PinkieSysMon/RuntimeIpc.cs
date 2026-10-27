@@ -264,7 +264,18 @@ internal static class RuntimeIpc
 {
     public const string PipeName = "PinkieSysMon.Runtime.v1";
 
-    public static async Task<RuntimeIpcResponse> SendAsync(string command, int timeoutMs = 1500, CancellationToken cancellationToken = default)
+    public static Task<RuntimeIpcResponse> SendAsync(string command, int timeoutMs = 1500,
+        CancellationToken cancellationToken = default) =>
+        SendCoreAsync(command, PipeName, timeoutMs, cancellationToken);
+
+    internal static Task<RuntimeIpcResponse> SendUsbTestAsync(string command, FileLogger? log,
+        int timeoutMs = 1500, CancellationToken cancellationToken = default) =>
+        SendCoreAsync(command, PipeName, timeoutMs, cancellationToken, log);
+
+    // A distinct pipe can be supplied by deterministic tests; production always
+    // uses the same v1 endpoint, one command, timeout and response format.
+    internal static async Task<RuntimeIpcResponse> SendCoreAsync(string command, string pipeName,
+        int timeoutMs = 1500, CancellationToken cancellationToken = default, FileLogger? log = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(Math.Max(100, timeoutMs));
@@ -273,11 +284,29 @@ internal static class RuntimeIpc
             command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase) ||
             command.StartsWith(CatalogUsbTestIpcProtocol.StatusCommand + "\t", StringComparison.OrdinalIgnoreCase);
 
+        var parsed = log is null ? null : RuntimeIpcProtocol.ParseCommand(command);
+        var attempt = parsed?.UsbTestBegin?.Intent.AttemptId ?? parsed?.UsbTestHandle?.AttemptId;
+        using var operation = log is not null && (parsed?.Kind is RuntimeIpcCommandKind.UsbTestBegin or RuntimeIpcCommandKind.UsbTestCancel)
+            ? new LogOperation(log, "editor.ipc.usb-test", "usb-test-" + attempt?.ToString("N"), attempt?.ToString("N")) : null;
+        var statusIncident = "ipc.usb-test.status." + attempt?.ToString("N");
+        var phase = "connect";
+        void ObserveFailure(Exception error)
+        {
+            var detail = $"verb={parsed?.Kind}; requestAttempted={requestAttempted}; readOnly={readOnly}; outcome={(requestAttempted && !readOnly ? "unknown-after-send" : "unavailable")}";
+            if (operation is not null) operation.Fail(error, detail);
+            else if (log is not null && parsed?.Kind == RuntimeIpcCommandKind.UsbTestStatus)
+                log.ErrorThrottled(statusIncident, TimeSpan.FromSeconds(30), JsonSerializer.Serialize(new
+                {
+                    eventName = "editor.ipc.usb-test.status.failure", operation = "editor.ipc.usb-test.status",
+                    parentOperationId = attempt?.ToString("N"), phase, detail
+                }), error);
+        }
         try
         {
+            operation?.Phase(phase, $"verb={parsed?.Kind}");
             using var pipe = new NamedPipeClientStream(
                 ".",
-                PipeName,
+                pipeName,
                 PipeDirection.InOut,
                 PipeOptions.Asynchronous);
 
@@ -291,35 +320,57 @@ internal static class RuntimeIpc
             using var reader = new StreamReader(pipe, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
 
             // Even a partially failed write cannot prove the server did not receive the request.
+            phase = "write";
+            operation?.Phase(phase);
             requestAttempted = true;
             await writer.WriteLineAsync(command.AsMemory(), timeout.Token).ConfigureAwait(false);
+            phase = "response";
+            operation?.Phase(phase);
             var line = await reader.ReadLineAsync(timeout.Token).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(line))
+            {
+                operation?.RecordFailure(null, "response.empty", $"verb={parsed?.Kind}; requestAttempted=true; outcome=unknown-after-send; requestNotRetried=true");
+                operation?.Partial("responseReceived=false; outcome=unknown-after-send");
                 return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime returned an empty IPC response.", readOnly));
+            }
 
             var separator = line.IndexOf('\t');
             var status = separator >= 0 ? line[..separator] : line;
             var message = separator >= 0 ? line[(separator + 1)..] : string.Empty;
+            if (status.Equals("OK", StringComparison.OrdinalIgnoreCase)) operation?.Complete("response=OK; replyOnly=true; technicalReleaseNotAsserted=true");
+            else if (status.Equals("ERR", StringComparison.OrdinalIgnoreCase)) operation?.Cancel("response=ERR; rejectionReported=true; releaseNotAsserted=true");
+            else
+            {
+                operation?.RecordFailure(null, "response.invalid", $"verb={parsed?.Kind}; recognizedStatus=false; outcome=unknown-after-send");
+                operation?.Partial("responseReceived=false; outcome=unknown-after-send");
+            }
+            if (log is not null && parsed?.Kind == RuntimeIpcCommandKind.UsbTestStatus &&
+                (status.Equals("OK", StringComparison.OrdinalIgnoreCase) || status.Equals("ERR", StringComparison.OrdinalIgnoreCase)))
+                log.FlushSuppressed(statusIncident);
             return status.Equals("OK", StringComparison.OrdinalIgnoreCase)
                 ? new RuntimeIpcResponse(true, message) { ResponseReceived = true }
                 : new RuntimeIpcResponse(false, string.IsNullOrWhiteSpace(message) ? "PinkieSysMon runtime rejected the request." : message)
                     { ResponseReceived = status.Equals("ERR", StringComparison.OrdinalIgnoreCase) };
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
+            ObserveFailure(error);
             return new(false, DescribeUnavailableResponse(requestAttempted,
                 cancellationToken.IsCancellationRequested ? "Runtime IPC request was canceled." : "Runtime IPC request timed out.", readOnly));
         }
-        catch (TimeoutException)
+        catch (TimeoutException error)
         {
+            ObserveFailure(error);
             return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime IPC request timed out.", readOnly));
         }
-        catch (IOException)
+        catch (IOException error)
         {
+            ObserveFailure(error);
             return new(false, DescribeUnavailableResponse(requestAttempted, "Runtime IPC connection closed or could not be opened.", readOnly));
         }
         catch (UnauthorizedAccessException ex)
         {
+            ObserveFailure(ex);
             return new(false, DescribeUnavailableResponse(requestAttempted, $"Runtime IPC access denied: {ex.Message}", readOnly));
         }
     }

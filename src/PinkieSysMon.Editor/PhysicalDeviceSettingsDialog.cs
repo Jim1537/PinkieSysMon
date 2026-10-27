@@ -36,7 +36,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         _runtimeProcessPresent = runtimeProcessPresent;
         _launchRuntime = launchRuntime;
         _help = new EditorSettingsHelp(applicationRoot);
-        _testClient = new EditorUsbTestClient(_help.ApplicationRoot);
+        _testClient = new EditorUsbTestClient(_help.ApplicationRoot, log);
         _dashboardChoices = dashboards;
         _devices = new DeviceSettingsModel(config);
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
@@ -313,6 +313,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                     "Confirm USB Test", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                     MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                 draft.ConfirmVisibleChangingSeconds(intent, yes);
+                EditorUsbTestClient.RecordVisualOutcome(_log, intent, yes, draft.CanSaveConfiguration);
                 _devicePages[target.Id].SetTestMessage(yes
                     ? "Test confirmed. Save Configuration is available; the Output will remain disabled."
                     : "Test not passed. Adjust the fields and retry; configuration was not saved.");
@@ -321,7 +322,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 MessageBox.Show(this, "Test not passed. Configuration was not saved. See the card status and Runtime log for details.",
                     "USB Test", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-        catch (Exception error) { ShowDeviceError(error); }
+        catch (Exception error) { _log?.Error("Editor USB Test dialog workflow failed.", error); ShowDeviceError(error); }
         finally
         {
             _testCancellation.Dispose(); _testCancellation = null; _testUiBusy = false;
