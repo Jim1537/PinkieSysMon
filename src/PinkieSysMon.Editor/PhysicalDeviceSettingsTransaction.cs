@@ -140,6 +140,8 @@ internal static class PhysicalDeviceSettingsTransaction
         using var operation = new LogOperation(log, "editor.settings.configured.remove", original?.Id, parentOperationId);
         try
         {
+            operation.Phase("validation.selectedRecord");
+            ArgumentNullException.ThrowIfNull(original);
             operation.Phase("file.readAndValidate");
             var (current, _) = ReadCurrent(configPath, log);
             operation.Phase("conflict.selectedRecord");
