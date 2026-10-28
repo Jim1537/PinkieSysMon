@@ -1,7 +1,7 @@
 namespace PinkieSysMon;
 
-// A named event is a lifetime lease, not a notification channel. Windows closes
-// process handles on exit/crash; a new group exists only after every lease closes.
+// A named event remains a lifetime marker for overlapping sessions. Log retention
+// is independent of the lease: startup never truncates a previous session.
 internal sealed class ApplicationLogSession : IDisposable
 {
     private readonly FileLogger _log;
@@ -18,16 +18,16 @@ internal sealed class ApplicationLogSession : IDisposable
             {
                 _lifetime = new EventWaitHandle(false, EventResetMode.ManualReset,
                     LogFileWriter.ObjectName(log.Path, "lifetime"), out var first);
-                if (first) LogFileWriter.Reset(log.Path);
-                LogFileWriter.EnsureExists(log.ErrorsPath);
+                LogFileWriter.Maintain(log.Path);
+                LogFileWriter.Maintain(log.ErrorsPath);
                 log.Info($"SESSION_START mode={mode}; version={RuntimeVersion.Current}; " +
-                    $"newLogGroup={first}; errorHistory=append-only.");
+                    $"newLogGroup={first}; rollingHistoryHours=72; previousSessionsRetained=true.");
                 return true;
             });
         }
         catch (Exception error)
         {
-            // Do not retry a failed admission/reset; preserve the remaining evidence.
+            // A retention failure must not discard previous session evidence.
             log.Error("Log session admission failed; no further reset will be attempted.", error);
         }
     }

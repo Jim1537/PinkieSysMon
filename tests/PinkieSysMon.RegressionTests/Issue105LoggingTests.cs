@@ -98,19 +98,14 @@ internal static class Issue105LoggingTests
             File.WriteAllText(log.ErrorsPath, priorHistory);
             var priorLength = new FileInfo(log.ErrorsPath).Length;
             log.Error("after interrupted history");
-            var currentLength = new FileInfo(log.ErrorsPath).Length;
-            Check(currentLength > priorLength,
-                $"Errors history must grow beyond the retired rotation threshold; before={priorLength}, after={currentLength}.");
-            // Win32 wildcard matching lets "*.log.*" include an ordinary ".log".
-            // Compare the complete file set instead of treating that match as an archive.
-            var files = Directory.GetFiles(root).Select(path => Path.GetFileName(path)!)
-                .OrderBy(name => name, StringComparer.Ordinal).ToArray();
-            Check(files.SequenceEqual(new[] { "PinkieSysMon.Errors.log", "runtime.log" }),
-                "Only the error history and session file may exist; found: " + string.Join(", ", files));
+            var archives = Directory.GetFiles(root, "PinkieSysMon.Errors.log.*.archive");
+            Check(archives.Length == 1 && File.ReadAllText(archives[0]) == priorHistory,
+                "The oversize legacy error history must be archived without truncation.");
+            Check(new FileInfo(archives[0]).Length == priorLength,
+                "The preserved legacy segment must have exactly its original length.");
             var lines = File.ReadAllLines(log.ErrorsPath);
-            Check(lines.Length == 2 && lines[0] == priorHistory,
-                "The complete interrupted tail is preserved with exactly one new record boundary.");
-            using var appended = JsonDocument.Parse(lines[1][lines[1].IndexOf('{')..]);
+            Check(lines.Length == 1, "The current error segment contains only the newly appended record.");
+            using var appended = JsonDocument.Parse(lines[0][lines[0].IndexOf('{')..]);
             Check(appended.RootElement.GetProperty("message").GetString() == "after interrupted history",
                 "The appended error record remains complete and parseable.");
         });
@@ -164,13 +159,14 @@ internal static class Issue105LoggingTests
                     "A joining Editor and helper logger never reset a live shared session.");
                 StopChild(child);
                 using var runtimeSession = ApplicationLogSession.Start(new FileLogger(runtime, "Runtime"), "ordinary");
-                Check(!File.ReadAllText(runtime).Contains("old runtime") &&
+                Check(File.ReadAllText(runtime).Contains("old runtime") &&
                       File.ReadAllText(editor).Contains("first editor marker"),
-                    "A Runtime session resets only its own file.");
+                    "A Runtime session retains previous Runtime and Editor history.");
             }
             using var replacement = ApplicationLogSession.Start(new FileLogger(editor, "Editor"), "editor");
-            Check(!File.ReadAllText(editor).Contains("first editor marker"),
-                "The next first Editor resets after every previous participant has exited.");
+            Check(File.ReadAllText(editor).Contains("first editor marker") &&
+                  File.ReadAllText(editor).Contains("child marker"),
+                "A new Editor session retains the previous overlapping group's history.");
         });
     }
 
@@ -207,8 +203,47 @@ internal static class Issue105LoggingTests
             Ready(child);
             StopChild(child);
             using var replacement = ApplicationLogSession.Start(log, "editor");
-            Check(!File.ReadAllText(path).Contains("crashed session marker") && Read(log.ErrorsPath).Length == 1,
-                "Process death releases the final Editor lease without losing persistent errors.");
+            Check(File.ReadAllText(path).Contains("crashed session marker") && Read(log.ErrorsPath).Length == 1,
+                "Process death retains interrupted Editor history and previously recorded errors.");
+        });
+    }
+
+    public static void RollingRetentionAndIdleErrors()
+    {
+        Sandbox(root =>
+        {
+            var path = Path.Combine(root, "PinkieSysMon.Runtime.log");
+            var log = new FileLogger(path, "Runtime");
+            log.Info("before time rollover");
+            var before = DateTime.UtcNow.AddMinutes(-20);
+            File.SetLastWriteTimeUtc(path, before);
+            log.Info("after time rollover");
+
+            var archives = Directory.GetFiles(root, "PinkieSysMon.Runtime.log.*.archive");
+            Check(archives.Length == 1 && File.ReadAllText(archives[0]).Contains("before time rollover"),
+                "Quarter-hour rotation archives the complete previous segment.");
+            Check(File.ReadAllText(path).Contains("after time rollover") &&
+                  !File.ReadAllText(path).Contains("before time rollover"),
+                "The current stream contains only post-rotation records.");
+
+            // Test 72-hour pruning without waiting in wall-clock time.
+            var obsolete = archives[0];
+            File.SetLastWriteTimeUtc(obsolete, DateTime.UtcNow.AddHours(-73));
+            LogFileWriter.Maintain(path);
+            Check(!File.Exists(obsolete) && File.ReadAllText(path).Contains("after time rollover"),
+                "Expired closed segments are pruned without touching current history.");
+
+            log.Error("saved error marker");
+            var errors = log.ErrorsPath;
+            File.SetLastWriteTimeUtc(errors, DateTime.UtcNow.AddHours(-73));
+            LogFileWriter.Maintain(errors);
+            Check(File.Exists(errors) && new FileInfo(errors).Length == 0 &&
+                  Directory.GetFiles(root, "PinkieSysMon.Errors.log.*.archive").Length == 0,
+                "A quiet expired error stream rotates and prunes without a new error.");
+            log.Error("new retained error");
+            Check(Read(errors).Length == 1 &&
+                  Read(errors)[0].GetProperty("message").GetString() == "new retained error",
+                "The error stream remains writable after idle-pruning.");
         });
     }
 

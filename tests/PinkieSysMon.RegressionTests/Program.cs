@@ -77,6 +77,7 @@ internal static class Program
             ("Issue105 component and overlapping Editor sessions", Issue105LoggingTests.ComponentAndOverlappingEditorSessions),
             ("Issue105 concurrent writers and abandoned gate", Issue105LoggingTests.ConcurrentWritersAndAbandonedGate),
             ("Issue105 crashed final Editor session", Issue105LoggingTests.CrashedLastEditorReleasesSession),
+            ("Issue105 72-hour rolling history and idle pruning", Issue105LoggingTests.RollingRetentionAndIdleErrors),
             ("Issue101 prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
             ("Issue101 Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
             ("Issue101 Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),

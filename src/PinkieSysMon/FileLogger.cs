@@ -14,6 +14,10 @@ internal sealed class FileLogger
     private readonly object _sync = new();
     private readonly ConditionalWeakTable<Exception, RecordedFailure> _recordedFailures = new();
     private readonly Dictionary<string, ThrottleState> _throttle = new(StringComparer.Ordinal);
+    private static readonly TimeSpan PeriodicSyncInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan MaintenanceInterval = TimeSpan.FromMinutes(1);
+    private long _lastDurableAt;
+    private long _lastMaintenanceAt;
     private long _lastFallbackAt;
     private int _lostRecords;
 
@@ -195,7 +199,27 @@ internal sealed class FileLogger
 
     private bool TryAppend(string path, string record, bool durable)
     {
-        try { LogFileWriter.Append(path, record, durable); return true; }
+        try
+        {
+            var now = Stopwatch.GetTimestamp();
+            var lastSync = Interlocked.Read(ref _lastDurableAt);
+            var sync = durable || lastSync == 0 ||
+                Stopwatch.GetElapsedTime(lastSync, now) >= PeriodicSyncInterval;
+            LogFileWriter.Append(path, record, sync);
+            if (sync) Interlocked.Exchange(ref _lastDurableAt, now);
+
+            // The healthy stream drives retention of a quiet error stream too.
+            if (string.Equals(path, Path, StringComparison.OrdinalIgnoreCase))
+            {
+                var last = Interlocked.Read(ref _lastMaintenanceAt);
+                if (last == 0 || Stopwatch.GetElapsedTime(last, now) >= MaintenanceInterval)
+                {
+                    LogFileWriter.Maintain(ErrorsPath);
+                    Interlocked.Exchange(ref _lastMaintenanceAt, now);
+                }
+            }
+            return true;
+        }
         catch (Exception failure) { ReportFailure(failure); return false; }
     }
 
