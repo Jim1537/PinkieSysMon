@@ -208,14 +208,19 @@ internal sealed class FileLogger
             LogFileWriter.Append(path, record, sync);
             if (sync) Interlocked.Exchange(ref _lastDurableAt, now);
 
-            // The healthy stream drives retention of a quiet error stream too.
+            // Retention failure is diagnosed independently of the successfully
+            // appended original record; never misreport it as a lost log entry.
             if (string.Equals(path, Path, StringComparison.OrdinalIgnoreCase))
             {
                 var last = Interlocked.Read(ref _lastMaintenanceAt);
                 if (last == 0 || Stopwatch.GetElapsedTime(last, now) >= MaintenanceInterval)
                 {
-                    LogFileWriter.Maintain(ErrorsPath);
-                    Interlocked.Exchange(ref _lastMaintenanceAt, now);
+                    try
+                    {
+                        LogFileWriter.Maintain(ErrorsPath);
+                        Interlocked.Exchange(ref _lastMaintenanceAt, now);
+                    }
+                    catch (Exception failure) { ReportFailure(failure); }
                 }
             }
             return true;

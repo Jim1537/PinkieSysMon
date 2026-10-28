@@ -109,8 +109,14 @@ internal static class LogFileWriter
         foreach (var archive in Directory.EnumerateFiles(directory, prefix + "*.archive"))
         {
             var name = System.IO.Path.GetFileName(archive);
-            if (!name.StartsWith(prefix, StringComparison.Ordinal) ||
-                !name.EndsWith(".archive", StringComparison.Ordinal)) continue;
+            if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+            var suffix = name[prefix.Length..];
+            // Never delete unrelated files merely because they share the prefix.
+            if (suffix.Length != 64 || suffix[8] != 'T' || suffix[22] != 'Z' ||
+                suffix[23] != '.' || !suffix.EndsWith(".archive", StringComparison.Ordinal) ||
+                !Guid.TryParseExact(suffix.Substring(24, 32), "N", out _)) continue;
+            if (Enumerable.Range(0, 23).Any(i =>
+                i != 8 && i != 22 && !char.IsAsciiDigit(suffix[i]))) continue;
             // LastWriteTimeUtc is the upper bound on records originally written to
             // this closed segment. Keep any segment that overlaps the 72h window.
             if (File.GetLastWriteTimeUtc(archive) < cutoff)

@@ -233,6 +233,19 @@ internal static class Issue105LoggingTests
             Check(!File.Exists(obsolete) && File.ReadAllText(path).Contains("after time rollover"),
                 "Expired closed segments are pruned without touching current history.");
 
+            var boundary = DateTime.UtcNow;
+            var overlapping = path + ".20261028T0000000000000Z." + Guid.NewGuid().ToString("N") + ".archive";
+            File.WriteAllText(overlapping, "still in window");
+            File.SetLastWriteTimeUtc(overlapping, boundary.AddHours(-72).AddSeconds(2));
+            LogFileWriter.Maintain(path, new DateTimeOffset(boundary, TimeSpan.Zero));
+            Check(File.Exists(overlapping), "A boundary-overlapping archive remains retained.");
+
+            var unknown = path + ".unrelated.archive";
+            File.WriteAllText(unknown, "never managed");
+            File.SetLastWriteTimeUtc(unknown, boundary.AddDays(-100));
+            LogFileWriter.Maintain(path, new DateTimeOffset(boundary, TimeSpan.Zero));
+            Check(File.Exists(unknown), "Retention must not delete unrelated historical files.");
+
             log.Error("saved error marker");
             var errors = log.ErrorsPath;
             File.SetLastWriteTimeUtc(errors, DateTime.UtcNow.AddHours(-73));
