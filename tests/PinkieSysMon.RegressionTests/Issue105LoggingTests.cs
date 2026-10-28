@@ -154,18 +154,18 @@ internal static class Issue105LoggingTests
             using (var joined = ApplicationLogSession.Start(second, "editor"))
             {
                 new FileLogger(editor, "Editor").Info("helper marker");
-                Check(File.ReadAllText(editor).Contains("first editor marker") &&
-                      File.ReadAllText(editor).Contains("child marker"),
+                Check(HistoryText(editor).Contains("first editor marker") &&
+                      HistoryText(editor).Contains("child marker"),
                     "A joining Editor and helper logger never reset a live shared session.");
                 StopChild(child);
                 using var runtimeSession = ApplicationLogSession.Start(new FileLogger(runtime, "Runtime"), "ordinary");
-                Check(File.ReadAllText(runtime).Contains("old runtime") &&
-                      File.ReadAllText(editor).Contains("first editor marker"),
+                Check(HistoryText(runtime).Contains("old runtime") &&
+                      HistoryText(editor).Contains("first editor marker"),
                     "A Runtime session retains previous Runtime and Editor history.");
             }
             using var replacement = ApplicationLogSession.Start(new FileLogger(editor, "Editor"), "editor");
-            Check(File.ReadAllText(editor).Contains("first editor marker") &&
-                  File.ReadAllText(editor).Contains("child marker"),
+            Check(HistoryText(editor).Contains("first editor marker") &&
+                  HistoryText(editor).Contains("child marker"),
                 "A new Editor session retains the previous overlapping group's history.");
         });
     }
@@ -203,7 +203,7 @@ internal static class Issue105LoggingTests
             Ready(child);
             StopChild(child);
             using var replacement = ApplicationLogSession.Start(log, "editor");
-            Check(File.ReadAllText(path).Contains("crashed session marker") && Read(log.ErrorsPath).Length == 1,
+            Check(HistoryText(path).Contains("crashed session marker") && Read(log.ErrorsPath).Length == 1,
                 "Process death retains interrupted Editor history and previously recorded errors.");
         });
     }
@@ -306,6 +306,19 @@ internal static class Issue105LoggingTests
             try { StopChild(this); }
             finally { Process.Dispose(); }
         }
+    }
+
+    // A session may rotate between two assertions at any UTC quarter-hour.
+    // Tests of session-history preservation must read both active and archives.
+    private static string HistoryText(string path)
+    {
+        var dir = Path.GetDirectoryName(path)!;
+        var parts = Directory.GetFiles(dir, Path.GetFileName(path) + ".*.archive")
+            .OrderBy(File.GetLastWriteTimeUtc)
+            .Select(File.ReadAllText)
+            .ToList();
+        if (File.Exists(path)) parts.Add(File.ReadAllText(path));
+        return string.Join("\n", parts);
     }
 
     private static JsonElement[] Read(string path) => File.ReadAllLines(path).Select(line =>
