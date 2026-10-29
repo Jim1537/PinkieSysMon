@@ -16,6 +16,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     private readonly string _id;
     private readonly MetricStore _metrics;
     private readonly FileLogger _log;
+    private readonly OutputDiagnosticEvents? _diagnostics;
     private readonly IDesktopOutputWindow _window;
     private DashboardRenderer _renderer;
     private ShortcutInteractionMap _interactions;
@@ -39,7 +40,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         CanonicalDashboardDefinition dashboard,
         MetricStore metrics,
         FileLogger log,
-        Func<Action, IDesktopOutputWindow>? windowFactory = null)
+        Func<Action, IDesktopOutputWindow>? windowFactory = null, OutputDiagnosticEvents? diagnostics = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(target);
@@ -48,6 +49,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             throw new ArgumentException("Desktop session requires an enabled Desktop output.", nameof(target));
 
         _id = target.Id;
+        _diagnostics = diagnostics;
         _config = config;
         _target = target;
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
@@ -60,7 +62,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         {
             window = (windowFactory ?? (render => new DesktopOutputWindow(render,
                 point => PersistPosition(dashboard.BaseDirectory, point),
-                () => _restoreStack?.Invoke(), error => _log.Warn($"Desktop Shortcut Shell failed; nativeCode={error}."))))(DrawFrame)
+                () => _restoreStack?.Invoke(), error => _log.Error($"Desktop Shortcut input failed; observedErrorCode={error}."),
+                _log, (phase, detail) => _diagnostics?.Record(phase, _id, detail))))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
             var size = FrameGeometry.GetLogicalSize(
                 dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
@@ -84,6 +87,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             var path = Path.Combine(ApplicationRootLocator.Find(dashboardDirectory),
                 "config", "app.json");
             DesktopPositionStore.Save(path, _id, point);
+            _diagnostics?.Record("desktop.placement.committed", _id, "saved=true");
             if (_target.Desktop is { } desktop)
             {
                 desktop.X = point.X;
@@ -208,6 +212,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _window.RequestFrame();
         try { previous.Dispose(); }
         catch (Exception ex) { _log.Warn($"Desktop output '{_id}' former renderer cleanup failed.", ex); }
+        _diagnostics?.Record("desktop.renderer.replaced", _id, $"width={prepared.Size.Width}; height={prepared.Size.Height}; locked={_target.Desktop?.Lock}");
         _log.Info($"Desktop output '{_id}' reconfigured: canvas={prepared.Size.Width}x{prepared.Size.Height} physical pixels.");
     }
 
@@ -286,7 +291,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
             var now = Stopwatch.GetTimestamp();
             Volatile.Write(ref _lastFrameMs, Stopwatch.GetElapsedTime(startedAt, now).TotalMilliseconds);
-            Interlocked.Increment(ref _frameCount);
+            if (Interlocked.Increment(ref _frameCount) == 1)
+                _diagnostics?.Record("desktop.first.frame.presented", _id, "presentReturned=true; physicalDeviceObserved=false");
             if (_state == "ERROR")
                 ChangeState("DISPLAYING");
 
@@ -317,6 +323,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
     private void ChangeState(string state)
     {
+        if (_state != state) _diagnostics?.Record("desktop.state.changed", _id, $"previous={_state}; current={state}");
         _state = state;
         if (Publishing)
         {
@@ -352,6 +359,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             cleanup.Step("metrics.unavailable", () => _metrics.Publish(OutputMetricContract.Unavailable(_target)));
         }
         cleanup.Complete();
+        _diagnostics?.Record("desktop.disposed", _id, "cleanupReturned=true");
     }
 
     private sealed class PreparedReconfiguration(
@@ -472,8 +480,14 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
     }
 
-    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack, Action<int>? reportShortcutFailure = null)
+    private readonly FileLogger? _log;
+    private readonly Action<string, string>? _observe;
+    private bool? _lastBottomFallback;
+
+    public DesktopOutputWindow(Action render, Action<Point> savePosition, Action restoreStack, Action<int>? reportShortcutFailure = null,
+        FileLogger? log = null, Action<string, string>? observe = null)
     {
+        _log = log; _observe = observe;
         _render = render ?? throw new ArgumentNullException(nameof(render));
         _savePosition = savePosition ?? throw new ArgumentNullException(nameof(savePosition));
         _restoreStack = restoreStack ?? throw new ArgumentNullException(nameof(restoreStack));
@@ -515,6 +529,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _lastPosition = Location;
             _refresh.Interval = refreshMs;
             ApplyLockStyle();
+            _observe?.Invoke("desktop.window.configured", $"locked={locked}; width={clientPixels.Width}; height={clientPixels.Height}; refreshMs={refreshMs}");
         }
         finally { _configuring = false; }
     }
@@ -525,7 +540,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         try
         {
             if (!interactions.IsEmpty)
-                candidate = new DesktopShortcutInput(interactions, this, _locked, BeginShortcutDrag, _reportShortcutFailure);
+                candidate = new DesktopShortcutInput(interactions, this, _locked, BeginShortcutDrag, _reportShortcutFailure, _log);
             var previous = _input; _input = candidate; candidate = null;
             previous?.Dispose();
             if (Visible) _input?.ShowRestricted();
@@ -581,7 +596,10 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     {
         if (!_disposed && IsVisible && IsHandleCreated)
         {
-            DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
+            var fallback = DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
+            if (_lastBottomFallback != fallback)
+                _observe?.Invoke("desktop.bottom.placement", $"shellFallback={fallback}; nativePlacementReturned=true");
+            _lastBottomFallback = fallback;
             _input?.PlaceAboveVisual();
         }
     }
@@ -669,6 +687,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         }
         if (m.Msg == WmDpiChanged)
         {
+            _observe?.Invoke("desktop.dpi.changed", "Windows DPI message received");
             _input?.Hide();
             _configuring = true;
             try
@@ -693,6 +712,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     {
         if (_disposed || !IsHandleCreated)
             return;
+        _observe?.Invoke("desktop.display.topology.changed", "Windows display notification received");
         try { BeginInvoke((Action)RecoverVisible); }
         catch (InvalidOperationException) when (_disposed || !IsHandleCreated) { }
     }
@@ -716,6 +736,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         {
             _moveDebounce.Stop();
             Location = recovered;
+            _observe?.Invoke("desktop.placement.recovered", "visibleAreaRecoveryApplied=true; savedPositionUnchanged=true");
             _lastPosition = Location; // do not overwrite location of detached monitor
         }
         finally { _configuring = false; }
@@ -755,3 +776,4 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         base.Dispose(disposing);
     }
 }
+

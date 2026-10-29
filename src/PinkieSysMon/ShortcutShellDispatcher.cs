@@ -6,35 +6,52 @@ namespace PinkieSysMon;
 // Only Runtime's accepted user gesture calls TryDispatch. No renderer or Editor owns this service.
 internal sealed class ShortcutShellDispatcher : IDisposable
 {
-    private readonly BlockingCollection<(long Generation, string Target, string Arguments)> _queue = new(16);
+    private readonly BlockingCollection<(long Generation, string Target, string Arguments, LogOperation? Operation)> _queue = new(16);
     private readonly Action<int> _reportFailure;
+    private readonly FileLogger? _log;
+    private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task Completion => _completion.Task;
     private readonly Func<string, string, int> _invoke;
     private readonly object _gate = new();
     private long _generation;
     private bool _started;
     private bool _disposed;
 
-    public ShortcutShellDispatcher(Action<int> reportFailure, Func<string, string, int>? invoke = null)
-    { _reportFailure = reportFailure; _invoke = invoke ?? InvokeShell; }
+    public ShortcutShellDispatcher(Action<int> reportFailure, Func<string, string, int>? invoke = null, FileLogger? log = null)
+    { _reportFailure = reportFailure; _invoke = invoke ?? InvokeShell; _log = log; }
 
     public void CancelPending() { Interlocked.Increment(ref _generation); }
 
     public bool TryDispatch(ShortcutInteraction shortcut)
     {
-        if (string.IsNullOrWhiteSpace(shortcut.Target)) return false;
+        var operation = _log is null ? null : new LogOperation(_log, "desktop.shortcut", shortcut.Id);
+        if (string.IsNullOrWhiteSpace(shortcut.Target))
+        { operation?.Cancel("refused.empty-target"); return false; }
+        var refused = false;
+        var full = false;
         lock (_gate)
         {
-            if (_disposed) return false;
-            if (!_started)
+            if (_disposed) refused = true;
+            else
             {
-                var thread = new Thread(Run) { IsBackground = true, Name = "PinkieSysMon Shortcut Shell" };
-                if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
-                thread.Start(); _started = true;
+                if (!_started)
+                {
+                    var thread = new Thread(Run) { IsBackground = true, Name = "PinkieSysMon Shortcut Shell" };
+                    if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
+                    thread.Start(); _started = true;
+                }
+                full = !_queue.TryAdd((Interlocked.Read(ref _generation), shortcut.Target, shortcut.Arguments, operation));
             }
-            if (_queue.TryAdd((Interlocked.Read(ref _generation), shortcut.Target, shortcut.Arguments))) return true;
-            _reportFailure(1816); // ERROR_NOT_ENOUGH_QUOTA; no private payload in instrumentation.
+        }
+        // Logging and callbacks never hold the dispatch queue gate.
+        if (refused) { operation?.Cancel("refused.disposed"); return false; }
+        if (full)
+        {
+            operation?.Fail(new System.ComponentModel.Win32Exception(1816), "refused.queue-full");
+            _reportFailure(1816);
             return false;
         }
+        return true;
     }
 
     private void Run()
@@ -44,20 +61,27 @@ internal sealed class ShortcutShellDispatcher : IDisposable
         {
             foreach (var request in _queue.GetConsumingEnumerable())
             {
-                if (request.Generation != Interlocked.Read(ref _generation)) continue;
+                if (request.Generation != Interlocked.Read(ref _generation))
+                { request.Operation?.Cancel("superseded-before-shell"); continue; }
                 try
                 {
+                    request.Operation?.Phase("shell.dispatch");
                     var error = _invoke(request.Target, request.Arguments);
-                    if (error != 0) _reportFailure(error);
+                    if (error != 0)
+                    {
+                        request.Operation?.Fail(new System.ComponentModel.Win32Exception(error), "Shell returned a native failure.");
+                        _reportFailure(error);
+                    }
+                    else request.Operation?.Complete("shellAccepted=true; launchedApplicationSuccess=unconfirmed");
                 }
                 catch (Exception ex) when (ex is ExternalException or ArgumentException or InvalidOperationException)
-                { _reportFailure(ex.HResult); }
+                { request.Operation?.Fail(ex, "Shell invocation threw."); _reportFailure(ex.HResult); }
             }
         }
         finally
         {
-            if (initialized) CoUninitialize();
-            _queue.Dispose();
+            try { if (initialized) CoUninitialize(); _queue.Dispose(); }
+            finally { _completion.TrySetResult(); }
         }
     }
 
@@ -67,7 +91,7 @@ internal sealed class ShortcutShellDispatcher : IDisposable
         {
             if (_disposed) return;
             _disposed = true; CancelPending(); _queue.CompleteAdding();
-            if (!_started) _queue.Dispose();
+            if (!_started) { _queue.Dispose(); _completion.TrySetResult(); }
         }
     }
 
@@ -95,3 +119,4 @@ internal sealed class ShortcutShellDispatcher : IDisposable
     [DllImport("ole32.dll")] private static extern int CoInitializeEx(IntPtr reserved, uint apartment);
     [DllImport("ole32.dll")] private static extern void CoUninitialize();
 }
+

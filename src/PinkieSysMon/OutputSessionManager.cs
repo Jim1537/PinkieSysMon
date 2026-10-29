@@ -7,6 +7,7 @@ internal sealed class OutputSessionManager : IDisposable
     private readonly object _sync = new();
     private readonly MetricStore _metrics;
     private readonly FileLogger _log;
+    private readonly OutputDiagnosticEvents _diagnostics;
     private readonly OutputSessionFactory _factory;
     private readonly Dictionary<string, IOutputSession> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _pendingRemoval = new(StringComparer.OrdinalIgnoreCase);
@@ -34,15 +35,18 @@ internal sealed class OutputSessionManager : IDisposable
         _boards = ValidateBoards(config, boards);
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _diagnostics = new(log);
         _factory = factory ?? ((app, target, board, store, logger) =>
             target.Kind switch
             {
-                OutputTargetContract.DesktopKind => new DesktopOutputSession(app, target, board, store, logger),
+                OutputTargetContract.DesktopKind => new DesktopOutputSession(app, target, board, store, logger, diagnostics: _diagnostics),
                 OutputTargetContract.PhysicalKind when OutputTargetContract.HasIntegratedTransport(target.Transport) =>
                     new FramePump(app, target, board, store, logger, physicalTransportFactory),
                 _ => throw new InvalidOperationException("The selected Output adapter is not integrated.")
             });
     }
+
+    internal void FlushDiagnostics() => _diagnostics.Flush();
 
     private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
         AppConfig config, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
@@ -828,5 +832,7 @@ internal sealed class OutputSessionManager : IDisposable
         DisposeSessionsBestEffort(sessions);
         foreach (var target in _config.Outputs.Targets)
             _metrics.Publish(OutputMetricContract.Unavailable(target));
+        FlushDiagnostics();
     }
 }
+

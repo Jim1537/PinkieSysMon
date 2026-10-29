@@ -31,6 +31,8 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 Desktop buffered transitions and native ownership", Issue105DesktopLoggingTests.BufferedTransitionsAndOwnership),
+            ("Issue105 Shell failure cancellation and payload privacy", Issue105DesktopLoggingTests.ShellFailureCancellationAndPrivacy),
             ("Issue105 telemetry capture availability and recovery", Issue105TelemetryLoggingTests.CaptureUnavailableRecoveryAndFirstPublication),
             ("Issue105 telemetry pending worker and queue totals", Issue105TelemetryLoggingTests.PendingWorkerAndQueueCounts),
             ("Issue105 iCUE freshness file and catalog generations", Issue105TelemetryLoggingTests.IcueFreshnessFileAndCatalogGenerations),

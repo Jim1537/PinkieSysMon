@@ -19,12 +19,12 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     private long _generation;
 
     internal DesktopShortcutInput(ShortcutInteractionMap map, Form visual, bool locked,
-        Action<Point> drag, Action<int> reportFailure)
+        Action<Point> drag, Action<int> reportFailure, FileLogger? log = null)
     {
         _map = map; _visual = visual; _locked = locked; _drag = drag;
         var rectangles = map.Rasterize();
         _empty = rectangles.Count == 0;
-        _shell = new ShortcutShellDispatcher(reportFailure);
+        _shell = new ShortcutShellDispatcher(log is null ? reportFailure : _ => { }, log: log);
         try
         {
             CreateHandle(new CreateParams
@@ -178,3 +178,4 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     private static extern bool GetClientRect(IntPtr window, out NativeRect rectangle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ValidateRect(IntPtr window, IntPtr rectangle);
 }
+

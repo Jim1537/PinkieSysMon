@@ -42,16 +42,17 @@ internal static class DesktopBottomPlacement
         return false;
     }
 
-    internal static void PlaceAtDesktopBack(IntPtr panel)
+    internal static bool PlaceAtDesktopBack(IntPtr panel)
     {
         var shell = FindWindow("Progman", null);
         var preceding = shell == IntPtr.Zero ? IntPtr.Zero :
             GetWindow(shell, 3u /* GW_HWNDPREV */);
         if (preceding == panel)
-            return;
+            return shell == IntPtr.Zero;
         if (!SetWindowPos(panel, InsertAfter(shell, preceding), 0, 0, 0, 0, Flags))
             throw new Win32Exception(Marshal.GetLastPInvokeError(),
                 "Could not place Desktop panel at the back of normal windows.");
+        return shell == IntPtr.Zero;
     }
 
     [DllImport("user32.dll", EntryPoint = "FindWindowW", CharSet = CharSet.Unicode)]
@@ -63,3 +64,4 @@ internal static class DesktopBottomPlacement
     private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter,
         int x, int y, int width, int height, uint flags);
 }
+
