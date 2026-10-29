@@ -215,6 +215,8 @@ internal static class Issue105LoggingTests
             var path = Path.Combine(root, "PinkieSysMon.Runtime.log");
             var log = new FileLogger(path, "Runtime");
             log.Info("before time rollover");
+            Check(!File.Exists(log.ErrorsPath),
+                "Normal records and idle maintenance do not create an error log before an error occurs.");
             var before = DateTime.UtcNow.AddMinutes(-20);
             File.SetLastWriteTimeUtc(path, before);
             log.Info("after time rollover");

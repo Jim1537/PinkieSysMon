@@ -72,8 +72,14 @@ internal static class LogFileWriter
         {
             var now = (clock ?? DateTimeOffset.UtcNow).UtcDateTime;
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-            RotateIfNecessary(path, now, 0);
-            using (new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)) { }
+            // A quiet maintenance pass must not invent an Errors.log when
+            // no error has ever been recorded. Still prune old archives.
+            // If a stale active stream is rotated, recreate its active slot.
+            if (File.Exists(path))
+            {
+                RotateIfNecessary(path, now, 0);
+                using (new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)) { }
+            }
             PruneExpired(path, now);
             return true;
         });

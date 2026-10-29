@@ -20,6 +20,10 @@ internal sealed class ApplicationLogSession : IDisposable
                     LogFileWriter.ObjectName(log.Path, "lifetime"), out var first);
                 LogFileWriter.Maintain(log.Path);
                 LogFileWriter.Maintain(log.ErrorsPath);
+                // Preserve the established session-admission contract: a
+                // running app has an empty error file even before first error.
+                // Ordinary FileLogger instances without a session stay sparse.
+                LogFileWriter.EnsureExists(log.ErrorsPath);
                 log.Info($"SESSION_START mode={mode}; version={RuntimeVersion.Current}; " +
                     $"newLogGroup={first}; rollingHistoryHours=72; previousSessionsRetained=true.");
                 return true;
