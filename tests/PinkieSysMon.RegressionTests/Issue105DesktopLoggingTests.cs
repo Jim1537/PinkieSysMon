@@ -15,7 +15,11 @@ internal static class Issue105DesktopLoggingTests
             for (var i = 0; i < OutputDiagnosticEvents.Capacity + 2; i++) events.Record("fixture", "logical", "managed-only");
             Check(!File.Exists(log.Path), "Producer observation must perform no diagnostic I/O.");
             events.Flush();
-            Check(Text(log.Path).Contains("\"omitted\":2"), "A full buffer reports exact omitted count.");
+            var omissions = Events(log.Path, "runtime.output.observations.omitted");
+            Check(omissions.Length == 1 && omissions[0].GetProperty("omitted").GetInt64() == 2 &&
+                  omissions[0].GetProperty("capacity").GetInt32() == OutputDiagnosticEvents.Capacity &&
+                  Events(log.Path, "runtime.output.observed").Length == OutputDiagnosticEvents.Capacity,
+                "A full buffer retains every admitted entry and reports exactly two omitted observations.");
             var target = new OutputTargetConfig
             {
                 Id = "desktop-evidence", Kind = OutputTargetContract.DesktopKind,
@@ -98,12 +102,32 @@ internal static class Issue105DesktopLoggingTests
         .Where(m => m?.StartsWith('{') == true)
         .Select(m => { using var j = JsonDocument.Parse(m!); return j.RootElement.Clone(); })
         .Where(e => e.GetProperty("eventName").GetString() == name).ToArray();
-    private static string Text(string path) => LogFileWriter.UnderGate(path, "write", () => File.Exists(path) ? File.ReadAllText(path) : "");
+    private static string Text(string path) => LogFileWriter.UnderGate(path, "write", () =>
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        if (!Directory.Exists(directory)) return "";
+        var archives = Directory.EnumerateFiles(directory, Path.GetFileName(path) + ".*.archive")
+            .Order(StringComparer.Ordinal);
+        return string.Concat(archives.Select(File.ReadAllText)) +
+            (File.Exists(path) ? File.ReadAllText(path) : "");
+    });
     private static void Sandbox(Action<string, FileLogger> action)
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkie-desktop-evidence-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        try { action(root, new FileLogger(Path.Combine(root, "session.log"), "Runtime")); }
+        try
+        {
+            var log = new FileLogger(Path.Combine(root, "session.log"), "Runtime");
+            action(root, log);
+            const string completed = "Issue105 Desktop fixture completed.";
+            log.Info(completed);
+            Check(Text(log.Path).Contains(completed) &&
+                  new[] { log.Path, log.ErrorsPath }.SelectMany(path => Text(path)
+                      .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                      .All(line => { using var record = JsonDocument.Parse(line[line.IndexOf('{')..]);
+                          return record.RootElement.GetProperty("loggingFailures").GetInt32() == 0; }),
+                "Desktop fixture must retain its final record without diagnostic write failures.");
+        }
         finally { Directory.Delete(root, true); }
     }
     private static void Check(bool value, string message) { if (!value) throw new InvalidOperationException(message); }

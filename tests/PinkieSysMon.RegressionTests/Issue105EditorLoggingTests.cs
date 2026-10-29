@@ -45,7 +45,7 @@ internal static class Issue105EditorLoggingTests
             Check(Operations(session, "fixture.cancel").Last().GetProperty("outcome").GetString() == "cancelled" &&
                   Operations(session, "fixture.incomplete").Last().GetProperty("outcome").GetString() == "incomplete",
                 "Disposed scopes must not claim unobserved success.");
-            Check(!File.ReadAllText(log.Path).Contains("fixture failure", StringComparison.Ordinal),
+            Check(!Text(log.Path).Contains("fixture failure", StringComparison.Ordinal),
                 "Complete failures must stay out of the session log.");
         });
     }
@@ -104,7 +104,7 @@ internal static class Issue105EditorLoggingTests
         Check(records.Count(e => e.GetProperty("message").GetString()!.Contains("editor.edit.committed")) == 1 &&
               !Get<bool>(editor, "_dirty") && messages.Count == 0,
             "One checkpoint must produce one edit summary and preserve the existing clean-after-Save behavior.");
-        Check(!File.ReadAllText(log.Path).Contains("\"canvas\""),
+        Check(!Text(log.Path).Contains("\"canvas\""),
             "Operation records must not contain serialized dashboard content.");
     });
 
@@ -229,7 +229,7 @@ internal static class Issue105EditorLoggingTests
             "Add/duplicate/property checkpoints must identify the actual widget or Canvas and descriptor.");
         Check(edits.All(e => e.GetProperty("scope").GetString() == "memory-and-history") &&
               edits.Select(e => e.GetProperty("operationId").GetString()).Distinct().Count() == 5 &&
-              !File.ReadAllText(log.Path).Contains(privateName) && !File.Exists(log.ErrorsPath) && messages.Count == 0,
+              !Text(log.Path).Contains(privateName) && !File.Exists(log.ErrorsPath) && messages.Count == 0,
             "Normal edit evidence must be independently identified, value-free and outside Errors.");
     });
 
@@ -299,7 +299,7 @@ internal static class Issue105EditorLoggingTests
               Sample(ungroup, "groups").SequenceEqual(new[] { duplicateGroup }) &&
               Sample(ungroup, "widgets").SequenceEqual(new[] { duplicateWidget }) &&
               Get<DashboardEditorMetadata>(editor, "_dashboardMetadata").GetGroup(duplicateGroup) is null &&
-              !File.ReadAllText(log.Path).Contains(privateGroup) && messages.Count == 0,
+              !Text(log.Path).Contains(privateGroup) && messages.Count == 0,
             "Ungroup must retain affected identities after clearing selection, without group names.");
     });
 
@@ -373,6 +373,13 @@ internal static class Issue105EditorLoggingTests
             var messages = new List<string>();
             using (editor = new EditorForm(root, null, log, (message, _, _) => messages.Add(message)))
                 test(root, editor, log, messages);
+            // A final record exposes any earlier sink failure, including cleanup.
+            const string completed = "Issue105 Editor fixture completed.";
+            log.Info(completed);
+            var session = Read(log.Path);
+            Check(session.Any(record => record.GetProperty("message").GetString() == completed) &&
+                  session.Concat(Read(log.ErrorsPath)).All(record => record.GetProperty("loggingFailures").GetInt32() == 0),
+                "Editor fixture must retain its final record without diagnostic write failures.");
         }
         catch (Exception error) { scenarioFailure = error; throw; }
         finally { RegressionFixtureCleanup.Delete(root, scenarioFailure, editor?.IsDisposed); }
@@ -393,8 +400,18 @@ internal static class Issue105EditorLoggingTests
         (T)(typeof(EditorForm).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Missing Editor field: " + field)).GetValue(editor)!;
 
-    private static JsonElement[] Read(string path) => !File.Exists(path) ? [] :
-        File.ReadAllLines(path).Select(line =>
+    private static string Text(string path) => LogFileWriter.UnderGate(path, "write", () =>
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        if (!Directory.Exists(directory)) return "";
+        var archives = Directory.EnumerateFiles(directory, Path.GetFileName(path) + ".*.archive")
+            .Order(StringComparer.Ordinal);
+        return string.Concat(archives.Select(File.ReadAllText)) +
+            (File.Exists(path) ? File.ReadAllText(path) : "");
+    });
+
+    private static JsonElement[] Read(string path) => Text(path)
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line =>
         {
             using var json = JsonDocument.Parse(line[line.IndexOf('{')..]);
             return json.RootElement.Clone();
