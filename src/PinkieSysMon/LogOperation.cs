@@ -14,8 +14,9 @@ internal sealed class LogOperation : IDisposable
     private string _phase = "begin";
     private bool _finished;
 
-    internal LogOperation(FileLogger log, string operation, string? subject = null, string? parent = null)
+    internal LogOperation(FileLogger log, string operation, string? subject = null, string? parent = null, string? id = null)
     {
+        Id = id ?? Guid.NewGuid().ToString("N");
         _log = log;
         _operation = operation;
         _subject = subject;
@@ -23,7 +24,7 @@ internal sealed class LogOperation : IDisposable
         Write("started");
     }
 
-    internal string Id { get; } = Guid.NewGuid().ToString("N");
+    internal string Id { get; }
     internal string CurrentPhase => _phase;
 
     internal void Phase(string phase, string? detail = null)
@@ -74,3 +75,4 @@ internal sealed class LogOperation : IDisposable
         if (!_finished) Finish("incomplete", "Scope ended without a confirmed terminal outcome.");
     }
 }
+

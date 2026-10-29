@@ -8,7 +8,8 @@ namespace PinkieSysMon;
 internal sealed class OutputDiagnosticEvents(FileLogger log)
 {
     internal const int Capacity = 128;
-    private readonly object _sync = new();
+    private readonly object _sync = new(), _writerSync = new();
+    private Task? _flushTask;
     private readonly Queue<Entry> _events = new();
     private readonly long _started = Stopwatch.GetTimestamp();
     private readonly string _id = Guid.NewGuid().ToString("N");
@@ -24,7 +25,27 @@ internal sealed class OutputDiagnosticEvents(FileLogger log)
         }
     }
 
+    internal void RequestFlush()
+    {
+        lock (_sync)
+        {
+            if (_events.Count == 0 && _omitted == 0 || _flushTask is { IsCompleted: false }) return;
+            _flushTask = Task.Run(() =>
+            {
+                try { Flush(); }
+                catch (Exception error) { log.Error("Output diagnostic drain failed.", error); }
+            });
+        }
+    }
+
     internal void Flush()
+    {
+        // Background ordinary drain; synchronous final drain can wait for an
+        // already admitted storage call. No application gate is held here.
+        lock (_writerSync) FlushCore();
+    }
+
+    private void FlushCore()
     {
         Entry[] entries;
         long omitted;

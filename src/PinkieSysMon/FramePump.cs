@@ -96,7 +96,7 @@ internal sealed class FramePump : IOutputSession
         _transportFactory = transportFactory ??
             (static (selectedTarget, timeoutMs, logger, ioToken) =>
                 PhysicalFrameTransportFactory.TryOpen(selectedTarget, timeoutMs, logger, ioToken));
-        _renderer = new DashboardRenderer(dashboard, _frameClockNow, _metrics.History);
+        _renderer = new DashboardRenderer(dashboard, _frameClockNow, _metrics.History, _log);
     }
 
     public string TargetId => _targetId;
@@ -115,7 +115,7 @@ internal sealed class FramePump : IOutputSession
         if (_worker is not null)
             return;
 
-        _log.Info($"{LogTarget} started.");
+        _log.Info($"{LogTarget} started. {_renderer.ResourceSummary}");
         _worker = Task.Run(() => RunAsync(_cts.Token));
     }
 
@@ -141,7 +141,7 @@ internal sealed class FramePump : IOutputSession
             dashboard.Canvas.Width,
             dashboard.Canvas.Height,
             dashboard.Canvas.Orientation,
-            new DashboardRenderer(dashboard, _frameClockNow, _metrics.History));
+            new DashboardRenderer(dashboard, _frameClockNow, _metrics.History, _log));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(
@@ -1005,3 +1005,4 @@ internal sealed class FramePump : IOutputSession
         }
     }
 }
+

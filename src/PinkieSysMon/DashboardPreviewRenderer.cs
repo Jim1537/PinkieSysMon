@@ -18,7 +18,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     private readonly ImageVisual? _backgroundImage;
     private readonly ImageVisual? _foregroundImage;
 
-    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null)
+    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null, FileLogger? log = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         _definition = definition;
@@ -41,10 +41,12 @@ internal sealed class DashboardPreviewRenderer : IDisposable
         ImageVisual? foregroundImage = null;
         Dictionary<string, IWidgetRenderer>? renderers = null;
 
+        var phase = "surface";
         try
         {
             surface = SKSurface.Create(_pixelInfo)
                 ?? throw new InvalidOperationException("Failed to create editor preview surface.");
+            phase = "fonts";
             typefaces = new TypefaceCache(_definition.BaseDirectory, _definition.Widgets);
             renderContext = new WidgetRenderContext(
                 new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
@@ -52,13 +54,16 @@ internal sealed class DashboardPreviewRenderer : IDisposable
                 typefaces, history);
             images = new ImageAssetCache(_definition.BaseDirectory);
             icons = new IconAssetCache(_definition.BaseDirectory);
+            phase = "images.preload";
             images.Preload(_definition.Widgets);
+            phase = "icons.preload";
             icons.Preload(_definition.Widgets);
 
             backgroundImage = CreateCanvasImageVisual(images, icons, _definition.Canvas.BackgroundImage);
             foregroundImage = CreateCanvasImageVisual(images, icons, _definition.Canvas.ForegroundImage);
 
-            renderers = WidgetRendererRegistry.Create(images, icons);
+            phase = "widgets.prepare";
+            renderers = WidgetRendererRegistry.Create(images, icons, log);
             var renderEntries = _definition.Widgets
                 .Select((widget, index) => new { widget, index })
                 .OrderBy(x => x.widget.Z)
@@ -89,8 +94,9 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             foregroundImage = null;
             renderers = null;
         }
-        catch
+        catch (Exception error)
         {
+            RenderFailureContext.Add(error, "preview.prepare." + phase);
             if (renderers is not null)
             {
                 foreach (var disposable in renderers.Values.OfType<IDisposable>().Distinct())
@@ -106,6 +112,8 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             throw;
         }
     }
+
+    internal string ResourceSummary => $"images={_images.ResourceCount}; imageBytes={_images.DecodedBytes}; icons={_icons.ResourceCount}; iconBytes={_icons.DecodedBytes}; fonts={_typefaces.LoadedFaces}";
 
     public int Width { get; }
     public int Height { get; }
@@ -188,7 +196,10 @@ internal sealed class DashboardPreviewRenderer : IDisposable
 
         _renderContext.BeginFrame(metrics);
         foreach (var entry in _renderEntries)
-            WidgetTransform.Render(canvas, entry.Widget, _renderContext, entry.Renderer);
+        {
+            try { WidgetTransform.Render(canvas, entry.Widget, _renderContext, entry.Renderer); }
+            catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+        }
 
         DrawCanvasImage(canvas, _foregroundImage);
         canvas.Flush();
@@ -240,3 +251,4 @@ internal sealed class DashboardPreviewRenderer : IDisposable
         _surface.Dispose();
     }
 }
+

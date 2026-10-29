@@ -71,7 +71,8 @@ internal static class Issue105DesktopLoggingTests
                 Check(dispatcher.Completion.Wait(TimeSpan.FromSeconds(10)), "Terminal dispatch/logging fence.");
                 Check(Events(log.Path, "desktop.shortcut.succeeded").Length == 1 && nativeCalls == 2,
                     "Superseded request never invokes Shell; success is only acceptance.");
-                Check(Events(log.Path, "desktop.shortcut.cancelled").Length == 2 &&
+                Check(Events(log.Path, "desktop.shortcut.cancelled").Length == 1 &&
+                    Events(log.Path, "runtime.output.observed").Count(e => e.GetProperty("phase").GetString() == "desktop.shortcut.refused") == 1 &&
                     Events(log.ErrorsPath, "desktop.shortcut.failed").Length == 1 && Text(log.ErrorsPath).Contains("\"nativeCode\":5"),
                     "Refusal, cancellation and native failure have separate truthful outcomes.");
                 Check(!Text(log.Path).Contains("PRIVATE-") && !Text(log.ErrorsPath).Contains("PRIVATE-"), "No target or argument payload is logged.");

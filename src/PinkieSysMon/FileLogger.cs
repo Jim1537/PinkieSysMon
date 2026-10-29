@@ -175,13 +175,21 @@ internal sealed class FileLogger
 
     // Imported platform metadata is external observation, not an app exception.
     // The collector advances its cursor only after this durable append succeeds.
-    internal bool TryAppendPlatformObservation(string message)
+    internal bool TryAppendPlatformObservations(IReadOnlyList<string> messages)
     {
+        if (messages.Count == 0) return true;
+        if (messages.Count > PlatformEventCapture.MaximumRecords)
+            throw new ArgumentOutOfRangeException(nameof(messages));
         try
         {
             lock (_sync)
-                return TryAppend(ErrorsPath, Format("PLATFORM_OBSERVATION", Guid.NewGuid().ToString("N"),
-                    message, null, null), durable: true);
+            {
+                // One writer gate, append and durable flush for the whole bounded
+                // startup batch. Cursor commit follows only this confirmed write.
+                var records = messages.Select(message => Format("PLATFORM_OBSERVATION",
+                    Guid.NewGuid().ToString("N"), message, null, null));
+                return TryAppend(ErrorsPath, string.Join(Environment.NewLine, records), durable: true);
+            }
         }
         catch (Exception failure) { ReportFailure(failure); return false; }
     }
@@ -202,6 +210,7 @@ internal sealed class FileLogger
             message = Bound(message),
             exception = ex is null ? null : Bound(ex.ToString()),
             exceptionType = ex?.GetType().FullName,
+            renderContext = RenderFailureContext.Find(ex),
             hResult = ex is null ? null : $"0x{ex.HResult:X8}",
             nativeCode = ex is Win32Exception native ? (int?)native.NativeErrorCode : null,
             loggingFailures = Volatile.Read(ref _lostRecords)

@@ -26,7 +26,15 @@ internal static class Issue105PlatformEventTests
                     new(10, "Microsoft-Windows-Kernel-General", 12, 4, Now.AddMinutes(-10)),
                     new(20, "Microsoft-Windows-WHEA-Logger", 18, 2, Now.AddMinutes(-8))], Upper(50));
             });
-            Run(root, log, source); Run(root, log, source);
+            var persistenceCalls = 0;
+            Run(root, log, source, messages =>
+            {
+                persistenceCalls++;
+                Check(messages.Count == 3, "One bounded batch must carry every observation.");
+                return log.TryAppendPlatformObservations(messages);
+            });
+            Run(root, log, source);
+            Check(persistenceCalls == 1, "Startup observation persistence must use one batch boundary.");
             var records = Observations(log).ToArray();
             Check(reads == 2 && records.Length == 3 && records.Select(e => e.GetProperty("recordId").GetInt64()).SequenceEqual(new long[] { 10, 20, 30 }),
                 "Healthy restart reads the cursor rather than replaying prior observations.");
@@ -116,7 +124,7 @@ internal static class Issue105PlatformEventTests
         public PlatformEventBatch Read(PlatformCursor? cursor, DateTimeOffset from, DateTimeOffset to, int maximum, CancellationToken token) =>
             read(cursor, from, to, maximum, token);
     }
-    private static void Run(string root, FileLogger log, IPlatformEventSource source, Func<string, bool>? persist = null)
+    private static void Run(string root, FileLogger log, IPlatformEventSource source, Func<IReadOnlyList<string>, bool>? persist = null)
     {
         using var capture = new PlatformEventCapture(root, log, source, () => Now, persist);
         capture.Start(); Check(capture.Completion.Wait(TimeSpan.FromSeconds(20)), "Capture completion fence.");

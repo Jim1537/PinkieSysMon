@@ -473,7 +473,7 @@ After a successful catalog refresh, the log records:
 - number of tree-backed duplicate metrics;
 - number of ambiguous metric IDs.
 
-Catalog diagnostics distinguish unavailable/recovered discovery and actual catalog generation changes from a routine refresh. Generation comparison uses catalog identity/meaning, excluding live values; fingerprints stay in memory. Routine summaries publish generation/counts only, with [counted/final application observations](../development/architecture.md#application-logging), without additional HTTP requests.
+Catalog diagnostics distinguish unavailable/recovered discovery and actual catalog generation changes from a routine refresh. Generation comparison uses catalog identity/meaning, excluding live values; comparison uses existing entries in memory without catalog serialization/hashing. Routine summaries publish generation/counts only, with [counted/final application observations](../development/architecture.md#application-logging), without additional HTTP requests.
 
 Repeated transport and protocol warnings are limited by a throttle interval of:
 

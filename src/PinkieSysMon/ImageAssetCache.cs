@@ -22,49 +22,61 @@ internal sealed class ImageAssetCache : IDisposable
     {
         foreach (var widget in widgets)
         {
-            switch (widget)
+            try
             {
-                case CanonicalDashboard.ShortcutWidgetDefinition shortcut
-                    when CanonicalDashboard.ImageAssetSourceType.IsFile(shortcut.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
-                    _ = Get(shortcut.Asset.Source!);
-                    break;
-                case CanonicalDashboard.ImageWidgetDefinition image
-                    when CanonicalDashboard.ImageAssetSourceType.IsFile(image.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(image.Asset.Source):
-                    _ = Get(image.Asset.Source!);
-                    break;
+                switch (widget)
+                {
+                    case CanonicalDashboard.ShortcutWidgetDefinition shortcut
+                        when CanonicalDashboard.ImageAssetSourceType.IsFile(shortcut.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
+                        _ = Get(shortcut.Asset.Source!);
+                        break;
+                    case CanonicalDashboard.ImageWidgetDefinition image
+                        when CanonicalDashboard.ImageAssetSourceType.IsFile(image.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(image.Asset.Source):
+                        _ = Get(image.Asset.Source!);
+                        break;
 
-                case CanonicalDashboard.BarWidgetDefinition bar
-                    when BarImageContract.IsImageMode(bar.ContentMode) &&
-                         !string.IsNullOrWhiteSpace(bar.Image.Source):
-                    _ = Get(bar.Image.Source!);
-                    break;
+                    case CanonicalDashboard.BarWidgetDefinition bar
+                        when BarImageContract.IsImageMode(bar.ContentMode) &&
+                             !string.IsNullOrWhiteSpace(bar.Image.Source):
+                        _ = Get(bar.Image.Source!);
+                        break;
 
-                case CanonicalDashboard.GraphWidgetDefinition graph
-                    when CanonicalDashboard.ImageAssetSourceType.IsFile(graph.Image.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
-                    _ = Get(graph.Image.Asset.Source!);
-                    break;
+                    case CanonicalDashboard.GraphWidgetDefinition graph
+                        when CanonicalDashboard.ImageAssetSourceType.IsFile(graph.Image.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
+                        _ = Get(graph.Image.Asset.Source!);
+                        break;
 
-                case CanonicalDashboard.StateVisualWidgetDefinition stateWidget:
-                    foreach (var profile in stateWidget.Profiles.Values)
-                    {
-                        if (CanonicalDashboard.StateContentType.IsImage(profile.ContentType) &&
-                            CanonicalDashboard.ImageAssetSourceType.IsFile(profile.Asset.SourceType) &&
-                            !string.IsNullOrWhiteSpace(profile.Asset.Source))
+                    case CanonicalDashboard.StateVisualWidgetDefinition stateWidget:
+                        foreach (var profile in stateWidget.Profiles.Values)
                         {
-                            _ = Get(profile.Asset.Source!);
+                            if (CanonicalDashboard.StateContentType.IsImage(profile.ContentType) &&
+                                CanonicalDashboard.ImageAssetSourceType.IsFile(profile.Asset.SourceType) &&
+                                !string.IsNullOrWhiteSpace(profile.Asset.Source))
+                            {
+                                _ = Get(profile.Asset.Source!);
+                            }
                         }
-                    }
-                    break;
+                        break;
+                }
             }
+            catch (Exception error) { RenderFailureContext.Add(error, "image.preload", widget.Id); throw; }
         }
     }
 
+    internal int ResourceCount => _assetsByPath.Count;
+    internal long DecodedBytes => _aggregateDecodedBytes;
     public bool HasAnimatedAssets => _assetsByPath.Values.Any(asset => asset.IsAnimated);
 
     public ImageAsset Get(string source)
+    {
+        try { return GetCore(source); }
+        catch (Exception error) { RenderFailureContext.Add(error, "image.load"); throw; }
+    }
+
+    private ImageAsset GetCore(string source)
     {
         var sourceKey = NormalizeSourceKey(source);
         if (_assetsBySource.TryGetValue(sourceKey, out var cachedBySource))
@@ -378,3 +390,4 @@ internal sealed class ImageAsset : IDisposable
             frame.Dispose();
     }
 }
+

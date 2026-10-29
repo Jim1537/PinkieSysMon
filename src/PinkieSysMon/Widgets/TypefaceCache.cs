@@ -18,7 +18,15 @@ internal sealed class TypefaceCache : IDisposable
         LoadRequestedGlobalFonts(widgets);
     }
 
+    internal int LoadedFaces => _globalFonts.Count;
+
     public SKTypeface Get(TextPresentation presentation)
+    {
+        try { return GetCore(presentation); }
+        catch (Exception error) { RenderFailureContext.Add(error, "font.resolve"); throw; }
+    }
+
+    private SKTypeface GetCore(TextPresentation presentation)
     {
         var weight = Math.Clamp(presentation.FontWeight, 1, 1000);
         var key = BuildKey(presentation.FontFamily, weight, presentation.Italic);
@@ -98,8 +106,9 @@ internal sealed class TypefaceCache : IDisposable
                     candidate.Dispose();
             }
         }
-        catch
+        catch (Exception error)
         {
+            RenderFailureContext.Add(error, "font.load");
             foreach (var candidate in candidates)
                 candidate.Dispose();
             _globalFonts.Clear();
@@ -184,3 +193,4 @@ internal sealed class TypefaceCache : IDisposable
 
     private readonly record struct FontRequest(string Family, int Weight, bool Italic);
 }
+

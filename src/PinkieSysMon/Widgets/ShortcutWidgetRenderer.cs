@@ -7,12 +7,12 @@ internal sealed class ShortcutWidgetRenderer : IWidgetRenderer, IWidgetOverlayRe
 {
     private readonly ImageAssetCache _images;
     private readonly IconAssetCache _icons;
-    private readonly ShellIconCache _shell = new();
+    private readonly ShellIconCache _shell;
     private readonly TextContentRenderer _text = new();
     private readonly Dictionary<C.ShortcutWidgetDefinition, ImageVisual> _compiled = new();
     private readonly HashSet<C.ShortcutWidgetDefinition> _pending = new();
 
-    public ShortcutWidgetRenderer(ImageAssetCache images, IconAssetCache icons) { _images = images; _icons = icons; }
+    public ShortcutWidgetRenderer(ImageAssetCache images, IconAssetCache icons, FileLogger? log = null) { _images = images; _icons = icons; _shell = new(log: log); }
     public string Type => WidgetTypeContract.Shortcut;
     // Remains true until a render consumes the result, including the final completed frame.
     internal bool HasPendingResources => _pending.Count > 0;
@@ -25,7 +25,7 @@ internal sealed class ShortcutWidgetRenderer : IWidgetRenderer, IWidgetOverlayRe
             // No custom asset also means Auto, without reinterpreting Target as a dashboard path.
             if (ShortcutContract.IsAuto(shortcut.Asset.SourceType) || string.IsNullOrWhiteSpace(shortcut.Asset.Source))
             {
-                var image = _shell.Get(shortcut.Target, out var pending);
+                var image = _shell.Get(shortcut.Target, out var pending, shortcut.Id);
                 if (pending) _pending.Add(shortcut); else _pending.Remove(shortcut);
                 if (image is null) return;
                 visual = ImageVisual.CreateImage(image, shortcut.Asset.Fit, shortcut.Asset.Loop, shortcut.Opacity, context.Antialias);
@@ -54,3 +54,4 @@ internal sealed class ShortcutWidgetRenderer : IWidgetRenderer, IWidgetOverlayRe
         _shell.Dispose();
     }
 }
+

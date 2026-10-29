@@ -31,6 +31,8 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 resource failure context without inner diagnostic I/O", Issue105ResourceLoggingTests.ResourceContextWithoutInnerIo),
+            ("Issue105 Shell resource failure cached per generation", Issue105ResourceLoggingTests.ShellCacheFailureIsOncePerGeneration),
             ("Issue105 platform event chronology deduplication and reset", Issue105PlatformEventTests.ChronologyDeduplicationAndReset),
             ("Issue105 platform event caps and cursor persistence faults", Issue105PlatformEventTests.BoundsCursorAndPersistenceFailures),
             ("Issue105 platform access cancellation and query allowlist", Issue105PlatformEventTests.AccessFailureCancellationAndAllowlist),

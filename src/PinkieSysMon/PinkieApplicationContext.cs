@@ -581,7 +581,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private void RefreshTrayStatus()
     {
         var status = _outputControl.GetStatus();
-        _outputSessions.FlushDiagnostics();
+        _outputSessions.RequestDiagnosticsFlush();
         _commandFeedback.Observe(status);
         _trayMenu.Status.Text = RuntimeTrayOutputContract.Summary(status);
         var tooltip = RuntimeTrayOutputContract.Tooltip(status);

@@ -199,6 +199,7 @@ internal sealed class TelemetryEngine : IDisposable
     private Task? _worker;
     private readonly DiagnosticStateObserver _diagnostics;
     private readonly WorkerProgressDiagnostics _progress;
+    private readonly HashSet<string> _failedSourceIncidents = new(StringComparer.Ordinal);
     private readonly string _incidentPrefix = "telemetry." + Guid.NewGuid().ToString("N") + ".";
     private int _disposeState;
     private readonly Queue<(Action Run, Action Cancel)> _sourceOperations = new();
@@ -446,6 +447,8 @@ internal sealed class TelemetryEngine : IDisposable
 
     private async Task RunAsync(CancellationToken token)
     {
+        long observedPlan = long.MinValue;
+        bool observedPause = false;
         while (!token.IsCancellationRequested)
         {
             try
@@ -462,7 +465,11 @@ internal sealed class TelemetryEngine : IDisposable
                     planVersion = paused ? _scheduleVersion : PrepareDueSourcesLocked(Stopwatch.GetTimestamp());
                 }
 
-                _diagnostics.Observe("schedule", $"version={planVersion}; paused={paused}; activeMetrics={scheduled}");
+                if (planVersion != observedPlan || paused != observedPause)
+                {
+                    _diagnostics.Observe("schedule", $"version={planVersion}; paused={paused}; activeMetrics={scheduled}");
+                    observedPlan = planVersion; observedPause = paused;
+                }
                 if (!paused)
                     CaptureDueSources();
 
@@ -550,15 +557,14 @@ internal sealed class TelemetryEngine : IDisposable
                 IReadOnlyDictionary<string, object?> snapshot;
                 try { snapshot = sourceSchedule.Source.Capture(sourceSchedule.DueMetricNames); }
                 finally { _progress.Complete(); }
+                var available = 0;
                 foreach (var metric in sourceSchedule.DueMetricNames)
                 {
-                    if (snapshot.TryGetValue(metric, out var value))
-                        _captureBatch[metric] = value;
-                    else
-                        _captureBatch[metric] = null;
+                    var found = snapshot.TryGetValue(metric, out var value) ? value : null;
+                    _captureBatch[metric] = found;
+                    if (found is not null) available++;
                 }
-                _log.FlushSuppressed(_incidentPrefix + key);
-                var available = sourceSchedule.DueMetricNames.Count(name => _captureBatch[name] is not null);
+                if (_failedSourceIncidents.Remove(key)) _log.FlushSuppressed(_incidentPrefix + key);
                 _diagnostics.Observe(key, $"requested={sourceSchedule.DueMetricNames.Count}; available={available}",
                     $"elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds}; queryReturned=true");
             }
@@ -569,6 +575,7 @@ internal sealed class TelemetryEngine : IDisposable
                 foreach (var metric in sourceSchedule.DueMetricNames)
                     _captureBatch[metric] = null;
 
+                _failedSourceIncidents.Add(key);
                 _diagnostics.Observe(key, "capture.failed");
                 _log.ErrorThrottled(
                     _incidentPrefix + key,

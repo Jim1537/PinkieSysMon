@@ -32,7 +32,7 @@ internal sealed class DashboardRenderer : IDisposable
     private int _owners = 1;
 
 
-    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null)
+    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null, FileLogger? log = null)
     {
         _definition = definition;
         _frameClockNow = frameClockNow;
@@ -63,6 +63,7 @@ internal sealed class DashboardRenderer : IDisposable
         ImageVisual? foregroundImage = null;
         Dictionary<string, IWidgetRenderer>? renderers = null;
 
+        var phase = "fonts";
         try
         {
             typefaceCache = new TypefaceCache(definition.BaseDirectory, widgets);
@@ -78,14 +79,17 @@ internal sealed class DashboardRenderer : IDisposable
 
             imageAssets = new ImageAssetCache(definition.BaseDirectory);
             iconAssets = new IconAssetCache(definition.BaseDirectory);
+            phase = "images.preload";
             imageAssets.Preload(widgets);
+            phase = "icons.preload";
             iconAssets.Preload(widgets);
             backgroundImage = CreateCanvasImageVisual(
                 imageAssets, iconAssets, definition.Canvas.BackgroundImage);
             foregroundImage = CreateCanvasImageVisual(
                 imageAssets, iconAssets, definition.Canvas.ForegroundImage);
 
-            renderers = WidgetRendererRegistry.Create(imageAssets, iconAssets);
+            phase = "widgets.prepare";
+            renderers = WidgetRendererRegistry.Create(imageAssets, iconAssets, log);
             var renderEntries = widgets.Select(widget =>
             {
                 if (!renderers.TryGetValue(widget.Type, out var renderer))
@@ -115,8 +119,9 @@ internal sealed class DashboardRenderer : IDisposable
             foregroundImage = null;
             renderers = null;
         }
-        catch
+        catch (Exception error)
         {
+            RenderFailureContext.Add(error, "renderer.prepare." + phase);
             if (renderers is not null)
             {
                 foreach (var disposable in renderers.Values.OfType<IDisposable>().Distinct())
@@ -133,6 +138,8 @@ internal sealed class DashboardRenderer : IDisposable
             throw;
         }
     }
+
+    internal string ResourceSummary => $"images={_imageAssets.ResourceCount}; imageBytes={_imageAssets.DecodedBytes}; icons={_iconAssets.ResourceCount}; iconBytes={_iconAssets.DecodedBytes}; fonts={_typefaceCache.LoadedFaces}";
 
     private static ImageVisual? CreateCanvasImageVisual(
         ImageAssetCache images,
@@ -191,7 +198,10 @@ internal sealed class DashboardRenderer : IDisposable
 
         _renderContext.BeginFrame(metrics, _frameClockNow);
         foreach (var entry in _renderEntries)
-            WidgetTransform.Render(logicalCanvas, entry.Widget, _renderContext, entry.Renderer);
+        {
+            try { WidgetTransform.Render(logicalCanvas, entry.Widget, _renderContext, entry.Renderer); }
+            catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+        }
 
         DrawCanvasImage(logicalCanvas, _foregroundImage);
         logicalCanvas.Flush();
@@ -332,3 +342,4 @@ internal sealed class DashboardRenderer : IDisposable
         _logicalSurface.Dispose();
     }
 }
+

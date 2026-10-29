@@ -263,7 +263,6 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
     private readonly LibreHardwareMonitorHttpClient _client;
     private readonly FileLogger _log;
     private readonly DiagnosticStateObserver _diagnostics;
-    private string? _catalogSignature;
     private long _catalogGeneration;
 
     private IReadOnlyDictionary<string, LibreHardwareMonitorMetricEntry> _catalog =
@@ -419,21 +418,15 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
 
         lock (_sync)
         {
+            if (_catalog.Count != catalog.Metrics.Count || !_ambiguousMetricIds.SetEquals(catalog.AmbiguousMetricIds) ||
+                catalog.Metrics.Any(pair => !_catalog.TryGetValue(pair.Key, out var old) || !SameMeaning(old, pair.Value)))
+                _catalogGeneration++;
             _catalog = catalog.Metrics;
             _ambiguousMetricIds = catalog.AmbiguousMetricIds;
             _catalogExpiresAtTick = now + (long)CatalogRefreshInterval.TotalMilliseconds;
             _catalogTransportGeneration = _client.StateGeneration;
         }
 
-        var signature = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            metrics = catalog.Metrics.Values.OrderBy(e => e.MetricId, StringComparer.OrdinalIgnoreCase)
-                .Select(e => new { e.MetricId, e.SensorId, e.SensorType, e.SensorName,
-                    e.HardwareId, e.HardwareName, e.SensorGroupName, e.HardwarePath, e.ReadFromTreeSnapshot }),
-            ambiguous = catalog.AmbiguousMetricIds.Order(StringComparer.OrdinalIgnoreCase)
-        });
-        signature = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(signature)));
-        if (_catalogSignature != signature) { _catalogGeneration++; _catalogSignature = signature; }
         _diagnostics.Observe("catalog.generation", $"generation={_catalogGeneration}; metrics={catalog.Metrics.Count}; ambiguous={catalog.AmbiguousMetricIds.Count}");
         MetricContract.ReplaceProviderDescriptors(ProviderId, descriptors);
         var treeBackedCount = catalog.Metrics.Values.Count(entry => entry.ReadFromTreeSnapshot);
@@ -441,6 +434,11 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
             $"Libre Hardware Monitor raw catalog refreshed: metrics={catalog.Metrics.Count}, tree-backed-duplicates={treeBackedCount}, ambiguous={catalog.AmbiguousMetricIds.Count}.");
         return true;
     }
+
+    private static bool SameMeaning(LibreHardwareMonitorMetricEntry a, LibreHardwareMonitorMetricEntry b) =>
+        a.MetricId == b.MetricId && a.SensorId == b.SensorId && a.SensorType == b.SensorType && a.SensorName == b.SensorName &&
+        a.HardwareId == b.HardwareId && a.HardwareName == b.HardwareName && a.SensorGroupName == b.SensorGroupName &&
+        a.ReadFromTreeSnapshot == b.ReadFromTreeSnapshot && a.HardwarePath.SequenceEqual(b.HardwarePath);
 
     private void InvalidateCatalog()
     {

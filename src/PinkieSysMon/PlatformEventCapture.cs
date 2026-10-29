@@ -31,7 +31,7 @@ internal sealed class PlatformEventCapture : IDisposable
     private readonly string _cursorPath;
     private readonly IPlatformEventSource _source;
     private readonly Func<DateTimeOffset> _now;
-    private readonly Func<string, bool> _persist;
+    private readonly Func<IReadOnlyList<string>, bool> _persist;
     private readonly CancellationTokenSource _stop = new();
     private bool _closed, _started;
     private Task _completion = Task.CompletedTask;
@@ -39,13 +39,13 @@ internal sealed class PlatformEventCapture : IDisposable
     private static readonly JsonSerializerOptions CursorJson = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
 
     internal PlatformEventCapture(string root, FileLogger log, IPlatformEventSource? source = null,
-        Func<DateTimeOffset>? now = null, Func<string, bool>? persist = null)
+        Func<DateTimeOffset>? now = null, Func<IReadOnlyList<string>, bool>? persist = null)
     {
         _log = log;
         _cursorPath = Path.Combine(root, "config", "platform-events.cursor.json");
         _source = source ?? new WindowsPlatformEventSource();
         _now = now ?? (() => DateTimeOffset.UtcNow);
-        _persist = persist ?? log.TryAppendPlatformObservation;
+        _persist = persist ?? log.TryAppendPlatformObservations;
     }
 
     internal void Start()
@@ -63,6 +63,7 @@ internal sealed class PlatformEventCapture : IDisposable
 
     private void Run(CancellationToken token)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
             var expected = ReadCursorBytes();
@@ -93,6 +94,7 @@ internal sealed class PlatformEventCapture : IDisposable
                 batch.Upper.EventTimeUtc > importedAt;
             var bootId = batch.Reset || batch.Capped || batch.Gap is not null ? null : cursor?.BootRecordId;
             var bootTime = bootId is null ? null : cursor?.BootTimeUtc;
+            var records = new List<string>(rows.Length);
             foreach (var row in rows)
             {
                 token.ThrowIfCancellationRequested();
@@ -107,9 +109,10 @@ internal sealed class PlatformEventCapture : IDisposable
                     bootBoundaryRecordId = bootId, bootBoundaryTimeUtc = bootTime,
                     clockOrderingConflict = clockConflict, causeEstablished = false
                 });
-                if (!Admit()) return;
-                if (!_persist(record)) { Gap("observation-persistence-unconfirmed; cursor-not-advanced"); return; }
+                records.Add(record);
             }
+            if (!Admit()) return;
+            if (!_persist(records)) { Gap("observation-persistence-unconfirmed; cursor-not-advanced"); return; }
             if (batch.Reset) Gap("system-log-identity-reset");
             if (batch.Capped) Gap("record-limit; older-matching-events-not-imported");
             if (batch.Gap is not null) Gap(batch.Gap);
@@ -117,7 +120,7 @@ internal sealed class PlatformEventCapture : IDisposable
             token.ThrowIfCancellationRequested();
             if (!Admit()) return;
             SaveCursor(batch.Upper with { BootRecordId = bootId, BootTimeUtc = bootTime }, expected);
-            if (Admit()) _log.Info($"PLATFORM_CAPTURE_COMPLETED channel=System; imported={rows.Length}; capped={batch.Capped}; reset={batch.Reset}; gap={batch.Gap is not null}; clockConflict={clockConflict}; cursorCommitted=true; causeEstablished=false.");
+            if (Admit()) _log.Info($"PLATFORM_CAPTURE_COMPLETED channel=System; imported={rows.Length}; capped={batch.Capped}; reset={batch.Reset}; gap={batch.Gap is not null}; clockConflict={clockConflict}; cursorCommitted=true; elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1}; causeEstablished=false.");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) { Gap("capture-failed; completion-not-confirmed", error); }

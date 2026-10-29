@@ -46,7 +46,7 @@ internal sealed class OutputSessionManager : IDisposable
             });
     }
 
-    internal void FlushDiagnostics() => _diagnostics.Flush();
+    internal void RequestDiagnosticsFlush() => _diagnostics.RequestFlush();
 
     private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
         AppConfig config, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
@@ -832,7 +832,7 @@ internal sealed class OutputSessionManager : IDisposable
         DisposeSessionsBestEffort(sessions);
         foreach (var target in _config.Outputs.Targets)
             _metrics.Publish(OutputMetricContract.Unavailable(target));
-        FlushDiagnostics();
+        _diagnostics.Flush();
     }
 }
 

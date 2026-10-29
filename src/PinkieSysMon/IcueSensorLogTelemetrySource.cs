@@ -206,8 +206,9 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource, IDisposable
             .ToArray();
 
         if (!string.Equals(_activeLogPath, candidate, StringComparison.OrdinalIgnoreCase)) _fileGeneration++;
-        if (!_ambiguousMetricIds.SetEquals(catalog.AmbiguousMetricIds) || !_catalog.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
-                .SequenceEqual(catalog.Metrics.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))) _catalogGeneration++;
+        if (_catalog.Count != catalog.Metrics.Count || !_ambiguousMetricIds.SetEquals(catalog.AmbiguousMetricIds) ||
+            catalog.Metrics.Any(pair => !_catalog.TryGetValue(pair.Key, out var previous) || previous != pair.Value))
+            _catalogGeneration++;
         _activeLogPath = candidate;
         _activePosition = nextPosition;
         _pendingText = string.Empty;

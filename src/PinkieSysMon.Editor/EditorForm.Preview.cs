@@ -37,7 +37,7 @@ internal sealed partial class EditorForm
         DashboardPreviewRenderer? replacement = null;
         try
         {
-            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History);
+            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History, _log);
 
             // Prepare everything that can fail before replacing the currently usable preview.
             // This keeps reload/property edits transactional from the editor's point of view.
@@ -317,3 +317,4 @@ internal sealed partial class EditorForm
     }
 
 }
+

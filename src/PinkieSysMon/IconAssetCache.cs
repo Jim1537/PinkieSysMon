@@ -24,43 +24,55 @@ internal sealed class IconAssetCache : IDisposable
     {
         foreach (var widget in widgets)
         {
-            switch (widget)
+            try
             {
-                case CanonicalDashboard.ShortcutWidgetDefinition shortcut
-                    when CanonicalDashboard.ImageAssetSourceType.IsIcon(shortcut.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
-                    _ = Get(shortcut.Asset.Source!);
-                    break;
-                case CanonicalDashboard.ImageWidgetDefinition image
-                    when CanonicalDashboard.ImageAssetSourceType.IsIcon(image.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(image.Asset.Source):
-                    _ = Get(image.Asset.Source!);
-                    break;
+                switch (widget)
+                {
+                    case CanonicalDashboard.ShortcutWidgetDefinition shortcut
+                        when CanonicalDashboard.ImageAssetSourceType.IsIcon(shortcut.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
+                        _ = Get(shortcut.Asset.Source!);
+                        break;
+                    case CanonicalDashboard.ImageWidgetDefinition image
+                        when CanonicalDashboard.ImageAssetSourceType.IsIcon(image.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(image.Asset.Source):
+                        _ = Get(image.Asset.Source!);
+                        break;
 
-                case CanonicalDashboard.GraphWidgetDefinition graph
-                    when CanonicalDashboard.ImageAssetSourceType.IsIcon(graph.Image.Asset.SourceType) &&
-                         !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
-                    _ = Get(graph.Image.Asset.Source!);
-                    break;
+                    case CanonicalDashboard.GraphWidgetDefinition graph
+                        when CanonicalDashboard.ImageAssetSourceType.IsIcon(graph.Image.Asset.SourceType) &&
+                             !string.IsNullOrWhiteSpace(graph.Image.Asset.Source):
+                        _ = Get(graph.Image.Asset.Source!);
+                        break;
 
-                case CanonicalDashboard.StateVisualWidgetDefinition stateWidget:
-                    foreach (var profile in stateWidget.Profiles.Values)
-                    {
-                        if (CanonicalDashboard.StateContentType.IsImage(profile.ContentType) &&
-                            CanonicalDashboard.ImageAssetSourceType.IsIcon(profile.Asset.SourceType) &&
-                            !string.IsNullOrWhiteSpace(profile.Asset.Source))
+                    case CanonicalDashboard.StateVisualWidgetDefinition stateWidget:
+                        foreach (var profile in stateWidget.Profiles.Values)
                         {
-                            _ = Get(profile.Asset.Source!);
+                            if (CanonicalDashboard.StateContentType.IsImage(profile.ContentType) &&
+                                CanonicalDashboard.ImageAssetSourceType.IsIcon(profile.Asset.SourceType) &&
+                                !string.IsNullOrWhiteSpace(profile.Asset.Source))
+                            {
+                                _ = Get(profile.Asset.Source!);
+                            }
                         }
-                    }
-                    break;
+                        break;
+                }
             }
+            catch (Exception error) { RenderFailureContext.Add(error, "icon.preload", widget.Id); throw; }
         }
     }
 
+    internal int ResourceCount => _assetsByPath.Count;
+    internal long DecodedBytes => _aggregateDecodedBytes;
     public bool HasAnimatedAssets => _assetsByPath.Values.Any(asset => asset.Capabilities.IsAnimated);
 
     public IIconAsset Get(string logicalName)
+    {
+        try { return GetCore(logicalName); }
+        catch (Exception error) { RenderFailureContext.Add(error, "icon.load"); throw; }
+    }
+
+    private IIconAsset GetCore(string logicalName)
     {
         if (string.IsNullOrWhiteSpace(logicalName))
             throw new InvalidDataException("Icon source must not be empty.");
@@ -420,3 +432,4 @@ internal sealed class SvgIconAsset : IIconAsset
         };
     }
 }
+

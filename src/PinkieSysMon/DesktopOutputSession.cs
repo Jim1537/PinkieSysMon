@@ -56,7 +56,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _log = log ?? throw new ArgumentNullException(nameof(log));
 
         _interactions = new ShortcutInteractionMap(dashboard);
-        _renderer = new DashboardRenderer(dashboard, history: _metrics.History);
+        _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log);
         IDesktopOutputWindow? window = null;
         try
         {
@@ -138,7 +138,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
                 _window.ShowWindow();
             ChangeState(_suspended ? "SUSPENDED" : _idlePaused ? "IDLE_PAUSED" :
                 _window.IsVisible ? "DISPLAYING" : "WINDOW_UNAVAILABLE");
-            _log.Info($"Desktop output '{TargetName}' started; targetId={_id}; no USB transport.");
+            _log.Info($"Desktop output '{TargetName}' started; targetId={_id}; no USB transport; {_renderer.ResourceSummary}.");
         }
         catch (Exception ex)
         {
@@ -163,7 +163,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var size = FrameGeometry.GetLogicalSize(
             dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, new ShortcutInteractionMap(dashboard), new DashboardRenderer(dashboard, history: _metrics.History));
+        return new PreparedReconfiguration(config, target, size, new ShortcutInteractionMap(dashboard), new DashboardRenderer(dashboard, history: _metrics.History, log: _log));
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(

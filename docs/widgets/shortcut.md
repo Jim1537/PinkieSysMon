@@ -34,3 +34,5 @@ Shell extraction runs off the render/UI thread and is cached per renderer and ex
 
 
 Shortcut diagnostics identify the logical widget and operation, refusal/cancellation, Shell dispatch and returned result. Native failures retain their code and original thrown exception when available through the [shared application error route](../development/architecture.md#application-logging); target and argument payloads are omitted. Shell acceptance does not confirm that the launched application worked.
+
+Auto-icon outcomes are counted on the existing extraction workers. Failed extraction retains its original exception/native status with bounded logical widget context; repeated identical failures are aggregated and final totals follow worker completion. No target or argument is added to routine diagnostics, and no new icon lookup is performed for logging.

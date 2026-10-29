@@ -4,7 +4,7 @@ internal static class WidgetRendererRegistry
 {
     public static Dictionary<string, IWidgetRenderer> Create(
         ImageAssetCache imageAssets,
-        IconAssetCache iconAssets)
+        IconAssetCache iconAssets, FileLogger? log = null)
     {
         IWidgetRenderer[] renderers =
         [
@@ -13,7 +13,7 @@ internal static class WidgetRendererRegistry
             new GaugeWidgetRenderer(),
             new GraphWidgetRenderer(imageAssets, iconAssets),
             new ImageWidgetRenderer(imageAssets, iconAssets),
-            new ShortcutWidgetRenderer(imageAssets, iconAssets),
+            new ShortcutWidgetRenderer(imageAssets, iconAssets, log),
             new BinaryWidgetRenderer(imageAssets, iconAssets),
             new PowerWidgetRenderer(imageAssets, iconAssets),
             new MediaSystemWidgetRenderer(imageAssets, iconAssets),
@@ -23,3 +23,4 @@ internal static class WidgetRendererRegistry
         return renderers.ToDictionary(renderer => renderer.Type, StringComparer.OrdinalIgnoreCase);
     }
 }
+
