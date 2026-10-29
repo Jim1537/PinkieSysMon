@@ -291,6 +291,61 @@ internal static class Issue105LoggingTests
         });
     }
 
+
+    public static void ConfigurableRetentionAcrossSessions()
+    {
+        Sandbox(root =>
+        {
+            var logs = Path.Combine(root, "logs");
+            var configDirectory = Path.Combine(root, "config");
+            Directory.CreateDirectory(logs);
+            Directory.CreateDirectory(configDirectory);
+            var configPath = Path.Combine(configDirectory, "app.json");
+            var logPath = Path.Combine(logs, "PinkieSysMon.Runtime.log");
+            var config = new AppConfig();
+            config.Save(configPath);
+            Check(config.Runtime.LogRetentionDays == 3 &&
+                  LogRetentionPolicy.GetRetentionDays(logPath) == 3,
+                "Legacy/default settings must preserve the three-day retention window.");
+
+            var archive = logPath + ".20261028T0000000000000Z." +
+                Guid.NewGuid().ToString("N") + ".archive";
+            File.WriteAllText(archive, "historical record");
+            File.SetLastWriteTimeUtc(archive, DateTime.UtcNow.AddDays(-2));
+            LogFileWriter.Maintain(logPath);
+            Check(File.Exists(archive), "Two-day history survives the default three-day window.");
+
+            config.Runtime.LogRetentionDays = 5;
+            config.Save(configPath);
+            LogFileWriter.Maintain(logPath);
+            Check(File.Exists(archive) && LogRetentionPolicy.GetRetentionDays(logPath) == 5,
+                "Longer retention applies to a running process without restarting.");
+
+            config.Runtime.LogRetentionDays = 1;
+            config.Save(configPath);
+            LogFileWriter.Maintain(logPath);
+            Check(!File.Exists(archive) && LogRetentionPolicy.GetRetentionDays(logPath) == 1,
+                "Shorter retention expires old segments at the next maintenance.");
+
+            config.Runtime.LogRetentionDays = 0;
+            bool rejected = false;
+            try { config.Save(configPath); }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected, "AppConfig must reject zero retention days.");
+
+            var preserved = logPath + ".20261028T0000000000000Z." +
+                Guid.NewGuid().ToString("N") + ".archive";
+            File.WriteAllText(preserved, "keep on invalid policy");
+            File.SetLastWriteTimeUtc(preserved, DateTime.UtcNow.AddDays(-10));
+            File.WriteAllText(configPath, "{\"Runtime\":{\"LogRetentionDays\":0}}");
+            rejected = false;
+            try { LogFileWriter.Maintain(logPath); }
+            catch (InvalidDataException) { rejected = true; }
+            Check(rejected && File.Exists(preserved),
+                "Malformed retention policy must fail closed, not delete evidence.");
+        });
+    }
+
     private static ChildProcess StartChild(string mode, string path, string token)
     {
         var executable = Environment.ProcessPath ?? throw new InvalidOperationException("No regression host path.");
