@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text;
 
 namespace PinkieSysMon;
@@ -35,7 +36,6 @@ internal static class LogFileWriter
     // Three logical streams share this implementation. Their closed segments are
     // rotated by UTC quarter-hour and capped individually; no session reset is allowed.
     internal const long MaximumSegmentBytes = 4L * 1024 * 1024;
-    internal static readonly TimeSpan Retention = TimeSpan.FromHours(72);
     private static readonly TimeSpan BucketWidth = TimeSpan.FromMinutes(15);
 
     internal static void Append(string path, string record, bool durable)
@@ -80,7 +80,7 @@ internal static class LogFileWriter
                 RotateIfNecessary(path, now, 0);
                 using (new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)) { }
             }
-            PruneExpired(path, now);
+            PruneExpired(path, now, LogRetentionPolicy.GetRetentionDays(path));
             return true;
         });
     }
@@ -107,11 +107,11 @@ internal static class LogFileWriter
         File.Move(path, archive);
     }
 
-    private static void PruneExpired(string path, DateTime now)
+    private static void PruneExpired(string path, DateTime now, int retentionDays)
     {
         var directory = System.IO.Path.GetDirectoryName(path)!;
         var prefix = System.IO.Path.GetFileName(path) + ".";
-        var cutoff = now - Retention;
+        var cutoff = now.AddDays(-retentionDays);
         foreach (var archive in Directory.EnumerateFiles(directory, prefix + "*.archive"))
         {
             var name = System.IO.Path.GetFileName(archive);
@@ -141,4 +141,46 @@ internal static class LogFileWriter
         });
     }
 
+}
+
+// One shared setting for Runtime, Editor and Errors; the Editor's General page
+// persists it in config/app.json. Every maintenance pass re-reads the value so
+// already running processes observe it without additional IPC or USB activity.
+internal static class LogRetentionPolicy
+{
+    internal const int DefaultDays = 3;
+    internal const int MinimumDays = 1;
+    internal const int MaximumDays = 365;
+
+    internal static bool IsValid(int days) => days is >= MinimumDays and <= MaximumDays;
+
+    internal static int GetRetentionDays(string logPath)
+    {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(logPath))!;
+        // Isolated regression logs outside an application logs/ folder use the
+        // same default; only the application root's config is authoritative.
+        if (!string.Equals(Path.GetFileName(directory), "logs", StringComparison.OrdinalIgnoreCase))
+            return DefaultDays;
+
+        var root = Path.GetDirectoryName(directory)!;
+        var configPath = Path.Combine(root, "config", "app.json");
+        if (!File.Exists(configPath)) return DefaultDays;
+
+        // config/app.json is atomically replaced by AppConfig.Save. A bad or
+        // incomplete config must NEVER be interpreted as permission to prune
+        // using an invented fallback retention: let maintenance report failure.
+        using var reader = new FileStream(configPath, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var document = JsonDocument.Parse(reader);
+        if (!document.RootElement.TryGetProperty("Runtime", out var runtime))
+            return DefaultDays;
+        if (runtime.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("Runtime must be a JSON object for log retention.");
+        if (!runtime.TryGetProperty("LogRetentionDays", out var configured))
+            return DefaultDays;
+        if (configured.ValueKind != JsonValueKind.Number ||
+            !configured.TryGetInt32(out var days) || !IsValid(days))
+            throw new InvalidDataException("Runtime.LogRetentionDays must be an integer from 1 to 365.");
+        return days;
+    }
 }
