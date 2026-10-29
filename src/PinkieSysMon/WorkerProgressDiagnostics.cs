@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Timer = System.Threading.Timer;
 
 namespace PinkieSysMon;
 
