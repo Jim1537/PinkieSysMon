@@ -147,6 +147,7 @@ internal sealed class EditorSettingsHelp : IDisposable
 
     public const string Startup = "Start Runtime when you sign in to Windows.\nThe Dashboard Editor is not started automatically.";
     public const string RuntimeIdleTimeout = "Pause Runtime polling, Desktop panels, and USB frame transfers after this many minutes without Windows keyboard/mouse input.\n0 disables the feature. Windows' active display-off timeout may shorten the effective interval; the saved value stays unchanged.\nThe Runtime remains running and resumes on user input; USB wake must be verified on hardware.";
+    public const string LogRetentionDays = "Preserve recent Runtime, Editor and error log history for this many days (default: 3).\nAll three log streams use the same setting. Rotated archives older than this period are cleaned automatically, including while an application is idle.\nShortening retention may delete older segments at the next maintenance pass.";
     public const string SystemProvider = "Make built-in Windows, network, power and media metrics available.\nRuntime captures only readings requested by active dashboards.";
     public const string LhmProvider = "Read hardware sensors from Libre Hardware Monitor's local HTTP server.\nRun LHM separately with its Remote Web Server enabled.";
     public const string IcueProvider = "Read iCUE Sensor Logging CSV files from this application's logs folder.\nKeep iCUE running with Sensor Logging enabled.";

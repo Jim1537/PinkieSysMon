@@ -745,7 +745,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
         var idleChanged = dialog.RuntimeIdleTimeoutMinutes != runtimeConfig.Runtime.IdleTimeoutMinutes;
-        var runtimeChanged = providersChanged || idleChanged;
+        var retentionChanged = dialog.LogRetentionDays != runtimeConfig.Runtime.LogRetentionDays;
+        var runtimeChanged = providersChanged || idleChanged || retentionChanged;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -756,6 +757,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         operation.Phase("draft.accepted", "changedProperties=" + string.Join(",", new[]
         {
             providersChanged ? "MetricProviders" : null, idleChanged ? "Runtime.IdleTimeoutMinutes" : null,
+            retentionChanged ? "Runtime.LogRetentionDays" : null,
             startupChanged ? "StartupTask" : null, interfaceChanged ? "ToolbarIconSize" : null,
             themeChanged ? "Theme" : null
         }.Where(name => name is not null)));
@@ -765,6 +767,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (runtimeChanged)
             {
                 runtimeConfig.Runtime.IdleTimeoutMinutes = dialog.RuntimeIdleTimeoutMinutes;
+                runtimeConfig.Runtime.LogRetentionDays = dialog.LogRetentionDays;
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;

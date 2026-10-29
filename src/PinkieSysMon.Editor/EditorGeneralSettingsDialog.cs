@@ -14,6 +14,12 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         Minimum = 0, Maximum = RuntimeIdlePolicy.MaximumTimeoutMinutes,
         Width = 130, ThousandsSeparator = true
     };
+    private readonly NumericUpDown _logRetentionDays = new()
+    {
+        Minimum = LogRetentionPolicy.MinimumDays,
+        Maximum = LogRetentionPolicy.MaximumDays,
+        Width = 130
+    };
     private readonly CheckBox _systemProvider = new() { Text = "System", AutoSize = true };
     private readonly CheckBox _libreHardwareMonitorProvider = new()
     {
@@ -54,6 +60,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
 
         _startRuntime.Checked = startRuntimeWithWindows;
         _runtimeIdleMinutes.Value = config.Runtime.IdleTimeoutMinutes;
+        _logRetentionDays.Value = config.Runtime.LogRetentionDays;
         _systemProvider.Checked = systemProviderEnabled;
         _libreHardwareMonitorProvider.Checked = libreHardwareMonitorProviderEnabled;
         _icueProvider.Checked = icueProviderEnabled;
@@ -104,6 +111,35 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         idleLayout.Controls.Add(_help.Marker("Idle timeout", _runtimeIdleMinutes,
             EditorSettingsHelp.RuntimeIdleTimeout), 2, 0);
         idleGroup.Controls.Add(idleLayout);
+
+        var loggingGroup = new GroupBox
+        {
+            Text = "Logging",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12)
+        };
+        var loggingLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 3,
+            Padding = new Padding(4, 6, 4, 4)
+        };
+        loggingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        loggingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        loggingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        loggingLayout.Controls.Add(new Label
+        {
+            Text = "Keep logs (days)", AutoSize = true,
+            Anchor = AnchorStyles.Left
+        }, 0, 0);
+        loggingLayout.Controls.Add(_logRetentionDays, 1, 0);
+        loggingLayout.Controls.Add(_help.Marker("Keep logs (days)", _logRetentionDays,
+            EditorSettingsHelp.LogRetentionDays), 2, 0);
+        loggingGroup.Controls.Add(loggingLayout);
 
         var providersGroup = new GroupBox
         {
@@ -158,6 +194,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         var content = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         content.Controls.Add(interfaceGroup);
         content.Controls.Add(providersGroup);
+        content.Controls.Add(loggingGroup);
         content.Controls.Add(idleGroup);
         content.Controls.Add(generalGroup);
         Controls.Add(content);
@@ -185,6 +222,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
 
     public bool StartRuntimeWithWindows => _startRuntime.Checked;
     public int RuntimeIdleTimeoutMinutes => Decimal.ToInt32(_runtimeIdleMinutes.Value);
+    public int LogRetentionDays => Decimal.ToInt32(_logRetentionDays.Value);
     public bool SystemProviderEnabled => _systemProvider.Checked;
     public bool LibreHardwareMonitorProviderEnabled => _libreHardwareMonitorProvider.Checked;
     public bool IcueProviderEnabled => _icueProvider.Checked;
@@ -194,6 +232,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
     internal const string ApplyTimingNotice =
         "Changes in Settings take effect after OK (Cancel discards them). " +
         "Runtime and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
+        "Log retention updates within one minute in running processes. " +
         "Editor toolbar size updates after OK; a theme change requires restarting the Editor.";
 
     protected override void Dispose(bool disposing)
