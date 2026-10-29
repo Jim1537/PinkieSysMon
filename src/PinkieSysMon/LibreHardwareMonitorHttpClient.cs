@@ -30,6 +30,8 @@ internal sealed class LibreHardwareMonitorHttpClient : IDisposable
     private readonly bool _ownsHttpClient;
     private readonly Uri? _fixedBaseAddress;
     private readonly object _stateSync = new();
+    private readonly string _transportIncidentKey = "lhm.http.transport." + Guid.NewGuid().ToString("N");
+    private readonly Func<long> _clockMs = static () => Environment.TickCount64;
 
     private Uri? _activeBaseAddress;
     private bool _transportStateKnown;
@@ -50,10 +52,12 @@ internal sealed class LibreHardwareMonitorHttpClient : IDisposable
         _ownsHttpClient = true;
     }
 
-    internal LibreHardwareMonitorHttpClient(FileLogger log, HttpClient httpClient, bool ownsHttpClient = false)
+    internal LibreHardwareMonitorHttpClient(FileLogger log, HttpClient httpClient, bool ownsHttpClient = false,
+        Func<long>? clockMs = null)
     {
         _log = log ?? throw new ArgumentNullException(nameof(log));
         _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _clockMs = clockMs ?? _clockMs;
         _ownsHttpClient = ownsHttpClient;
 
         if (_http.BaseAddress is null)
@@ -317,57 +321,50 @@ internal sealed class LibreHardwareMonitorHttpClient : IDisposable
         {
             return !_transportStateKnown ||
                    _transportAvailable ||
-                   Environment.TickCount64 >= _retryNotBeforeTick;
+                   _clockMs() >= _retryNotBeforeTick;
         }
     }
 
     private void MarkTransportAvailable(Uri baseAddress)
     {
+        bool firstDetection, recovered, endpointChanged;
+        long generation;
         lock (_stateSync)
         {
-            var firstDetection = !_transportStateKnown;
-            var recovered = _transportStateKnown && !_transportAvailable;
-            var endpointChanged = _activeBaseAddress is not null && _activeBaseAddress != baseAddress;
-            var stateChanged = firstDetection || recovered || endpointChanged;
+            firstDetection = !_transportStateKnown;
+            recovered = _transportStateKnown && !_transportAvailable;
+            endpointChanged = _activeBaseAddress is not null && _activeBaseAddress != baseAddress;
             _transportStateKnown = true;
             _transportAvailable = true;
             _activeBaseAddress = baseAddress;
             _retryNotBeforeTick = 0;
-            if (stateChanged)
-                _stateGeneration++;
-
-            if (firstDetection || endpointChanged)
-            {
-                _log.Info($"Libre Hardware Monitor HTTP endpoint detected at {baseAddress}.");
-            }
-            else if (recovered)
-            {
-                _log.Info($"Libre Hardware Monitor HTTP endpoint recovered at {baseAddress}.");
-            }
+            if (firstDetection || recovered || endpointChanged) _stateGeneration++;
+            generation = _stateGeneration;
         }
+        // Persistence never holds the transport-state gate. A new connection
+        // incident cannot inherit the recovered incident's pending repetitions.
+        if (recovered) _log.FlushSuppressed(_transportIncidentKey);
+        if (firstDetection || endpointChanged)
+            _log.Info($"Libre Hardware Monitor HTTP endpoint detected at {baseAddress}; stateGeneration={generation}.");
+        else if (recovered)
+            _log.Info($"Libre Hardware Monitor HTTP endpoint recovered at {baseAddress}; stateGeneration={generation}.");
     }
 
     private void ReportTransportFailure(string message, Exception ex)
     {
+        long generation;
         lock (_stateSync)
         {
             var stateChanged = !_transportStateKnown || _transportAvailable;
             _transportStateKnown = true;
             _transportAvailable = false;
             _activeBaseAddress = _fixedBaseAddress;
-            _retryNotBeforeTick = Environment.TickCount64 + (long)RetryBackoff.TotalMilliseconds;
-            if (stateChanged)
-                _stateGeneration++;
-
-            if (stateChanged)
-                _log.Warn($"{message}; telemetry provider remains unavailable until a later request succeeds.", ex);
-            else
-                _log.WarnThrottled(
-                    "lhm.http.transport",
-                    ErrorLogThrottleInterval,
-                    $"{message}; Libre Hardware Monitor is still unavailable.",
-                    ex);
+            _retryNotBeforeTick = _clockMs() + (long)RetryBackoff.TotalMilliseconds;
+            if (stateChanged) _stateGeneration++;
+            generation = _stateGeneration;
         }
+        _log.WarnThrottled(_transportIncidentKey, ErrorLogThrottleInterval,
+            $"{message}; Libre Hardware Monitor is unavailable; stateGeneration={generation}.", ex);
     }
 
     private void ReportProtocolFailure(string key, string message, Exception? ex)
@@ -394,6 +391,7 @@ internal sealed class LibreHardwareMonitorHttpClient : IDisposable
             return;
 
         _disposed = true;
+        _log.FlushSuppressed(_transportIncidentKey);
         if (_ownsHttpClient)
             _http.Dispose();
     }

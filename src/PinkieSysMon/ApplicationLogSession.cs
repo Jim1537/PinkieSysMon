@@ -22,6 +22,7 @@ internal sealed class ApplicationLogSession : IDisposable
             {
                 _lifetime = new EventWaitHandle(false, EventResetMode.ManualReset,
                     LogFileWriter.ObjectName(log.Path, "lifetime"), out var first);
+                PreviousSessionObservation.Record(log, first);
                 LogFileWriter.Maintain(log.Path);
                 LogFileWriter.Maintain(log.ErrorsPath);
                 // Preserve the established session-admission contract: a

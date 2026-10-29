@@ -205,6 +205,13 @@ internal static class Issue105LoggingTests
             using var replacement = ApplicationLogSession.Start(log, "editor");
             Check(HistoryText(path).Contains("crashed session marker") && Read(log.ErrorsPath).Length == 1,
                 "Process death retains interrupted Editor history and previously recorded errors.");
+            var prior = Read(path).Select(record => record.GetProperty("message").GetString())
+                .Where(message => message?.StartsWith('{') == true)
+                .Select(message => JsonSerializer.Deserialize<JsonElement>(message!))
+                .Last(record => record.TryGetProperty("eventName", out var name) && name.GetString() == "session.previous.observation");
+            Check(prior.GetProperty("state").GetString() == "terminal-marker-not-observed" &&
+                  prior.GetProperty("startMarkerObserved").GetBoolean() && !prior.GetProperty("osCrashConfirmed").GetBoolean(),
+                "An actually killed fixture reports the missing terminal marker without claiming an OS crash.");
         });
     }
 
@@ -396,7 +403,7 @@ internal static class Issue105LoggingTests
 
     // A session may rotate between two assertions at any UTC quarter-hour.
     // Tests of session-history preservation must read both active and archives.
-    private static string HistoryText(string path)
+    private static string HistoryText(string path) => LogFileWriter.UnderGate(path, "write", () =>
     {
         var dir = Path.GetDirectoryName(path)!;
         var parts = Directory.GetFiles(dir, Path.GetFileName(path) + ".*.archive")
@@ -405,9 +412,10 @@ internal static class Issue105LoggingTests
             .ToList();
         if (File.Exists(path)) parts.Add(File.ReadAllText(path));
         return string.Join("\n", parts);
-    }
+    });
 
-    private static JsonElement[] Read(string path) => File.ReadAllLines(path).Select(line =>
+    private static JsonElement[] Read(string path) => HistoryText(path)
+        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(line =>
     {
         using var json = JsonDocument.Parse(line[line.IndexOf('{')..]);
         return json.RootElement.Clone();

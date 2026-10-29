@@ -31,6 +31,9 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 bounded previous-session uncertainty", Issue105FinalCoverageTests.PreviousSessionBoundsAndUncertainty),
+            ("Issue105 LHM recovery totals and client isolation", Issue105FinalCoverageTests.LhmRecoveryAndClientIsolation),
+            ("Issue105 storage full sharing flush and contention", Issue105FinalCoverageTests.StorageFaultsPreserveOriginalAndLossEvidence),
             ("Issue105 Launcher shared Errors and failure isolation", Issue105ProcessLoggingTests.LauncherSharedErrorsAndFailureIsolation),
             ("Issue105 action results session progress and denied sink", Issue105ProcessLoggingTests.ActionResultsSessionProgressAndDeniedSink),
             ("Issue105 resource failure context without inner diagnostic I/O", Issue105ResourceLoggingTests.ResourceContextWithoutInnerIo),

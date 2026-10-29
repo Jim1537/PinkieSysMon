@@ -481,6 +481,8 @@ Repeated transport and protocol warnings are limited by a throttle interval of:
 
 This preserves useful diagnostics without continuously flooding the application log while Libre Hardware Monitor remains unavailable.
 
+Each HTTP client owns its transport-incident key. Recovery and client disposal flush that incident's suppressed count, including recovery before the throttle interval expires, without flushing another client's pending totals. Transport diagnostics persist outside the transport-state lock; they add no requests and do not change retry backoff.
+
 
 ### Maintenance Contracts
 

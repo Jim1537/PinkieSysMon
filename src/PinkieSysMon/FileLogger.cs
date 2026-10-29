@@ -12,6 +12,7 @@ internal sealed class FileLogger
     internal const int MaximumThrottleKeys = 1024;
     private const int MaximumFieldCharacters = LogFileWriter.MaximumFieldCharacters;
     private readonly object _sync = new();
+    private readonly Action<string, string, bool> _append;
     private readonly ConditionalWeakTable<Exception, RecordedFailure> _recordedFailures = new();
     private readonly Dictionary<string, ThrottleState> _throttle = new(StringComparer.Ordinal);
     private static readonly TimeSpan PeriodicSyncInterval = TimeSpan.FromSeconds(30);
@@ -23,8 +24,12 @@ internal sealed class FileLogger
 
     public FileLogger(string path) : this(path, "Diagnostic") { }
 
-    internal FileLogger(string path, string component)
+    internal FileLogger(string path, string component) : this(path, component, null) { }
+
+    // Internal writer boundary permits deterministic storage-fault regressions.
+    internal FileLogger(string path, string component, Action<string, string, bool>? append)
     {
+        _append = append ?? LogFileWriter.Append;
         Path = System.IO.Path.GetFullPath(path);
         Component = component;
         ErrorsPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Path)!,
@@ -227,7 +232,7 @@ internal sealed class FileLogger
             var lastSync = Interlocked.Read(ref _lastDurableAt);
             var sync = durable || lastSync == 0 ||
                 Stopwatch.GetElapsedTime(lastSync, now) >= PeriodicSyncInterval;
-            LogFileWriter.Append(path, record, sync);
+            _append(path, record, sync);
             if (sync) Interlocked.Exchange(ref _lastDurableAt, now);
 
             // Retention failure is diagnosed independently of the successfully
