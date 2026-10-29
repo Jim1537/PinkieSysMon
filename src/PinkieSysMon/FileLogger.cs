@@ -173,6 +173,19 @@ internal sealed class FileLogger
         return eventId;
     }
 
+    // Imported platform metadata is external observation, not an app exception.
+    // The collector advances its cursor only after this durable append succeeds.
+    internal bool TryAppendPlatformObservation(string message)
+    {
+        try
+        {
+            lock (_sync)
+                return TryAppend(ErrorsPath, Format("PLATFORM_OBSERVATION", Guid.NewGuid().ToString("N"),
+                    message, null, null), durable: true);
+        }
+        catch (Exception failure) { ReportFailure(failure); return false; }
+    }
+
     private string Format(string level, string eventId, string message, Exception? ex,
         RuntimeIpcTrace? request, string? reportedLevel = null) =>
         $"{DateTimeOffset.Now:O} [{level}] " + JsonSerializer.Serialize(new
@@ -271,3 +284,4 @@ internal sealed class FileLogger
         public long Suppressed { get; set; }
     }
 }
+

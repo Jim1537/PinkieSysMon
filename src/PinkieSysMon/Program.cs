@@ -10,6 +10,7 @@ internal static class Program
     {
         FileLogger? log = null;
         ApplicationLogSession? session = null;
+        PlatformEventCapture? platformCapture = null;
         try
         {
             var appRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
@@ -43,6 +44,11 @@ internal static class Program
                 : new PinkieApplicationContext(appRoot, log))
             {
                 session.Ready();
+                if (args.Length == 0)
+                {
+                    platformCapture = new PlatformEventCapture(appRoot, log);
+                    platformCapture.Start();
+                }
                 Application.Run(context);
             }
             session.MarkCompleted();
@@ -54,6 +60,7 @@ internal static class Program
                 $"PinkieSysMon stopped due to an unexpected error.\n\n{ex.Message}\n\nSee logs\\PinkieSysMon.Errors.log",
                 "PinkieSysMon", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { session?.Dispose(); }
+        finally { platformCapture?.Dispose(); session?.Dispose(); }
     }
 }
+
