@@ -77,6 +77,8 @@ internal sealed class AppConfig
 
         if (Runtime.IdleTimeoutMinutes is < 0 or > RuntimeIdlePolicy.MaximumTimeoutMinutes)
             throw new InvalidDataException("Runtime.IdleTimeoutMinutes must be 0 (disabled) or 1..1440 minutes.");
+        if (!LogRetentionPolicy.IsValid(Runtime.LogRetentionDays))
+            throw new InvalidDataException("Runtime.LogRetentionDays must be 1..365 days.");
 
         if (Display.RefreshIntervalMs < 10)
             throw new InvalidDataException("Display.RefreshIntervalMs must be at least 10 ms.");
@@ -115,6 +117,7 @@ internal sealed class RuntimeConfig
 {
     // Opt-in. Existing installations continue rendering until explicitly configured.
     public int IdleTimeoutMinutes { get; set; }
+    public int LogRetentionDays { get; set; } = LogRetentionPolicy.DefaultDays;
 }
 
 internal sealed class OutputConfig
