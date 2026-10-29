@@ -31,6 +31,9 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 candidate invalidation and adopted-card evidence", Issue105DiscoveryLoggingTests.CandidateInvalidationAndAdoption),
+            ("Issue105 discovery failure recovery and privacy", Issue105DiscoveryLoggingTests.DiscoveryFailureRecoveryAndPrivacy),
+            ("Issue105 counted state bounds and close fence", Issue105DiscoveryLoggingTests.CountedStatesBoundsAndClose),
             ("Issue105 IPC shared request and original error identity", Issue105IpcLoggingTests.SharedRequestAndOriginalError),
             ("Issue105 IPC legacy compatibility and strict envelope", Issue105IpcLoggingTests.LegacyCompatibilityAndEnvelopeAdmission),
             ("Issue105 IPC lost response never repeats command", Issue105IpcLoggingTests.LostResponseNeverRepeatsCommand),
@@ -12125,3 +12128,4 @@ internal static class Program
         public IReadOnlyDictionary<string, object?> Capture(IReadOnlyCollection<string> requestedMetrics) => Capture();
     }
 }
+

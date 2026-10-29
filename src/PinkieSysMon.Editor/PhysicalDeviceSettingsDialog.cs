@@ -40,7 +40,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         _help = new EditorSettingsHelp(applicationRoot);
         _testClient = new EditorUsbTestClient(_help.ApplicationRoot, log);
         _dashboardChoices = dashboards;
-        _devices = new DeviceSettingsModel(config);
+        _devices = new DeviceSettingsModel(config, log);
+        _discoveryDiagnostics = log is null ? null : new(log, "editor.discovery.scan");
         _desktopCount = config.Outputs.Targets.Count(t => t.Kind == OutputTargetContract.DesktopKind);
         _discoverDevices = discoverDevices ?? PhysicalDeviceDiscovery.Capture;
         // Existing injected discovery callers stay fully native-free. Production
@@ -77,7 +78,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         };
         Controls.Add(notice);
         Controls.Add(buttons);
-        RefreshDeviceDiscovery();
+        RefreshDeviceDiscovery("dialog.construct");
     }
 
     protected override void Dispose(bool disposing)
@@ -85,6 +86,11 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         if (disposing)
         {
             _runtimeIpc.Dispose();
+            _devices.CloseDiagnostics();
+            _discoveryDiagnostics?.Dispose();
+            if (_log is not null)
+                foreach (var key in new[] { "supported", "recognized" })
+                    _log.FlushSuppressed(_discoveryErrorKey + key);
             _help.Dispose();
         }
         base.Dispose(disposing);
@@ -103,6 +109,8 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     private readonly Dictionary<string, DeviceSettingsPage> _devicePages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, RecognizedDeviceSettingsPage> _recognizedPages = new(StringComparer.Ordinal);
     private bool _refreshingDevices;
+    private readonly DiagnosticStateObserver? _discoveryDiagnostics;
+    private readonly string _discoveryErrorKey = "editor.discovery." + Guid.NewGuid().ToString("N") + ".";
 
     public bool DevicesChanged => _devices.IsDirty;
     public bool HasPendingRemove => _devices.HasPendingRemoval;
@@ -128,7 +136,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        RefreshDeviceDiscovery();
+        RefreshDeviceDiscovery("dialog.shown");
     }
 
     protected override void WndProc(ref Message m)
@@ -138,14 +146,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
         // WM_DEVICECHANGE / DBT_DEVNODES_CHANGED is broadcast by Windows.
         // No timer, transport open, or global event subscription is needed.
         if (devicesChanged && _devices is not null && !IsDisposed && !Disposing)
-            RefreshDeviceDiscovery();
+            RefreshDeviceDiscovery("windows.devicechange");
     }
 
-    internal void RefreshDeviceDiscovery()
+    internal void RefreshDeviceDiscovery(string trigger = "action.recheck")
     {
         if (_refreshingDevices)
             return;
         _refreshingDevices = true;
+        _discoveryDiagnostics?.Observe("trigger", trigger);
         try
         {
             IReadOnlyList<OutputDeviceDescriptor> supported = [];
@@ -160,11 +169,13 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 supported = error.Devices;
                 _devices.Refresh(supported, error.UnavailableTransports);
                 unavailable = true;
+                _log?.ErrorThrottled(_discoveryErrorKey + "supported", TimeSpan.FromSeconds(30), "Physical Settings discovery returned a partial snapshot.", error);
             }
             catch (Exception ex) when (ex is InvalidOperationException or DllNotFoundException or EntryPointNotFoundException)
             {
                 _devices.DiscoveryUnavailable();
                 unavailable = true;
+                _log?.ErrorThrottled(_discoveryErrorKey + "supported", TimeSpan.FromSeconds(30), "Physical Settings discovery failed.", ex);
             }
             try { _recognizedDevices.Refresh(_discoverRecognizedDevices().Where(o =>
                 !o.NodeKeys.Any(_devices.IgnoredNodes.Contains)).ToArray(), supported); }
@@ -172,7 +183,15 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
             {
                 _recognizedDevices.DiscoveryUnavailable();
                 unavailable = true;
+                _log?.ErrorThrottled(_discoveryErrorKey + "recognized", TimeSpan.FromSeconds(30), "Recognition-only Settings discovery failed.", ex);
             }
+            if (!unavailable && _log is not null)
+            {
+                _log.FlushSuppressed(_discoveryErrorKey + "supported");
+                _log.FlushSuppressed(_discoveryErrorKey + "recognized");
+            }
+            var recognized = _recognizedDevices.Entries;
+            _discoveryDiagnostics?.Observe("result", $"unavailable={unavailable}; informational={recognized.Count}; ambiguous={recognized.Count(e => e.Observation.Status == UsbDisplayObservationStatus.Ambiguous)}; absent={recognized.Count(e => e.IsPresent == false)}");
             _discoveryNotice.Visible = unavailable;
             UpdateDevicePages();
         }
@@ -352,7 +371,7 @@ internal sealed class PhysicalDeviceSettingsDialog : PinkieEditorForm
                 _help.ApplicationRoot!, Path.Combine(_help.ApplicationRoot!, "config", "app.json"),
                 _log, confirmed, node, _discoverDevices,
                 (nextConfig, expectedBytes) => _persistAndApply(nextConfig, expectedBytes, operation.Id), operation.Id);
-            _devices.AcceptSavedCandidate(target, confirmed);
+            _devices.AcceptSavedCandidate(target, confirmed, operation.Id);
             operation.Phase("editor.refresh", "fileCommitted=true");
             ReportCommitted(saved, reloaded, operation);
             _devicePages[target.Id].SetTestMessage(null);
@@ -903,3 +922,4 @@ internal sealed class UsbTestProgressDialog : PinkieEditorForm
         base.Dispose(disposing);
     }
 }
+

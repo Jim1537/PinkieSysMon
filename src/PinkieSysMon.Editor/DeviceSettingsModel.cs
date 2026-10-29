@@ -29,8 +29,13 @@ internal sealed class DeviceSettingsModel
     private bool _discoveryAvailable;
     private IReadOnlySet<string> _unavailableTransports = new HashSet<string>();
 
-    public DeviceSettingsModel(AppConfig config)
+    private readonly FileLogger? _log;
+    private readonly DiagnosticStateObserver? _observations;
+
+    public DeviceSettingsModel(AppConfig config, FileLogger? log = null)
     {
+        _log = log;
+        _observations = log is null ? null : new(log, "editor.discovery");
         _defaults = config;
         _ignoredNodes = config.Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _targets = config.Outputs.Targets
@@ -103,9 +108,27 @@ internal sealed class DeviceSettingsModel
                     UsbDisplayCatalog.ProtocolChoices(observed.Family).Where(choice => choice.IsImplemented).Select(choice => choice.Id)));
             _candidates.Add(candidate);
         }
+        ObserveInventory();
     }
 
-    public void DiscoveryUnavailable() => _discoveryAvailable = false;
+    public void DiscoveryUnavailable()
+    {
+        _discoveryAvailable = false;
+        ObserveInventory();
+    }
+
+    private void ObserveInventory()
+    {
+        if (_observations is null) return;
+        var entries = Entries;
+        _observations.Observe("inventory", $"available={_discoveryAvailable}; configured={_targets.Count}; candidates={_candidates.Count}; ignored={_ignoredNodes.Count}; unavailableTransports={_unavailableTransports.Count}");
+        foreach (var entry in entries.Take(DiagnosticStateObserver.MaximumKeys - 1))
+            _observations.Observe(entry.Target.Id, $"configured={entry.IsConfigured}; status={entry.Status?.ToString() ?? "Unavailable"}");
+        if (entries.Count >= DiagnosticStateObserver.MaximumKeys)
+            _observations.Observe("overflow", $"omitted={entries.Count - DiagnosticStateObserver.MaximumKeys + 1}");
+    }
+
+    internal void CloseDiagnostics() => _observations?.Dispose();
 
     internal string PrepareForget(OutputTargetConfig target)
     {
@@ -146,10 +169,11 @@ internal sealed class DeviceSettingsModel
         return confirmed;
     }
 
-    internal void AcceptSavedCandidate(OutputTargetConfig target, OutputTargetConfig confirmed)
+    internal void AcceptSavedCandidate(OutputTargetConfig target, OutputTargetConfig confirmed, string? parentOperationId = null)
     {
         if (!_candidates.Contains(target) || target.Id != confirmed.Id)
             throw new InvalidOperationException("The candidate card changed during Save.");
+        var attempt = CandidateDraft(target)?.LatestAttemptId;
         target.Name = confirmed.Name; target.Transport = confirmed.Transport;
         target.Width = confirmed.Width; target.Height = confirmed.Height;
         target.Dashboard = confirmed.Dashboard; target.DeviceEnabled = false;
@@ -160,6 +184,12 @@ internal sealed class DeviceSettingsModel
         _drafts.Remove(target.Id);
         _targets.Add(target);
         _originalConnections.Add(target.Id, Copy(target));
+        if (_log is not null)
+        {
+            using var operation = new LogOperation(_log, "editor.device.candidate.adopt", target.Id, parentOperationId);
+            operation.Complete($"attemptId={attempt?.ToString("N")}; configuredCard=true; deviceEnabled=false; providerEnabled=false; nativeIoObserved=false");
+        }
+        ObserveInventory();
     }
 
     internal (OutputTargetConfig Original, OutputTargetConfig Updated) PrepareConfigured(OutputTargetConfig target)
@@ -220,8 +250,18 @@ internal sealed class DeviceSettingsModel
             IsDirty = true;
         else if (CandidateDraft(target) is { } draft)
         {
+            var hadApproval = draft.HasTechnicalApproval;
+            var changed = new List<string>();
+            if (draft.Width != target.Width) changed.Add("Width");
+            if (draft.Height != target.Height) changed.Add("Height");
+            if (!string.Equals(draft.Protocol, target.Transport, StringComparison.OrdinalIgnoreCase)) changed.Add("Protocol");
             draft.Name = target.Name; draft.Width = target.Width;
             draft.Height = target.Height; draft.Protocol = target.Transport;
+            if (hadApproval && changed.Count > 0 && _log is not null)
+            {
+                using var operation = new LogOperation(_log, "editor.device.candidate.approval.invalidated", target.Id);
+                operation.Complete($"attemptId={draft.LatestAttemptId?.ToString("N")}; changedProperties={string.Join(",", changed)}; requiresNewTest=true");
+            }
         }
     }
 
@@ -334,3 +374,4 @@ internal sealed class DeviceSettingsModel
         { BrightnessPercent = source.EncryptedJpeg.BrightnessPercent }
     };
 }
+

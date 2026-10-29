@@ -66,6 +66,8 @@ internal sealed class CatalogUsbCandidateDraft
     internal string PnpNodeKey { get; }
     internal IReadOnlySet<string> ApplicableProtocols => _applicable;
     internal bool IsTesting => _active is not null;
+    internal Guid? LatestAttemptId => _latest;
+    internal bool HasTechnicalApproval => MatchesLatestWire(_technicallyPassed);
 
     // Only the exact most recent, technically error-free, fully released Test
     // plus explicit visible changing-seconds confirmation may unlock Save.
@@ -241,3 +243,4 @@ internal sealed class CatalogUsbCandidateDraft
             throw new InvalidOperationException("Candidate fields cannot change while a test is in progress.");
     }
 }
+
