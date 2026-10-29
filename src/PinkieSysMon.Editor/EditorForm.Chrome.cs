@@ -294,8 +294,11 @@ internal sealed partial class EditorForm
 
     private void RequestEditorRestartForTheme()
     {
+        using var operation = new LogOperation(_log, "editor.theme.restart.request");
         _restartAfterClose = true;
+        operation.Phase("window.close.request");
         Close();
+        operation.Complete($"closeCallReturned=true; formDisposed={IsDisposed}; processReadinessConfirmed=false");
     }
 
     private void LaunchRestartedEditor()
@@ -304,9 +307,15 @@ internal sealed partial class EditorForm
             return;
 
         _restartAfterClose = false;
+        using var operation = new LogOperation(_log, "editor.theme.restart");
+        operation.Phase("executable.resolve");
         var executable = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(executable))
+        {
+            operation.RecordFailure(null, "executable.resolve", "Current process executable is unavailable; restart not attempted.");
+            operation.Partial("restartNotAttempted=true");
             return;
+        }
 
         try
         {
@@ -317,11 +326,18 @@ internal sealed partial class EditorForm
             foreach (var argument in EditorStartupContract.GetRestartArguments(_root, _dashboardName))
                 startInfo.ArgumentList.Add(argument);
 
+            operation.Phase("process.start");
             using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process is null)
+            {
+                operation.RecordFailure(null, "process.start", "Process.Start returned no handle; restart remains unconfirmed.");
+                operation.Partial("processStartCallReturned=true; processReadinessConfirmed=false");
+            }
+            else operation.Complete("processStartReturned=true; processReadinessConfirmed=false");
         }
         catch (Exception ex)
         {
-            _log.Warn("Editor theme was saved, but the Editor could not restart automatically.", ex);
+            operation.Fail(ex, "Theme was saved; automatic restart failed.");
         }
     }
 }

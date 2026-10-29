@@ -10,6 +10,7 @@ internal static class Program
     {
         FileLogger? log = null;
         ApplicationLogSession? session = null;
+        LogOperation? startup = null;
         PlatformEventCapture? platformCapture = null;
         try
         {
@@ -37,13 +38,20 @@ internal static class Program
             }
 
             session = ApplicationLogSession.Start(log, args.Length == 1 ? "usb-test-only" : "ordinary");
+            startup = new LogOperation(log, "runtime.startup", args.Length == 1 ? "usb-test-only" : "ordinary");
+            startup.Phase("root.resolved", "source=ancestor; loggingPolicy=rolling");
+            startup.Phase("application.initialize");
             ApplicationConfiguration.Initialize();
             WinFormsFatalExceptionPolicy.Configure();
+            startup.Phase("context.construct");
             using (ApplicationContext context = args.Length == 1
                 ? new UsbTestApplicationContext(appRoot, log)
-                : new PinkieApplicationContext(appRoot, log))
+                : new PinkieApplicationContext(appRoot, log, startup))
             {
                 session.Ready();
+                startup.Complete("contextConstructed=true; readinessBoundaryReached=true");
+                startup.Dispose();
+                startup = null;
                 if (args.Length == 0)
                 {
                     platformCapture = new PlatformEventCapture(appRoot, log);
@@ -55,12 +63,13 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            startup?.Fail(ex);
             log?.Error("Fatal application error", ex);
             MessageBox.Show(
                 $"PinkieSysMon stopped due to an unexpected error.\n\n{ex.Message}\n\nSee logs\\PinkieSysMon.Errors.log",
                 "PinkieSysMon", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { platformCapture?.Dispose(); session?.Dispose(); }
+        finally { startup?.Dispose(); platformCapture?.Dispose(); session?.Dispose(); }
     }
 }
 

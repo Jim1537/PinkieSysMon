@@ -11,6 +11,7 @@ internal static class Program
         DispatcherQueueController? dispatcherQueueController = null;
         FileLogger? log = null;
         ApplicationLogSession? session = null;
+        LogOperation? startup = null;
         var completed = false;
         try
         {
@@ -23,23 +24,34 @@ internal static class Program
                 logger.FlushSuppressed();
             };
             session = ApplicationLogSession.Start(log, "editor");
+            startup = new LogOperation(log, "editor.startup");
+            startup.Phase("root.resolved", GetArgument(args, "--root") is null ? "source=ancestor" : "source=argument");
+            startup.Phase("application.initialize");
             global::ApplicationConfiguration.Initialize();
             WinFormsFatalExceptionPolicy.Configure();
+            startup.Phase("dispatcher.initialize");
             if (DispatcherQueue.GetForCurrentThread() is null)
                 dispatcherQueueController = DispatcherQueueController.CreateOnCurrentThread();
 
             var requestedDashboard = GetArgument(args, "--dashboard");
+            startup.Phase("settings.read");
             var editorSettings = EditorSettings.Load(Path.Combine(root, "config", "editor.json"));
+            startup.Phase("theme.apply");
             EditorThemeContract.ApplyApplicationTheme(EditorThemeContract.Parse(editorSettings.Theme));
+            startup.Phase("form.construct");
             using (var form = new EditorForm(root, requestedDashboard, log))
             {
                 session.Ready();
+                startup.Complete("formConstructed=true; readinessBoundaryReached=true");
+                startup.Dispose();
+                startup = null;
                 Application.Run(form);
             }
             completed = true;
         }
         catch (Exception ex)
         {
+            startup?.Fail(ex);
             log?.Error("Fatal Editor application error", ex);
             MessageBox.Show(
                 $"PinkieSysMon Editor stopped due to an unexpected error.\n\n{ex.Message}\n\nSee logs\\PinkieSysMon.Errors.log",
@@ -47,6 +59,7 @@ internal static class Program
         }
         finally
         {
+            startup?.Dispose();
             if (dispatcherQueueController is not null)
             {
                 try { dispatcherQueueController.ShutdownQueue(); }

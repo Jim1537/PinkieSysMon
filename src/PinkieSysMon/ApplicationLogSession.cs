@@ -8,6 +8,8 @@ internal sealed class ApplicationLogSession : IDisposable
     private EventWaitHandle? _lifetime;
     private System.Threading.Timer? _maintenanceTimer;
     private int _maintenanceRunning;
+    private readonly long _started = System.Diagnostics.Stopwatch.GetTimestamp();
+    private volatile bool _ready;
     private bool _completed;
     private volatile bool _disposed;
 
@@ -43,7 +45,7 @@ internal sealed class ApplicationLogSession : IDisposable
     }
 
     internal static ApplicationLogSession Start(FileLogger log, string mode) => new(log, mode);
-    internal void Ready() => _log.Info("SESSION_READY");
+    internal void Ready() { _ready = true; _log.Info("SESSION_READY"); }
     internal void MarkCompleted() => _completed = true;
 
     // One in-process observer per admitted session; shared file gates prevent
@@ -63,6 +65,8 @@ internal sealed class ApplicationLogSession : IDisposable
                     _log.Error("Rolling log maintenance failed.", error);
                 }
             }
+            if (_ready && !_disposed)
+                _log.Info($"SESSION_PROGRESS elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(_started).TotalMilliseconds}; maintenanceObserverReturned=true; uiOrWorkerHealthConfirmed=false.");
         }
         finally { Volatile.Write(ref _maintenanceRunning, 0); }
     }

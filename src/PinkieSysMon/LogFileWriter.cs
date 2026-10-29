@@ -8,6 +8,7 @@ namespace PinkieSysMon;
 // The timeout bounds gate acquisition, not an underlying filesystem call.
 internal static class LogFileWriter
 {
+    internal const int MaximumFieldCharacters = 1024 * 1024;
     internal static string ObjectName(string path, string purpose)
     {
         var canonical = System.IO.Path.GetFullPath(path).ToUpperInvariant();

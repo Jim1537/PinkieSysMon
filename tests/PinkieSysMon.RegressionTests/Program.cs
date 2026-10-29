@@ -31,6 +31,8 @@ internal static class Program
             return diagnosticExit;
         var tests = new (string Name, Action Run)[]
         {
+            ("Issue105 Launcher shared Errors and failure isolation", Issue105ProcessLoggingTests.LauncherSharedErrorsAndFailureIsolation),
+            ("Issue105 action results session progress and denied sink", Issue105ProcessLoggingTests.ActionResultsSessionProgressAndDeniedSink),
             ("Issue105 resource failure context without inner diagnostic I/O", Issue105ResourceLoggingTests.ResourceContextWithoutInnerIo),
             ("Issue105 Shell resource failure cached per generation", Issue105ResourceLoggingTests.ShellCacheFailureIsOncePerGeneration),
             ("Issue105 platform event chronology deduplication and reset", Issue105PlatformEventTests.ChronologyDeduplicationAndReset),

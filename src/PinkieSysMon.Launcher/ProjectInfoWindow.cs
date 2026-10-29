@@ -28,18 +28,26 @@ internal static class ProjectPresentation
 
 internal static class ProjectLauncherActions
 {
-    public static void Run(string root, string action)
+    public static void Run(string root, string action) => Run(root, action, null);
+
+    internal static void Run(string root, string action, Action<string>? progress)
     {
         var bin = Path.Combine(Path.GetFullPath(root), "bin");
         if (action is "--runtime" or "--both")
         {
             // The existing Runtime has a machine-wide IPC/process identity. Do not
             // start a duplicate when another instance already owns that identity.
+            progress?.Invoke("runtime.process.check");
             var processes = Process.GetProcessesByName("PinkieSysMon");
             try
             {
                 if (processes.Length == 0)
+                {
+                    progress?.Invoke("runtime.start");
                     Start(Path.Combine(bin, "PinkieSysMon.exe"), bin);
+                    progress?.Invoke("runtime.start.returned");
+                }
+                else progress?.Invoke("runtime.process.alreadyPresent");
             }
             finally
             {
@@ -49,7 +57,11 @@ internal static class ProjectLauncherActions
         }
 
         if (action is "--editor" or "--both")
+        {
+            progress?.Invoke("editor.start");
             Start(Path.Combine(bin, "PinkieSysMon.Editor.exe"), bin);
+            progress?.Invoke("editor.start.returned");
+        }
 
         if (action is not ("--editor" or "--runtime" or "--both"))
             throw new ArgumentException("Unknown launcher command.", nameof(action));
@@ -71,8 +83,9 @@ internal static class ProjectLauncherActions
 
 internal static class ProjectShortcutInstaller
 {
-    internal static void Create(string root, bool startMenu, IWin32Window owner)
+    internal static void Create(string root, bool startMenu, IWin32Window owner, Action<string>? progress = null)
     {
+        progress?.Invoke("launcher.validate");
         root = Path.GetFullPath(root);
         var launcher = Path.Combine(root, ProjectPresentation.LauncherExe);
         if (!File.Exists(launcher))
@@ -85,6 +98,7 @@ internal static class ProjectShortcutInstaller
             throw new InvalidOperationException("Windows did not provide the user shortcut directory.");
 
         Directory.CreateDirectory(directory);
+        progress?.Invoke("shortcut.service.create");
         var shellType = Type.GetTypeFromProgID("WScript.Shell")
             ?? throw new InvalidOperationException("Windows Script Host shortcut service is unavailable.");
         var shell = Activator.CreateInstance(shellType)
@@ -93,10 +107,14 @@ internal static class ProjectShortcutInstaller
         var created = 0;
         var replaced = 0;
         var unchanged = 0;
+        var skipped = 0;
+        var index = 0;
         try
         {
             foreach (var (name, arguments) in ProjectPresentation.Shortcuts)
             {
+                var phase = "shortcut." + index++;
+                progress?.Invoke(phase + ".begin");
                 var path = Path.Combine(directory, name + ".lnk");
                 if (Directory.Exists(path))
                     throw new IOException("The shortcut name is occupied by a directory: " + path);
@@ -112,6 +130,7 @@ internal static class ProjectShortcutInstaller
                         string.Equals((string)link.IconLocation, launcher + ",0", StringComparison.OrdinalIgnoreCase))
                     {
                         unchanged++;
+                        progress?.Invoke(phase + ".unchanged");
                         continue;
                     }
 
@@ -123,7 +142,11 @@ internal static class ProjectShortcutInstaller
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Question,
                             MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                    {
+                        skipped++;
+                        progress?.Invoke(phase + ".replacement.declined");
                         continue;
+                    }
 
                     link.TargetPath = launcher;
                     link.Arguments = arguments;
@@ -132,6 +155,7 @@ internal static class ProjectShortcutInstaller
                     link.Description = name;
                     link.Save();
                     if (exists) replaced++; else created++;
+                    progress?.Invoke(phase + ".saved");
                 }
                 finally
                 {
@@ -146,6 +170,7 @@ internal static class ProjectShortcutInstaller
                 Marshal.FinalReleaseComObject(shell);
         }
 
+        progress?.Invoke($"shortcuts.returned; created={created}; replaced={replaced}; unchanged={unchanged}; skipped={skipped}");
         MessageBox.Show(owner,
             $"Created: {created}\nUpdated: {replaced}\nAlready correct: {unchanged}\n\nLocation: {directory}",
             "PinkieSysMon Shortcuts", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -174,14 +199,16 @@ internal static class ProjectShortcutInstaller
 internal sealed class ProjectInfoWindow : Form
 {
     private readonly string _root;
+    private readonly Action<string, Exception?>? _report;
     private readonly int _baseHeight;
     private readonly Panel _advanced;
     private readonly Button _advancedToggle;
     private bool _expanded;
 
-    public ProjectInfoWindow(string root, bool showLaunchButtons, string version)
+    public ProjectInfoWindow(string root, bool showLaunchButtons, string version, Action<string, Exception?>? report = null)
     {
         _root = Path.GetFullPath(root);
+        _report = report;
         Text = showLaunchButtons ? ProjectPresentation.Title : "About PinkieSysMon";
         Font = new Font("Segoe UI", 9f);
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -196,8 +223,9 @@ internal sealed class ProjectInfoWindow : Form
         {
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
         }
-        catch
+        catch (Exception error)
         {
+            ProjectActionDiagnostics.ReportSafely(_report, "Project window icon fallback.", error);
             Icon = SystemIcons.Application;
         }
 
@@ -269,7 +297,7 @@ internal sealed class ProjectInfoWindow : Form
                 {
                     try
                     {
-                        LaunchAndClose(command, ProjectLauncherActions.Run);
+                        LaunchAndCloseCore(command, ProjectLauncherActions.Run);
                     }
                     catch (Exception ex)
                     {
@@ -319,20 +347,29 @@ internal sealed class ProjectInfoWindow : Form
         Controls.Add(_advanced);
     }
 
-    internal void LaunchAndClose(string command, Action<string, string> launch)
-    {
-        launch(_root, command);
-        Close();
-    }
+    internal void LaunchAndClose(string command, Action<string, string> launch) =>
+        LaunchAndCloseCore(command, (root, action, _) => launch(root, action));
+
+    private void LaunchAndCloseCore(string command, Action<string, string, Action<string>> launch) =>
+        ProjectActionDiagnostics.Execute("launcher.launch",
+            command is "--runtime" or "--editor" or "--both" ? command : "invalid", progress =>
+            {
+                progress("dispatch");
+                launch(_root, command, progress);
+                progress("processStart.returned");
+                Close();
+            }, _report);
 
     private void OpenWebPage(string url, string title)
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(url)
+            ProjectActionDiagnostics.Execute("project.website.open", "documentation", progress =>
             {
-                UseShellExecute = true
-            });
+                progress("shell.dispatch");
+                using var process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                progress(process is null ? "shell.returned.noProcessHandle" : "shell.returned.processHandle");
+            }, _report);
         }
         catch (Exception ex)
         {
@@ -353,7 +390,8 @@ internal sealed class ProjectInfoWindow : Form
     {
         try
         {
-            ProjectShortcutInstaller.Create(_root, startMenu, this);
+            ProjectActionDiagnostics.Execute("project.shortcuts.create", startMenu ? "startMenu" : "desktop",
+                progress => ProjectShortcutInstaller.Create(_root, startMenu, this, progress), _report);
         }
         catch (Exception ex)
         {

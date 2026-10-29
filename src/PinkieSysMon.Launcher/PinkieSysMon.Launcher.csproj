@@ -18,4 +18,8 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Source-share the canonical writer/retention policy without a Runtime dependency. -->
+    <Compile Include="..\PinkieSysMon\LogFileWriter.cs" Link="LogFileWriter.cs" />
+  </ItemGroup>
 </Project>

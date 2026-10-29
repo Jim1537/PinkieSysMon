@@ -780,7 +780,14 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (startupChanged)
             {
                 var runtimePath = Path.Combine(_root, "bin", "PinkieSysMon.exe");
-                StartupTaskManager.SetEnabled(dialog.StartRuntimeWithWindows, runtimePath);
+                using var startup = new LogOperation(_log, "editor.startupTask.change", parent: operation.Id);
+                try
+                {
+                    startup.Phase("registry.write", $"enabled={dialog.StartRuntimeWithWindows}");
+                    StartupTaskManager.SetEnabled(dialog.StartRuntimeWithWindows, runtimePath);
+                    startup.Complete("registryCallReturned=true; futureLogonStartConfirmed=false");
+                }
+                catch (Exception error) { startup.Fail(error); throw; }
             }
 
             if (interfaceChanged)
@@ -985,7 +992,11 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private void ShowAbout()
     {
         var version = typeof(EditorForm).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-        using var dialog = new ProjectInfoWindow(_root, showLaunchButtons: false, version);
+        using var dialog = new ProjectInfoWindow(_root, showLaunchButtons: false, version, (message, error) =>
+        {
+            if (error is null) _log.Info(message);
+            else _log.Error(message, error);
+        });
         dialog.ShowDialog(this);
     }
 

@@ -10,7 +10,7 @@ namespace PinkieSysMon;
 internal sealed class FileLogger
 {
     internal const int MaximumThrottleKeys = 1024;
-    private const int MaximumFieldCharacters = 1024 * 1024;
+    private const int MaximumFieldCharacters = LogFileWriter.MaximumFieldCharacters;
     private readonly object _sync = new();
     private readonly ConditionalWeakTable<Exception, RecordedFailure> _recordedFailures = new();
     private readonly Dictionary<string, ThrottleState> _throttle = new(StringComparer.Ordinal);

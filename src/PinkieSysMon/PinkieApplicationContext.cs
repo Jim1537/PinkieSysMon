@@ -43,10 +43,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     private string AppConfigPath => Path.Combine(_baseDir, "config", "app.json");
     private string TelemetryConfigPath => Path.Combine(_baseDir, "config", "telemetry.json");
 
-    public PinkieApplicationContext(string baseDir, FileLogger log)
+    public PinkieApplicationContext(string baseDir, FileLogger log, LogOperation? startup = null)
     {
         _baseDir = baseDir;
         _log = log;
+        startup?.Phase("sources.create");
         _applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _mediaTelemetry = new WindowsMediaTelemetrySource(log);
         _sources =
@@ -59,6 +60,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             new IcueSensorLogTelemetrySource(baseDir, log)
         ];
 
+        startup?.Phase("configuration.load");
         (_config, _telemetryConfig, _boards) = LoadInitial();
         MetricContract.ReplaceOutputDescriptors(_config.Outputs.Targets);
         _metrics.Publish(RuntimeMetricContract.Version,
@@ -68,6 +70,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         // No session has been activated yet. A configured but inactive board
         // must never cause background polling or retain a stale valid value.
         var requiredMetrics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        startup?.Phase("telemetry.prepare");
         _telemetry = new TelemetryEngine(
             _metrics,
             _sources,
@@ -75,6 +78,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             MetricProviderContract.GetEnabledProviderIds(_config.MetricProviders),
             requiredMetrics,
             _log);
+        startup?.Phase("outputs.prepare");
         _outputSessions = new OutputSessionManager(_config, _boards, _metrics, _log);
         _configurationReload = new RuntimeConfigurationReloadControl(
             _outputSessions, _telemetry, _metrics, _sources, _baseDir, _log,
@@ -84,6 +88,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             _outputSessions, () => _config, _baseDir, _log, CommitTargetRuntimeConfiguration);
         _outputControl = new RuntimeOutputControl(_outputSessions, LegacyDashboardStatus,
             _outputConfiguration.Execute, () => _configurationReload.Reload());
+        startup?.Phase("notifications.prepare");
         _notifications = new WindowsAppNotificationService(log);
         _commandFeedback = new RuntimeCommandFeedback(
             (message, kind) => _notifications.Show(message, kind),
@@ -97,6 +102,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
                     _log.Info($"Runtime command feedback: {message}");
             });
 
+        startup?.Phase("tray.prepare");
         _trayMenu = new RuntimeTrayMenu(OpenDashboardEditor, ExecuteTrayOutputCommand,
             () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled);
         BuildTray();
@@ -109,6 +115,7 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             () => _config.Outputs.IgnoredDeviceNodeKeys.ToHashSet(StringComparer.OrdinalIgnoreCase));
         _usbTests.TestFailed += () => _ = _uiInvoker.InvokeAsync(() => _notifications.Show(
             "USB Test not passed. Configuration was not saved. Check the Runtime log and retry after cleanup.", RuntimeNotificationKind.Error));
+        startup?.Phase("ipc.prepare");
         _ipcServer = new RuntimeIpcServer(HandleIpcCommandAsync, _log);
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
@@ -122,13 +129,18 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         _statusTimer.Start();
 
         _telemetry.InitialValuesPublished += OnInitialTelemetryPublished;
+        startup?.Phase("telemetry.start");
         _telemetry.Start();
+        startup?.Phase("outputs.start");
         _outputSessions.Start();
+        startup?.Phase("shell.attach");
         _desktopShellWatcher = new DesktopShellZOrderWatcher(
             _outputSessions.RestoreDesktopAfterShellChange, _log);
         ReconcileTelemetryDemand();
         EvaluateRuntimeIdle();
+        startup?.Phase("ipc.listen");
         _ipcServer.Start();
+        startup?.Phase("discovery.capture");
         RefreshPhysicalInventory();
 
         _log.Info(
