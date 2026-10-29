@@ -117,6 +117,10 @@ internal static class Issue105DesktopLoggingTests
         Directory.CreateDirectory(root);
         try
         {
+            // The real renderer resolves global assets through an application root,
+            // even for this empty board; keep the fixture independent of the checkout.
+            Directory.CreateDirectory(Path.Combine(root, "config"));
+            File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
             var log = new FileLogger(Path.Combine(root, "session.log"), "Runtime");
             action(root, log);
             const string completed = "Issue105 Desktop fixture completed.";
