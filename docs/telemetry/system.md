@@ -652,7 +652,7 @@ When the System provider is disabled:
 
 ### Logging and Diagnostics
 
-System sources use the shared application log.
+System sources use the shared application log. PC manufacturer/model, processor and installed-memory query failures retain the original exception. Network observations distinguish offline, query-failed, unavailable and online states; offline is not an application error. Repeated NLM failures retain counts and recovery flushes their incident. Media summaries contain endpoint-refresh/session generations and presence/availability flags without endpoint names, IDs, program names or song metadata; failed volume/mute queries retain their original exception. These observations use existing captures and the shared [counted application logging](../development/architecture.md#application-logging) contract.
 
 Primary diagnostic events include:
 
@@ -697,3 +697,4 @@ The following contracts are specific to the System provider and should be preser
 - Every Output owns an independently enabled dynamic provider under its stable ID; stopping one must not clear or overwrite a sibling's metrics. Disabled, removed and inactive values are `null` apart from observed passive `status` when that provider remains enabled.
 - Disabling the provider or deactivating a metric must not leave stale values in `MetricStore`.
 - Changes to System metric IDs, value kinds, units, polling semantics, power-state mapping, endpoint-type mapping, or runtime publication semantics are compatibility-sensitive and should receive deterministic regression coverage whenever the corresponding contract can be tested reliably.
+

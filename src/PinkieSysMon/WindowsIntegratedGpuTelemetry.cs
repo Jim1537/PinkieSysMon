@@ -14,6 +14,7 @@ internal sealed class WindowsIntegratedGpuTelemetry
     private static readonly TimeSpan RediscoveryInterval = TimeSpan.FromSeconds(30);
 
     private readonly FileLogger _log;
+    private readonly string _incidentPrefix = "gpu." + Guid.NewGuid().ToString("N") + ".";
     private string[]? _integratedAdapterLuidTokens;
     private DateTimeOffset _nextDiscoveryAttempt = DateTimeOffset.MinValue;
     private bool _discoveryFailureLogged;
@@ -73,6 +74,7 @@ internal sealed class WindowsIntegratedGpuTelemetry
 
             if (_counterFailureLogged)
             {
+                _log.FlushSuppressed(_incidentPrefix + "counters");
                 _log.Info("Windows integrated GPU telemetry recovered.");
                 _counterFailureLogged = false;
             }
@@ -91,13 +93,9 @@ internal sealed class WindowsIntegratedGpuTelemetry
         }
         catch (Exception ex)
         {
-            if (!_counterFailureLogged)
-            {
-                _log.Error(
-                    "Windows integrated GPU utilization query failed; system.gpu.integrated.load will report unavailable until counters recover",
-                    ex);
-                _counterFailureLogged = true;
-            }
+            _log.ErrorThrottled(_incidentPrefix + "counters", RediscoveryInterval,
+                "Windows integrated GPU utilization query failed; system.gpu.integrated.load will report unavailable until counters recover", ex);
+            _counterFailureLogged = true;
 
             return null;
         }
@@ -120,6 +118,7 @@ internal sealed class WindowsIntegratedGpuTelemetry
 
             if (_discoveryFailureLogged)
             {
+                _log.FlushSuppressed(_incidentPrefix + "discovery");
                 _log.Info("DXCore integrated GPU discovery recovered.");
                 _discoveryFailureLogged = false;
             }
@@ -132,13 +131,9 @@ internal sealed class WindowsIntegratedGpuTelemetry
         catch (Exception ex)
         {
             _integratedAdapterLuidTokens = null;
-            if (!_discoveryFailureLogged)
-            {
-                _log.Error(
-                    "DXCore integrated GPU discovery failed; system.gpu.integrated.load will report unavailable until discovery recovers",
-                    ex);
-                _discoveryFailureLogged = true;
-            }
+            _log.ErrorThrottled(_incidentPrefix + "discovery", RediscoveryInterval,
+                "DXCore integrated GPU discovery failed; system.gpu.integrated.load will report unavailable until discovery recovers", ex);
+            _discoveryFailureLogged = true;
         }
     }
 
@@ -352,3 +347,4 @@ internal sealed class WindowsIntegratedGpuTelemetry
         }
     }
 }
+

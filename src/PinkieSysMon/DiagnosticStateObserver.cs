@@ -21,11 +21,13 @@ internal sealed class DiagnosticStateObserver(FileLogger log, string component,
         lock (_sync)
         {
             if (_closed) return;
+            key = Bound(key); value = Bound(value);
+            detail = detail is null ? null : Bound(detail);
             var now = _timestamp();
             if (!_states.TryGetValue(key, out var state))
             {
                 if (_states.Count >= MaximumKeys) { _omitted++; return; }
-                state = new(value, now);
+                state = new(value, now) { Detail = detail };
                 _states.Add(key, state);
                 Write(key, state, "initial", detail);
                 return;
@@ -33,7 +35,7 @@ internal sealed class DiagnosticStateObserver(FileLogger log, string component,
             if (state.Value != value)
             {
                 Write(key, state, "transition.end", null);
-                state = new(value, now);
+                state = new(value, now) { Detail = detail };
                 _states[key] = state;
                 Write(key, state, "changed", detail);
             }
@@ -41,6 +43,7 @@ internal sealed class DiagnosticStateObserver(FileLogger log, string component,
             {
                 state.Observations++;
                 state.Last = now;
+                state.Detail = detail;
                 if (Stopwatch.GetElapsedTime(state.Emitted, now) >= TimeSpan.FromSeconds(30))
                     Write(key, state, "summary", detail);
             }
@@ -55,7 +58,7 @@ internal sealed class DiagnosticStateObserver(FileLogger log, string component,
             key = Bound(key), state = Bound(state.Value), phase,
             observations = state.Observations,
             observedDurationMs = Stopwatch.GetElapsedTime(state.First, state.Last).TotalMilliseconds,
-            detail = detail is null ? null : Bound(detail)
+            detail = detail ?? state.Detail
         }));
         state.Emitted = state.Last;
     }
@@ -82,6 +85,7 @@ internal sealed class DiagnosticStateObserver(FileLogger log, string component,
     private sealed class State(string value, long now)
     {
         internal string Value = value;
+        internal string? Detail;
         internal long First = now, Last = now, Emitted = now;
         internal long Observations = 1;
     }

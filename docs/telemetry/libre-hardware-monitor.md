@@ -473,6 +473,8 @@ After a successful catalog refresh, the log records:
 - number of tree-backed duplicate metrics;
 - number of ambiguous metric IDs.
 
+Catalog diagnostics distinguish unavailable/recovered discovery and actual catalog generation changes from a routine refresh. Generation comparison uses catalog identity/meaning, excluding live values; fingerprints stay in memory. Routine summaries publish generation/counts only, with [counted/final application observations](../development/architecture.md#application-logging), without additional HTTP requests.
+
 Repeated transport and protocol warnings are limited by a throttle interval of:
 
   `30 seconds`
@@ -499,3 +501,4 @@ The following contracts are specific to the Libre Hardware Monitor provider and 
 - Dynamic LHM descriptors must remain confined to the `lhm.*` provider namespace.
 - An LHM provider failure must remain isolated from all other telemetry providers.
 - Changes to SensorId → MetricId rules, duplicate disambiguation, endpoint discovery, unit semantics, or unavailable behavior should receive deterministic regression coverage whenever the contract can be tested reliably.
+

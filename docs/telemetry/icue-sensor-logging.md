@@ -298,7 +298,7 @@ Warnings related to recurring iCUE file problems are throttled to one occurrence
 
 Provider state is protected by an internal synchronization lock so catalog changes, incremental reads, and capture operations cannot mutate the same state concurrently.
 
-A successful catalog refresh writes an informational message containing the active filename, published metric count, and ambiguous metric count.
+A successful catalog refresh records file/catalog generation numbers and published/ambiguous metric counts. The catalog generation changes only when its entries change. Capture records first and changed no-file/no-data/stale/fresh state, file switches and truncation counts without file or sensor names in routine summaries. Unchanged observations use the shared [counted application logging](../development/architecture.md#application-logging) policy; source disposal retains final counts. These observations use existing reads and do not refresh sensor values or change CSV retention.
 
 ### Maintenance Contracts
 
@@ -314,3 +314,4 @@ The following contracts are specific to this provider and should be preserved un
 - Cleanup must remain restricted to matching iCUE Sensor Logging files and must preserve the defined retention and minimum-age safeguards.
 - Dynamic descriptors must remain confined to the `icue.*` provider namespace.
 - Changes to CSV column-name identity, unit inference, stale timing, file selection, or cleanup semantics are compatibility-sensitive and should receive deterministic regression coverage when modified.
+

@@ -12,6 +12,8 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
 
     private readonly object _sync = new();
     private readonly FileLogger _log;
+    private readonly DiagnosticStateObserver _diagnostics;
+    private long _endpointGeneration, _sessionGeneration;
     private readonly MMDeviceEnumerator _deviceEnumerator = new();
     private readonly MMDeviceNotificationClient _notificationClient;
     private MMDevice? _defaultOutputEndpoint;
@@ -30,6 +32,7 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
     public WindowsMediaTelemetrySource(FileLogger log)
     {
         _log = log;
+        _diagnostics = new(log, "telemetry.media");
 
         // NAudio 3.1 intentionally hides the raw IMMNotificationClient COM interface.
         // Use the public managed notification client instead.
@@ -115,6 +118,9 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
         var requested = requestedMetrics as HashSet<string>
             ?? new HashSet<string>(requestedMetrics, StringComparer.OrdinalIgnoreCase);
 
+        IReadOnlyDictionary<string, object?> captured;
+        string state;
+        var failures = new List<(string Source, Exception Error)>();
         lock (_sync)
         {
             var wantsOutput = requested.Any(metric =>
@@ -133,11 +139,11 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
             var result = new Dictionary<string, object?>(requested.Count, StringComparer.OrdinalIgnoreCase);
 
             if (wantsOutput)
-                WriteEndpointMetrics(result, requested, MediaMetricContract.OutputMetricSource, _defaultOutputEndpoint);
+                WriteEndpointMetrics(result, requested, MediaMetricContract.OutputMetricSource, _defaultOutputEndpoint, failures);
 
             if (wantsInput)
             {
-                WriteEndpointMetrics(result, requested, MediaMetricContract.InputMetricSource, _defaultInputEndpoint);
+                WriteEndpointMetrics(result, requested, MediaMetricContract.InputMetricSource, _defaultInputEndpoint, failures);
                 if (requested.Contains(MediaMetricContract.InputActive))
                     result[MediaMetricContract.InputActive] = GetInputActiveLocked();
             }
@@ -154,8 +160,14 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
                     result[MediaMetricContract.PlaybackProgress] = GetPlaybackProgressLocked(DateTimeOffset.UtcNow);
             }
 
-            return result;
+            captured = result;
+            state = $"endpointGeneration={_endpointGeneration}; sessionGeneration={_sessionGeneration}; outputPresent={_defaultOutputEndpoint is not null}; inputPresent={_defaultInputEndpoint is not null}; playbackAvailable={_playback.Available}";
         }
+        foreach (var (source, error) in failures)
+            _log.ErrorThrottled("media.endpoint-volume." + source, ErrorLogThrottleInterval,
+                "Audio endpoint volume/mute query failed.", error);
+        _diagnostics.Observe("lifecycle", state);
+        return captured;
     }
 
     private void MarkEndpointsDirty() => Interlocked.Exchange(ref _endpointRefreshPending, 1);
@@ -183,6 +195,7 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
         _defaultOutputEndpoint = TryGetDefaultEndpoint(DataFlow.Render);
         _defaultInputEndpoint = TryGetDefaultEndpoint(DataFlow.Capture);
         AttachInputSessionManagerLocked();
+        _endpointGeneration++; // Existing refresh event, not an additional native query.
     }
 
     private void AttachInputSessionManagerLocked()
@@ -273,7 +286,7 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
         IDictionary<string, object?> result,
         ISet<string> requested,
         string source,
-        MMDevice? device)
+        MMDevice? device, List<(string Source, Exception Error)> failures)
     {
         var idMetric = $"{source}.id";
         var nameMetric = $"{source}.name";
@@ -319,8 +332,9 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
                 if (requested.Contains(mutedMetric))
                     result[mutedMetric] = device.AudioEndpointVolume.Mute;
             }
-            catch
+            catch (Exception error)
             {
+                failures.Add((source, error));
                 if (requested.Contains(volumeMetric))
                     result[volumeMetric] = null;
                 if (requested.Contains(mutedMetric))
@@ -419,6 +433,7 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
 
     private void AttachSessionLocked(GlobalSystemMediaTransportControlsSession? next)
     {
+        _sessionGeneration++;
         _mediaPropertiesGeneration++;
         if (_session is not null)
         {
@@ -654,38 +669,42 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
 
     public void Dispose()
     {
-        lock (_sync)
+        try
         {
-            if (_disposed)
-                return;
-
-            _disposed = true;
-            _mediaPropertiesGeneration++;
-
-            if (_sessionManager is not null)
+            lock (_sync)
             {
-                _sessionManager.CurrentSessionChanged -= OnCurrentSessionChanged;
-                _sessionManager.SessionsChanged -= OnSessionsChanged;
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+                _mediaPropertiesGeneration++;
+
+                if (_sessionManager is not null)
+                {
+                    _sessionManager.CurrentSessionChanged -= OnCurrentSessionChanged;
+                    _sessionManager.SessionsChanged -= OnSessionsChanged;
+                }
+
+                if (_session is not null)
+                {
+                    _session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
+                    _session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
+                    _session.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
+                }
+
+                _notificationClient.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+                _notificationClient.DeviceAdded -= OnDeviceAdded;
+                _notificationClient.DeviceRemoved -= OnDeviceRemoved;
+                _notificationClient.DeviceStateChanged -= OnDeviceStateChanged;
+
+                _notificationClient.Dispose();
+                DetachInputSessionManagerLocked();
+                _defaultOutputEndpoint?.Dispose();
+                _defaultInputEndpoint?.Dispose();
+                _deviceEnumerator.Dispose();
             }
-
-            if (_session is not null)
-            {
-                _session.PlaybackInfoChanged -= OnPlaybackInfoChanged;
-                _session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-                _session.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
-            }
-
-            _notificationClient.DefaultDeviceChanged -= OnDefaultDeviceChanged;
-            _notificationClient.DeviceAdded -= OnDeviceAdded;
-            _notificationClient.DeviceRemoved -= OnDeviceRemoved;
-            _notificationClient.DeviceStateChanged -= OnDeviceStateChanged;
-
-            _notificationClient.Dispose();
-            DetachInputSessionManagerLocked();
-            _defaultOutputEndpoint?.Dispose();
-            _defaultInputEndpoint?.Dispose();
-            _deviceEnumerator.Dispose();
         }
+        finally { _diagnostics.Dispose(); }
     }
 
     public sealed record MediaEndpointInfo(string EndpointId, string FriendlyName);
@@ -718,3 +737,4 @@ internal sealed class WindowsMediaTelemetrySource : IMetricSource, IDisposable
                 false);
     }
 }
+

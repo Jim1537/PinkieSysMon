@@ -2,11 +2,13 @@ using System.Runtime.InteropServices;
 
 namespace PinkieSysMon;
 
-internal sealed class WindowsNetworkTelemetrySource : IMetricSource
+internal sealed class WindowsNetworkTelemetrySource : IMetricSource, IDisposable
 {
     private readonly FileLogger _log;
     private readonly Func<bool?> _readInternetConnectivity;
     private bool _failureLogged;
+    private readonly DiagnosticStateObserver _diagnostics;
+    private readonly string _incidentKey = "network.query." + Guid.NewGuid().ToString("N");
 
     public WindowsNetworkTelemetrySource(FileLogger log)
         : this(log, WindowsNetworkConnectivityProbe.ReadInternetConnected)
@@ -16,6 +18,7 @@ internal sealed class WindowsNetworkTelemetrySource : IMetricSource
     internal WindowsNetworkTelemetrySource(FileLogger log, Func<bool?> readInternetConnectivity)
     {
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _diagnostics = new(log, "telemetry.network");
         _readInternetConnectivity = readInternetConnectivity
             ?? throw new ArgumentNullException(nameof(readInternetConnectivity));
     }
@@ -42,6 +45,7 @@ internal sealed class WindowsNetworkTelemetrySource : IMetricSource
             result[NetworkMetricContract.InternetConnected] = _readInternetConnectivity();
             if (_failureLogged)
             {
+                _log.FlushSuppressed(_incidentKey);
                 _log.Info("Windows network connectivity telemetry recovered.");
                 _failureLogged = false;
             }
@@ -49,16 +53,20 @@ internal sealed class WindowsNetworkTelemetrySource : IMetricSource
         catch (Exception ex)
         {
             result[NetworkMetricContract.InternetConnected] = null;
-            if (!_failureLogged)
-            {
-                _log.Error(
-                    "Windows network connectivity query failed; system.network.internet.connected will report unavailable until NLM recovers",
-                    ex);
-                _failureLogged = true;
-            }
+            _log.ErrorThrottled(_incidentKey, TimeSpan.FromSeconds(30),
+                "Windows network connectivity query failed; system.network.internet.connected will report unavailable until NLM recovers", ex);
+            _failureLogged = true;
         }
 
+        _diagnostics.Observe("connectivity", _failureLogged ? "query-failed" : result[NetworkMetricContract.InternetConnected] switch
+        { true => "online", false => "offline", _ => "unavailable" });
         return result;
+    }
+
+    public void Dispose()
+    {
+        _log.FlushSuppressed(_incidentKey);
+        _diagnostics.Dispose();
     }
 }
 
@@ -88,3 +96,4 @@ internal static class WindowsNetworkConnectivityProbe
         }
     }
 }
+

@@ -44,7 +44,7 @@ internal static class IcueSensorLogMetricContract
         new(entry.MetricId, entry.ValueKind, entry.BaseUnit);
 }
 
-internal sealed class IcueSensorLogTelemetrySource : IMetricSource
+internal sealed class IcueSensorLogTelemetrySource : IMetricSource, IDisposable
 {
     private const string LogFilePattern = "corsair_cue_*.csv";
     private const int TailProbeBytes = 1024 * 1024;
@@ -59,6 +59,8 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
     private readonly object _sync = new();
     private readonly string _logDirectory;
     private readonly FileLogger _log;
+    private readonly DiagnosticStateObserver _diagnostics;
+    private long _fileGeneration, _catalogGeneration, _truncations;
 
     private IReadOnlyDictionary<string, IcueSensorLogMetricEntry> _catalog =
         new Dictionary<string, IcueSensorLogMetricEntry>(StringComparer.OrdinalIgnoreCase);
@@ -78,6 +80,7 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
 
         _logDirectory = Path.Combine(applicationRoot, "logs");
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _diagnostics = new(log, "telemetry.icue");
     }
 
     public string ProviderId => MetricProviderContract.Icue;
@@ -111,6 +114,7 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
         if (requestedMetrics.Count == 0)
             return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
+        IReadOnlyDictionary<string, object?> captured;
         lock (_sync)
         {
             EnsureActiveLog(forceCatalogRefresh: false);
@@ -134,15 +138,34 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
                 result[metricId] = _latestValues.TryGetValue(metricId, out var value) ? value : null;
             }
 
-            return result;
+            captured = result;
         }
+        ObserveState();
+        return captured;
     }
 
     public bool RefreshCatalog()
     {
-        lock (_sync)
-            return EnsureActiveLog(forceCatalogRefresh: true);
+        bool available;
+        lock (_sync) available = EnsureActiveLog(forceCatalogRefresh: true);
+        ObserveState();
+        return available;
     }
+
+    private void ObserveState()
+    {
+        string state, detail;
+        lock (_sync)
+        {
+            state = _activeLogPath is null ? "no-file" : _lastSampleWriteUtc == DateTime.MinValue ? "no-data" :
+                DateTime.UtcNow - _lastSampleWriteUtc <= SampleStaleAfter ? "fresh" : "stale";
+            detail = $"fileGeneration={_fileGeneration}; catalogGeneration={_catalogGeneration}; truncations={_truncations}; metrics={_catalog.Count}; ambiguous={_ambiguousMetricIds.Count}";
+        }
+        _diagnostics.Observe("samples", state, detail);
+        _diagnostics.Observe("catalog", detail);
+    }
+
+    public void Dispose() => _diagnostics.Dispose();
 
     private bool EnsureActiveLog(bool forceCatalogRefresh)
     {
@@ -158,7 +181,7 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
                 _log.WarnThrottled(
                     "icue.sensor-log.discovery",
                     ErrorLogThrottleInterval,
-                    $"No valid iCUE Sensor Logging CSV was found in '{_logDirectory}'.");
+                    "No valid iCUE Sensor Logging CSV was found.");
             }
             return _activeLogPath is not null;
         }
@@ -182,6 +205,9 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
             .Select(IcueSensorLogMetricContract.CreateDescriptor)
             .ToArray();
 
+        if (!string.Equals(_activeLogPath, candidate, StringComparison.OrdinalIgnoreCase)) _fileGeneration++;
+        if (!_ambiguousMetricIds.SetEquals(catalog.AmbiguousMetricIds) || !_catalog.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase)
+                .SequenceEqual(catalog.Metrics.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))) _catalogGeneration++;
         _activeLogPath = candidate;
         _activePosition = nextPosition;
         _pendingText = string.Empty;
@@ -197,7 +223,7 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
         CleanupOldLogs(candidate);
 
         _log.Info(
-            $"iCUE sensor log catalog refreshed: file={Path.GetFileName(candidate)}, " +
+            $"iCUE sensor log catalog refreshed: fileGeneration={_fileGeneration}, catalogGeneration={_catalogGeneration}, " +
             $"metrics={catalog.Metrics.Count}, ambiguous={catalog.AmbiguousMetricIds.Count}.");
         return true;
     }
@@ -484,6 +510,7 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
 
             if (stream.Length < _activePosition)
             {
+                _truncations++;
                 EnsureActiveLog(forceCatalogRefresh: true);
                 return;
             }
@@ -701,3 +728,4 @@ internal sealed class IcueSensorLogTelemetrySource : IMetricSource
         }
     }
 }
+

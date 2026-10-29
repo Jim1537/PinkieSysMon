@@ -262,6 +262,9 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
     private readonly object _sync = new();
     private readonly LibreHardwareMonitorHttpClient _client;
     private readonly FileLogger _log;
+    private readonly DiagnosticStateObserver _diagnostics;
+    private string? _catalogSignature;
+    private long _catalogGeneration;
 
     private IReadOnlyDictionary<string, LibreHardwareMonitorMetricEntry> _catalog =
         new Dictionary<string, LibreHardwareMonitorMetricEntry>(StringComparer.OrdinalIgnoreCase);
@@ -273,6 +276,7 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
     public LibreHardwareMonitorRawTelemetrySource(FileLogger log)
     {
         _log = log ?? throw new ArgumentNullException(nameof(log));
+        _diagnostics = new(log, "telemetry.lhm");
         _client = new LibreHardwareMonitorHttpClient(log);
     }
 
@@ -402,7 +406,11 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
         }
 
         if (!_client.TryGetTree(out var tree) || tree is null)
+        {
+            _diagnostics.Observe("catalog.availability", "unavailable");
             return false;
+        }
+        _diagnostics.Observe("catalog.availability", "available");
 
         var catalog = LibreHardwareMonitorMetricCatalog.Build(tree, _log);
         var descriptors = catalog.Metrics.Values
@@ -417,6 +425,16 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
             _catalogTransportGeneration = _client.StateGeneration;
         }
 
+        var signature = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            metrics = catalog.Metrics.Values.OrderBy(e => e.MetricId, StringComparer.OrdinalIgnoreCase)
+                .Select(e => new { e.MetricId, e.SensorId, e.SensorType, e.SensorName,
+                    e.HardwareId, e.HardwareName, e.SensorGroupName, e.HardwarePath, e.ReadFromTreeSnapshot }),
+            ambiguous = catalog.AmbiguousMetricIds.Order(StringComparer.OrdinalIgnoreCase)
+        });
+        signature = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(signature)));
+        if (_catalogSignature != signature) { _catalogGeneration++; _catalogSignature = signature; }
+        _diagnostics.Observe("catalog.generation", $"generation={_catalogGeneration}; metrics={catalog.Metrics.Count}; ambiguous={catalog.AmbiguousMetricIds.Count}");
         MetricContract.ReplaceProviderDescriptors(ProviderId, descriptors);
         var treeBackedCount = catalog.Metrics.Values.Count(entry => entry.ReadFromTreeSnapshot);
         _log.Info(
@@ -442,6 +460,8 @@ internal sealed class LibreHardwareMonitorRawTelemetrySource : IMetricSource, ID
             return;
 
         _disposed = true;
-        _client.Dispose();
+        try { _client.Dispose(); }
+        finally { _diagnostics.Dispose(); }
     }
 }
+

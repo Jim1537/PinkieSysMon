@@ -197,6 +197,9 @@ internal sealed class TelemetryEngine : IDisposable
     private bool _initialCapturePending;
     private bool _idlePaused;
     private Task? _worker;
+    private readonly DiagnosticStateObserver _diagnostics;
+    private readonly WorkerProgressDiagnostics _progress;
+    private readonly string _incidentPrefix = "telemetry." + Guid.NewGuid().ToString("N") + ".";
     private int _disposeState;
     private readonly Queue<(Action Run, Action Cancel)> _sourceOperations = new();
 
@@ -210,6 +213,8 @@ internal sealed class TelemetryEngine : IDisposable
     {
         _store = store;
         _log = log;
+        _diagnostics = new(log, "telemetry");
+        _progress = new(log, "telemetry.worker", startTimer: false);
         _sources = sources.ToArray();
         _metricIndex = BuildMetricIndex(_sources);
         _config = config;
@@ -230,11 +235,27 @@ internal sealed class TelemetryEngine : IDisposable
         {
             if (Volatile.Read(ref _disposeState) != 0) return Task.FromCanceled<T>(new CancellationToken(true));
             if (_sourceOperations.Count >= 64)
-                return Task.FromException<T>(new InvalidOperationException("Telemetry discovery/settings queue is full."));
+            {
+                var error = new InvalidOperationException("Telemetry discovery/settings queue is full.");
+                _progress.Rejected(error);
+                return Task.FromException<T>(error);
+            }
             _sourceOperations.Enqueue((() =>
             {
-                try { completion.TrySetResult(operation()); }
-                catch (Exception error) { completion.TrySetException(error); }
+                try
+                {
+                    T result;
+                    _progress.Begin("source.operation");
+                    try { result = operation(); }
+                    finally { _progress.Complete(); }
+                    completion.TrySetResult(result);
+                }
+                catch (Exception error)
+                {
+                    _log.ErrorThrottled(_incidentPrefix + "source-operation", ErrorLogThrottleInterval,
+                        "Telemetry serialized discovery/settings operation failed.", error);
+                    completion.TrySetException(error);
+                }
             }, () => completion.TrySetCanceled()));
         }
         SignalWake();
@@ -318,6 +339,7 @@ internal sealed class TelemetryEngine : IDisposable
             return;
 
         _worker = Task.Run(() => RunAsync(_cts.Token));
+        _progress.StartMonitoring();
     }
 
     public void Reconfigure(
@@ -432,17 +454,21 @@ internal sealed class TelemetryEngine : IDisposable
                 token.ThrowIfCancellationRequested();
                 long planVersion;
                 bool paused;
+                int scheduled;
                 lock (_sync)
                 {
                     paused = _idlePaused;
+                    scheduled = _metricSchedules.Count;
                     planVersion = paused ? _scheduleVersion : PrepareDueSourcesLocked(Stopwatch.GetTimestamp());
                 }
 
+                _diagnostics.Observe("schedule", $"version={planVersion}; paused={paused}; activeMetrics={scheduled}");
                 if (!paused)
                     CaptureDueSources();
 
                 int delayMs;
                 Action? notifyInitialValues = null;
+                var initialPublished = false;
                 lock (_sync)
                 {
                     if (!token.IsCancellationRequested && !paused && !_idlePaused && planVersion == _scheduleVersion)
@@ -452,6 +478,7 @@ internal sealed class TelemetryEngine : IDisposable
                         if (_initialCapturePending && _captureBatch.Count > 0)
                         {
                             _initialCapturePending = false;
+                            initialPublished = true;
                             notifyInitialValues = InitialValuesPublished;
                         }
                     }
@@ -460,6 +487,8 @@ internal sealed class TelemetryEngine : IDisposable
                 }
 
                 // Consumers must never render while holding the telemetry schedule lock.
+                if (initialPublished)
+                    _log.Info($"Telemetry first batch published. schedule={planVersion}; metrics={_captureBatch.Count}; unavailable={_captureBatch.Count(p => p.Value is null)}.");
                 notifyInitialValues?.Invoke();
                 await WaitForWakeOrDelayAsync(delayMs, token).ConfigureAwait(false);
             }
@@ -512,9 +541,15 @@ internal sealed class TelemetryEngine : IDisposable
 
         foreach (var sourceSchedule in _dueSources)
         {
+            var source = sourceSchedule.Source;
+            var key = source.ProviderId + "." + source.Name;
+            var started = Stopwatch.GetTimestamp();
+            _progress.Begin("source.capture", key);
             try
             {
-                var snapshot = sourceSchedule.Source.Capture(sourceSchedule.DueMetricNames);
+                IReadOnlyDictionary<string, object?> snapshot;
+                try { snapshot = sourceSchedule.Source.Capture(sourceSchedule.DueMetricNames); }
+                finally { _progress.Complete(); }
                 foreach (var metric in sourceSchedule.DueMetricNames)
                 {
                     if (snapshot.TryGetValue(metric, out var value))
@@ -522,6 +557,10 @@ internal sealed class TelemetryEngine : IDisposable
                     else
                         _captureBatch[metric] = null;
                 }
+                _log.FlushSuppressed(_incidentPrefix + key);
+                var available = sourceSchedule.DueMetricNames.Count(name => _captureBatch[name] is not null);
+                _diagnostics.Observe(key, $"requested={sourceSchedule.DueMetricNames.Count}; available={available}",
+                    $"elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds}; queryReturned=true");
             }
             catch (Exception ex)
             {
@@ -530,13 +569,14 @@ internal sealed class TelemetryEngine : IDisposable
                 foreach (var metric in sourceSchedule.DueMetricNames)
                     _captureBatch[metric] = null;
 
-                var source = sourceSchedule.Source;
+                _diagnostics.Observe(key, "capture.failed");
                 _log.ErrorThrottled(
-                    $"telemetry.source.{source.ProviderId}.{source.Name}",
+                    _incidentPrefix + key,
                     ErrorLogThrottleInterval,
                     $"Telemetry source '{source.Name}' ({source.ProviderId}) capture failed",
                     ex);
             }
+            finally { _progress.Complete(); }
         }
     }
 
@@ -727,6 +767,11 @@ internal sealed class TelemetryEngine : IDisposable
         {
             lock (_sync)
                 while (_sourceOperations.TryDequeue(out var operation)) operation.Cancel();
+            _progress.Dispose();
+            _diagnostics.Dispose();
+            foreach (var source in _sources)
+                _log.FlushSuppressed(_incidentPrefix + source.ProviderId + "." + source.Name);
+            _log.FlushSuppressed(_incidentPrefix + "source-operation");
             _wakeSignal.Dispose();
             _cts.Dispose();
         }
@@ -849,9 +894,9 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
                     NormalizeText(ReadWmiProperty(computer, "Model"));
             }
         }
-        catch
+        catch (Exception error)
         {
-            log.Warn("Windows PC manufacturer/model query unavailable.");
+            log.Error("Windows PC manufacturer/model query failed; metrics remain unavailable.", error);
         }
 
         try
@@ -868,9 +913,9 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
                     ReadWmiProperty(processor, "Architecture"), Environment.Is64BitOperatingSystem);
             }
         }
-        catch
+        catch (Exception error)
         {
-            log.Warn("Windows PC processor query unavailable.");
+            log.Error("Windows PC processor query failed; metrics remain unavailable.", error);
         }
 
         try
@@ -887,9 +932,9 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
 
             result[SystemMetricContract.PcRam] = SumInstalledMemoryBytes(capacities);
         }
-        catch
+        catch (Exception error)
         {
-            log.Warn("Windows PC installed-memory query unavailable.");
+            log.Error("Windows PC installed-memory query failed; metrics remain unavailable.", error);
         }
     }
 
@@ -1017,6 +1062,7 @@ internal sealed class WindowsPowerTelemetrySource : IMetricSource
 {
     private readonly FileLogger _log;
     private bool _failureLogged;
+    private readonly string _incidentKey = "power.query." + Guid.NewGuid().ToString("N");
 
     public WindowsPowerTelemetrySource(FileLogger log)
     {
@@ -1041,6 +1087,7 @@ internal sealed class WindowsPowerTelemetrySource : IMetricSource
             var batteries = QueryBatteries();
             if (_failureLogged)
             {
+                _log.FlushSuppressed(_incidentKey);
                 _log.Info("Windows power telemetry recovered.");
                 _failureLogged = false;
             }
@@ -1055,11 +1102,9 @@ internal sealed class WindowsPowerTelemetrySource : IMetricSource
         }
         catch (Exception ex)
         {
-            if (!_failureLogged)
-            {
-                _log.Error("Windows power telemetry query failed; power metrics will report unavailable until WMI recovers", ex);
-                _failureLogged = true;
-            }
+            _log.ErrorThrottled(_incidentKey, TimeSpan.FromSeconds(30),
+                "Windows power telemetry query failed; power metrics will report unavailable until WMI recovers", ex);
+            _failureLogged = true;
 
             var result = new Dictionary<string, object?>(requested.Count, StringComparer.OrdinalIgnoreCase);
             AddEntity(result, requested, PowerMetricContract.UpsSource, null);
@@ -1174,3 +1219,4 @@ internal sealed class WindowsPowerTelemetrySource : IMetricSource
         long? RuntimeSeconds,
         string State);
 }
+
