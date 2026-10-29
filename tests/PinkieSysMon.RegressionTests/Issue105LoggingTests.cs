@@ -262,6 +262,35 @@ internal static class Issue105LoggingTests
         });
     }
 
+    public static void IdleSessionPrunesAllThreeStreams()
+    {
+        Sandbox(root =>
+        {
+            var runtime = Path.Combine(root, "PinkieSysMon.Runtime.log");
+            var log = new FileLogger(runtime, "Runtime");
+            using var session = ApplicationLogSession.Start(log, "regression");
+
+            var oldRuntime = runtime + ".20261028T0000000000000Z." +
+                Guid.NewGuid().ToString("N") + ".archive";
+            var oldErrors = log.ErrorsPath + ".20261028T0000000000000Z." +
+                Guid.NewGuid().ToString("N") + ".archive";
+            foreach (var stale in new[] { oldRuntime, oldErrors })
+            {
+                File.WriteAllText(stale, "expired history");
+                File.SetLastWriteTimeUtc(stale, DateTime.UtcNow.AddHours(-73));
+            }
+
+            // No fresh Info or Error: invoke the same callback used by the
+            // live session's one-minute maintenance timer.
+            session.MaintainNow();
+            Check(!File.Exists(oldRuntime) && !File.Exists(oldErrors),
+                "Idle maintenance must prune both component and shared error history.");
+            Check(File.Exists(runtime) && File.Exists(log.ErrorsPath),
+                "Active files survive idle retention without invented application errors.");
+            session.MarkCompleted();
+        });
+    }
+
     private static ChildProcess StartChild(string mode, string path, string token)
     {
         var executable = Environment.ProcessPath ?? throw new InvalidOperationException("No regression host path.");

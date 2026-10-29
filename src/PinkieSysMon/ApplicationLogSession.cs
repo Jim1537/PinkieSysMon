@@ -6,8 +6,10 @@ internal sealed class ApplicationLogSession : IDisposable
 {
     private readonly FileLogger _log;
     private EventWaitHandle? _lifetime;
+    private System.Threading.Timer? _maintenanceTimer;
+    private int _maintenanceRunning;
     private bool _completed;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     private ApplicationLogSession(FileLogger log, string mode)
     {
@@ -28,6 +30,10 @@ internal sealed class ApplicationLogSession : IDisposable
                     $"newLogGroup={first}; rollingHistoryHours=72; previousSessionsRetained=true.");
                 return true;
             });
+            // Independent of logging cadence: cleanup continues through quiet periods.
+            _maintenanceTimer = new System.Threading.Timer(
+                static state => ((ApplicationLogSession)state!).MaintainNow(),
+                this, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
         }
         catch (Exception error)
         {
@@ -40,10 +46,33 @@ internal sealed class ApplicationLogSession : IDisposable
     internal void Ready() => _log.Info("SESSION_READY");
     internal void MarkCompleted() => _completed = true;
 
+    // One in-process observer per admitted session; shared file gates prevent
+    // overlapping Editor processes from pruning an open writer's segment.
+    internal void MaintainNow()
+    {
+        if (_disposed || Interlocked.CompareExchange(ref _maintenanceRunning, 1, 0) != 0) return;
+        try
+        {
+            foreach (var path in new[] { _log.Path, _log.ErrorsPath })
+            {
+                if (_disposed) break;
+                try { LogFileWriter.Maintain(path); }
+                catch (Exception error)
+                {
+                    // A retention failure must not remove evidence or stop Runtime.
+                    _log.Error("Rolling log maintenance failed.", error);
+                }
+            }
+        }
+        finally { Volatile.Write(ref _maintenanceRunning, 0); }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+        _maintenanceTimer?.Dispose();
+        _maintenanceTimer = null;
         try
         {
             LogFileWriter.UnderGate(_log.Path, "session", () =>
