@@ -79,6 +79,7 @@ internal static class Program
             ("Issue105 crashed final Editor session", Issue105LoggingTests.CrashedLastEditorReleasesSession),
             ("Issue105 72-hour rolling history and idle pruning", Issue105LoggingTests.RollingRetentionAndIdleErrors),
             ("Issue105 idle session prunes component and error history", Issue105LoggingTests.IdleSessionPrunesAllThreeStreams),
+            ("Issue105 configurable retention and invalid policy", Issue105LoggingTests.ConfigurableRetentionAcrossSessions),
             ("Issue101 prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
             ("Issue101 Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
             ("Issue101 Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),
@@ -2253,6 +2254,7 @@ internal static class Program
     {
         var config = new AppConfig();
         config.Runtime.IdleTimeoutMinutes = 17;
+        config.Runtime.LogRetentionDays = 7;
         using var dialog = new EditorGeneralSettingsDialog(
             startRuntimeWithWindows: true,
             systemProviderEnabled: true,
@@ -2271,7 +2273,7 @@ internal static class Program
             "General Settings must preserve startup/provider/theme/icon values passed by their existing owners.");
         var groups = dialog.Controls.OfType<Panel>().Single(panel => panel.Controls.OfType<GroupBox>().Any()).Controls.OfType<GroupBox>().ToArray();
         Assert(groups.Select(group => group.Text).ToHashSet()
-                .SetEquals(["Startup", "Runtime activity", "Metric providers", "Interface"]),
+                .SetEquals(["Startup", "Runtime activity", "Logging", "Metric providers", "Interface"]),
             "General tab must expose the Runtime idle setting but no legacy device binding or per-output settings.");
         var idleLayout = groups.Single(group => group.Text == "Runtime activity")
             .Controls.OfType<TableLayoutPanel>().Single();
@@ -2279,11 +2281,20 @@ internal static class Program
         Assert(dialog.RuntimeIdleTimeoutMinutes == 17 && idleTimeout.Value == 17 &&
                idleTimeout.Minimum == 0 && idleTimeout.Maximum == RuntimeIdlePolicy.MaximumTimeoutMinutes,
             "Runtime idle setting must preserve its configured value and supported range.");
+        var loggingLayout = groups.Single(group => group.Text == "Logging")
+            .Controls.OfType<TableLayoutPanel>().Single();
+        var retention = loggingLayout.Controls.OfType<NumericUpDown>().Single();
+        Assert(dialog.LogRetentionDays == 7 && retention.Value == 7 &&
+               retention.Minimum == LogRetentionPolicy.MinimumDays &&
+               retention.Maximum == LogRetentionPolicy.MaximumDays &&
+               loggingLayout.Controls.OfType<Label>().Any(label => label.Text == "Keep logs (days)"),
+            "General Settings must expose persisted global log retention with explicit limits.");
         var generalNumericControls = groups.SelectMany(group => group.Controls.OfType<TableLayoutPanel>())
             .SelectMany(layout => layout.Controls.OfType<NumericUpDown>()).ToArray();
-        Assert(generalNumericControls.Length == 1 && ReferenceEquals(generalNumericControls[0], idleTimeout) &&
+        Assert(generalNumericControls.Length == 2 &&
+               generalNumericControls.Contains(idleTimeout) && generalNumericControls.Contains(retention) &&
                !dialog.Controls.OfType<NumericUpDown>().Any(),
-            "General tab must not expose physical USB/display quality or per-output refresh controls.");
+            "General must contain only app-wide idle and logging numeric controls, not Output device options.");
     }
 
     private static void EditorDesktopSettingsContract()
