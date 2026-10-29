@@ -27,7 +27,7 @@ internal sealed class ApplicationLogSession : IDisposable
                 // Ordinary FileLogger instances without a session stay sparse.
                 LogFileWriter.EnsureExists(log.ErrorsPath);
                 log.Info($"SESSION_START mode={mode}; version={RuntimeVersion.Current}; " +
-                    $"newLogGroup={first}; rollingHistoryHours=72; previousSessionsRetained=true.");
+                    $"newLogGroup={first}; rollingHistoryDays={LogRetentionPolicy.GetRetentionDays(log.Path)}; previousSessionsRetained=true.");
                 return true;
             });
             // Independent of logging cadence: cleanup continues through quiet periods.
