@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup>
+    <Company>PinkieSysMon Project</Company>
+    <Product>PinkieSysMon</Product>
+    <Authors>PinkieSysMon Project</Authors>
+    <Copyright>Copyright © 2026 PinkieSysMon Project</Copyright>
+    <!-- Only A is owner-controlled. build.ps1 supplies resolved A.B.C. -->
+    <PinkieMajorVersion>2</PinkieMajorVersion>
+    <Version Condition="'$(PinkieResolvedVersion)' != ''">$(PinkieResolvedVersion)</Version>
+    <AssemblyVersion Condition="'$(PinkieResolvedVersion)' != ''">$(PinkieResolvedVersion).0</AssemblyVersion>
+    <FileVersion Condition="'$(PinkieResolvedVersion)' != ''">$(PinkieResolvedVersion).0</FileVersion>
+    <InformationalVersion Condition="'$(PinkieResolvedVersion)' != ''">$(PinkieResolvedVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <SatelliteResourceLanguages>en;en-US</SatelliteResourceLanguages>
+    <Deterministic>true</Deterministic>
+
+    <!-- Keep all SDK-generated build/intermediate output out of src/ and tests/. -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+
+    <!-- Runtime is published first; Editor and regression checks compile against
+         the exact implementation assembly that will be deployed/tested. -->
+    <PinkiePublishPath>$(ArtifactsPath)\publish</PinkiePublishPath>
+  </PropertyGroup>
+  <Target Name="RequirePinkieResolvedVersion" BeforeTargets="GenerateAssemblyInfo;CoreCompile">
+    <Error Condition="'$(PinkieResolvedVersion)' == ''"
+           Text="Missing automatic vA.B.C. Build using build.ps1 to resolve closed GitHub Issues and complete main Git history." />
+  </Target>
+</Project>
