@@ -125,6 +125,7 @@ internal static class Program
             ("Issue95 candidate per-card Save merge and working board", Issue95CandidateSaveTests.PerCardMergeAndWorkingBoard),
             ("Issue95 candidate Save stale binding and apply rollback", Issue95CandidateSaveTests.StaleBindingAndApplyFailure),
             ("Issue95 configured card isolated Save and stale assignment", Issue95CandidateSaveTests.ConfiguredCardIsolationAndStaleWrite),
+            ("Configured device Save: Runtime start decision outcomes", Issue95ConfiguredRuntimePromptTests.SaveStartDecisions),
             ("Issue95 Forget exact node, rollback and manual recovery", Issue95CandidateSaveTests.ForgetExactNodeAndRollback),
             ("Issue95 Remove selected card and partial state", Issue95CandidateSaveTests.RemoveCardIsolationAndPartialState),
             ("Issue95 candidate live action states", Issue95ProtocolChoiceTests.LiveActionStates),
