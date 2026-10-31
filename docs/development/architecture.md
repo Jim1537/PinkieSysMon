@@ -362,7 +362,7 @@ The tray and Editor **Reload All** command retains the v1 wire verb `OUTPUT_STAR
 
 Editor planning and partial client results belong to the [Editor workflow](#editor-output-reload); Runtime notifications and observed readiness belong to [command feedback](#runtime-command-feedback).
 
-**Source anchors:** [Common reload controller](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationReloadControl.cs), [Enabled-assignment loader](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationValidator.cs), [common reload/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/SavedConfigurationReloadTests.cs), [Editor planning checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/EditorOutputStartStage25Tests.cs).
+**Source anchors:** [Common reload controller](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationReloadControl.cs), [Enabled-assignment loader](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/RuntimeConfigurationValidator.cs), [common reload/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/SavedConfigurationReloadTests.cs), [Editor planning checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/Editor/Outputs/EditorOutputStartStage25Tests.cs).
 
 ### Runtime command feedback
 
