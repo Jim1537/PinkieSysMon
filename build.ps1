@@ -85,6 +85,61 @@ function Invoke-External {
         throw "Command failed with exit code ${exitCode}: $label"
     }
 }
+function Invoke-PinkieLiveRegressions {
+    param([Parameter(Mandatory = $true)][string]$Dll)
+
+    # Only the regression runner needs partial-line output. The ordinary
+    # Invoke-External pipeline stays line-oriented for Git and builds.
+    $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Source
+    $startup = New-Object System.Diagnostics.ProcessStartInfo
+    $startup.FileName = $dotnet
+    $startup.Arguments = '"' + $Dll + '"'
+    $startup.WorkingDirectory = (Get-Location).ProviderPath
+    $startup.UseShellExecute = $false
+    $startup.CreateNoWindow = $true
+    $startup.RedirectStandardOutput = $true
+    $startup.RedirectStandardError = $true
+    $startup.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+    $startup.StandardErrorEncoding = [System.Text.Encoding]::UTF8
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startup
+    $started = $false
+    Write-Host 'External command: dotnet regression runner'
+    try {
+        $started = $process.Start()
+        if (-not $started) { throw 'Unable to start regression runner.' }
+
+        # Drain stderr concurrently so an error burst cannot block stdout.
+        $stderr = $process.StandardError.ReadToEndAsync()
+        while (($code = $process.StandardOutput.Read()) -ge 0) {
+            if ($code -eq 10) {
+                Write-Host ''
+            } elseif ($code -ne 13) {
+                Write-Host -NoNewline ([string][char]$code)
+            }
+        }
+        $process.WaitForExit()
+        $diagnostics = $stderr.GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrEmpty($diagnostics)) {
+            foreach ($line in ($diagnostics -split '\r?\n')) {
+                if ($line.Length -gt 0) { Write-Host $line -ForegroundColor Red }
+            }
+        }
+        $exitCode = $process.ExitCode
+        Write-Host "External exit code: $exitCode"
+        if ($exitCode -ne 0) {
+            throw "Command failed with exit code $($exitCode): dotnet regression runner"
+        }
+    } finally {
+        if ($started -and -not $process.HasExited) {
+            $process.Kill()
+            $process.WaitForExit()
+        }
+        $process.Dispose()
+    }
+}
+
 function Remove-DevelopmentArtifacts {
     Write-Host ''
     Write-Host 'Cleaning development build artifacts...'
@@ -1057,7 +1112,7 @@ function Invoke-PinkieExistingRegressions {
     }
     Write-Host ''
     Write-Host 'Running regression checks (no compilation)...'
-    Invoke-External dotnet $dll
+    Invoke-PinkieLiveRegressions -Dll $dll
     Assert-PublishPackage
 }
 

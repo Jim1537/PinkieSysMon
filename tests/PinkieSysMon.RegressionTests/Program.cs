@@ -715,79 +715,65 @@ internal static class Program
                 ("Preview resize geometry invalidation", PreviewResizeGeometryInvalidation)
             ]),
         };
-        // Aggregate repeated display groups without changing the actual test order.
-        var expectedCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var group in testGroups)
+        // Execute each logical subsystem contiguously for live progress.
+        // Preserve the relative order of cases inside every subsystem.
+        var logicalGroups = new List<(string Group, List<(string Name, Action Run)> Cases)>();
+        var groupIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var segment in testGroups)
         {
-            expectedCounts.TryGetValue(group.Group, out var existingCount);
-            expectedCounts[group.Group] = existingCount + group.Cases.Length;
+            if (!groupIndices.TryGetValue(segment.Group, out var groupIndex))
+            {
+                groupIndex = logicalGroups.Count;
+                groupIndices.Add(segment.Group, groupIndex);
+                logicalGroups.Add((segment.Group, new List<(string Name, Action Run)>()));
+            }
+            logicalGroups[groupIndex].Cases.AddRange(segment.Cases);
         }
 
-        var outcomesByGroup = new Dictionary<string, List<(string Name, Exception? Error)>>(StringComparer.Ordinal);
         var failed = 0;
         var total = 0;
-        foreach (var group in testGroups)
+        foreach (var group in logicalGroups)
         {
-            if (!outcomesByGroup.TryGetValue(group.Group, out var outcomes))
-            {
-                outcomes = new List<(string Name, Exception? Error)>(expectedCounts[group.Group]);
-                outcomesByGroup.Add(group.Group, outcomes);
-            }
+            var count = group.Cases.Count;
+            const int progressWidth = 24;
+            var markerCount = Math.Min(progressWidth, count);
+            var emittedMarkers = 0;
+            var currentBatchFailed = false;
+            var failures = new List<(string Name, Exception Error)>();
 
-            foreach (var test in group.Cases)
+            Console.Write($"  {group.Group.PadRight(34)} [");
+            Console.Out.Flush();
+            for (var caseIndex = 0; caseIndex < count; caseIndex++)
             {
+                var test = group.Cases[caseIndex];
                 try
                 {
                     test.Run();
-                    outcomes.Add((test.Name, null));
                 }
                 catch (Exception ex)
                 {
                     failed++;
-                    outcomes.Add((test.Name, ex));
+                    currentBatchFailed = true;
+                    failures.Add((test.Name, ex));
                 }
-            }
 
-            total += group.Cases.Length;
-            if (outcomes.Count != expectedCounts[group.Group])
-                continue;
-
-            // Keep summaries narrower than a standard terminal line.
-            // Each marker represents one check or, for larger groups, a consecutive batch.
-            const int markerWidth = 24;
-            var markerCount = Math.Min(markerWidth, outcomes.Count);
-            var markers = new StringBuilder(markerCount);
-            for (var marker = 0; marker < markerCount; marker++)
-            {
-                var first = marker * outcomes.Count / markerCount;
-                var last = (marker + 1) * outcomes.Count / markerCount;
-                var passedBatch = true;
-                for (var index = first; index < last; index++)
+                var completed = caseIndex + 1;
+                if (completed == (emittedMarkers + 1) * count / markerCount)
                 {
-                    if (outcomes[index].Error is not null)
-                    {
-                        passedBatch = false;
-                        break;
-                    }
+                    Console.Write(currentBatchFailed ? '!' : '.');
+                    Console.Out.Flush();
+                    currentBatchFailed = false;
+                    emittedMarkers++;
                 }
-                markers.Append(passedBatch ? '.' : '!');
             }
 
-            var passed = 0;
-            foreach (var outcome in outcomes)
+            Console.WriteLine($"{new string(' ', progressWidth - markerCount)}] {count - failures.Count,3}/{count}");
+            foreach (var failure in failures)
             {
-                if (outcome.Error is null)
-                    passed++;
+                Console.Error.WriteLine($"FAIL: {failure.Name}");
+                Console.Error.WriteLine(failure.Error);
             }
-            Console.WriteLine($"  {group.Group.PadRight(34)} [{markers.ToString().PadRight(markerWidth)}] {passed,3}/{outcomes.Count}");
-            foreach (var outcome in outcomes)
-            {
-                if (outcome.Error is not null)
-                {
-                    Console.Error.WriteLine($"FAIL: {outcome.Name}");
-                    Console.Error.WriteLine(outcome.Error);
-                }
-            }
+            total += count;
         }
 
         Console.WriteLine($"Regression checks: {total - failed}/{total} passed.");
