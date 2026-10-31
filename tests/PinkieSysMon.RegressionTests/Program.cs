@@ -715,39 +715,79 @@ internal static class Program
                 ("Preview resize geometry invalidation", PreviewResizeGeometryInvalidation)
             ]),
         };
+        // Aggregate repeated display groups without changing the actual test order.
+        var expectedCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var group in testGroups)
+        {
+            expectedCounts.TryGetValue(group.Group, out var existingCount);
+            expectedCounts[group.Group] = existingCount + group.Cases.Length;
+        }
+
+        var outcomesByGroup = new Dictionary<string, List<(string Name, Exception? Error)>>(StringComparer.Ordinal);
         var failed = 0;
         var total = 0;
         foreach (var group in testGroups)
         {
-            Console.WriteLine($"{group.Group} ({group.Cases.Length}):");
-            var failures = new List<(string Name, Exception Error)>();
-            var completed = 0;
+            if (!outcomesByGroup.TryGetValue(group.Group, out var outcomes))
+            {
+                outcomes = new List<(string Name, Exception? Error)>(expectedCounts[group.Group]);
+                outcomesByGroup.Add(group.Group, outcomes);
+            }
+
             foreach (var test in group.Cases)
             {
                 try
                 {
                     test.Run();
-                    Console.Write('.');
+                    outcomes.Add((test.Name, null));
                 }
                 catch (Exception ex)
                 {
                     failed++;
-                    failures.Add((test.Name, ex));
-                    Console.Write('!');
+                    outcomes.Add((test.Name, ex));
                 }
-                completed++;
-                // Windows PowerShell captures completed lines; emit progress in small batches.
-                if (completed % 20 == 0 && completed < group.Cases.Length)
-                    Console.WriteLine();
-                Console.Out.Flush();
             }
-            Console.WriteLine($"  {group.Cases.Length - failures.Count}/{group.Cases.Length} passed.");
-            foreach (var failure in failures)
-            {
-                Console.Error.WriteLine($"FAIL: {failure.Name}");
-                Console.Error.WriteLine(failure.Error);
-            }
+
             total += group.Cases.Length;
+            if (outcomes.Count != expectedCounts[group.Group])
+                continue;
+
+            // Keep summaries narrower than a standard terminal line.
+            // Each marker represents one check or, for larger groups, a consecutive batch.
+            const int markerWidth = 24;
+            var markerCount = Math.Min(markerWidth, outcomes.Count);
+            var markers = new StringBuilder(markerCount);
+            for (var marker = 0; marker < markerCount; marker++)
+            {
+                var first = marker * outcomes.Count / markerCount;
+                var last = (marker + 1) * outcomes.Count / markerCount;
+                var passedBatch = true;
+                for (var index = first; index < last; index++)
+                {
+                    if (outcomes[index].Error is not null)
+                    {
+                        passedBatch = false;
+                        break;
+                    }
+                }
+                markers.Append(passedBatch ? '.' : '!');
+            }
+
+            var passed = 0;
+            foreach (var outcome in outcomes)
+            {
+                if (outcome.Error is null)
+                    passed++;
+            }
+            Console.WriteLine($"  {group.Group.PadRight(34)} [{markers.ToString().PadRight(markerWidth)}] {passed,3}/{outcomes.Count}");
+            foreach (var outcome in outcomes)
+            {
+                if (outcome.Error is not null)
+                {
+                    Console.Error.WriteLine($"FAIL: {outcome.Name}");
+                    Console.Error.WriteLine(outcome.Error);
+                }
+            }
         }
 
         Console.WriteLine($"Regression checks: {total - failed}/{total} passed.");
