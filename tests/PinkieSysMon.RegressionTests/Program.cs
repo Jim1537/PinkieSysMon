@@ -749,6 +749,18 @@ internal static partial class Program
                 ("launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ]),
         };
+        // Protect the registry itself against orphaned runnable test methods,
+        // ambiguous failure labels and transcript-incompatible group names.
+        var registryContractCases = new (string Name, Action Run)[]
+        {
+            ("regression registry includes all runnable public tests",
+                () => RegressionRegistryContractTests.AllRunnableCasesAreRegistered(testGroups)),
+            ("regression registry rejects malformed metadata",
+                RegressionRegistryContractTests.MalformedRegistryMetadataIsRejected),
+        };
+        testGroups = testGroups.Append(
+            ("Infrastructure / Regression", registryContractCases)).ToArray();
+
         // Execute each logical subsystem contiguously for live progress.
         // Preserve the relative order of cases inside every subsystem.
         var logicalGroups = new List<(string Group, List<(string Name, Action Run)> Cases)>();
