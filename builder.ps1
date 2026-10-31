@@ -108,13 +108,22 @@ function Convert-PinkieRegressionTranscript {
     if ($converted -eq 0) { return }
 
     $temporary = Join-Path (Split-Path -Parent $Path) ([System.IO.Path]::GetRandomFileName())
+    $backup = "$temporary.backup"
+    $replaced = $false
     try {
         $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
         [System.IO.File]::WriteAllLines($temporary, [string[]]$output.ToArray(), $utf8WithBom)
-        [System.IO.File]::Replace($temporary, $Path, [NullString]::Value)
+        # Use a real backup path: Windows PowerShell 5.1 marshals null-like
+        # string arguments unpredictably for this .NET Framework method.
+        [System.IO.File]::Replace($temporary, $Path, $backup)
+        $replaced = $true
     } finally {
         if (Test-Path -LiteralPath $temporary -PathType Leaf) {
             Remove-Item -LiteralPath $temporary -Force
+        }
+        # A failed replacement must retain any original transcript backup.
+        if ($replaced -and (Test-Path -LiteralPath $backup -PathType Leaf)) {
+            Remove-Item -LiteralPath $backup -Force
         }
     }
 }
