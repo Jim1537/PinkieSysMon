@@ -111,7 +111,7 @@ function Convert-PinkieRegressionTranscript {
     try {
         $utf8WithBom = New-Object System.Text.UTF8Encoding($true)
         [System.IO.File]::WriteAllLines($temporary, [string[]]$output.ToArray(), $utf8WithBom)
-        [System.IO.File]::Replace($temporary, $Path, $null)
+        [System.IO.File]::Replace($temporary, $Path, [NullString]::Value)
     } finally {
         if (Test-Path -LiteralPath $temporary -PathType Leaf) {
             Remove-Item -LiteralPath $temporary -Force
