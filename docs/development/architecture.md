@@ -293,7 +293,7 @@ The Editor asks the visual question only after a clean, fully released technical
 
 The kind-specific workflows are [Desktop](../outputs/desktop.md#step-3-apply-the-settings-and-display-the-panel) and, for physical hardware, [Physical Devices](../outputs/physical_devices.md#step-4-grant-device-use-consent-and-apply). Their target validation does not change dashboard schema or a USB wire contract. Startup preferences and Editor theme changes have their own application paths; a theme change may require restarting the Editor.
 
-**Source anchors:** [Settings coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.cs), [Settings persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorSettingsPersistence.cs), [apply/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/DeviceSettingsStage23Tests.cs).
+**Source anchors:** [Settings coordination](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorForm.cs), [Settings persistence](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon.Editor/EditorSettingsPersistence.cs), [apply/recovery checks](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/Editor/Devices/DeviceSettingsStage23Tests.cs).
 
 ### Output status and tray control
 
