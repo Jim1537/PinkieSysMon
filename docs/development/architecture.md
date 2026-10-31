@@ -77,7 +77,7 @@ The service implements these contracts for its callers:
 
 Graph renderers copy history once per logical frame into reusable arrays, shared by their shadow and visible passes. Each dashboard renderer limits aggregate raw/projection/index scratch arrays to 32 MiB; native paths, paints, images and other resources are separate. Geometry invalidation reuses these arrays. Reduction and color-shader preparation occur after the history lock is released. Graph drawing semantics belong to the [Graph widget](../widgets/graph.md).
 
-**Source anchors:** [History store](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricHistoryStore.cs), [history regression fixtures](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/GraphHistoryTests.cs).
+**Source anchors:** [History store](https://github.com/Jim1537/PinkieSysMon/blob/main/src/PinkieSysMon/MetricHistoryStore.cs), [history regression fixtures](https://github.com/Jim1537/PinkieSysMon/blob/main/tests/PinkieSysMon.RegressionTests/Telemetry/History/GraphHistoryTests.cs).
 
 ### Global Windows user-idle pause
 
