@@ -553,6 +553,8 @@ internal static partial class Program
                 ("candidate invalidation and adopted-card evidence", Issue105DiscoveryLoggingTests.CandidateInvalidationAndAdoption),
                 ("discovery failure recovery and privacy", Issue105DiscoveryLoggingTests.DiscoveryFailureRecoveryAndPrivacy),
                 ("counted state bounds and close fence", Issue105DiscoveryLoggingTests.CountedStatesBoundsAndClose),
+                ("partial discovery failure isolation and strict global errors", Issue95CatalogCandidateTests.PartialFailureIsolation),
+                ("composite USB function-parent correlation and ambiguity", Issue95CatalogCandidateTests.CompositeFunctionCorrelation),
                 ("composite snapshot completeness", Issue95CatalogCandidateTests.CompositeSnapshotCompleteness),
             ]),
             ("Devices / Identity & Inventory", [
@@ -662,6 +664,8 @@ internal static partial class Program
                 ("live Test WorkerCompletionAndVirtualBoard", Issue95LiveTestTests.WorkerCompletionAndVirtualBoard),
                 ("live Test StrictWorkerFailureAndCleanup", Issue95LiveTestTests.StrictWorkerFailureAndCleanup),
                 ("live Test CancellationWaitsForNativeRelease", Issue95LiveTestTests.CancellationWaitsForNativeRelease),
+                ("USB Test countdown starts after delivered frame and native release", Issue95LiveTestTests.ConnectionCountdownAndDisconnectPhases),
+                ("USB Test modal follows Runtime observation phases", Issue95LiveTestTests.ModalDisplaysOnlyRuntimeReportedObservation),
                 ("live Test ExistingOwnerAndResponseCorrelation", Issue95LiveTestTests.ExistingOwnerAndResponseCorrelation),
                 ("live Test EditorLaunchAndStrictResults", () => Issue95LiveTestTests.EditorLaunchAndStrictResults().GetAwaiter().GetResult()),
             ]),
