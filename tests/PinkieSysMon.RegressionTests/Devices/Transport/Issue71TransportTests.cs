@@ -299,7 +299,7 @@ internal static class Issue71TransportTests
 
     public static void JpegStreamOwnsReplyBoundaries()
     {
-        using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), []);
+        using var usb = new FakeConnection(Reply(), [], Reply(), [], Reply(), [], Reply(), []);
         var delays = 0;
         using var transport = new TurzxTransport(usb, () => Timestamp, _ =>
         {
@@ -310,15 +310,34 @@ internal static class Issue71TransportTests
             transport.Synchronize() == new TurzxCommandCompletion(10, 512, TurzxReplyKind.StatusMarker, 0),
             "The default stream must finish sync's primary and successful empty follow-up before returning.");
         Throws<NotSupportedException>(() => transport.SendImage(TurzxImageFormat.Png, Png));
-        Throws<NotSupportedException>(() => transport.SetBrightnessPercent(50));
         Throws<InvalidDataException>(() => transport.SendImage(TurzxImageFormat.Jpeg, Png));
-        Check(usb.Writes.Count == 1 && usb.Reads == 2, "Unverified codecs/brightness and malformed JPEG must not issue I/O or poison the stream.");
+        Check(usb.Writes.Count == 1 && usb.Reads == 2, "Unsupported PNG and malformed JPEG must not issue I/O or poison the stream.");
+        Check(transport.SetBrightnessPercent(50) == new TurzxCommandCompletion(14, 512, TurzxReplyKind.StatusMarker, 0),
+            "Committed brightness must use the same strict primary and one-empty-follow-up boundary as JPEG.");
         for (var frame = 0; frame < 2; frame++)
             Check(transport.SendImage(TurzxImageFormat.Jpeg, Jpeg) == new TurzxCommandCompletion(101, 512, TurzxReplyKind.StatusMarker, 0),
                 "Each JPEG must complete its own full primary reply and single empty follow-up.");
-        Check(delays == 1 && usb.Writes.Count == 3 && usb.Reads == 6,
-            "Sync and two frames require exactly three writes and six reads, without another sync or retry.");
+        Check(delays == 1 && usb.Writes.Count == 4 && usb.Reads == 8,
+            "Sync, brightness and two frames require exactly four writes and eight reads, without re-sync or retry.");
         Throws<ArgumentOutOfRangeException>(() => new TurzxTransport(usb, replyMode: (TurzxReplyMode)7));
+    }
+
+    public static void JpegStreamBrightnessCannotSkipUncertainReplies()
+    {
+        foreach (var responses in new[]
+        {
+            new[] { Reply(), Array.Empty<byte>(), Array.Empty<byte>() },
+            new[] { Reply(), Array.Empty<byte>(), Reply(), Reply() }
+        })
+        {
+            using var usb = new FakeConnection(responses);
+            using var transport = new TurzxTransport(usb, () => Timestamp, _ => { });
+            transport.Synchronize();
+            Throws<InvalidDataException>(() => transport.SetBrightnessPercent(30));
+            Throws<InvalidOperationException>(() => transport.SendImage(TurzxImageFormat.Jpeg, Jpeg));
+            Check(usb.Writes.Count == 2 && usb.Reads == responses.Length,
+                "Unacknowledged primary or nonempty follow-up must stop before JPEG without retry.");
+        }
     }
 
     public static void JpegStreamRejectsUncertainBoundaries()

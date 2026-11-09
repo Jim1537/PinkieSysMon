@@ -52,7 +52,6 @@ internal static class Issue71ModelTests
             var saved = File.ReadAllBytes(path);
             foreach (var mutate in new Action<AppConfig>[]
             {
-                c => { c.Outputs.Targets[1].DeviceEnabled = true; c.Outputs.Targets[1].EncryptedJpeg!.BrightnessPercent = 10; },
                 c => c.Outputs.Targets[1].DeviceId = "",
                 c => c.Outputs.Targets[1].DeviceId = "invalid-binding",
                 c => c.Outputs.Targets[1].Transport = "unimplemented",
@@ -216,10 +215,13 @@ internal static class Issue71ModelTests
         var model = new DeviceSettingsModel(config);
         model.Refresh([old, device]);
         var draft = model.Entries.Single(e => e.Target.Id == target.Id);
-        Check(draft.CanEdit && !model.CanEnable(draft.Target) && !model.IsDirty &&
+        Check(draft.CanEdit && model.CanEnable(draft.Target) && !model.IsDirty &&
             !ReferenceEquals(draft.Target.EncryptedJpeg, target.EncryptedJpeg) && draft.Target.EncryptedJpeg!.BrightnessPercent == 61,
-            "A saved unsupported option remains independent and cannot be silently enabled.");
-        Check(!model.SetEnabled(draft.Target, true, true), "Unsupported brightness cannot be enabled.");
+            "A saved TURZX brightness draft remains independent and requires explicit consent to enable.");
+        Check(model.CanEnable(draft.Target) && model.SetEnabled(draft.Target, true, true),
+            "An explicitly saved TURZX brightness value may be enabled with normal consent and an exact binding.");
+        Check(model.SetEnabled(draft.Target, false, true),
+            "The test draft can be disabled again without changing the original configuration.");
         var existing = model.Entries.Single(e => e.Target.Id == "old");
         existing.Target.Name = "Renamed old device";
         model.MarkChanged(existing.Target);

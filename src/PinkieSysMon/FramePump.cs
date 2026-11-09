@@ -714,6 +714,7 @@ internal sealed class FramePump : IOutputSession
         var frameStartedAt = Stopwatch.GetTimestamp();
         DashboardRenderer.RenderedJpeg rendered;
         long generation;
+        int? brightnessPercent;
 
         try
         {
@@ -729,6 +730,8 @@ internal sealed class FramePump : IOutputSession
                     _metrics.Snapshot(),
                     display.Profile,
                     _target.JpegQuality ?? _config.Renderer.JpegQuality);
+                brightnessPercent = _target.Transport == OutputTargetContract.EncryptedJpegTransport
+                    ? _target.EncryptedJpeg?.BrightnessPercent : null;
             }
         }
         catch (Exception ex)
@@ -753,6 +756,9 @@ internal sealed class FramePump : IOutputSession
             var usbStartedAt = Stopwatch.GetTimestamp();
             try
             {
+                // Only the worker may issue a committed brightness command; no connection
+                // restart, per-frame replay or uncommitted Settings side effect.
+                display.ApplyBrightnessPercentIfChanged(brightnessPercent);
                 // No other thread can dispose this worker-owned display during SendJpeg.
                 display.SendJpegWithDiagnostics(
                     rendered.Bytes,

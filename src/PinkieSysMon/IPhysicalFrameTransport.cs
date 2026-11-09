@@ -7,6 +7,13 @@ internal interface IPhysicalFrameTransport : IDisposable
     int WireRotationDegrees { get; }
     PhysicalFrameProfile Profile => new(WireRotationDegrees, TrofeoWireProtocol.MaximumImageBytes);
     void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics);
+    // The physical worker serializes committed settings with frame transmission.
+    // Adapters without hardware brightness accept only the no-op null state.
+    void ApplyBrightnessPercentIfChanged(int? percent)
+    {
+        if (percent is not null)
+            throw new NotSupportedException("This physical transport has no verified hardware brightness control.");
+    }
     void RecordLifecycle(string state, string reason);
 }
 

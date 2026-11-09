@@ -83,7 +83,11 @@ internal static class Issue71RuntimeTests
         var target = new OutputTargetConfig { Width = 1920, Height = 720, DeviceId = "usb-interface:a58aa4db4b66b15856a50a29fe447ab2d9bd64d1dcd4749e2b8e4799094051b2", Kind = "physical", Transport = "encrypted-jpeg", EncryptedJpeg = new() };
         TurzxFrameTransport.ValidateOptions(target);
         target.EncryptedJpeg.BrightnessPercent = 0;
-        Throws<NotSupportedException>(() => TurzxFrameTransport.ValidateOptions(target));
+        TurzxFrameTransport.ValidateOptions(target);
+        target.EncryptedJpeg.BrightnessPercent = 100;
+        TurzxFrameTransport.ValidateOptions(target);
+        target.EncryptedJpeg.BrightnessPercent = -1;
+        Throws<ArgumentOutOfRangeException>(() => TurzxFrameTransport.ValidateOptions(target));
         target.EncryptedJpeg.BrightnessPercent = null;
         TurzxFrameTransport.ValidateOptions(target);
         Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, null!, default));
@@ -91,6 +95,17 @@ internal static class Issue71RuntimeTests
         Throws<InvalidOperationException>(() => PhysicalFrameTransportFactory.TryOpen(target, 3000, null!, default));
         using var primary = new TurzxTransport(new Usb(), syncDelay: _ => { }, replyMode: TurzxReplyMode.PrimaryOnly);
         Throws<ArgumentException>(() => new TurzxFrameTransport(primary, default));
+        var usb = new Usb();
+        using var streaming = new TurzxTransport(usb, syncDelay: _ => { });
+        streaming.Synchronize();
+        using var output = new TurzxFrameTransport(streaming, default);
+        output.ApplyBrightnessPercentIfChanged(null);
+        output.ApplyBrightnessPercentIfChanged(25);
+        output.ApplyBrightnessPercentIfChanged(25);
+        output.ApplyBrightnessPercentIfChanged(80);
+        output.SendJpegWithDiagnostics([255, 216, 255, 0, 255, 217], new FrameRenderDiagnostics(0, 0));
+        Check(usb.Reads == 8 && usb.Images.Count == 1,
+            "One stream must serialize changed brightness values with JPEG, without per-frame replay or re-sync.");
     }
 
     public static void CheckpointAdmissionAndPreflight()

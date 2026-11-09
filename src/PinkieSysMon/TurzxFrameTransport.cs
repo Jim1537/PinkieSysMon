@@ -5,6 +5,8 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
 {
     private readonly TurzxTransport _transport;
     private readonly CancellationToken _ioToken;
+    private bool _brightnessCommandCompleted;
+    private int? _lastBrightnessPercent;
 
     internal TurzxFrameTransport(TurzxTransport transport, CancellationToken ioToken)
     {
@@ -31,6 +33,24 @@ internal sealed class TurzxFrameTransport : IPhysicalFrameTransport
 
     internal static void ValidateOptions(OutputTargetConfig target) =>
         EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent);
+
+    public void ApplyBrightnessPercentIfChanged(int? percent)
+    {
+        EncryptedJpegOutputConfig.ValidateFrameOptions(percent);
+        if (percent is null)
+        {
+            // Clearing the saved value sends no command and never guesses device state.
+            _brightnessCommandCompleted = false;
+            _lastBrightnessPercent = null;
+            return;
+        }
+        if (_brightnessCommandCompleted && _lastBrightnessPercent == percent) return;
+        var result = _transport.SetBrightnessPercent(percent.Value, _ioToken);
+        if (result.Reply != TurzxReplyKind.StatusMarker || result.FollowUpResponseBytes != 0)
+            throw new InvalidDataException("TURZX brightness command has no confirmed reply boundary.");
+        _brightnessCommandCompleted = true;
+        _lastBrightnessPercent = percent;
+    }
 
     public void SendJpegWithDiagnostics(ReadOnlySpan<byte> jpeg, FrameRenderDiagnostics diagnostics) =>
         _transport.SendImage(TurzxImageFormat.Jpeg, jpeg, _ioToken);

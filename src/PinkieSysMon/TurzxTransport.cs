@@ -128,15 +128,20 @@ internal sealed class TurzxTransport : IDisposable
 
     public TurzxCommandCompletion SetBrightnessPercent(int percent, CancellationToken token = default)
     {
-        if (ReplyMode == TurzxReplyMode.JpegStream)
-            throw new NotSupportedException("Brightness sequencing is not verified for the TURZX JPEG stream.");
         var value = EncryptedJpegOutputConfig.ToControllerBrightness(percent);
         return Execute(token, linked =>
         {
             RequireSynchronized();
             var result = Exchange(14, TurzxWireProtocol.Brightness(value, _milliseconds()), linked);
-            // No positive ACK, and a delayed reply cannot safely be assigned to
-            // a subsequent frame. Return the actual result and forbid reuse.
+            if (ReplyMode == TurzxReplyMode.JpegStream)
+            {
+                // Admit the next frame only after the same strict observed reply boundary.
+                // An empty primary brightness read remains unacknowledged and faults this session.
+                if (result.Reply != TurzxReplyKind.StatusMarker)
+                    throw new InvalidDataException("TURZX brightness response is not a recognized status marker.");
+                return CompleteReplyBoundary(result, linked);
+            }
+            // Retain the historical single-read diagnostic's unacknowledged result.
             if (result.Reply == TurzxReplyKind.Empty) _faulted = true;
             return result;
         });

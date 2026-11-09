@@ -652,6 +652,7 @@ internal static partial class Program
                 ("TURZX pending native success", Issue71TransportTests.PendingNativeSuccess),
                 ("TURZX commands remain serialized", Issue71TransportTests.CommandsRemainSerialized),
                 ("TURZX JPEG stream owns complete replies", Issue71TransportTests.JpegStreamOwnsReplyBoundaries),
+                ("TURZX brightness-to-JPEG uncertain reply halts stream", Issue71TransportTests.JpegStreamBrightnessCannotSkipUncertainReplies),
                 ("TURZX JPEG stream uncertain-boundary rejection", Issue71TransportTests.JpegStreamRejectsUncertainBoundaries),
                 ("TURZX JPEG stream serializes follow-up", Issue71TransportTests.JpegStreamSerializesFollowUp),
                 ("TURZX JPEG stream native follow-up lifetime", Issue71TransportTests.JpegStreamFollowUpNativeLifetime),

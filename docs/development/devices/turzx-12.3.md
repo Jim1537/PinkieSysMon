@@ -137,8 +137,8 @@ The generic physical Output selects this implementation with `Transport = encryp
 | `EncryptedJpeg.BrightnessPercent` | Nullable integer. `null` preserves the device's current brightness; `0..100` stores an explicitly selected application percentage. No factory/default brightness is inferred. |
 | Controller conversion | `floor(percent * 102 / 100)`, with exact endpoints 0 and 102. This pure conversion sends no command. |
 | Settings ownership | Detached target copies retain independent TURZX options through save/clone operations. Discovery does not dirty or save a draft. |
-| Admission | Only separately confirmed, configured Outputs can be enabled. Enabled remains opt-in with fresh binding checks and default-No consent. Enabled records require `BrightnessPercent = null`; unsupported saved brightness fails validation before acquisition. |
-| Other adapter options | Refresh/JPEG/USB values use existing physical normalization and are consumed by the common frame worker and this transport. Settings can clear previously saved unsupported brightness values without a hardware command. Retired logging preferences follow the [common physical-device policy](../../outputs/physical_devices.md#automatic-device-logging). |
+| Admission | Configured Outputs still require exact binding and explicit enablement consent. A nullable or bounded percent is valid; only an explicitly committed value sends the hardware command. |
+| Other adapter options | Refresh/JPEG/USB values use existing physical normalization. Clearing brightness resets the saved value to null and sends no hardware command; it cannot reverse a previous physical effect. Retired logging preferences follow the [common physical-device policy](../../outputs/physical_devices.md#automatic-device-logging). |
 
 Hardware-brightness implementation and acceptance are tracked separately in [Issue #74](https://github.com/Jim1537/PinkieSysMon/issues/74).
 
@@ -158,7 +158,7 @@ The independent C# implementation follows public interoperability facts from [th
 | Plaintext fields | Command at 0; `1A 6D` at 2–3; local milliseconds since midnight as uint32 little-endian at 4–7. |
 | Sync `10` | Required before image/brightness commands. After its recognized response, one cancellation-aware 200 ms settling delay follows the recovered probe sequence. This is an adapter policy, not a measured minimum for every firmware. |
 | JPEG `101` / PNG `102` | uint32 big-endian encoded-image length at 8–11; encoded bytes immediately follow the control packet. The caller must provide the matching format signature. This check is not full image decoding or geometry validation. |
-| Brightness `14` | Controller value at byte 8; percent conversion uses the [configuration policy above](#application-configuration). No implicit brightness command on open. |
+| Brightness `14` | Controller value at byte 8. The worker applies a committed value on its existing connection before the next JPEG, once per distinct value per session. Null leaves the device unchanged. |
 | Payload bound | Encoded image limited to 1,048,576 bytes, following the recovered probe/upstream software bound. It is not a measured firmware capacity. No implicit downscaling, codec switch or quality reduction. |
 
 The low-level transport accepts encoded bytes without rotating or decoding them. Its shared frame profile applies the established clockwise 90° wire rotation and encoded payload bound to the assigned dashboard Canvas. There is no 1920×720 fitting surface or automatic black-bar insertion: a 1920×480 Canvas now produces a 480×1920 JPEG. Correct physical orientation and image dimensions still require observation on the selected device.
@@ -169,7 +169,7 @@ The default `JpegStream` mode implements the observed sync/JPEG sequence on one 
 
 A nonempty/invalid follow-up or read error faults the transport before another command; there is no read-until-empty loop, retry, third read, extra sync, automatic reopen or brightness replay. An empty primary sync/JPEG reply still fails. The follow-up is an observed completion policy, not proof of a bus ZLP, command correlation or an empty device queue. Native timeout/cancellation/error results never become successful empty completions.
 
-`JpegStream` rejects PNG and brightness **before I/O**, because their sequencing into this stream has not been physically established. The explicitly selected internal `PrimaryOnly` mode retains one write/primary-read per command for the historical codec/brightness diagnostics; those modes own any separately planned extra probe. They do not establish a production brightness-to-frame policy. A short write fails before any read, and a failed admitted command in either mode forbids reuse.
+`JpegStream` rejects PNG before I/O. On an explicitly committed brightness change, command 14 uses the same strict primary marker and single empty follow-up under the serialized worker-owned lock before the next JPEG. A missing/empty/invalid brightness response or nonempty follow-up faults the transport and prevents the subsequent frame. This is a **candidate implementation awaiting real-device same-session brightness-to-JPEG acceptance**, not a physically verified reply correlation or a reason to weaken JPEG checks. The historical `PrimaryOnly` mode retains its independently documented empty/unacknowledged brightness behavior. No retry, re-sync, firmware save/reset or automatic value restoration occurs.
 
 | Completed read | Result and allowed continuation |
 | --- | --- |
@@ -177,7 +177,7 @@ A nonempty/invalid follow-up or read error faults the transport before another c
 | Zero primary bytes for brightness in `PrimaryOnly` | Return `Empty`, meaning write completed and read returned zero, **without a positive ACK**. Forbid subsequent commands on this transport because a delayed reply could be misattributed. |
 | Empty sync/image reply, short/oversize reply, or unrecognized full reply | Explicit protocol failure; no further command or automatic resend. A prior response buffer's remaining bytes cannot supply a marker. |
 
-The empty-brightness rule preserves the historically observed physical effect without turning every empty read into success. Safe brightness-to-image sequencing and delayed replies remain physical acceptance questions. Closing this connection alone does not prove device-side queues are empty or authorize blindly replaying a state-changing command.
+The `PrimaryOnly` empty-brightness rule preserves the historical observed effect without treating the read as success. Same-connection hardware brightness effects, delayed reply correlation and uninterrupted live JPEG continuation are still **NOT TESTED on real hardware** for this candidate. A failed apply stops that session, not silently replays the write; restoring saved JSON alone cannot restore hardware state. Closing a connection does not prove the device queue empty.
 
 ### Cancellation and native ownership
 

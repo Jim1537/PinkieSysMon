@@ -270,11 +270,6 @@ internal sealed class DeviceSettingsModel
         var entry = Entries.SingleOrDefault(e => ReferenceEquals(e.Target, target));
         if (!_targets.Contains(target) || entry?.CanEdit != true || string.IsNullOrWhiteSpace(target.DeviceId))
             return false;
-        if (target.Transport == OutputTargetContract.EncryptedJpegTransport)
-        {
-            try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg?.BrightnessPercent); }
-            catch (NotSupportedException) { return false; }
-        }
         var resolved = OutputDeviceSelection.Resolve(target, _discovered);
         return resolved.Status == OutputDeviceResolutionStatus.Found &&
                resolved.Device!.DeviceId.Equals(target.DeviceId, StringComparison.OrdinalIgnoreCase);

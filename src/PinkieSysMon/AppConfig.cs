@@ -303,11 +303,6 @@ internal static class OutputTargetContract
                 RetryIntervalMs = defaults.RetryIntervalMs,
                 TransferTimeoutMs = defaults.TransferTimeoutMs
             };
-            if (encryptedJpeg && target.DeviceEnabled)
-            {
-                try { EncryptedJpegOutputConfig.ValidateFrameOptions(target.EncryptedJpeg!.BrightnessPercent); }
-                catch (NotSupportedException error) { throw new InvalidDataException($"Output '{target.Id}': {error.Message}", error); }
-            }
             if (target.Usb.RetryIntervalMs < 500 || target.Usb.TransferTimeoutMs < 500)
                 throw new InvalidDataException($"Output target '{target.Id}' USB intervals must be at least 500 ms.");
         }

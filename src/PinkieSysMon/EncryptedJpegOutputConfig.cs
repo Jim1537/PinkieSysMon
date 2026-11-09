@@ -1,15 +1,15 @@
 namespace PinkieSysMon;
 
 // Application policy only; null preserves the device's existing brightness.
-// A saved percentage is reapplied by the future adapter, never by discovery.
+// Only a committed percentage is sent by the worker; null preserves hardware state.
 internal sealed class EncryptedJpegOutputConfig
 {
     public int? BrightnessPercent { get; set; }
 
     internal static void ValidateFrameOptions(int? brightnessPercent)
     {
-        if (brightnessPercent is not null)
-            throw new NotSupportedException("TURZX brightness-to-frame sequencing is not verified; preserve current brightness (null) for this image path.");
+        if (brightnessPercent is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(brightnessPercent), "Brightness must be null or 0..100 percent.");
     }
 
     public static byte ToControllerBrightness(int percent)

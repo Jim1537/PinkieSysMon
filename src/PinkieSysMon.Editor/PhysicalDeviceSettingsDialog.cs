@@ -743,17 +743,50 @@ internal sealed class DeviceSettingsPage : TabPage
             value => usb.TransferTimeoutMs = value), EditorSettingsHelp.UsbTimeout);
         if (isTurzx)
         {
-            Control brightness = new Label { Name = "DeviceKeepBrightness", Text = "Device setting (unchanged)", AutoSize = true };
-            if (target.EncryptedJpeg?.BrightnessPercent is not null)
+            var savedPercent = target.EncryptedJpeg?.BrightnessPercent;
+            var controls = new FlowLayoutPanel
             {
-                var clear = new Button { Name = "DeviceKeepBrightness", Text = "Use current device setting", AutoSize = true };
-                clear.Click += (_, _) => Change(() =>
-                {
-                    target.EncryptedJpeg ??= new(); target.EncryptedJpeg.BrightnessPercent = null; clear.Enabled = false;
-                });
-                brightness = clear;
-            }
-            Row("Brightness", brightness, "Brightness adjustment is not yet available. Current device brightness is preserved. A previously saved percentage can be cleared without sending a brightness command.");
+                Name = "DeviceBrightnessControls", AutoSize = true, Dock = DockStyle.Fill,
+                WrapContents = false, FlowDirection = FlowDirection.LeftToRight
+            };
+            var apply = new CheckBox
+            {
+                Name = "DeviceBrightnessApply", Text = "Set backlight", AutoSize = true,
+                Checked = savedPercent is not null
+            };
+            var slider = new TrackBar
+            {
+                Name = "DeviceBrightness", Minimum = 0, Maximum = 100, TickFrequency = 10,
+                Value = savedPercent ?? 50, Width = 200, AutoSize = false, Height = 42,
+                Enabled = savedPercent is not null
+            };
+            var percent = new Label
+            {
+                Name = "DeviceBrightnessValue", AutoSize = true,
+                Text = savedPercent is null ? "Unchanged" : $"{savedPercent}%"
+            };
+            apply.CheckedChanged += (_, _) => Change(() =>
+            {
+                target.EncryptedJpeg ??= new();
+                target.EncryptedJpeg.BrightnessPercent = apply.Checked ? slider.Value : null;
+                slider.Enabled = apply.Checked;
+                percent.Text = apply.Checked ? $"{slider.Value}%" : "Unchanged";
+            });
+            slider.ValueChanged += (_, _) => Change(() =>
+            {
+                if (!apply.Checked) return;
+                target.EncryptedJpeg ??= new();
+                target.EncryptedJpeg.BrightnessPercent = slider.Value;
+                percent.Text = $"{slider.Value}%";
+            });
+            controls.Controls.Add(apply);
+            controls.Controls.Add(slider);
+            controls.Controls.Add(percent);
+            Row("Hardware brightness", controls,
+                "TURZX backlight 0–100%. Unchecked leaves existing hardware brightness unchanged. " +
+                "Adjustments modify this card's draft only; Save Configuration sends the selected value " +
+                "once on the existing Runtime USB session before its next JPEG frame. " +
+                "This is a hardware command, not pixel dimming; an uncertain reply stops the session.");
         }
 
         AddButtons();
