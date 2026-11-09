@@ -74,7 +74,7 @@ internal static class Issue71AdoptionTests
             "Cancel/discard must leave the applied target independent from further draft edits.");
     }
 
-    public static void StaleConsentAndUnsupportedOptions()
+    public static void StaleConsentAndBrightnessBounds()
     {
         var device = Device("encrypted-jpeg", 'b');
         var config = new AppConfig();
@@ -88,7 +88,12 @@ internal static class Issue71AdoptionTests
         _ = Catch<InvalidOperationException>(() => draft.ValidateForApply([], new HashSet<string> { "encrypted-jpeg" }));
         Check(config.Outputs.Targets.Count == 1, "Lost/ambiguous/unavailable identity cannot commit stale consent.");
         var selected = Target(device); selected.DeviceEnabled = true;
-        foreach (var brightness in new int?[] { 0, 100 })
+        foreach (var brightness in new int?[] { null, 0, 100 })
+        {
+            selected.EncryptedJpeg!.BrightnessPercent = brightness;
+            OutputTargetContract.ValidateAndNormalize([selected]);
+        }
+        foreach (var brightness in new[] { -1, 101 })
         {
             selected.EncryptedJpeg!.BrightnessPercent = brightness;
             _ = Catch<InvalidDataException>(() => OutputTargetContract.ValidateAndNormalize([selected]));

@@ -155,8 +155,9 @@ internal static class PhysicalHandshakeDiagnosticTests
         target.DeviceEnabled = false;
         Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is InvalidOperationException && !File.Exists(path), "Disabled Output is rejected before diagnostics and I/O.");
         target.DeviceEnabled = true;
-        target.EncryptedJpeg = new() { BrightnessPercent = 0 };
-        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is NotSupportedException, "Unsupported brightness sequencing remains rejected before native discovery.");
+        target.EncryptedJpeg = new() { BrightnessPercent = 101 };
+        Check(Capture(() => PhysicalFrameTransportFactory.TryOpen(target, 1000, log, default)) is ArgumentOutOfRangeException,
+            "Out-of-range brightness is rejected and logged before native discovery.");
         var lines = File.ReadAllLines(path);
         var errors = File.ReadAllLines(log.ErrorsPath);
         // The production observer now adds one acquisition milestone and a
