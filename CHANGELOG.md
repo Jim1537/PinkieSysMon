@@ -2,6 +2,11 @@
 
 Notable changes to PinkieSysMon, newest first.
 
+## Unreleased
+
+### Removed
+- **System integrated GPU metric:** Removed `system.gpu.integrated.load` and its dedicated DXCore / GPU Engine WMI collector. Existing LHM GPU sensors remain available; saved references to the retired metric are not automatically remapped ([Pinkie Pie #17](https://github.com/Jim1537/PinkiePie/issues/17)).
+
 ## v2.65.364
 
 ### Added

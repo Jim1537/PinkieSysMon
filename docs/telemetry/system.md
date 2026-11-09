@@ -1,6 +1,6 @@
 # System
 
-The System provider gives Pinkie's System Monitor a set of metrics obtained directly from Windows and from Runtime itself: operating system and PC device information, local date/time and uptime, network connectivity, power and battery status, integrated GPU load, audio and media state, and internal Pinkie's System Monitor runtime metrics.
+The System provider gives Pinkie's System Monitor a set of metrics obtained directly from Windows and from Runtime itself: operating system and PC device information, local date/time and uptime, network connectivity, power and battery status, audio and media state, and internal Pinkie's System Monitor runtime metrics.
 
 The provider does not require any third-party software to be installed or configured.
 
@@ -27,7 +27,7 @@ Once the provider is enabled, the available system metrics appear under the `sys
 !!! info
     A metric appearing in the selector means that Pinkie's System Monitor knows its system contract. The actual value of some metrics depends on the current hardware, Windows capabilities, and availability of the corresponding system source.
 
-    For example, the integrated GPU metric will be unavailable if the system has no suitable integrated graphics adapter, and UPS metrics will be unavailable if Windows does not report a connected UPS.
+    For example, UPS metrics will be unavailable if Windows does not report a connected UPS.
 
 
 ---
@@ -63,7 +63,7 @@ The System provider combines the following sources:
 
 | Source | Implementation | Default interval | Purpose |
 | --- | --- | --- | --- |
-| Windows system | `WindowsSystemTelemetrySource` | `1000 ms` | OS/PC identity, local date/time, uptime, integrated GPU load |
+| Windows system | `WindowsSystemTelemetrySource` | `1000 ms` | OS/PC identity, local date/time, uptime |
 | Windows network | `WindowsNetworkTelemetrySource` | `5000 ms` | Internet connectivity state |
 | Windows power | `WindowsPowerTelemetrySource` | `5000 ms` | UPS and battery telemetry |
 | Windows media | `WindowsMediaTelemetrySource` | `1000 ms` | Default audio endpoints and media playback |
@@ -95,7 +95,6 @@ Primary metric families:
 
 - `system.os.*`
 - `system.pc.*`
-- `system.gpu.*`
 - `system.network.*`
 - `system.power.*`
 - `system.media.*`
@@ -118,7 +117,6 @@ Metric IDs are part of the persistent dashboard contract and must not be renamed
 | `system.os.installed` | DateTime |
 | `system.os.datetime` | DateTime |
 | `system.os.uptime` | Duration / Seconds |
-| `system.gpu.integrated.load` | Percent |
 
 Part of the OS identity is loaded once when the source is created and is then used as a static snapshot for the lifetime of the current process.
 
@@ -181,46 +179,6 @@ Installed RAM is the combined **module capacity**, not currently available memor
 Each query and each property is isolated. If a Windows source fails or returns no meaningful value, the affected metric is `null`; the other PC values and existing System metrics continue independently. The static descriptors remain selectable even when a reading is unavailable. No additional provider, setting or dashboard schema is required.
 
 **Privacy:** These fields are intended for local display. In particular, the device name can be personal; application diagnostics do not record the actual values. Serial numbers, UUIDs, Windows Product IDs, usernames, network addresses and other machine identifiers are not collected by this group.
-
-
-### Integrated GPU
-
-The metric:
-
-  `system.gpu.integrated.load`
-
-is provided by the internal helper:
-
-  `WindowsIntegratedGpuTelemetry`
-
-It intentionally does not depend on Libre Hardware Monitor.
-
-Windows DXCore is used to identify integrated graphics adapters.
-
-The provider:
-
-- obtains active D3D11-capable hardware adapters;
-- selects adapters that DXCore marks as hardware and integrated;
-- retains their LUID identifiers;
-- matches those identifiers to Windows GPU Engine performance counters.
-
-Current load is read from WMI:
-
-  `Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine`
-
-GPU Engine exposes separate counters for processes and engines. Pinkie's System Monitor aggregates process instances belonging to the same physical engine and then uses the most heavily loaded engine as the representative load for the adapter.
-
-The resulting value is clamped to:
-
-  `0 .. 100 %`
-
-If no integrated hardware graphics adapter is found, the metric returns `null`.
-
-After a discovery failure or LUID change, adapter discovery is retried. The minimum interval between discovery attempts is:
-
-  `30 seconds`
-
-A DXCore discovery failure or Windows performance-counter failure must not affect the remaining System metrics.
 
 
 ### Network Connectivity
@@ -582,7 +540,6 @@ If an exception occurs inside one `IMetricSource`, the telemetry engine:
 For example:
 
 - a power WMI failure must not break network or media telemetry;
-- a DXCore or GPU performance-counter failure must not make OS metrics unavailable;
 - a Windows media API failure must not stop the overall telemetry loop.
 
 During reconfiguration, metrics that cease to be active because the provider was disabled, the dashboard changed, or telemetry policy changed are published as `null` before scheduler state is changed.
@@ -636,7 +593,6 @@ Provider settings cannot independently disable only:
 - network;
 - power;
 - media;
-- integrated GPU;
 - OS telemetry.
 
 Finer control over regular scheduled metrics is provided by dashboard demand and individual telemetry policy.
@@ -657,8 +613,6 @@ System sources use the shared application log. PC manufacturer/model, processor 
 Primary diagnostic events include:
 
 - Windows OS identity query failure;
-- DXCore integrated GPU discovery failure and recovery;
-- GPU performance-counter failure and recovery;
 - Network List Manager failure and recovery;
 - Windows power WMI failure and recovery;
 - audio endpoint enumeration failures;
@@ -686,7 +640,6 @@ The following contracts are specific to the System provider and should be preser
 - Absence of a current value must be represented as unavailable / `null`, not by retaining a stale value.
 - Failure of one System source must not block the remaining sources or the telemetry engine.
 - Network connectivity remains Windows NLM state rather than an arbitrary external connectivity probe.
-- The integrated GPU metric remains Windows-native and must not silently acquire a dependency on Libre Hardware Monitor.
 - The power source must not invent UPS or battery values that are absent from `Win32_Battery`.
 - `false` and `null` have different semantics for Boolean metrics and must not be conflated.
 - Media endpoint identity uses the stable Windows endpoint ID; friendly name is display metadata.

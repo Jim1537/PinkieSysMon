@@ -412,7 +412,7 @@ internal static class GraphWidgetTests
 
     internal static C.GraphWidgetDefinition Graph() => new()
     {
-        Id = "graph", Metric = SystemMetricContract.IntegratedGpuLoad,
+        Id = "graph", Metric = PowerMetricContract.BatteryChargeMetric,
         Width = 100, Height = 100, WindowSeconds = 10, ScaleMode = "Fixed", StrokeWidth = 3, Reverse = true
     };
     internal static C.DashboardDefinition Board(C.WidgetDefinition graph) => new()

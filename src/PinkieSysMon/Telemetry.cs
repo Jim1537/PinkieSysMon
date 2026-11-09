@@ -788,7 +788,6 @@ internal sealed class TelemetryEngine : IDisposable
 internal sealed class WindowsSystemTelemetrySource : IMetricSource
 {
     private readonly IReadOnlyDictionary<string, object?> _staticMetrics;
-    private readonly WindowsIntegratedGpuTelemetry _integratedGpuTelemetry;
 
     public WindowsSystemTelemetrySource(FileLogger log)
         : this(log, () => LoadStaticMetrics(log))
@@ -801,7 +800,6 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
     {
         ArgumentNullException.ThrowIfNull(staticMetricsLoader);
         _staticMetrics = staticMetricsLoader();
-        _integratedGpuTelemetry = new WindowsIntegratedGpuTelemetry(log);
     }
 
     public string ProviderId => MetricProviderContract.System;
@@ -827,8 +825,6 @@ internal sealed class WindowsSystemTelemetrySource : IMetricSource
             result[SystemMetricContract.DateTime] = DateTime.Now;
         if (requested.Contains(SystemMetricContract.Uptime))
             result[SystemMetricContract.Uptime] = Environment.TickCount64 / 1000L;
-        if (requested.Contains(SystemMetricContract.IntegratedGpuLoad))
-            result[SystemMetricContract.IntegratedGpuLoad] = _integratedGpuTelemetry.ReadLoadPercent();
         return result;
     }
 

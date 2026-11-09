@@ -14,7 +14,6 @@ internal static class SystemMetricContract
     public const string PcType = "system.pc.type";
     public const string PcManufacturer = "system.pc.manufacturer";
     public const string PcModel = "system.pc.model";
-    public const string IntegratedGpuLoad = "system.gpu.integrated.load";
 
     public static readonly string[] MetricNames =
     [
@@ -29,8 +28,7 @@ internal static class SystemMetricContract
         PcRam,
         PcType,
         PcManufacturer,
-        PcModel,
-        IntegratedGpuLoad
+        PcModel
     ];
 
     public static readonly MetricDescriptor[] Descriptors =
@@ -46,7 +44,6 @@ internal static class SystemMetricContract
         new(PcRam, MetricValueKind.DataSize, MetricUnit.Bytes),
         new(PcType, MetricValueKind.Text, MetricUnit.None),
         new(PcManufacturer, MetricValueKind.Text, MetricUnit.None),
-        new(PcModel, MetricValueKind.Text, MetricUnit.None),
-        new(IntegratedGpuLoad, MetricValueKind.Percent, MetricUnit.None)
+        new(PcModel, MetricValueKind.Text, MetricUnit.None)
     ];
 }

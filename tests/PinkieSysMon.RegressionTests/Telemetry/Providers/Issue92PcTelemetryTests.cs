@@ -31,9 +31,11 @@ internal static class Issue92PcTelemetryTests
         }
 
         Check(MetricContract.GetDescriptor(SystemMetricContract.Edition)?.ValueKind == MetricValueKind.Text &&
-              MetricContract.GetDescriptor(SystemMetricContract.Installed)?.ValueKind == MetricValueKind.DateTime &&
-              MetricContract.GetDescriptor(SystemMetricContract.IntegratedGpuLoad)?.ValueKind == MetricValueKind.Percent,
+              MetricContract.GetDescriptor(SystemMetricContract.Installed)?.ValueKind == MetricValueKind.DateTime,
             "Existing System metric contracts must remain intact.");
+        Check(MetricContract.GetDescriptor("system.gpu.integrated.load") is null &&
+              !SystemMetricContract.MetricNames.Contains("system.gpu.integrated.load", StringComparer.OrdinalIgnoreCase),
+            "Retired Windows GPU Engine metric must be absent from the System catalog.");
         Check(MetricProviderContract.Descriptors.Count(d => d.Id == MetricProviderContract.System) == 1,
             "PC is not a separate provider.");
 
@@ -44,6 +46,8 @@ internal static class Issue92PcTelemetryTests
             config.MetricProviders[MetricProviderContract.Icue] = false;
             MetricSelectorEnvironment.Configure(root, log, () => config);
             var enabled = MetricSelectorEnvironment.BuildSnapshot(null);
+            Check(enabled.Metrics.All(metric => metric.Id != "system.gpu.integrated.load"),
+                "Retired Windows GPU Engine metric must not appear in the selector.");
             foreach (var id in PcIds)
             {
                 var entry = enabled.Metrics.SingleOrDefault(metric => metric.Id == id);
