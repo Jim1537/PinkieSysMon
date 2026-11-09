@@ -16,6 +16,7 @@ internal static class DateTimeComponentContract
         new("dayOfWeek", "Day of week (ISO)"),
         new("hour24", "Hour (24-hour)"),
         new("hour12", "Hour (12-hour)"),
+        new("hour12Cycle", "Hour (12-cycle)"),
         new("minute", "Minute"),
         new("second", "Second")
     ];
@@ -141,6 +142,11 @@ internal static class DateTimeComponentContract
                 break;
             case "hour12":
                 whole = current.Hour % 12 is 0 ? 12 : current.Hour % 12;
+                elapsedTicks = ticks % TimeSpan.TicksPerHour;
+                periodTicks = TimeSpan.TicksPerHour;
+                break;
+            case "hour12Cycle":
+                whole = current.Hour % 12;
                 elapsedTicks = ticks % TimeSpan.TicksPerHour;
                 periodTicks = TimeSpan.TicksPerHour;
                 break;

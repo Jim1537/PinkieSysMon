@@ -160,6 +160,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     | Day of week (ISO) | `dayOfWeek` | Monday=1 through Sunday=7 |
     | Hour (24-hour) | `hour24` | 0–23 |
     | Hour (12-hour) | `hour12` | 1–12; noon and midnight are 12 |
+    | Hour (12-cycle) | `hour12Cycle` | 0–11; noon and midnight are 0 |
     | Minute | `minute` | 0–59 |
     | Second | `second` | 0–59 |
 
@@ -201,10 +202,15 @@ Individual widgets retain their own geometry validation, source-specific meaning
     With fractional precision, ranges are half-open: Year [1,10000),
     Month [1,13), Day of month [1,32) (with the actual month ending earlier),
     Day of year [1,367) (365/366 days), ISO weekday [1,8),
-    Hour24 [0,24), Hour12 [1,13), Minute and Second [0,60).
+    Hour24 [0,24), Hour12 [1,13), Hour12Cycle [0,12),
+    Minute and Second [0,60).
     Set `Min`/`Max` to the desired scale rather than assuming `Max=12`
-    shows fractional progress during month 12 or hour12=12. For a complete
-    fractional clock cycle, Hour12 may use 1–13; Minute/Second use 0–60.
+    shows fractional progress during month 12 or hour12=12. Existing
+    Hour12 can use 1–13 for its 1–12.99 scalar range; Minute/Second use 0–60.
+    For a 12-hour analog clock, select **Hour (12-cycle)** with `Min=0` and
+    `Max=12`. It projects `hour % 12` plus the truncated hour fraction,
+    returning zero at noon and midnight and approaching 12 immediately before
+    those boundaries. Binary `Auto` evaluates that genuine zero as False.
     Values wrap at civil calendar boundaries; fractional projection does not
     smooth the discontinuity between the last and first components.
 

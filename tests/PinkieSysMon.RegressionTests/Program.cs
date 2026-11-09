@@ -149,6 +149,9 @@ internal static partial class Program
             ("Widgets / Shared DateTime", [
                 ("DateTime component projection, editor and cache", DateTimeComponentTests.ProjectionEditorAndCache),
                 ("schema 19 migration and quantitative compatibility", DateTimeComponentTests.SchemaMigrationAndCompatibility),
+                ("12-cycle numeric projection and boundaries", Issue107HourCycleTests.ProjectionAndBoundaries),
+                ("12-cycle Editor and widget consumers", Issue107HourCycleTests.EditorAndConsumers),
+                ("12-cycle persisted schema compatibility", Issue107HourCycleTests.SchemaCompatibility),
                 ("Binary DateTime evaluation and Editor component", Issue81BinaryDateTimeTests.EvaluationAndEditor),
                 ("Binary DateTime schema 20 migration", Issue81BinaryDateTimeTests.SchemaMigration),
             ]),

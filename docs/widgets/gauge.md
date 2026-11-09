@@ -49,6 +49,8 @@ Under `Range`:
 
 `Max` must be greater than `Min`. The displayed progress is proportional to the reading within that range. Values below Min appear at the empty end; values above Max appear at the full end.
 
+For a **12-hour analog clock**, select `system.os.datetime`, `Component = Hour (12-cycle)`, `Format = 0.00`, `Min = 0` and `Max = 12`. Under `Gauge → Horseshoe`, use `Start Angle = 0` and `End Angle = 360`; enable `Gauge → Needle → Enabled`. The canonical 0° direction points down; set `General → Geometry → Rotation = 180` to put the 12 o'clock position at the top. This component wraps at noon/midnight without altering the existing `Hour (12-hour)` behavior. At `Format = 0.00`, an hour-hand step is 0.01 hour (36 seconds), not continuous motion. See [Component](properties.md#component).
+
 !!! warning
     The range and threshold numbers must be understood in the selected `Unit`. For example, if a temperature metric is converted to Fahrenheit, configure `Min`, `Max`, and threshold values in Fahrenheit as well.
 
