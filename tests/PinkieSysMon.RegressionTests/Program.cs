@@ -516,7 +516,7 @@ internal static partial class Program
                 ("adoption MissingBindingStillAllowsPassiveRetry", Issue71AdoptionTests.MissingBindingStillAllowsPassiveRetry),
                 ("adoption PartialDiscoveryIsolation", Issue71AdoptionTests.PartialDiscoveryIsolation),
                 ("adoption ConsentPersistenceAndCancel", Issue71AdoptionTests.ConsentPersistenceAndCancel),
-                ("adoption StaleConsentAndUnsupportedOptions", Issue71AdoptionTests.StaleConsentAndBrightnessBounds),
+                ("adoption StaleConsentAndBrightnessBounds", Issue71AdoptionTests.StaleConsentAndBrightnessBounds),
                 ("adoption ReconciliationUsesExactAdapter", Issue71AdoptionTests.ReconciliationUsesExactAdapter),
                 ("adoption FaultedTurzxDoesNotAutomaticallyReopen", Issue71AdoptionTests.FaultedTurzxDoesNotAutomaticallyReopen),
                 ("adoption FailedTurzxOpenAndTrofeoRetryIsolation", Issue71AdoptionTests.FailedTurzxOpenAndTrofeoRetryIsolation),
