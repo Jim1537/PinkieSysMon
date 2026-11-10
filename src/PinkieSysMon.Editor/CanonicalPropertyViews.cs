@@ -799,9 +799,7 @@ internal static class CanonicalPropertyViewBuilder
             return [Group("Image", [
                 String(shortcut.Asset, "Fit", "image.asset.fit", "Fit", () => shortcut.Asset.Fit, v => shortcut.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter),
                 Bool(shortcut.Asset, "Loop", "image.asset.loop", "Loop", () => shortcut.Asset.Loop, v => shortcut.Asset.Loop = v,
-                    () => ShortcutContract.IsAuto(shortcut.Asset.SourceType) || string.IsNullOrWhiteSpace(shortcut.Asset.Source) ||
-                        C.ImageAssetSourceType.IsIcon(shortcut.Asset.SourceType) && (!IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, shortcut.Asset.Source, out var caps) || !caps.IsAnimated)
-                            ? NotApplicable("Source") : null),
+                    () => LoopDisabled(shortcut.Asset.SourceType, shortcut.Asset.Source, applicationRoot, dashboardDirectory)),
                 Float(shortcut, "Opacity", "image.opacity", "Opacity", () => shortcut.Opacity, v => shortcut.Opacity = Math.Clamp(v, 0f, 1f))
             ])];
         if (widget is C.GraphWidgetDefinition graph)
@@ -811,17 +809,10 @@ internal static class CanonicalPropertyViewBuilder
         }
         if (widget is C.ImageWidgetDefinition image)
         {
-            var loopDisabled = () =>
-            {
-                if (!C.ImageAssetSourceType.IsIcon(image.Asset.SourceType))
-                    return null;
-                return IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, image.Asset.Source, out var capabilities) && capabilities.IsAnimated
-                    ? null
-                    : NotApplicable("Source");
-            };
             result.Add(Group("Image", [
                 String(image.Asset, "Fit", "image.asset.fit", "Fit", () => image.Asset.Fit, v => image.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter),
-                Bool(image.Asset, "Loop", "image.asset.loop", "Loop", () => image.Asset.Loop, v => image.Asset.Loop = v, loopDisabled),
+                Bool(image.Asset, "Loop", "image.asset.loop", "Loop", () => image.Asset.Loop, v => image.Asset.Loop = v,
+                    () => LoopDisabled(image.Asset.SourceType, image.Asset.Source, applicationRoot, dashboardDirectory)),
                 Float(image, nameof(C.ImageWidgetDefinition.Opacity), "image.opacity", "Opacity", () => image.Opacity, v => image.Opacity = Math.Clamp(v, 0f, 1f))
             ]));
             return result;
@@ -836,7 +827,8 @@ internal static class CanonicalPropertyViewBuilder
                 new CanonicalPropertyDescriptor("BarImageSource", "bar.image.source", "Source", bar.Image, typeof(string), () => bar.Image.Source ?? string.Empty, v => bar.Image.Source = EmptyToNull(v), editor: editor),
                 String(bar.Image, "BarImageFit", "bar.image.fit", "Fit", () => bar.Image.Fit, v => bar.Image.Fit = Convert.ToString(v) ?? BarImageContract.ImageFitStretch, converter: BarFitConverter),
                 String(bar.Image, "BarProgressMode", "bar.image.progress_mode", "Progress Mode", () => bar.Image.ProgressMode, v => bar.Image.ProgressMode = Convert.ToString(v) ?? BarImageContract.ProgressModeScale, converter: BarProgressConverter),
-                Bool(bar.Image, "Loop", "bar.image.loop", "Loop", () => bar.Image.Loop, v => bar.Image.Loop = v)
+                Bool(bar.Image, "Loop", "bar.image.loop", "Loop", () => bar.Image.Loop, v => bar.Image.Loop = v,
+                    () => LoopDisabled(C.ImageAssetSourceType.File, bar.Image.Source, applicationRoot, dashboardDirectory))
             ]));
             return result;
         }
@@ -852,10 +844,7 @@ internal static class CanonicalPropertyViewBuilder
                 result.Add(Group(spec.Category, [
                     String(profile.Asset, StateName(spec.Key, StateVisualProfileField.Fit), $"image.state.{spec.Key}.fit", "Fit", () => profile.Asset.Fit, v => profile.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter),
                     Bool(profile.Asset, StateName(spec.Key, StateVisualProfileField.Loop), $"image.state.{spec.Key}.loop", "Loop", () => profile.Asset.Loop, v => profile.Asset.Loop = v,
-                        () => C.ImageAssetSourceType.IsIcon(profile.Asset.SourceType) &&
-                              (!IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, profile.Asset.Source, out var loopCapabilities) || !loopCapabilities.IsAnimated)
-                            ? NotApplicable("Source")
-                            : null),
+                        () => LoopDisabled(profile.Asset.SourceType, profile.Asset.Source, applicationRoot, dashboardDirectory)),
                     Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"image.state.{spec.Key}.color", "Color", () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color, v => profile.Color = v,
                         () => C.ImageAssetSourceType.IsFile(profile.Asset.SourceType)
                             ? NotApplicable("Source Type")
@@ -974,6 +963,14 @@ internal static class CanonicalPropertyViewBuilder
         return [];
     }
 
+    private static string? LoopDisabled(string type, string? source, string? applicationRoot, string? dashboardDirectory)
+    {
+        var animated = C.ImageAssetSourceType.IsIcon(type)
+            ? IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, source, out var icon) && icon.IsAnimated
+            : C.ImageAssetSourceType.IsFile(type) && ImageAssetCapabilityProbe.TryReadCapabilities(dashboardDirectory, source, out var image) && image.IsAnimated;
+        return animated ? null : NotApplicable("Source");
+    }
+
     private static void AddConfiguredLayer(List<PropertyDescriptor> groups, string label, string role,
         C.CanvasImageLayerDefinition layer, string? applicationRoot, string? dashboardDirectory)
     {
@@ -1000,19 +997,6 @@ internal static class CanonicalPropertyViewBuilder
                 editor);
         }
 
-        string? LoopDisabledReason()
-        {
-            if (string.IsNullOrWhiteSpace(layer.Asset.Source))
-                return NotApplicable("Source");
-            if (C.ImageAssetSourceType.IsIcon(layer.Asset.SourceType))
-                return IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, layer.Asset.Source, out var iconCapabilities) && iconCapabilities.IsAnimated
-                    ? null
-                    : NotApplicable("Source");
-            return ImageAssetCapabilityProbe.TryReadCapabilities(dashboardDirectory, layer.Asset.Source, out var imageCapabilities) && imageCapabilities.IsAnimated
-                ? null
-                : NotApplicable("Source");
-        }
-
         string? ColorDisabledReason()
         {
             if (string.IsNullOrWhiteSpace(layer.Asset.Source))
@@ -1028,7 +1012,8 @@ internal static class CanonicalPropertyViewBuilder
         return [
             String(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Fit), $"{prefix}.asset.fit", "Fit", () => layer.Asset.Fit, v => layer.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter, disabled: () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
             Float(layer, nameof(C.CanvasImageLayerDefinition.Opacity), $"{prefix}.opacity", "Opacity", () => layer.Opacity, v => layer.Opacity = Math.Clamp(v, 0f, 1f), () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
-            Bool(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Loop), $"{prefix}.asset.loop", "Loop", () => layer.Asset.Loop, v => layer.Asset.Loop = v, LoopDisabledReason),
+            Bool(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Loop), $"{prefix}.asset.loop", "Loop", () => layer.Asset.Loop, v => layer.Asset.Loop = v,
+                () => LoopDisabled(layer.Asset.SourceType, layer.Asset.Source, applicationRoot, dashboardDirectory)),
             Color(layer, nameof(C.CanvasImageLayerDefinition.Color), $"{prefix}.color", "Color", () => layer.Color, v => layer.Color = v, ColorDisabledReason)
         ];
     }

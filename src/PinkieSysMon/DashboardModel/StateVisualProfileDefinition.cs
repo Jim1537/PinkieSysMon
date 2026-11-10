@@ -25,7 +25,7 @@ internal sealed class StateVisualProfileDefinition
 
     internal bool UsesValueContent => StateContentType.IsValue(ContentType);
 
-    internal void Validate(string dashboardBaseDirectory, string context)
+    internal void Validate(string dashboardBaseDirectory, string context, bool allowUnavailableArtwork = false)
     {
         if (!StateContentType.IsSupported(ContentType))
             throw new InvalidDataException($"{context} ContentType must be image or value.");
@@ -42,6 +42,6 @@ internal sealed class StateVisualProfileDefinition
         TextPresentation.Validate($"{context} TextPresentation");
 
         if (StateContentType.IsImage(ContentType))
-            Asset.ValidateActiveSource(dashboardBaseDirectory, $"{context} Asset");
+            Asset.ValidateActiveSource(dashboardBaseDirectory, $"{context} Asset", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }

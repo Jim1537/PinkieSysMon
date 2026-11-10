@@ -21,7 +21,7 @@ internal static class DashboardJson
         return DeserializeCurrent(root, path);
     }
 
-    public static CanonicalDashboard.DashboardDefinition DeserializeCurrent(JsonObject root, string path)
+    public static CanonicalDashboard.DashboardDefinition DeserializeCurrent(JsonObject root, string path, bool allowUnavailableArtwork = false)
     {
         ArgumentNullException.ThrowIfNull(root);
         EnsureCurrentSchema(root);
@@ -41,7 +41,7 @@ internal static class DashboardJson
 
         definition.BaseDirectory = Path.GetDirectoryName(Path.GetFullPath(path))
             ?? throw new InvalidDataException("Dashboard path has no parent directory.");
-        definition.Validate();
+        definition.Validate(allowUnavailableArtwork);
         return definition;
     }
 

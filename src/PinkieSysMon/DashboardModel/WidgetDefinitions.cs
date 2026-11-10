@@ -93,7 +93,7 @@ internal abstract class WidgetDefinition
     [JsonPropertyName("shadowColor")]
     public string ShadowColor { get; set; } = "#FF000000";
 
-    internal virtual void Validate(string dashboardBaseDirectory)
+    internal virtual void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
         RequireFinite(X, nameof(X));
         RequireFinite(Y, nameof(Y));
@@ -157,7 +157,7 @@ internal abstract class StateVisualWidgetDefinition : WidgetDefinition
     [JsonPropertyName("profiles")]
     public Dictionary<string, StateVisualProfileDefinition> Profiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    protected void ValidateProfiles(string dashboardBaseDirectory)
+    protected void ValidateProfiles(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
         if (Profiles is null)
             throw new InvalidDataException($"{Type} widget '{Id}' requires state profiles.");
@@ -172,7 +172,7 @@ internal abstract class StateVisualWidgetDefinition : WidgetDefinition
         {
             if (!Profiles.TryGetValue(spec.Key, out var profile) || profile is null)
                 throw new InvalidDataException($"Widget '{Id}' requires profile '{spec.Key}'.");
-            profile.Validate(dashboardBaseDirectory, $"Widget '{Id}' {spec.Category}");
+            profile.Validate(dashboardBaseDirectory, $"Widget '{Id}' {spec.Category}", allowUnavailableArtwork: allowUnavailableArtwork);
         }
 
         var valueOnly = specs.Count > 0 && specs.All(spec => Profiles[spec.Key].UsesValueContent);
@@ -281,9 +281,9 @@ internal sealed class ValueWidgetDefinition : WidgetDefinition
     [JsonPropertyName("textPresentation")]
     public TextPresentationDefinition TextPresentation { get; set; } = new();
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         if (!ValueSourceKind.IsMetric(SourceKind) && !ValueSourceKind.IsText(SourceKind))
             throw new InvalidDataException($"Value widget '{Id}' has invalid SourceKind '{SourceKind}'.");
         if (ValueSourceKind.IsMetric(SourceKind))
@@ -342,9 +342,9 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
     [JsonPropertyName("trueIf")]
     public string TrueIf { get; set; } = global::PinkieSysMon.BinarySignalContract.TrueIfGreaterThan;
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         RequireMetric(Metric);
         global::PinkieSysMon.DateTimeComponentContract.Validate(Component, $"Binary widget '{Id}'");
         global::PinkieSysMon.DateTimeComponentContract.ValidateFormat(ComponentFormat, $"Binary widget '{Id}'");
@@ -352,7 +352,7 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
             throw new InvalidDataException($"Binary widget '{Id}' has invalid EvaluationMode '{EvaluationMode}'.");
         if (!global::PinkieSysMon.BinarySignalContract.SupportedTrueIfOperators.Contains(TrueIf, StringComparer.Ordinal))
             throw new InvalidDataException($"Binary widget '{Id}' has invalid TrueIf operator '{TrueIf}'.");
-        ValidateProfiles(dashboardBaseDirectory);
+        ValidateProfiles(dashboardBaseDirectory, allowUnavailableArtwork);
     }
 }
 
@@ -373,9 +373,9 @@ internal sealed class GaugeWidgetDefinition : QuantitativeWidgetDefinition
     [JsonPropertyName("needle")]
     public GaugeNeedleDefinition Needle { get; set; } = new();
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidateQuantitative(validateThresholds: true);
         ValidatePositiveGeometry();
         if (Math.Abs(Height - Width) > 0.0001f)
@@ -424,9 +424,9 @@ internal sealed class BarWidgetDefinition : QuantitativeWidgetDefinition
     [JsonPropertyName("image")]
     public BarImagePresentationDefinition Image { get; set; } = new();
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
         if (!global::PinkieSysMon.BarImageContract.SupportedContentModes.Contains(ContentMode, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"Bar widget '{Id}' has invalid ContentMode '{ContentMode}'.");
@@ -440,7 +440,7 @@ internal sealed class BarWidgetDefinition : QuantitativeWidgetDefinition
         var imageMode = global::PinkieSysMon.BarImageContract.IsImageMode(ContentMode);
         ValidateQuantitative(validateThresholds: !imageMode);
         if (imageMode)
-            Image.ValidateActive(dashboardBaseDirectory, $"Bar widget '{Id}' Image");
+            Image.ValidateActive(dashboardBaseDirectory, $"Bar widget '{Id}' Image", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }
 
@@ -455,15 +455,15 @@ internal sealed class ImageWidgetDefinition : WidgetDefinition
     [JsonPropertyName("opacity")]
     public float Opacity { get; set; } = 1f;
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
         if (!float.IsFinite(Opacity) || Opacity is < 0f or > 1f)
             throw new InvalidDataException($"Image widget '{Id}' Opacity must be in the range 0..1.");
         if (Asset is null)
             throw new InvalidDataException($"Image widget '{Id}' Asset must not be null.");
-        Asset.ValidateActiveSource(dashboardBaseDirectory, $"Image widget '{Id}' Asset");
+        Asset.ValidateActiveSource(dashboardBaseDirectory, $"Image widget '{Id}' Asset", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }
 
@@ -475,12 +475,12 @@ internal sealed class PowerWidgetDefinition : StateVisualWidgetDefinition
     [JsonPropertyName("powerSource")]
     public string PowerSource { get; set; } = global::PinkieSysMon.PowerMetricContract.UpsSource;
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         if (!global::PinkieSysMon.PowerMetricContract.IsSupportedSource(PowerSource))
             throw new InvalidDataException($"Power widget '{Id}' PowerSource must be power.ups or power.battery.");
-        ValidateProfiles(dashboardBaseDirectory);
+        ValidateProfiles(dashboardBaseDirectory, allowUnavailableArtwork);
     }
 }
 
@@ -492,12 +492,12 @@ internal sealed class MediaSystemWidgetDefinition : StateVisualWidgetDefinition
     [JsonPropertyName("mediaSource")]
     public string MediaSource { get; set; } = global::PinkieSysMon.MediaMetricContract.OutputSource;
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         if (MediaSource is not (global::PinkieSysMon.MediaMetricContract.OutputSource or global::PinkieSysMon.MediaMetricContract.InputSource))
             throw new InvalidDataException($"Media System widget '{Id}' MediaSource must be media.output or media.input.");
-        ValidateProfiles(dashboardBaseDirectory);
+        ValidateProfiles(dashboardBaseDirectory, allowUnavailableArtwork);
     }
 }
 
@@ -506,9 +506,9 @@ internal sealed class MediaPlayerWidgetDefinition : StateVisualWidgetDefinition
     [JsonIgnore]
     public override string Type => global::PinkieSysMon.WidgetTypeContract.MediaPlayer;
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
-        ValidateProfiles(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
+        ValidateProfiles(dashboardBaseDirectory, allowUnavailableArtwork);
     }
 }

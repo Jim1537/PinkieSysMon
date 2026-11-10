@@ -849,7 +849,7 @@ internal static partial class Program
             "Binary Image tab must expose state-specific first-level groups for active image/icon states.");
         var trueFileColor = GetNestedProperty(binaryImage, "State: True", trueColor);
         Assert(GetNestedProperty(binaryImage, "State: True", trueFit) is { DisplayName: "Fit" } &&
-               GetNestedProperty(binaryImage, "State: True", trueLoop) is { DisplayName: "Loop", IsReadOnly: false } &&
+               GetNestedProperty(binaryImage, "State: True", trueLoop) is { DisplayName: "Loop", IsReadOnly: true } &&
                GetNestedProperty(binaryImage, "State: True", trueOpacity) is { DisplayName: "Opacity" } &&
                trueFileColor is { DisplayName: "Color", IsReadOnly: true } &&
                trueFileColor.Description == "Not applicable for selected Source Type.",
@@ -872,11 +872,19 @@ internal static partial class Program
                falseProfile.Asset.Fit == StateVisualProfileContract.FitCover,
             "Binary state Fit values must be independently editable.");
 
-        var trueLoopDescriptor = GetNestedProperty(binaryImage, "State: True", trueLoop)
-            ?? throw new InvalidOperationException("Binary True Loop property is missing.");
-        trueLoopDescriptor.SetValue(null, true);
-        Assert(trueProfile.Asset.Loop && !falseProfile.Asset.Loop,
-            "Editing Binary True Loop must not overwrite the sibling state Loop value.");
+        var directory = Directory.CreateTempSubdirectory("binary-loop-");
+        try
+        {
+            File.WriteAllBytes(Path.Combine(directory.FullName, "binary-state.gif"), Convert.FromBase64String(
+                "R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQICgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQICgAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7"));
+            var resolved = new EditorPropertyView(binary, dashboardDirectory: directory.FullName, section: EditorPropertySection.Image).GetProperties();
+            var loop = GetNestedProperty(resolved, "State: True", trueLoop)!;
+            Assert(!loop.IsReadOnly, "A decoded animated file must enable Loop.");
+            loop.SetValue(null, true);
+            Assert(trueProfile.Asset.Loop && !falseProfile.Asset.Loop,
+                "Editing Binary True Loop must not overwrite the sibling state Loop value.");
+        }
+        finally { directory.Delete(true); }
 
         trueProfile.ContentType = C.StateContentType.Value;
         var mixedBinaryImage = new EditorPropertyView(binary, section: EditorPropertySection.Image).GetProperties();

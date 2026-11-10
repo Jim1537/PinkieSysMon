@@ -12,9 +12,13 @@ internal sealed class ImageAssetCache : IDisposable
     private readonly Dictionary<string, ImageAsset> _assetsByPath = new(StringComparer.OrdinalIgnoreCase);
     private long _aggregateDecodedBytes;
 
-    public ImageAssetCache(string baseDirectory)
+    private readonly EditorArtworkRecovery? _recovery;
+    private ImageAsset? _unavailable;
+
+    public ImageAssetCache(string baseDirectory, EditorArtworkRecovery? recovery = null)
     {
         _baseDirectory = baseDirectory;
+        _recovery = recovery;
     }
 
 
@@ -82,10 +86,13 @@ internal sealed class ImageAssetCache : IDisposable
         if (_assetsBySource.TryGetValue(sourceKey, out var cachedBySource))
             return cachedBySource;
 
-        var fullPath = AssetPathResolver.ResolveExistingFile(_baseDirectory, sourceKey, "Dashboard image asset");
+        var fullPath = CanonicalDashboard.ImageAssetPresentationDefinition.ResolveReference(_baseDirectory,
+            CanonicalDashboard.ImageAssetSourceType.File, sourceKey, "Dashboard artwork", _recovery is not null);
+        if (fullPath is null) return CacheUnavailable(sourceKey);
         if (!_assetsByPath.TryGetValue(fullPath, out var asset))
         {
-            asset = ImageAsset.Load(fullPath);
+            asset = _recovery is null ? ImageAsset.Load(fullPath) : _recovery.Decode(fullPath, ImageAsset.Load);
+            if (asset is null) return CacheUnavailable(sourceKey);
             if (asset.DecodedByteCount > MaximumAggregateDecodedBytes - _aggregateDecodedBytes)
             {
                 var projectedBytes = _aggregateDecodedBytes + asset.DecodedByteCount;
@@ -103,8 +110,15 @@ internal sealed class ImageAssetCache : IDisposable
         return asset;
     }
 
+    private ImageAsset CacheUnavailable(string key)
+    {
+        _recovery!.Record(key);
+        return _assetsBySource[key] = _unavailable ??= ImageAsset.CreateTransparent();
+    }
+
     public void Dispose()
     {
+        _unavailable?.Dispose();
         foreach (var asset in _assetsByPath.Values.Distinct())
             asset.Dispose();
 
@@ -255,6 +269,13 @@ internal sealed class ImageAsset : IDisposable
         return new ImageAsset([bitmap], [0], 0, bytes);
     }
 
+    internal static ImageAsset CreateTransparent()
+    {
+        var pixel = new SKBitmap(1, 1);
+        pixel.Erase(SKColors.Transparent);
+        return FromBitmap(pixel);
+    }
+
     public static ImageAsset Load(string path)
     {
         using var stream = File.OpenRead(path);
@@ -312,7 +333,7 @@ internal sealed class ImageAsset : IDisposable
                     bitmap.RowBytes,
                     frameCount > 1 ? new SKCodecOptions(i) : SKCodecOptions.Default);
 
-                if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+                if (result != SKCodecResult.Success)
                 {
                     bitmap.Dispose();
                     throw new InvalidDataException(

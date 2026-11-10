@@ -181,6 +181,9 @@ internal sealed class RasterIconAsset : IIconAsset
     public IconAssetCapabilities Capabilities { get; }
     public long DecodedByteCount => _image.DecodedByteCount;
 
+    internal static RasterIconAsset CreateTransparent() =>
+        new(ImageAsset.CreateTransparent(), new IconAssetCapabilities("Unavailable", false, true, false, true, false));
+
     public static RasterIconAsset Load(string path)
     {
         var capabilities = IconAssetLoader.ReadCapabilities(path);

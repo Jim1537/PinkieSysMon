@@ -42,7 +42,7 @@ internal sealed class ImageAssetPresentationDefinition
             throw new InvalidDataException($"{context} Fit must be contain, cover, or stretch.");
     }
 
-    internal void ValidateActiveSource(string dashboardBaseDirectory, string context, bool allowShellIcon = false)
+    internal void ValidateActiveSource(string dashboardBaseDirectory, string context, bool allowShellIcon = false, bool allowUnavailableArtwork = false)
     {
         ValidateStructure(context, allowShellIcon);
         if (allowShellIcon && ShortcutContract.IsAuto(SourceType))
@@ -54,19 +54,20 @@ internal sealed class ImageAssetPresentationDefinition
         if (string.IsNullOrWhiteSpace(Source))
             return;
 
-        if (ImageAssetSourceType.IsFile(SourceType))
-        {
-            if (Path.IsPathRooted(Source))
-                throw new InvalidDataException($"{context} Source must be relative to the dashboard directory when SourceType=file.");
+        ResolveReference(dashboardBaseDirectory, SourceType, Source, context, allowUnavailableArtwork);
+    }
 
-            _ = global::PinkieSysMon.AssetPathResolver.ResolveExistingFile(
-                dashboardBaseDirectory,
-                Source,
-                $"{context} source");
-        }
-        else
+    internal static string? ResolveReference(string directory, string type, string source, string context, bool allowUnavailableArtwork)
+    {
+        try
         {
-            _ = global::PinkieSysMon.GlobalAssetResolver.ResolveIcon(dashboardBaseDirectory, Source);
+            return ImageAssetSourceType.IsFile(type)
+                ? AssetPathResolver.ResolveExistingFile(directory, source, context)
+                : GlobalAssetResolver.ResolveIcon(directory, source);
+        }
+        catch (Exception ex) when (allowUnavailableArtwork && (ex is IOException or UnauthorizedAccessException))
+        {
+            return null;
         }
     }
 }
@@ -82,7 +83,7 @@ internal sealed class CanvasImageLayerDefinition
     [JsonPropertyName("color")]
     public string Color { get; set; } = "#FFFFFFFF";
 
-    internal void Validate(string dashboardBaseDirectory, string role)
+    internal void Validate(string dashboardBaseDirectory, string role, bool allowUnavailableArtwork = false)
     {
         if (Asset is null)
             throw new InvalidDataException($"Canvas {role} image Asset must not be null.");
@@ -93,7 +94,7 @@ internal sealed class CanvasImageLayerDefinition
         _ = global::PinkieSysMon.ColorParser.Parse(Color);
 
         if (!string.IsNullOrWhiteSpace(Asset.Source))
-            Asset.ValidateActiveSource(dashboardBaseDirectory, $"Canvas {role} image");
+            Asset.ValidateActiveSource(dashboardBaseDirectory, $"Canvas {role} image", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }
 
@@ -119,17 +120,11 @@ internal sealed class BarImagePresentationDefinition
             throw new InvalidDataException($"{context} has invalid ProgressMode '{ProgressMode}'.");
     }
 
-    internal void ValidateActive(string dashboardBaseDirectory, string context)
+    internal void ValidateActive(string dashboardBaseDirectory, string context, bool allowUnavailableArtwork = false)
     {
         ValidateStructure(context);
         if (string.IsNullOrWhiteSpace(Source))
             return;
-        if (Path.IsPathRooted(Source))
-            throw new InvalidDataException($"{context} Source must be relative to the dashboard directory.");
-
-        _ = global::PinkieSysMon.AssetPathResolver.ResolveExistingFile(
-            dashboardBaseDirectory,
-            Source,
-            $"{context} source");
+        ImageAssetPresentationDefinition.ResolveReference(dashboardBaseDirectory, ImageAssetSourceType.File, Source, context, allowUnavailableArtwork);
     }
 }

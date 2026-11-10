@@ -859,9 +859,7 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
-    - Icon-backed Image/state content is read-only when the selected icon does not expose animated capability.
-    - Canvas/Graph layers require a non-empty [Source](properties.md#image-source) and an animated file/icon capability.
-    - Bar Image mode exposes Loop directly.
+    - Loop is editable when the configured file or icon reports multiple frames. Static, unresolved and automatic Shell artwork keeps the stored Loop value.
 
 <!-- --8<-- [end:image-loop] -->
 
@@ -901,7 +899,9 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     - Bar Image mode: dashboard-relative image file.
 
 
-    Active graphical source. An empty source is a valid unconfigured image for Image, Graph background, Bar Image mode, Canvas layers, and graphical state profiles; any nonempty source must still resolve.
+    Active graphical source. An empty source is a valid unconfigured image for Image, Graph background, Bar Image mode, Canvas layers, and graphical state profiles; each configured source must resolve and decode for normal use.
+
+    If artwork is missing or damaged, Editor opens the dashboard and lists the affected sources. Hover over **Repair artwork** in the status bar to see the remaining references. Replace each source or clear it. Other layers remain visible while you edit. Save checks the files again before writing the dashboard.
 
     **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 

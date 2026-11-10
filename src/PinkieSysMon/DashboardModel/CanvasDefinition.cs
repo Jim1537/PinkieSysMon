@@ -22,13 +22,13 @@ internal sealed class CanvasDefinition
     [JsonPropertyName("foregroundImage")]
     public CanvasImageLayerDefinition ForegroundImage { get; set; } = new();
 
-    internal void Validate(string dashboardBaseDirectory)
+    internal void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
         _ = global::PinkieSysMon.FrameGeometry.GetLogicalSize(Width, Height, Orientation);
         _ = global::PinkieSysMon.ColorParser.Parse(BackgroundColor);
         if (BackgroundImage is null || ForegroundImage is null)
             throw new InvalidDataException("Canvas BackgroundImage and ForegroundImage definitions must not be null.");
-        BackgroundImage.Validate(dashboardBaseDirectory, "background");
-        ForegroundImage.Validate(dashboardBaseDirectory, "foreground");
+        BackgroundImage.Validate(dashboardBaseDirectory, "background", allowUnavailableArtwork: allowUnavailableArtwork);
+        ForegroundImage.Validate(dashboardBaseDirectory, "foreground", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }

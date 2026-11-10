@@ -44,9 +44,9 @@ internal sealed class ShortcutWidgetDefinition : WidgetDefinition
         OverflowMode = ValueOverflowContract.Clip
     };
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
         if (Target is null || Arguments is null || Label is null)
             throw new InvalidDataException($"Shortcut widget '{Id}' Target, Arguments and Label must not be null.");
@@ -61,7 +61,7 @@ internal sealed class ShortcutWidgetDefinition : WidgetDefinition
         if (Asset is null || TextPresentation is null)
             throw new InvalidDataException($"Shortcut widget '{Id}' requires Asset and TextPresentation.");
         // Only this widget admits Auto. Other image consumers keep file/icon validation.
-        Asset.ValidateActiveSource(dashboardBaseDirectory, $"Shortcut widget '{Id}' Asset", allowShellIcon: true);
+        Asset.ValidateActiveSource(dashboardBaseDirectory, $"Shortcut widget '{Id}' Asset", allowShellIcon: true, allowUnavailableArtwork: allowUnavailableArtwork);
         TextPresentation.Validate($"Shortcut widget '{Id}' TextPresentation");
         if (ValueOverflowContract.Normalize(TextPresentation.OverflowMode) == ValueOverflowContract.None)
             throw new InvalidDataException($"Shortcut widget '{Id}' label requires fixed-width overflow.");

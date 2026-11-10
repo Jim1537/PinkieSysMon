@@ -14,9 +14,13 @@ internal sealed class IconAssetCache : IDisposable
     private readonly Dictionary<string, IIconAsset> _assetsByPath = new(StringComparer.OrdinalIgnoreCase);
     private long _aggregateDecodedBytes;
 
-    public IconAssetCache(string dashboardBaseDirectory)
+    private readonly EditorArtworkRecovery? _recovery;
+    private IIconAsset? _unavailable;
+
+    public IconAssetCache(string dashboardBaseDirectory, EditorArtworkRecovery? recovery = null)
     {
         _dashboardBaseDirectory = dashboardBaseDirectory;
+        _recovery = recovery;
     }
 
 
@@ -81,10 +85,13 @@ internal sealed class IconAssetCache : IDisposable
         if (_assetsByLogicalName.TryGetValue(logicalKey, out var cachedByName))
             return cachedByName;
 
-        var path = GlobalAssetResolver.ResolveIcon(_dashboardBaseDirectory, logicalKey);
+        var path = CanonicalDashboard.ImageAssetPresentationDefinition.ResolveReference(_dashboardBaseDirectory,
+            CanonicalDashboard.ImageAssetSourceType.Icon, logicalKey, "Dashboard artwork", _recovery is not null);
+        if (path is null) return CacheUnavailable(logicalKey);
         if (!_assetsByPath.TryGetValue(path, out var asset))
         {
-            asset = IconAssetLoader.Load(path);
+            asset = _recovery is null ? IconAssetLoader.Load(path) : _recovery.Decode(path, IconAssetLoader.Load);
+            if (asset is null) return CacheUnavailable(logicalKey);
             if (asset.DecodedByteCount > MaximumAggregateDecodedBytes - _aggregateDecodedBytes)
             {
                 var projectedBytes = _aggregateDecodedBytes + asset.DecodedByteCount;
@@ -102,8 +109,15 @@ internal sealed class IconAssetCache : IDisposable
         return asset;
     }
 
+    private IIconAsset CacheUnavailable(string key)
+    {
+        _recovery!.Record(key);
+        return _assetsByLogicalName[key] = _unavailable ??= RasterIconAsset.CreateTransparent();
+    }
+
     public void Dispose()
     {
+        _unavailable?.Dispose();
         foreach (var asset in _assetsByPath.Values.Distinct())
             asset.Dispose();
         _assetsByLogicalName.Clear();

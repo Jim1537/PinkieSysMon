@@ -171,6 +171,7 @@ internal static partial class Program
                 ("Binary DateTime schema 20 migration", Issue81BinaryDateTimeTests.SchemaMigration),
             ]),
             ("Widgets / Shared Images", [
+                ("Editor missing and corrupt artwork recovery", Issue105EditorLoggingTests.MissingAndCorruptArtworkRecovery),
                 ("empty image source validation and render", Issue70EmptyImageSourceTests.CanonicalAndRendering),
             ]),
             ("Widgets / Shared Properties", [

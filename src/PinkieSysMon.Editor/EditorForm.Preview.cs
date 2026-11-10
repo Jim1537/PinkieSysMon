@@ -20,6 +20,7 @@ namespace PinkieSysMon.Editor;
 internal sealed partial class EditorForm
 {
     private bool _previewRenderFailed;
+    private EditorArtworkRecovery _artworkRecovery = new();
     private void RebuildPreviewRenderer()
     {
         if (_definition is null)
@@ -37,7 +38,8 @@ internal sealed partial class EditorForm
         DashboardPreviewRenderer? replacement = null;
         try
         {
-            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History, _log);
+            var recovery = new EditorArtworkRecovery();
+            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History, _log, recovery);
 
             // Prepare everything that can fail before replacing the currently usable preview.
             // This keeps reload/property edits transactional from the editor's point of view.
@@ -46,6 +48,10 @@ internal sealed partial class EditorForm
             _previewTelemetry.Configure(_appConfig, definition);
             var previous = _preview;
             _preview = replacement;
+            _artworkRecovery = recovery;
+            _statusArtwork.Visible = recovery.Sources.Count > 0;
+            _statusArtwork.Text = $"Repair artwork ({recovery.Sources.Count})";
+            _statusArtwork.ToolTipText = string.Join(Environment.NewLine, recovery.Sources);
             replacement = null;
             _previewRequiredMetrics = requiredMetrics;
             UpdatePreviewTimerState();

@@ -17,9 +17,9 @@ internal sealed class GraphWidgetDefinition : NumericWidgetDefinition
 
     [JsonIgnore] public bool AutoScale => ScaleMode == "Auto";
 
-    internal override void Validate(string dashboardBaseDirectory)
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
-        base.Validate(dashboardBaseDirectory);
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
         ValidateNumeric(validateThresholds: true, autoScale: AutoScale);
         if (Mode is not ("Line" or "Columns") || ScaleMode is not ("Auto" or "Fixed"))
@@ -34,6 +34,6 @@ internal sealed class GraphWidgetDefinition : NumericWidgetDefinition
         if (StrokeWidth <= 0 || FillOpacity is < 0 or > 1)
             throw new InvalidDataException($"Graph '{Id}' requires positive Stroke Width and Fill Opacity in 0..1.");
         if (Image is null) throw new InvalidDataException($"Graph '{Id}' Image must not be null.");
-        Image.Validate(dashboardBaseDirectory, "Graph background");
+        Image.Validate(dashboardBaseDirectory, "Graph background", allowUnavailableArtwork: allowUnavailableArtwork);
     }
 }

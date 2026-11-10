@@ -47,12 +47,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private Bitmap? _canvasImage;
     private readonly LayerTreeView _widgetTree = new() { Dock = DockStyle.Fill };
     private readonly PropertyGrid _propertyGrid = new() { Dock = DockStyle.Fill, HelpVisible = false, ToolbarVisible = false, PropertySort = PropertySort.Categorized };
-    private readonly StatusStrip _status = new();
+    private readonly StatusStrip _status = new() { ShowItemToolTips = true };
     private readonly ToolStripStatusLabel _statusDashboard = new();
     private readonly ToolStripStatusLabel _statusCanvas = new();
     private readonly ToolStripStatusLabel _statusZoom = new();
     private readonly ToolStripStatusLabel _statusSelected = new();
     private readonly ToolStripStatusLabel _statusRuntime = new();
+    private readonly ToolStripStatusLabel _statusArtwork = new() { Visible = false };
     private readonly ToolStripStatusLabel _statusText = new() { Spring = true, TextAlign = ContentAlignment.MiddleRight };
     private readonly System.Windows.Forms.Timer _previewTimer = new() { Interval = 1000 };
     private readonly System.Windows.Forms.Timer _runtimeStatusTimer = new() { Interval = 1000 };
@@ -453,6 +454,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _statusSelected,
             new ToolStripStatusLabel("|"),
             _statusRuntime,
+            _statusArtwork,
             _statusText
         ]);
 
@@ -1028,7 +1030,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 AllowTrailingCommas = true
             }) as JsonObject ?? throw new InvalidDataException("dashboard.json root must be a JSON object.");
             var sourceSchemaVersion = sourceRoot["schemaVersion"]?.GetValue<int>() ?? 0;
-            var definition = CanonicalDashboardDefinition.Parse(text, path);
+            DashboardSchemaMigration.UpgradeToCurrent(sourceRoot);
+            var definition = DashboardJson.DeserializeCurrent(sourceRoot, path, allowUnavailableArtwork: true);
             var metadataPath = Path.Combine(Path.GetDirectoryName(path)!, ".editor.json");
             operation.Phase("metadata.load");
             var metadata = DashboardEditorMetadata.Load(
@@ -1102,6 +1105,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
             SetStatus(normalizationParts.Count > 0
                 ? $"Loaded {name}; editor-normalized {string.Join(", ", normalizationParts)}."
                 : $"Loaded {name}. Ctrl/Shift select layer nodes; drag groups or widgets to reorder and reparent them.");
+
+            if (_artworkRecovery.Sources.Count > 0)
+                ShowDocumentMessage("Replace or clear these artwork sources before saving:\n\n" +
+                    string.Join(Environment.NewLine, _artworkRecovery.Sources), "Dashboard artwork", MessageBoxIcon.Warning);
 
             if (metadataLoadError is not null)
             {
@@ -1257,7 +1264,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     internal static bool IsPropertyContextSwitch(string propertyName) =>
-        propertyName is "Source" or "SourceType" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled" or "LabelPosition";
+        propertyName is "Source" or "SourceType" or "BarImageSource" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled" or "LabelPosition";
 
     private bool ApplyWidgetPropertyChange(
         CanonicalWidgetDefinition widget,

@@ -37,7 +37,7 @@ internal sealed class DashboardDefinition
         return global::PinkieSysMon.DashboardJson.DeserializeCurrent(root, path);
     }
 
-    internal void Validate()
+    internal void Validate(bool allowUnavailableArtwork = false)
     {
         var requiredSchemaVersion = global::PinkieSysMon.DashboardSchemaMigration.CurrentSchemaVersion;
         if (SchemaVersion != requiredSchemaVersion)
@@ -47,7 +47,7 @@ internal sealed class DashboardDefinition
         if (Widgets is null)
             throw new InvalidDataException("Dashboard widgets collection is required.");
 
-        Canvas.Validate(BaseDirectory);
+        Canvas.Validate(BaseDirectory, allowUnavailableArtwork);
 
         var widgetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var widget in Widgets)
@@ -58,7 +58,7 @@ internal sealed class DashboardDefinition
                 throw new InvalidDataException($"Dashboard widget of type '{widget.Type}' requires a non-empty Id.");
             if (!widgetIds.Add(widget.Id))
                 throw new InvalidDataException($"Duplicate dashboard widget Id: '{widget.Id}'.");
-            widget.Validate(BaseDirectory);
+            widget.Validate(BaseDirectory, allowUnavailableArtwork);
         }
     }
 }

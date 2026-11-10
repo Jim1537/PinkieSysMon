@@ -108,6 +108,59 @@ internal static class Issue105EditorLoggingTests
             "Operation records must not contain serialized dashboard content.");
     });
 
+    public static void MissingAndCorruptArtworkRecovery() => WithEditor((root, editor, log, messages) =>
+    {
+        var path = CreateDashboard(root, "Artwork");
+        var directory = Path.GetDirectoryName(path)!;
+        using (var pixel = new SkiaSharp.SKBitmap(2, 2))
+        {
+            pixel.Erase(SkiaSharp.SKColors.Blue);
+            using var png = pixel.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(Path.Combine(directory, "valid.png"), png.ToArray());
+        }
+        var board = new C.DashboardDefinition { BaseDirectory = directory };
+        board.Canvas.Width = board.Canvas.Height = 48;
+        board.Canvas.BackgroundImage.Asset.Source = "valid.png";
+        board.Canvas.ForegroundImage.Asset.Source = "bad.png";
+        board.Widgets.Add(new C.ImageWidgetDefinition
+        {
+            Id = "photo", Width = 16, Height = 16, Asset = new() { Source = "lost.png" }
+        });
+        File.WriteAllText(Path.Combine(directory, "bad.png"), "not an image");
+        var original = DashboardJson.SerializeEditorSnapshot(board);
+        File.WriteAllText(path, original);
+        bool Save() => (bool)Invoke(editor, "SaveDashboard")!;
+        C.DashboardDefinition Current() => Get<C.DashboardDefinition>(editor, "_definition");
+        Check((bool)Invoke(editor, "LoadDashboard", "Artwork")! && !Get<bool>(editor, "_dirty") &&
+              messages.Any(m => m.Contains("bad.png") && m.Contains("lost.png")),
+            "Editor must open cleanly and identify both unusable sources.");
+        var metrics = new Dictionary<string, object?>();
+        using (var bitmap = SkiaSharp.SKBitmap.Decode(Get<DashboardPreviewRenderer>(editor, "_preview").RenderToPng(metrics)))
+            Check(bitmap.GetPixel(5, 5) == SkiaSharp.SKColors.Blue, "Valid artwork must remain visible behind unavailable layers.");
+        Check(!Save() && File.ReadAllText(path) == original, "Failed Save must preserve the file.");
+
+        var first = Invoke(editor, "CaptureSnapshot")!;
+        ((C.ImageWidgetDefinition)Current().Widgets[0]).Asset.Source = "valid.png";
+        Invoke(editor, "PushUndo", first);
+        Check(!Save() && File.ReadAllText(path) == original, "A corrupt file alone must block Save.");
+        var second = Invoke(editor, "CaptureSnapshot")!;
+        Current().Canvas.ForegroundImage.Asset.Source = null;
+        Invoke(editor, "PushUndo", second);
+        Invoke(editor, "Undo");
+        Check(Current().Canvas.ForegroundImage.Asset.Source == "bad.png" && !Save(), "Undo must restore the repairable source.");
+        Invoke(editor, "Redo");
+        Check(Save() && (bool)Invoke(editor, "LoadDashboard", "Artwork")!, "Repair must allow Save and reopen.");
+        using var runtime = new DashboardRenderer(C.DashboardDefinition.Load(path));
+        using var frame = runtime.RenderBgra(metrics);
+        Check(frame.Bitmap.GetPixel(5, 5) == SkiaSharp.SKColors.Blue, "Runtime must render the repaired dashboard.");
+        // Corruption after opening must also be detected despite an already-cached valid frame.
+        var repaired = File.ReadAllText(path);
+        File.WriteAllText(Path.Combine(directory, "valid.png"), "broken after open");
+        Check(!Save() && File.ReadAllText(path) == repaired, "Save must recheck cached artwork against disk.");
+        File.WriteAllText(path, original.Replace("lost.png", "../escaped.png", StringComparison.Ordinal));
+        Check(!(bool)Invoke(editor, "LoadDashboard", "Artwork")!, "Recovery must reject a path outside the dashboard.");
+    });
+
     public static void LockedJsonSaveFailure() => WithEditor((root, editor, log, messages) =>
     {
         var path = CreateDashboard(root, "Locked");

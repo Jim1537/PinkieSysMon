@@ -33,6 +33,12 @@ internal static class GlobalAssetResolver
     public static string ResolveIconFromRoot(string applicationRoot, string logicalName)
     {
         var (library, name) = ParseIconName(logicalName);
+        var explicitExtension = Path.GetExtension(name);
+        if (!string.IsNullOrWhiteSpace(explicitExtension) && !IsSupportedIconExtension(explicitExtension))
+            throw new InvalidDataException(
+                $"Global icon '{logicalName}' uses unsupported format '{explicitExtension}'. " +
+                $"Supported formats: {string.Join(", ", SupportedIconExtensions)}.");
+
         var iconsRoot = Path.Combine(applicationRoot, "assets", "icons");
         if (!Directory.Exists(iconsRoot))
             throw new DirectoryNotFoundException($"Global icons directory was not found: '{iconsRoot}'.");
@@ -46,16 +52,8 @@ internal static class GlobalAssetResolver
                 $"Icon library '{library}' was not found under '{iconsRoot}'.",
                 Path.Combine(iconsRoot, library));
 
-        var explicitExtension = Path.GetExtension(name);
         if (!string.IsNullOrWhiteSpace(explicitExtension))
         {
-            if (!IsSupportedIconExtension(explicitExtension))
-            {
-                throw new InvalidDataException(
-                    $"Global icon '{logicalName}' uses unsupported format '{explicitExtension}'. " +
-                    $"Supported formats: {string.Join(", ", SupportedIconExtensions)}.");
-            }
-
             var exact = FindFileCaseInsensitive(libraryDirectory, name);
             if (exact is not null)
                 return exact;

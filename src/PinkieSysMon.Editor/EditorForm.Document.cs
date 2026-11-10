@@ -49,6 +49,33 @@ internal sealed partial class EditorForm
         }
     }
 
+    private string SerializeDashboardForSave(CanonicalDashboardDefinition definition)
+    {
+        // Files can change on disk after the preview cached them. Refresh once at the write boundary.
+        var recovery = new EditorArtworkRecovery();
+        using (var images = new ImageAssetCache(definition.BaseDirectory, recovery))
+        using (var icons = new IconAssetCache(definition.BaseDirectory, recovery))
+        {
+            images.Preload(definition.Widgets);
+            icons.Preload(definition.Widgets);
+            foreach (var layer in new[] { definition.Canvas.BackgroundImage, definition.Canvas.ForegroundImage })
+            {
+                var asset = layer.Asset;
+                if (string.IsNullOrWhiteSpace(asset.Source)) continue;
+                if (DashboardModel.ImageAssetSourceType.IsIcon(asset.SourceType)) icons.Get(asset.Source);
+                else images.Get(asset.Source);
+            }
+        }
+        if (_artworkRecovery.Sources.Count > 0 || recovery.Sources.Count > 0)
+        {
+            ReplacePreviewRenderer(definition);
+            if (_artworkRecovery.Sources.Count > 0)
+                throw new InvalidDataException("Replace or clear these artwork sources before saving:\n" +
+                    string.Join(Environment.NewLine, _artworkRecovery.Sources));
+        }
+        return DashboardJson.Serialize(definition, indented: true);
+    }
+
     private bool SaveDashboard()
     {
         if (_definition is null || string.IsNullOrWhiteSpace(_dashboardPath))
@@ -59,7 +86,7 @@ internal sealed partial class EditorForm
         try
         {
             operation.Phase("serialize");
-            var text = DashboardJson.Serialize(_definition, indented: true) + Environment.NewLine;
+            var text = SerializeDashboardForSave(_definition) + Environment.NewLine;
             var temp = _dashboardPath + ".tmp";
             operation.Phase("json.write");
             File.WriteAllText(temp, text);
@@ -138,7 +165,7 @@ internal sealed partial class EditorForm
                 var destinationPath = DashboardCatalog.GetDefinitionPath(_root, name);
                 destinationDirectory = Path.GetDirectoryName(destinationPath)!;
                 operation.Phase("serialize");
-                var serialized = DashboardJson.Serialize(_definition, indented: true) + Environment.NewLine;
+                var serialized = SerializeDashboardForSave(_definition) + Environment.NewLine;
                 operation.Phase("directory.copy");
                 copyStarted = true;
                 CopyDashboardDirectory(sourceDirectory, destinationDirectory);
