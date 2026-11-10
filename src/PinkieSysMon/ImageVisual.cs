@@ -233,6 +233,7 @@ internal sealed class ImageVisual : IDisposable
         long? elapsedMs)
     {
         ArgumentNullException.ThrowIfNull(canvas);
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
 
         if (_icon is not null)
         {

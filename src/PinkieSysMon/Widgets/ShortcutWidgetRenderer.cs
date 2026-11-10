@@ -35,7 +35,7 @@ internal sealed class ShortcutWidgetRenderer : IWidgetRenderer, IWidgetOverlayRe
                     shortcut.Asset.Fit, shortcut.Asset.Loop, shortcut.Opacity, shortcut.Color, context.Antialias);
             _compiled.Add(shortcut, visual);
         }
-        visual.Draw(canvas, new SKRect(shortcut.X, shortcut.Y, shortcut.X + shortcut.Width, shortcut.Y + shortcut.Height), context.Antialias);
+        visual.Draw(canvas, WidgetGeometry.GetArtworkBounds(shortcut), context.Antialias);
     }
 
     public void RenderOverlay(SKCanvas canvas, C.WidgetDefinition widget, WidgetRenderContext context)

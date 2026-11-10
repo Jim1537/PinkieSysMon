@@ -231,7 +231,7 @@ For **Gauge**, the ratio controls the active arc sweep and, when enabled, the ne
 
 ### Arc Geometry and Direction
 
-Gauge is a square instrument: `Height = Width` and the renderer uses a center at `(Width/2, Width/2)` with `OuterRadius = Width/2` in local coordinates.
+Gauge has a square container. The dial is centered in its padded content rectangle. Its outer radius is half the smaller inner dimension.
 
 The arc contract is:
 
@@ -259,7 +259,7 @@ The track's geometry is based on `Width`, `Track.BorderWidth`, `Gap`, and `Track
 
 The required radial fit constraint, when the track is enabled, is:
 
-  `2 * Track.BorderWidth + 2 * Gap + Track.Thickness <= Width / 2`
+  `2 * Track.BorderWidth + 2 * Gap + Track.Thickness <= OuterRadius`
 
 The track background and border are not automatically colored by the current threshold state. The active fill uses the threshold mode and base foreground color.
 

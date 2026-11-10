@@ -25,6 +25,10 @@ Type, ID and Z-order are read-only. Use the layer commands to change draw order.
 
 Enter Padding as one nonnegative number or four separated by `|` in top, right, bottom, left order. For example, `0|0|0|8` reserves eight pixels on the left. The default is `0`. Gauge retains track and needle dimensions in pixels and rejects insets that leave insufficient dial radius. Border Width = 0 disables the other Border controls while retaining their values.
 
+Padding is applied in local coordinates before rotation. The container color, background image and border keep their outer bounds. Graph uses the inner rectangle for its plot. Shortcut uses it for the artwork and measures the detached label against the full graphic width. Text wraps at the inner width and includes vertical padding in its automatic height. With Baseline alignment, Y = 100 and top padding = 8 place the first baseline at 108.
+
+The border follows the local Top, Right, Bottom and Left switches. On a rounded corner each adjacent side owns 45 degrees of the arc. Dotted draws round dots with a diameter equal to Border Width. The pattern continues across adjacent enabled sides and closes evenly around a complete outline.
+
 <!-- --8<-- [end:widget-base-fields] -->
 
 
@@ -632,7 +636,7 @@ Enter Padding as one nonnegative number or four separated by `|` in top, right, 
 
     **Gauge note:**
     - In the current Editor, Gap remains editable regardless of [Track Enabled](properties.md#track-enabled).
-    - With the track enabled, `2*[Border Width](properties.md#track-border-width) + 2*Gap + [Thickness](properties.md#track-thickness)` must fit within `[Width](properties.md#width)/2`.
+    - With the track enabled, `2*[Border Width](properties.md#track-border-width) + 2*Gap + [Thickness](properties.md#track-thickness)` must fit within half the smaller padded content dimension.
 
 <!-- --8<-- [end:gap] -->
 

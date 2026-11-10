@@ -60,6 +60,8 @@ internal sealed class TextContentRenderer : IDisposable
                     text,
                     presentation,
                     autoHeight: UsesAutoHeight(layoutMode));
+                bounds = WidgetGeometry.InsetContent(bounds, widget.Padding);
+                if (bounds.Width <= 0 || bounds.Height <= 0) return;
                 canvas.Save();
                 try
                 {
@@ -83,7 +85,15 @@ internal sealed class TextContentRenderer : IDisposable
             }
             else
             {
-                DrawTextAt(canvas, text, style.Font, widget.X, GetBaseline(widget, style.Metrics, presentation), style.Align, style);
+                var padding = widget.Padding;
+                var x = widget.X + (style.Align switch
+                {
+                    SKTextAlign.Right => -padding.Right,
+                    SKTextAlign.Center => (padding.Left - padding.Right) / 2f,
+                    _ => padding.Left
+                });
+                var baseline = GetBaseline(widget, style.Metrics, presentation) + ValueTextLayout.GetVerticalPaddingOffset(padding, presentation);
+                DrawTextAt(canvas, text, style.Font, x, baseline, style.Align, style);
             }
 
             return;
@@ -98,12 +108,18 @@ internal sealed class TextContentRenderer : IDisposable
                 presentation,
                 autoHeight: UsesAutoHeight(layoutMode))
             : default);
+        if (IsContainerLayout(layoutMode))
+        {
+            if (!boundsOverride.HasValue) containerBounds = WidgetGeometry.InsetContent(containerBounds, widget.Padding);
+            if (containerBounds.Width <= 0 || containerBounds.Height <= 0) return;
+        }
+        else if (widget.Width - widget.Padding.Left - widget.Padding.Right <= 0) return;
         var cached = GetLayout(widget, context, text, mode, layoutMode, containerBounds, presentation);
         var layout = cached.Layout;
         var font = cached.Font;
         var alignmentBounds = IsContainerLayout(layoutMode)
             ? containerBounds
-            : new SKRect(widget.X, layout.Bounds.Top, widget.X + widget.Width, layout.Bounds.Bottom);
+            : layout.Bounds;
 
         canvas.Save();
         try
@@ -171,6 +187,7 @@ internal sealed class TextContentRenderer : IDisposable
             mode,
             layoutMode,
             containerBounds,
+            widget.Padding,
             widget.X,
             widget.Y,
             widget.Width,
@@ -191,7 +208,7 @@ internal sealed class TextContentRenderer : IDisposable
             : ValueTextLayout.CreateFixedLayout(widget, context, text, presentation);
         var font = new SKFont(context.GetTypeface(presentation), layout.FontSize);
         var textWidth = font.MeasureText(text);
-        var maxWidth = IsContainerLayout(layoutMode) ? containerBounds.Width : widget.Width;
+        var maxWidth = layout.Bounds.Width;
         var ellipsized = mode == ValueOverflowContract.Ellipsis
             ? ValueTextLayout.Ellipsize(font, text, maxWidth)
             : text;
@@ -439,6 +456,7 @@ internal sealed class TextContentRenderer : IDisposable
         string Mode,
         TextContentLayoutMode LayoutMode,
         SKRect ContainerBounds,
+        CanonicalDashboard.WidgetPadding Padding,
         float X,
         float Y,
         float Width,

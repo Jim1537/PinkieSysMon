@@ -22,14 +22,16 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             r = new Resources(graph, images, icons, capacity, context.Antialias);
             _resources.Add(widget, r); _scratchBytes += bytes;
         }
-        if (r.Bounds.Width <= 0 || r.Bounds.Height <= 0) return;
-        r.PrepareFrame(graph, context);
+        if (r.BackgroundBounds.Width <= 0 || r.BackgroundBounds.Height <= 0) return;
         canvas.Save();
         try
         {
             canvas.Translate(graph.X, graph.Y);
             canvas.ClipRoundRect(r.Clip, SKClipOperation.Intersect, context.Antialias);
-            r.Image?.Draw(canvas, r.Bounds, context.Antialias);
+            r.Image?.Draw(canvas, r.BackgroundBounds, context.Antialias);
+            if (r.Bounds.Width <= 0 || r.Bounds.Height <= 0) return;
+            r.PrepareFrame(graph, context);
+            if (graph.Padding != default) canvas.ClipRect(r.Bounds);
             if (r.SelectedCount == 0) return;
             if (graph.Mode == "Line" && graph.FillEnabled) r.DrawFills(canvas, graph);
             for (var i = 0; i < r.SelectedCount; i++)
@@ -81,6 +83,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public readonly QuantitativeColorScale Colors;
         public readonly bool Reverse;
         private readonly GraphFilterProjection? _filter;
+        public SKRect BackgroundBounds;
         public SKRect Bounds;
         public readonly SKRoundRect Clip = new();
         public readonly SKPaint Stroke;
@@ -114,9 +117,10 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public void UpdateGeometry(C.GraphWidgetDefinition graph)
         {
             var inset = Math.Max(0, graph.BorderWidth);
-            Bounds = new(inset, inset, graph.Width - inset, graph.Height - inset);
-            var radius = Math.Max(0, Math.Min(graph.CornerRadius - inset, Math.Min(Bounds.Width, Bounds.Height) / 2));
-            Clip.SetRect(Bounds, radius, radius);
+            BackgroundBounds = new(inset, inset, graph.Width - inset, graph.Height - inset);
+            Bounds = WidgetGeometry.InsetContent(BackgroundBounds, graph.Padding);
+            var radius = Math.Max(0, Math.Min(graph.CornerRadius - inset, Math.Min(BackgroundBounds.Width, BackgroundBounds.Height) / 2));
+            Clip.SetRect(BackgroundBounds, radius, radius);
             _frame = -1; _shaderRange = null;
         }
 

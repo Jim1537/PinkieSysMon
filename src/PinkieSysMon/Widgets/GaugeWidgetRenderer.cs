@@ -352,8 +352,9 @@ internal sealed class GaugeWidgetRenderer : IWidgetRenderer, IDisposable
 
             try
             {
-                var center = new SKPoint(widget.Width / 2f, widget.Width / 2f);
-                var outerRadius = widget.Width / 2f;
+                var padded = WidgetGeometry.InsetContent(new SKRect(0, 0, widget.Width, widget.Height), widget.Padding);
+                var center = new SKPoint(padded.MidX, padded.MidY);
+                var outerRadius = (float)widget.Padding.GetInscribedRadius(widget.Width, widget.Height);
                 var trackEnvelopeDepth = 2f * widget.Track.BorderWidth + 2f * widget.Gap + widget.Track.Thickness;
                 var trackEnvelopeInnerRadius = Math.Max(0f, outerRadius - trackEnvelopeDepth);
                 var trackOuterRadius = Math.Max(0f, outerRadius - widget.Track.BorderWidth - widget.Gap);

@@ -81,6 +81,11 @@ internal static class ShortcutRenderTests
                 context.InvalidateGeometry(shortcut);
                 var measured = ValueTextLayout.CreateFixedLayout(shortcut, context, shortcut.Label, shortcut.TextPresentation.ToRenderProfile());
                 var label = ShortcutLabelLayout.GetBounds(shortcut, context)!.Value;
+                shortcut.Padding = new(4, 8, 12, 16);
+                Check(ShortcutLabelLayout.GetBounds(shortcut, context) == label &&
+                      WidgetGeometry.GetArtworkBounds(shortcut) == new SKRect(86, 74, 152, 118),
+                    "Padding must inset only Shortcut artwork.");
+                shortcut.Padding = default;
                 var expectedY = position == ShortcutContract.Top ? shortcut.Y - gap - measured.Bounds.Height :
                     position == ShortcutContract.Middle ? shortcut.Y + (shortcut.Height - measured.Bounds.Height) / 2 : shortcut.Y + shortcut.Height + gap;
                 Check(Math.Abs(label.Top - expectedY) < .001 && label.Width == shortcut.Width && Math.Abs(label.Height - measured.Bounds.Height) < .001,

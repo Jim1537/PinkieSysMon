@@ -32,7 +32,7 @@ internal sealed class StateIconVisualCache : IDisposable
         if (string.IsNullOrWhiteSpace(profile.Source))
             return;
 
-        var bounds = GetBounds(widget);
+        var bounds = WidgetGeometry.GetArtworkBounds(widget);
         GetOrCreate(widget, context, profile, fit, loop).Draw(canvas, bounds, context.Antialias);
     }
 
@@ -48,7 +48,7 @@ internal sealed class StateIconVisualCache : IDisposable
         if (string.IsNullOrWhiteSpace(profile.Source))
             return;
 
-        var bounds = GetBounds(widget);
+        var bounds = WidgetGeometry.GetArtworkBounds(widget);
         GetOrCreate(widget, context, profile, fit, loop)
             .DrawAtElapsed(canvas, bounds, context.Antialias, elapsedMs);
     }
@@ -81,9 +81,6 @@ internal sealed class StateIconVisualCache : IDisposable
         _compiled.Add(key, visual);
         return visual;
     }
-
-    private static SKRect GetBounds(CanonicalWidgetDefinition widget) =>
-        new(widget.X, widget.Y, widget.X + widget.Width, widget.Y + widget.Height);
 
     public void Dispose()
     {

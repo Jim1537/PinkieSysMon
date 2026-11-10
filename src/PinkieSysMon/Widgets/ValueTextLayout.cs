@@ -30,11 +30,14 @@ internal static class ValueTextLayout
         CanonicalWidgetDefinition widget,
         WidgetRenderContext context,
         string text,
-        TextPresentation presentation)
+        TextPresentation presentation,
+        bool applyPadding = true)
     {
         if (widget.Width <= 0f)
             throw new ArgumentOutOfRangeException(nameof(widget.Width), "Fixed value layout requires Width > 0.");
 
+        var padding = applyPadding ? widget.Padding : default;
+        var width = Math.Max(0f, widget.Width - padding.Left - padding.Right);
         var mode = ValueOverflowContract.Normalize(presentation.OverflowMode);
         var fontSize = presentation.FontSize;
 
@@ -42,14 +45,14 @@ internal static class ValueTextLayout
         {
             using var originalFont = new SKFont(context.GetTypeface(presentation), presentation.FontSize);
             var measured = originalFont.MeasureText(text);
-            if (measured > widget.Width && measured > 0f)
-                fontSize = Math.Max(0.1f, presentation.FontSize * widget.Width / measured);
+            if (measured > width && measured > 0f)
+                fontSize = Math.Max(0.1f, presentation.FontSize * width / measured);
         }
 
         IReadOnlyList<string> lines;
         using var font = new SKFont(context.GetTypeface(presentation), fontSize);
         lines = mode == ValueOverflowContract.Wrap
-            ? WrapText(font, text, widget.Width)
+            ? WrapText(font, text, width)
             : [text];
 
         var metrics = font.Metrics;
@@ -70,15 +73,22 @@ internal static class ValueTextLayout
                         ? widget.Y - bottomOffset
                         : widget.Y;
 
+        firstBaseline += GetVerticalPaddingOffset(padding, presentation);
         var bounds = new SKRect(
-            widget.X,
+            widget.X + padding.Left,
             firstBaseline + topOffset,
-            widget.X + widget.Width,
+            widget.X + padding.Left + width,
             firstBaseline + bottomOffset);
 
         return new ValueTextBlockLayout(fontSize, lines, firstBaseline, lineHeight, bounds);
     }
 
+
+    internal static float GetVerticalPaddingOffset(CanonicalDashboard.WidgetPadding padding, TextPresentation presentation) =>
+        presentation.VerticalAlign.Equals("bottom", StringComparison.OrdinalIgnoreCase) ? -padding.Bottom :
+        presentation.VerticalAlign.Equals("middle", StringComparison.OrdinalIgnoreCase) ||
+        presentation.VerticalAlign.Equals("center", StringComparison.OrdinalIgnoreCase) ? (padding.Top - padding.Bottom) / 2f :
+        padding.Top;
 
     /// <summary>
     /// Resolves the effective top-left container used when shared text content is hosted by
@@ -111,12 +121,12 @@ internal static class ValueTextLayout
         else
         {
             using var font = new SKFont(context.GetTypeface(presentation), presentation.FontSize);
-            width = Math.Max(1f, font.MeasureText(text));
+            width = Math.Max(1f, font.MeasureText(text)) + widget.Padding.Left + widget.Padding.Right;
             var metrics = font.Metrics;
             contentHeight = Math.Max(1f, metrics.Descent - metrics.Ascent);
         }
 
-        var height = !autoHeight && widget.Height > 0f ? widget.Height : contentHeight;
+        var height = !autoHeight && widget.Height > 0f ? widget.Height : contentHeight + widget.Padding.Top + widget.Padding.Bottom;
         return new SKRect(widget.X, widget.Y, widget.X + width, widget.Y + height);
     }
 

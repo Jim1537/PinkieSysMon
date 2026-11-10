@@ -10,7 +10,7 @@ internal static class ShortcutLabelLayout
         if (widget.Label.Length == 0)
             return null;
         var text = widget.TextPresentation.ToRenderProfile();
-        var height = ValueTextLayout.CreateFixedLayout(widget, context, widget.Label, text).Bounds.Height;
+        var height = ValueTextLayout.CreateFixedLayout(widget, context, widget.Label, text, applyPadding: false).Bounds.Height;
         var y = string.Equals(widget.LabelPosition, ShortcutContract.Top, StringComparison.OrdinalIgnoreCase)
             ? widget.Y - widget.Gap - height
             : string.Equals(widget.LabelPosition, ShortcutContract.Middle, StringComparison.OrdinalIgnoreCase)

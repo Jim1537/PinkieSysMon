@@ -325,6 +325,9 @@ internal static class GraphWidgetTests
             var left = RenderPixel(10); var right = RenderPixel(90);
             Check(left.Blue > 245 && right.Red > 245 && Math.Abs(left.Alpha - 191) <= 1,
                 "Reverse must not mirror the background, and file opacity must remain independent of icon tint.");
+            imageGraph.Padding = new(0, 80, 0, 80);
+            Check(RenderPixel(10) == left && RenderPixel(90) == right, "An empty plot must retain the complete background image.");
+            imageGraph.Padding = default;
             imageGraph.Image.Opacity = .25f;
             Check(Math.Abs(RenderPixel(10).Alpha - 64) <= 1, "Rebuilt Graph preview must apply edited file opacity.");
         }

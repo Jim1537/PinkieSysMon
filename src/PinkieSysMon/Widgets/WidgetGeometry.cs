@@ -9,6 +9,12 @@ internal static class WidgetGeometry
 {
     private const float MinimumPointExtent = 1f;
 
+    public static SKRect InsetContent(SKRect bounds, CanonicalDashboard.WidgetPadding p) =>
+        new(bounds.Left + p.Left, bounds.Top + p.Top, bounds.Right - p.Right, bounds.Bottom - p.Bottom);
+
+    public static SKRect GetArtworkBounds(CanonicalWidgetDefinition widget) =>
+        InsetContent(new SKRect(widget.X, widget.Y, widget.X + widget.Width, widget.Y + widget.Height), widget.Padding);
+
     public static float GetNormalizedRotation(CanonicalWidgetDefinition widget)
     {
         if (double.IsNaN(widget.Rotation) || double.IsInfinity(widget.Rotation))
@@ -56,7 +62,10 @@ internal static class WidgetGeometry
         }
 
         if (widget is CanonicalDashboard.ValueWidgetDefinition value && value.Width > 0f)
-            return Normalize(ValueTextLayout.CreateFixedLayout(value, context, context.ResolveValueText(value), value.TextPresentation.ToRenderProfile()).Bounds);
+        {
+            var inner = ValueTextLayout.CreateFixedLayout(value, context, context.ResolveValueText(value), value.TextPresentation.ToRenderProfile()).Bounds;
+            return Normalize(new SKRect(value.X, inner.Top - value.Padding.Top, value.X + value.Width, inner.Bottom + value.Padding.Bottom));
+        }
 
         if (widget is CanonicalDashboard.ValueWidgetDefinition intrinsicValue)
             return GetTextLayoutBounds(intrinsicValue, context, context.ResolveValueText(intrinsicValue));
@@ -265,7 +274,7 @@ internal static class WidgetGeometry
     {
         var presentation = widget.TextPresentation.ToRenderProfile();
         using var font = new SKFont(context.GetTypeface(presentation), presentation.FontSize);
-        var width = Math.Max(MinimumPointExtent, font.MeasureText(text));
+        var width = Math.Max(MinimumPointExtent, font.MeasureText(text)) + widget.Padding.Left + widget.Padding.Right;
         var metrics = font.Metrics;
         var baseline =
             presentation.VerticalAlign.Equals("top", StringComparison.OrdinalIgnoreCase)
@@ -277,6 +286,7 @@ internal static class WidgetGeometry
                         ? widget.Y - metrics.Descent
                         : widget.Y;
 
+        baseline += ValueTextLayout.GetVerticalPaddingOffset(widget.Padding, presentation);
         var left =
             presentation.Align.Equals("center", StringComparison.OrdinalIgnoreCase)
                 ? widget.X - width / 2f
@@ -286,9 +296,9 @@ internal static class WidgetGeometry
 
         return Normalize(new SKRect(
             left,
-            baseline + metrics.Ascent,
+            baseline + metrics.Ascent - widget.Padding.Top,
             left + width,
-            baseline + metrics.Descent));
+            baseline + metrics.Descent + widget.Padding.Bottom));
     }
 
     private static SKPoint RotatePoint(SKPoint point, SKPoint center, float degrees)
@@ -485,6 +495,26 @@ internal static class WidgetEffects
         var borderRadius = Math.Min(
             Math.Max(0f, radius - inset),
             Math.Min(borderBounds.Width, borderBounds.Height) / 2f);
+
+        var sides = (widget.BorderTop ? 1 : 0) | (widget.BorderRight ? 2 : 0) |
+                    (widget.BorderBottom ? 4 : 0) | (widget.BorderLeft ? 8 : 0);
+        var dotted = widget.BorderStyle == CanonicalDashboard.WidgetBorderStyle.Dotted;
+        if (sides != 15 || dotted)
+        {
+            if (sides == 0) return;
+            var key = new WidgetBorderPath.Geometry(borderBounds.Width, borderBounds.Height, borderRadius,
+                widget.BorderWidth, sides, dotted);
+            var path = container.GetBorderPath(key);
+            canvas.Save();
+            try
+            {
+                canvas.Translate(borderBounds.Left, borderBounds.Top);
+                paint.StrokeCap = dotted ? SKStrokeCap.Round : SKStrokeCap.Butt;
+                path.Draw(canvas, paint);
+            }
+            finally { canvas.Restore(); }
+            return;
+        }
 
         if (borderRadius > 0f)
             canvas.DrawRoundRect(borderBounds, borderRadius, borderRadius, paint);

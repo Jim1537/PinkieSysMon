@@ -27,7 +27,7 @@ internal sealed class ImageWidgetRenderer : IWidgetRenderer, IDisposable
             return;
 
         var compiled = GetCompiled(image, context.Antialias);
-        var bounds = new SKRect(image.X, image.Y, image.X + image.Width, image.Y + image.Height);
+        var bounds = WidgetGeometry.GetArtworkBounds(image);
         compiled.Draw(canvas, bounds, context.Antialias);
     }
 

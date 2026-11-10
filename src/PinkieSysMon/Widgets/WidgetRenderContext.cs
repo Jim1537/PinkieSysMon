@@ -305,6 +305,8 @@ internal sealed class WidgetRenderContext : IDisposable
 
     public void InvalidateGeometry(CanonicalWidgetDefinition widget)
     {
+        if (_containerResources.Remove(widget, out var container))
+            container.Dispose();
         if (!_shadowResources.Remove(widget, out var shadow))
             return;
 
@@ -416,6 +418,18 @@ internal sealed class WidgetRenderContext : IDisposable
         public SKPaint? BorderPaint { get; }
         public SKRoundRect ClipRoundRect { get; }
 
+        private WidgetBorderPath? _borderPath;
+        internal WidgetBorderPath GetBorderPath(WidgetBorderPath.Geometry geometry)
+        {
+            if (_borderPath is null || _borderPath.Key != geometry)
+            {
+                var next = new WidgetBorderPath(geometry);
+                _borderPath?.Dispose();
+                _borderPath = next;
+            }
+            return _borderPath;
+        }
+
         public static ContainerRenderResources Create(CanonicalWidgetDefinition widget, bool antialias)
         {
             SKPaint? background = null;
@@ -434,7 +448,7 @@ internal sealed class WidgetRenderContext : IDisposable
                     };
                 }
 
-                if (widget.BorderWidth > 0f)
+                if (widget.BorderWidth > 0f && (widget.BorderTop || widget.BorderRight || widget.BorderBottom || widget.BorderLeft))
                 {
                     var borderColor = ColorParser.Parse(widget.BorderColor);
                     if (borderColor.Alpha > 0)
@@ -464,6 +478,7 @@ internal sealed class WidgetRenderContext : IDisposable
 
         public void Dispose()
         {
+            _borderPath?.Dispose();
             ClipRoundRect.Dispose();
             BackgroundPaint?.Dispose();
             BorderPaint?.Dispose();
