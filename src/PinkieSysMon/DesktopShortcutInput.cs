@@ -6,6 +6,13 @@ namespace PinkieSysMon;
 // UI-thread owned, input-only HWND. The layered visual retains its normal Lock style.
 internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
 {
+    private const int WmSetCursor = 0x0020;
+    private const ushort HtClient = 1;
+
+    // Only the native Shortcut hit region owns the link-select cursor.
+    internal static bool ShouldUseHandCursor(int message, IntPtr details) =>
+        message == WmSetCursor && unchecked((ushort)details.ToInt64()) == HtClient;
+
     private readonly ShortcutInteractionMap _map;
     private readonly Form _visual;
     private readonly bool _locked;
@@ -117,6 +124,13 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
 
     protected override void WndProc(ref Message m)
     {
+        if (ShouldUseHandCursor(m.Msg, m.LParam))
+        {
+            SetCursor(Cursors.Hand.Handle);
+            m.Result = new IntPtr(1); // WM_SETCURSOR handled; prevent the class cursor from replacing it.
+            return;
+        }
+
         var point = new Point(unchecked((short)m.LParam.ToInt64()), unchecked((short)(m.LParam.ToInt64() >> 16)));
         switch (m.Msg)
         {
@@ -172,6 +186,7 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     [DllImport("user32.dll")] private static extern IntPtr SetCapture(IntPtr window);
     [DllImport("user32.dll")] private static extern IntPtr GetCapture();
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern IntPtr SetCursor(IntPtr cursor);
     [DllImport("user32.dll")] private static extern int GetMessageTime();
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)]

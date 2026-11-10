@@ -75,5 +75,23 @@ internal static class ShortcutInteractionTests
         finally { release.Set(); }
     }
 
+    public static void DesktopHoverCursorRouting()
+    {
+        // WM_SETCURSOR carries a hit-test code in LOWORD, independent of the triggering mouse message.
+        static IntPtr Details(ushort hitTest, ushort origin) =>
+            new(unchecked((int)(((uint)origin << 16) | hitTest)));
+
+        const int wmSetCursor = 0x0020;
+        Check(DesktopShortcutInput.ShouldUseHandCursor(wmSetCursor, Details(1, 0x0200)) &&
+              DesktopShortcutInput.ShouldUseHandCursor(wmSetCursor, Details(1, 0)),
+            "Client-area mouse movement and menu-originated cursor messages must request the hand.");
+        foreach (var hitTest in new ushort[] { 0, 2, 3, 0xFFFF })
+            Check(!DesktopShortcutInput.ShouldUseHandCursor(wmSetCursor, Details(hitTest, 0x0200)),
+                "Nonclient and non-hit regions must keep their native cursor behavior.");
+        Check(!DesktopShortcutInput.ShouldUseHandCursor(0x0200, Details(1, 0x0200)) &&
+              !DesktopShortcutInput.ShouldUseHandCursor(0x0201, Details(1, 0x0200)),
+            "Ordinary mouse movement and clicks must not be mistaken for a cursor-setting message.");
+    }
+
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

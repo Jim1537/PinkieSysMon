@@ -189,6 +189,7 @@ internal static partial class Program
                 ("Target property label and snapshot integration", ShortcutEditorTests.TargetEditingAndSnapshots),
                 ("production input raster and snapshot", ShortcutInteractionTests.RasterAndSnapshot),
                 ("production gesture and Shell boundary", ShortcutInteractionTests.GesturesAndShellBoundary),
+                ("Desktop Shortcut link-select cursor routing", ShortcutInteractionTests.DesktopHoverCursorRouting),
                 ("label composition effects and shared artwork", ShortcutRenderTests.LabelsEffectsAndSharedArtwork),
                 ("Shell artwork cache and retirement", ShortcutRenderTests.ShellArtworkCacheLifetime),
                 ("Editor properties and applicability", ShortcutEditorTests.PropertiesAndApplicability),
