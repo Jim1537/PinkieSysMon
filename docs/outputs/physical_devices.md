@@ -56,6 +56,7 @@ The production factory adds a per-connection `PhysicalIoDiagnostics` observer fo
 | --- | --- |
 | Acquisition and disposal | Begin and returned outcome; a missing exact binding is informational. A returned Dispose is not independent proof every native release succeeded; failed WinUSB release is recorded as unconfirmed. |
 | Healthy frames | First completed frame and approximately 30-second progress snapshots; per-write/chunk success stays in bounded memory rather than producing a disk record. |
+| TURZX brightness change | The observer forwards committed hardware brightness to the underlying adapter on the existing USB session and records changed-value attempts as `PHYSICAL_IO` brightness operations. Null and repeated unchanged values do not create brightness records. Completion records protocol exchange, not measured backlight luminance. |
 | Failed exchange | Full original failure and recent context through the shared error route; propagation reuses the original exception identity. No automatic protocol retry is added. |
 | Long pending phase | A managed timer samples once per second. Phase age beyond configured timeout plus 250 ms is recorded as a pending observation, repeated at most once per 30 seconds while unchanged. This is a diagnostic threshold, not an I/O deadline or proof of a stuck driver. |
 | Returned slow operation | Slow phase duration is retained even if it completes between timer samples. Completion after a pending observation remains distinct from an operation still outstanding. |

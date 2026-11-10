@@ -71,6 +71,66 @@ internal static class Issue105UsbLoggingTests
         Check(connection.Disposals == 1, "The observed transport must preserve single-owner disposal.");
     });
 
+    public static void ObservedBrightnessForwardsToTurzx() => Sandbox((root, log) =>
+    {
+        var clock = new Clock();
+        var connection = new Replies([512, 0, 512, 0, 512, 0, 512, 0, 512, 0]);
+        using (var observed = ObservedPhysicalFrameTransport.Open(Target(), 500, log, default, trace =>
+        {
+            connection.Trace = trace;
+            var transport = new TurzxTransport(connection, () => 0, _ => { }, ioDiagnostics: trace);
+            transport.Synchronize();
+            return new TurzxFrameTransport(transport, default);
+        }, clock, monitor: false)!)
+        {
+            observed.ApplyBrightnessPercentIfChanged(null);
+            observed.ApplyBrightnessPercentIfChanged(20);
+            observed.ApplyBrightnessPercentIfChanged(20);
+            observed.SendJpegWithDiagnostics(Jpeg, default);
+            observed.ApplyBrightnessPercentIfChanged(80);
+            observed.SendJpegWithDiagnostics(Jpeg, default);
+
+            Check(connection.Commands.SequenceEqual(new byte[] { 10, 14, 101, 14, 101 }) &&
+                  connection.Writes == 5 && connection.Reads == 10,
+                "The observed wrapper must forward changed hardware brightness on the same USB session without reopening or per-frame replay.");
+            var events = Context(Read(log.Path));
+            Check(events.Count(e => e.GetProperty("operation").GetString() == "brightness" &&
+                                   e.GetProperty("outcome").GetString() == "completed") == 2 &&
+                  events.Any(e => e.GetProperty("operation").GetString() == "frame" &&
+                                  e.GetProperty("outcome").GetString() == "completed"),
+                "Only changed brightness commands and the first successful frame should be logged as completed exchanges.");
+        }
+        Check(connection.Disposals == 1 && !File.Exists(log.ErrorsPath),
+            "Observed TURZX brightness and JPEG must preserve single-owner disposal and clean error history.");
+    });
+
+    public static void ObservedBrightnessFailureStopsBeforeFrame() => Sandbox((root, log) =>
+    {
+        var clock = new Clock();
+        var connection = new Replies([512, 0, 0]);
+        using var observed = ObservedPhysicalFrameTransport.Open(Target(), 500, log, default, trace =>
+        {
+            connection.Trace = trace;
+            var transport = new TurzxTransport(connection, () => 0, _ => { }, ioDiagnostics: trace);
+            transport.Synchronize();
+            return new TurzxFrameTransport(transport, default);
+        }, clock, monitor: false)!;
+        var failure = Capture(() => observed.ApplyBrightnessPercentIfChanged(20));
+        Check(failure is InvalidDataException &&
+              connection.Commands.SequenceEqual(new byte[] { 10, 14 }) &&
+              connection.Reads == 3,
+            "An unacknowledged brightness response must fail before JPEG without an extra read or retry.");
+        _ = Capture(() => observed.SendJpegWithDiagnostics(Jpeg, default));
+        Check(connection.Writes == 2 && connection.Reads == 3,
+            "An uncertain brightness reply must prohibit subsequent image writes on that connection.");
+        var evidence = Context(Read(log.ErrorsPath)).Single(e =>
+            e.GetProperty("operation").GetString() == "brightness" &&
+            e.GetProperty("outcome").GetString() == "failed");
+        Check(evidence.GetProperty("recent").EnumerateArray().Last()
+                .GetProperty("ActualBytes").GetUInt32() == 0,
+            "The hardware brightness observer must retain the actual empty primary read in the failure context.");
+    });
+
     public static void MalformedFrameBoundariesRetained() => Sandbox((root, log) =>
     {
         foreach (var kind in new[] { "empty", "short", "unknown", "follow-up", "short-write", "native" })
@@ -259,9 +319,11 @@ internal static class Issue105UsbLoggingTests
         public PhysicalIoDiagnostics? Trace;
         public string? FrameFault;
         public int Writes, Reads, Disposals;
+        public List<byte> Commands { get; } = [];
         public int Write(byte[] packet, CancellationToken token)
         {
             Writes++;
+            Commands.Add(packet[0]);
             return FrameFault == "short-write" && Writes > 1 ? packet.Length - 1 : packet.Length;
         }
         public int Read(byte[] buffer, CancellationToken token)

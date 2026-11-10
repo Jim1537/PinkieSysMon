@@ -553,6 +553,8 @@ internal static partial class Program
                 ("USB observer failure preserves completion", Issue105UsbLoggingTests.ObserverFailurePreservesNativeCompletion),
                 ("USB bounded evidence and unknown counts", Issue105UsbLoggingTests.BoundedEvidenceAndUnknownCounts),
                 ("USB healthy sparse stream and exact I/O", Issue105UsbLoggingTests.HealthyStreamIsSparseAndExact),
+                ("TURZX observed brightness forwarded to live JPEG stream", Issue105UsbLoggingTests.ObservedBrightnessForwardsToTurzx),
+                ("TURZX observed brightness reply failure blocks next frame", Issue105UsbLoggingTests.ObservedBrightnessFailureStopsBeforeFrame),
                 ("USB malformed frame evidence and no retry", Issue105UsbLoggingTests.MalformedFrameBoundariesRetained),
                 ("USB pending cancellation and native ownership", Issue105UsbLoggingTests.PendingCancellationKeepsNativeOwnership),
                 ("USB native failure during cancellation", Issue105UsbLoggingTests.NativeFailureDuringCancellationIsRetained),

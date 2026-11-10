@@ -343,6 +343,7 @@ internal sealed class ObservedPhysicalFrameTransport(
 {
     public int WireRotationDegrees => inner.WireRotationDegrees;
     public PhysicalFrameProfile Profile => inner.Profile;
+    private int? _lastAppliedBrightnessPercent;
 
     internal static IPhysicalFrameTransport? Open(OutputTargetConfig target, int timeoutMs, FileLogger log,
         CancellationToken token, Func<PhysicalIoDiagnostics, IPhysicalFrameTransport?> open,
@@ -373,6 +374,37 @@ internal sealed class ObservedPhysicalFrameTransport(
         try { inner.SendJpegWithDiagnostics(jpeg, render); diagnostics.Complete("completed"); }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         { diagnostics.Complete("cancelled-after-transfer-return"); throw; }
+        catch (Exception error) { diagnostics.Fail(error); throw; }
+    }
+
+    public void ApplyBrightnessPercentIfChanged(int? percent)
+    {
+        if (percent is null)
+        {
+            inner.ApplyBrightnessPercentIfChanged(null);
+            _lastAppliedBrightnessPercent = null;
+            return;
+        }
+        if (_lastAppliedBrightnessPercent == percent)
+        {
+            inner.ApplyBrightnessPercentIfChanged(percent);
+            return;
+        }
+
+        // This wrapper owns diagnostics, not hardware policy. A changed value
+        // must reach the inner adapter through the same worker-owned session.
+        diagnostics.Begin("brightness");
+        try
+        {
+            inner.ApplyBrightnessPercentIfChanged(percent);
+            _lastAppliedBrightnessPercent = percent;
+            diagnostics.Complete("completed");
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            diagnostics.Complete("cancelled-after-transfer-return");
+            throw;
+        }
         catch (Exception error) { diagnostics.Fail(error); throw; }
     }
 
