@@ -17,11 +17,11 @@ internal static partial class Program
     private static void WidgetSourcePropertyHierarchy()
     {
         static PropertyDescriptor? SourceProperty(PropertyDescriptorCollection properties, string propertyName) =>
-            GetNestedProperty(properties, propertyName == "Metric" ? "Data Source" : "Source", propertyName);
+            GetNestedProperty(properties, "Data Source", propertyName);
 
         static PropertyDescriptor RequireSourceType(PropertyDescriptorCollection properties, string expectedValue)
         {
-            var group = properties["Source"]
+            var group = properties["Data Source"]
                 ?? throw new InvalidOperationException("Widget Source group is missing.");
             var groupValue = group.GetValue(null)
                 ?? throw new InvalidOperationException("Widget Source group value is missing.");
@@ -101,8 +101,9 @@ internal static partial class Program
                 Source = "example.png"
             }
         };
-        var imageProperties = new EditorPropertyView(image, section: EditorPropertySection.General).GetProperties();
-        var imageType = RequireSourceType(imageProperties, "Image");
+        var imageProperties = new EditorPropertyView(image, section: EditorPropertySection.Image).GetProperties();
+        var imageType = TypeDescriptor.GetProperties(imageProperties["Image"]!.GetValue(null)!)["SourceType"]!
+            ?? throw new InvalidOperationException("Image content source type is missing.");
         var imageTypeOptions = imageType.Converter.GetStandardValues()
             ?.Cast<object>()
             .Select(Convert.ToString)
@@ -110,14 +111,14 @@ internal static partial class Program
             .ToArray() ?? [];
         Assert(imageTypeOptions.SequenceEqual(new[] { "Image", "Icon" }),
             "Image Source/Type must offer Image and Icon.");
-        var imageSource = SourceProperty(imageProperties, "Source");
+        var imageSource = GetNestedProperty(imageProperties, "Image", "Source");
         Assert(imageSource is not null && imageSource.DisplayName == "Image",
             "File-backed Image widget must label its source row as Image.");
         imageType.SetValue(null, "Icon");
         Assert(C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) && image.Asset.Source is null,
             "Image Source/Type transition to Icon must update canonical Asset.SourceType and clear Source atomically.");
-        imageProperties = new EditorPropertyView(image, section: EditorPropertySection.General).GetProperties();
-        imageSource = SourceProperty(imageProperties, "Source");
+        imageProperties = new EditorPropertyView(image, section: EditorPropertySection.Image).GetProperties();
+        imageSource = GetNestedProperty(imageProperties, "Image", "Source");
         Assert(imageSource is not null && imageSource.DisplayName == "Icon",
             "Icon-backed Image widget must label its source row as Icon.");
 
@@ -191,7 +192,7 @@ internal static partial class Program
             var properties = CurrentPropertyView(
                 widget,
                 section: EditorPropertySection.General).GetProperties();
-            foreach (var group in new[] { "Identity", "Data Source", "Geometry" })
+            foreach (var group in new[] { "Identity", "Data Source" })
             {
                 var descriptor = properties[group]
                     ?? throw new InvalidOperationException(
@@ -230,15 +231,16 @@ internal static partial class Program
                    GetNestedProperty(properties, "Identity", "Type") is { IsReadOnly: true } &&
                    GetNestedProperty(properties, "Identity", "Id") is { IsReadOnly: true },
                 $"{type} Identity group must expose Name, read-only Type and ID.");
-            Assert(GetNestedProperty(properties, "Geometry", "X") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Y") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Width") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Height") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Rotation") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Padding") is { IsReadOnly: false } &&
-                   GetNestedProperty(properties, "Geometry", "Z") is { IsReadOnly: true } &&
-                   GetNestedProperty(properties, "Geometry", "Position") is null &&
-                   GetNestedProperty(properties, "Geometry", "Size") is null,
+            var panel = CurrentPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+            Assert(GetNestedProperty(panel, "Geometry", "X") is not null &&
+                   GetNestedProperty(panel, "Geometry", "Y") is not null &&
+                   GetNestedProperty(panel, "Geometry", "Width") is not null &&
+                   GetNestedProperty(panel, "Geometry", "Height") is not null &&
+                   GetNestedProperty(panel, "Geometry", "Rotation") is not null &&
+                   GetNestedProperty(panel, "Geometry", "Padding") is { IsReadOnly: false } &&
+                   GetNestedProperty(panel, "Geometry", "Z") is { IsReadOnly: true } &&
+                   GetNestedProperty(panel, "Geometry", "Position") is null &&
+                   GetNestedProperty(panel, "Geometry", "Size") is null,
                 $"{type} Geometry group must be a flat layout with Padding and read-only Z-order.");
 
         }
@@ -253,7 +255,7 @@ internal static partial class Program
         var valueProperties = CurrentPropertyView(
             value,
             effectiveSizeAccessor: _ => (120f, 37f),
-            section: EditorPropertySection.General).GetProperties();
+            section: EditorPropertySection.Panel).GetProperties();
         var valueHeight = GetNestedProperty(valueProperties, "Geometry", "Height")
             ?? throw new InvalidOperationException("Value Height property is missing.");
         Assert(valueHeight.IsReadOnly,
@@ -270,7 +272,7 @@ internal static partial class Program
         };
         var gaugeProperties = CurrentPropertyView(
             gauge,
-            section: EditorPropertySection.General).GetProperties();
+            section: EditorPropertySection.Panel).GetProperties();
         var gaugeWidth = GetNestedProperty(gaugeProperties, "Geometry", "Width")
             ?? throw new InvalidOperationException("Gauge Width property is missing.");
         var gaugeHeight = GetNestedProperty(gaugeProperties, "Geometry", "Height")
@@ -283,160 +285,50 @@ internal static partial class Program
 
     private static void AppearancePropertyHierarchy()
     {
-        var types = new[]
+        foreach (var type in new[]
+                 {
+                     WidgetTypeContract.Value, WidgetTypeContract.Bar, WidgetTypeContract.Gauge,
+                     WidgetTypeContract.Image, WidgetTypeContract.Binary, WidgetTypeContract.Power,
+                     WidgetTypeContract.MediaSystem, WidgetTypeContract.MediaPlayer
+                 })
         {
-            WidgetTypeContract.Value,
-            WidgetTypeContract.Bar,
-            WidgetTypeContract.Gauge,
-            WidgetTypeContract.Image,
-            WidgetTypeContract.Binary,
-            WidgetTypeContract.Power,
-            WidgetTypeContract.MediaSystem,
-            WidgetTypeContract.MediaPlayer
-        };
+            var widget = CreateCanonicalPropertyTestWidget(type, $"panel-{type}", 100f, 100f);
+            var panel = CurrentPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+            foreach (var group in new[] { "Geometry", "Background", "Foreground", "Border", "Shadow" })
+                Assert(panel[group] is PropertyGroupPropertyDescriptor,
+                    $"{type} must expose Panel/{group}.");
+            Assert(GetNestedProperty(panel, "Geometry", nameof(C.WidgetDefinition.CornerRadius)) is not null &&
+                   GetNestedProperty(panel, "Background", "Mode") is { DisplayName: "Mode" } &&
+                   GetNestedProperty(panel, "Foreground", "Mode") is { DisplayName: "Mode" } &&
+                   GetNestedProperty(panel, "Border", nameof(C.WidgetDefinition.BorderColor)) is { DisplayName: "Color" } &&
+                   GetNestedProperty(panel, "Shadow", nameof(C.WidgetDefinition.ShadowOpacity)) is { DisplayName: "Opacity" },
+                $"{type} Panel geometry and effects are incomplete.");
 
-        foreach (var type in types)
-        {
-            var widget = CreateCanonicalPropertyTestWidget(
-                type,
-                $"appearance-{type}",
-                type == WidgetTypeContract.Value ? 0f : 100f,
-                type == WidgetTypeContract.Value ? 0f : 100f);
+            var appearance = CurrentPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
+            Assert(appearance["Border"] is null && appearance["Shadow"] is null &&
+                   appearance["Container"] is null,
+                "Panel-owned properties must not leak onto Appearance.");
 
-            var properties = CurrentPropertyView(
-                widget,
-                section: EditorPropertySection.Appearance).GetProperties();
+            var stateWidget = type is WidgetTypeContract.Binary or WidgetTypeContract.Power or
+                WidgetTypeContract.MediaSystem or WidgetTypeContract.MediaPlayer;
+            Assert((GetNestedProperty(appearance, "Content", nameof(C.WidgetDefinition.Color)) is not null) == stateWidget,
+                "Default Color must exist only where state content can inherit it.");
 
-            foreach (var group in new[] { "Container", "Border", "Shadow" })
-            {
-                var descriptor = properties[group]
-                    ?? throw new InvalidOperationException($"{type} must expose Appearance/{group}.");
-                Assert(descriptor is PropertyGroupPropertyDescriptor,
-                    $"{type} Appearance/{group} must be a first-level editor group.");
-            }
-
-            Assert(GetNestedProperty(properties, "Container", nameof(WidgetDefinition.BackgroundColor)) is { DisplayName: "Background Color" },
-                $"{type} Background must expose Color.");
-            Assert(GetNestedProperty(properties, "Border", nameof(WidgetDefinition.BorderColor)) is { DisplayName: "Color" } &&
-                   GetNestedProperty(properties, "Border", nameof(WidgetDefinition.BorderWidth)) is { DisplayName: "Width" } &&
-                   GetNestedProperty(properties, "Container", nameof(WidgetDefinition.CornerRadius)) is { DisplayName: "Corner Radius" },
-                $"{type} Border group is incomplete.");
-            Assert(GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowEnabled)) is { DisplayName: "Enabled" } &&
-                   GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowOffsetX)) is { DisplayName: "Offset X" } &&
-                   GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowOffsetY)) is { DisplayName: "Offset Y" } &&
-                   GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowBlur)) is { DisplayName: "Blur" } &&
-                   GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowOpacity)) is { DisplayName: "Opacity" } &&
-                   GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowColor)) is { DisplayName: "Color" },
-                $"{type} Shadow group is incomplete.");
-
-            Assert(GetNestedProperty(properties, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
-                $"{type} must expose the shared foreground row even when disabled.");
-
-            var expectsThresholds =
-                WidgetTypeContract.Is(type, WidgetTypeContract.Bar) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.Gauge);
-            Assert((properties[nameof(WidgetDefinition.ThresholdMode)] is not null) == expectsThresholds,
-                $"{type} Threshold Mode visibility is incorrect.");
-            if (expectsThresholds)
-            {
-                Assert(properties[nameof(WidgetDefinition.ThresholdMode)] is { DisplayName: "Threshold Mode" },
-                    $"{type} must expose the global Threshold Mode immediately before the numbered threshold groups.");
-            }
-            foreach (var group in new[] { "Threshold 1", "Threshold 2", "Threshold 3" })
-            {
-                Assert((properties[group] is not null) == expectsThresholds,
-                    $"{type} {group} visibility is incorrect.");
-            }
-
-            if (expectsThresholds)
-            {
-                var threshold1Value = GetNestedProperty(properties, "Threshold 1", nameof(WidgetDefinition.Threshold1Value));
-                var threshold1Color = GetNestedProperty(properties, "Threshold 1", nameof(WidgetDefinition.Threshold1Color));
-                Assert(GetNestedProperty(properties, "Threshold 1", nameof(WidgetDefinition.Threshold1Enabled)) is { DisplayName: "Enabled" } &&
-                       threshold1Value is { DisplayName: "Value", IsReadOnly: true } &&
-                       threshold1Color is { DisplayName: "Color", IsReadOnly: true } &&
-                       threshold1Value.Description == "Not applicable for selected Enabled." &&
-                       threshold1Color.Description == "Not applicable for selected Enabled.",
-                    $"{type} disabled Threshold 1 must keep Value and Color visible but disabled.");
-            }
-
-            Assert(properties["Alignment"] is null &&
-                   properties["Font"] is null &&
-                   properties["Outline"] is null &&
-                   properties["Overflow"] is null,
-                $"{type} text presentation groups must not remain on Appearance.");
+            var quantitative = type is WidgetTypeContract.Bar or WidgetTypeContract.Gauge;
+            Assert((appearance["Threshold 1"] is not null) == quantitative,
+                $"{type} threshold applicability changed unintentionally.");
         }
 
-        var imageIcon = new WidgetDefinition
-        {
-            Type = WidgetTypeContract.Image,
-            Id = "appearance-image-icon",
-            SourceType = "icon",
-            Width = 100f,
-            Height = 100f
-        };
-        var imageIconAppearance = CurrentPropertyView(
-            imageIcon,
-            section: EditorPropertySection.Appearance).GetProperties();
-        Assert(GetNestedProperty(imageIconAppearance, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
-            "Icon Image must expose universal Color as Appearance/Container/Foreground Color.");
+        var gauge = new C.GaugeWidgetDefinition { Id = "gauge-indicator", Width = 100, Height = 100 };
+        var gaugeView = CurrentPropertyView(gauge, section: EditorPropertySection.Gauge).GetProperties();
+        Assert(GetNestedProperty(gaugeView, "Horseshoe", nameof(C.WidgetDefinition.Color)) is { DisplayName: "Indicator Color" },
+            "Gauge indicator styling belongs on Gauge.");
 
-        var gauge = new WidgetDefinition
-        {
-            Type = WidgetTypeContract.Gauge,
-            Id = "appearance-gauge-threshold-enabled",
-            Width = 100f,
-            Height = 100f,
-            Threshold1Enabled = true
-        };
-        var gaugeAppearance = CurrentPropertyView(
-            gauge,
-            section: EditorPropertySection.Appearance).GetProperties();
-        Assert(GetNestedProperty(gaugeAppearance, "Threshold 1", nameof(WidgetDefinition.Threshold1Enabled)) is { DisplayName: "Enabled" } &&
-               GetNestedProperty(gaugeAppearance, "Threshold 1", nameof(WidgetDefinition.Threshold1Value)) is { DisplayName: "Value" } &&
-               GetNestedProperty(gaugeAppearance, "Threshold 1", nameof(WidgetDefinition.Threshold1Color)) is { DisplayName: "Color" },
-            "Enabled Threshold 1 must expose Enabled, Value, and Color.");
-
-        Assert(GetNestedProperty(gaugeAppearance, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
-            "Gauge base indicator color must be universal Appearance/Foreground/Color.");
-
-        var barImage = new WidgetDefinition
-        {
-            Type = WidgetTypeContract.Bar,
-            Id = "appearance-bar-image",
-            Width = 100f,
-            Height = 20f,
-            BarContentMode = BarImageContract.ContentModeImage
-        };
-        var barImageAppearance = CurrentPropertyView(
-            barImage,
-            section: EditorPropertySection.Appearance).GetProperties();
-        Assert(GetNestedProperty(barImageAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true } &&
-               barImageAppearance[nameof(WidgetDefinition.ThresholdMode)] is null &&
-               barImageAppearance["Threshold 1"] is null &&
-               barImageAppearance["Threshold 2"] is null &&
-               barImageAppearance["Threshold 3"] is null,
-            "Image-mode Bar must disable the foreground row and hide the threshold subsystem on Appearance.");
-
-        var binary = new WidgetDefinition
-        {
-            Type = WidgetTypeContract.Binary,
-            Id = "appearance-binary-value",
-            Metric = FixtureOutputFps,
-            Width = 100f,
-            Height = 40f
-        };
-        binary.EnsureStateVisualProfiles();
-        binary.Profiles![BinarySignalContract.TrueKey].SourceType = StateVisualProfileContract.SourceValue;
-        var binaryAppearance = CurrentPropertyView(
-            binary,
-            section: EditorPropertySection.Appearance).GetProperties();
-        Assert(GetNestedProperty(binaryAppearance, "Container", nameof(C.WidgetDefinition.Color)) is not null &&
-               binaryAppearance["Alignment"] is null &&
-               binaryAppearance["Font"] is null &&
-               binaryAppearance["Outline"] is null &&
-               binaryAppearance["Overflow"] is null,
-            "Binary value visual must keep universal Foreground fallback while text presentation groups stay off Appearance.");
+        var bar = new C.BarWidgetDefinition { Id = "bar-image", ContentMode = BarImageContract.ContentModeImage };
+        var barView = CurrentPropertyView(bar, section: EditorPropertySection.Gauge).GetProperties();
+        Assert(GetNestedProperty(barView, "Bar", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true } &&
+               CurrentPropertyView(bar, section: EditorPropertySection.Appearance).GetProperties()["Threshold 1"] is null,
+            "Image-mode Bar must disable fill color and hide thresholds.");
     }
 
     private static void DataPropertyHierarchy()
@@ -754,15 +646,15 @@ internal static partial class Program
             "Image widget must expose Image as a first-level Image-tab group.");
         Assert(GetNestedProperty(imageProperties, "Image", "Fit") is { DisplayName: "Fit" } &&
                GetNestedProperty(imageProperties, "Image", "Loop") is { DisplayName: "Loop" } &&
-               GetNestedProperty(imageProperties, "Image", nameof(C.ImageWidgetDefinition.Opacity)) is { DisplayName: "Opacity" },
-            "File-backed Image widget Image group must expose Fit, Loop, and Opacity.");
+               GetNestedProperty(imageProperties, "Image", nameof(C.ImageWidgetDefinition.IconOpacity)) is null,
+            "File-backed Image widget must expose Fit/Loop without icon-only Opacity.");
 
         imageWidget.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon);
         imageWidget.Asset.Source = "activity";
         var iconProperties = new EditorPropertyView(imageWidget, section: EditorPropertySection.Image).GetProperties();
         var iconLoop = GetNestedProperty(iconProperties, "Image", "Loop");
         Assert(GetNestedProperty(iconProperties, "Image", "Fit") is not null &&
-               GetNestedProperty(iconProperties, "Image", nameof(C.ImageWidgetDefinition.Opacity)) is not null &&
+               GetNestedProperty(iconProperties, "Image", nameof(C.ImageWidgetDefinition.IconOpacity)) is not null &&
                iconLoop is { IsReadOnly: true } &&
                iconLoop.Description == "Not applicable for selected Source.",
             "Icon-backed Image widget must keep Loop visible but disabled.");
@@ -850,15 +742,14 @@ internal static partial class Program
         var trueFileColor = GetNestedProperty(binaryImage, "State: True", trueColor);
         Assert(GetNestedProperty(binaryImage, "State: True", trueFit) is { DisplayName: "Fit" } &&
                GetNestedProperty(binaryImage, "State: True", trueLoop) is { DisplayName: "Loop", IsReadOnly: true } &&
-               GetNestedProperty(binaryImage, "State: True", trueOpacity) is { DisplayName: "Opacity" } &&
-               trueFileColor is { DisplayName: "Color", IsReadOnly: true } &&
-               trueFileColor.Description == "Not applicable for selected Source Type.",
-            "File-backed Binary state Image group must keep Color visible but disabled.");
+               GetNestedProperty(binaryImage, "State: True", trueOpacity) is null &&
+               trueFileColor is null,
+            "File-backed Binary state Image group must have neither tint nor independent Opacity.");
         var falseIconLoop = GetNestedProperty(binaryImage, "State: False", falseLoop);
         Assert(GetNestedProperty(binaryImage, "State: False", falseFit) is { DisplayName: "Fit" } &&
                falseIconLoop is { DisplayName: "Loop", IsReadOnly: true } &&
                falseIconLoop.Description == "Not applicable for selected Source." &&
-               GetNestedProperty(binaryImage, "State: False", falseColor) is { DisplayName: "Color", IsReadOnly: false } &&
+               GetNestedProperty(binaryImage, "State: False", falseColor) is { DisplayName: "Color" } &&
                GetNestedProperty(binaryImage, "State: False", falseOpacity) is { DisplayName: "Opacity" },
             "Icon-backed Binary state Image group must keep Loop visible but disabled.");
 

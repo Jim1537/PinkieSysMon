@@ -417,7 +417,10 @@ internal static class WidgetEffects
     {
         var container = context.GetContainerResources(widget);
         if (container.BackgroundPaint is null &&
+            container.BackgroundVisual is null &&
             container.BorderPaint is null &&
+            container.ForegroundPaint is null &&
+            container.ForegroundVisual is null &&
             widget.CornerRadius <= 0f)
         {
             renderer.Render(canvas, widget, context);
@@ -429,7 +432,7 @@ internal static class WidgetEffects
         var bounds = WidgetGeometry.GetContainerBounds(widget, context);
         var radius = WidgetGeometry.GetEffectiveCornerRadius(widget, bounds);
 
-        DrawContainerBackground(canvas, container, bounds, radius);
+        DrawContainerBackground(canvas, container, bounds, radius, context.Antialias);
 
         // CornerRadius defines the container shape for every widget type. Only a positive
         // radius needs an explicit clip; square-layout renderers already stay in bounds.
@@ -453,25 +456,61 @@ internal static class WidgetEffects
             renderer.Render(canvas, widget, context);
         }
 
-        DrawContainerBorder(canvas, widget, container, bounds, radius);
         if (renderer is IWidgetOverlayRenderer overlayRenderer)
             overlayRenderer.RenderOverlay(canvas, widget, context);
+        DrawContainerBorder(canvas, widget, container, bounds, radius);
+        if (container.ForegroundPaint is { } fill)
+        {
+            if (radius > 0f)
+                canvas.DrawRoundRect(bounds, radius, radius, fill);
+            else
+                canvas.DrawRect(bounds, fill);
+        }
+        DrawPanelVisual(canvas, container.ForegroundVisual, bounds, radius, context.Antialias);
     }
 
     private static void DrawContainerBackground(
         SKCanvas canvas,
         WidgetRenderContext.ContainerRenderResources container,
         SKRect bounds,
-        float radius)
+        float radius,
+        bool antialias)
     {
         var paint = container.BackgroundPaint;
-        if (paint is null)
-            return;
+        if (paint is not null)
+        {
+            if (radius > 0f)
+                canvas.DrawRoundRect(bounds, radius, radius, paint);
+            else
+                canvas.DrawRect(bounds, paint);
+        }
 
-        if (radius > 0f)
-            canvas.DrawRoundRect(bounds, radius, radius, paint);
-        else
-            canvas.DrawRect(bounds, paint);
+        DrawPanelVisual(canvas, container.BackgroundVisual, bounds, radius, antialias);
+    }
+
+    private static void DrawPanelVisual(
+        SKCanvas canvas, ImageVisual? visual, SKRect bounds, float radius, bool antialias)
+    {
+        if (visual is null)
+            return;
+        if (radius <= 0f)
+        {
+            visual.Draw(canvas, bounds, antialias);
+            return;
+        }
+
+        using var clip = new SKRoundRect();
+        clip.SetRect(bounds, radius, radius);
+        canvas.Save();
+        try
+        {
+            canvas.ClipRoundRect(clip, SKClipOperation.Intersect, antialias);
+            visual.Draw(canvas, bounds, antialias);
+        }
+        finally
+        {
+            canvas.Restore();
+        }
     }
 
     private static void DrawContainerBorder(

@@ -23,7 +23,7 @@ Select the new widget on the Canvas to edit its properties.
 
 ### Step 2. Select a metric
 
-Open `General → Source → Metric` and choose a numeric or DateTime telemetry metric.
+Open `General → Data Source → Metric` and choose a numeric or DateTime telemetry metric.
 
 You can use a supported metric from [System](../telemetry/system.md), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md), or [iCUE Sensor Logging](../telemetry/icue-sensor-logging.md), provided that the corresponding provider is enabled and the metric is available.
 
@@ -49,7 +49,7 @@ Under `Range`:
 
 `Max` must be greater than `Min`. The displayed progress is proportional to the reading within that range. Values below Min appear at the empty end; values above Max appear at the full end.
 
-For a **12-hour analog clock**, select `system.os.datetime`, `Component = Hour (12-cycle)`, `Format = 0.00`, `Min = 0` and `Max = 12`. Under `Gauge → Horseshoe`, use `Start Angle = 0` and `End Angle = 360`; enable `Gauge → Needle → Enabled`. The canonical 0° direction points down; set `General → Geometry → Rotation = 180` to put the 12 o'clock position at the top. This component wraps at noon/midnight without altering the existing `Hour (12-hour)` behavior. At `Format = 0.00`, an hour-hand step is 0.01 hour (36 seconds), not continuous motion. See [Component](properties.md#component).
+For a **12-hour analog clock**, select `system.os.datetime`, `Component = Hour (12-cycle)`, `Format = 0.00`, `Min = 0` and `Max = 12`. Under `Gauge → Horseshoe`, use `Start Angle = 0` and `End Angle = 360`; enable `Gauge → Needle → Enabled`. The canonical 0° direction points down; set `Panel → Geometry → Rotation = 180` to put the 12 o'clock position at the top. This component wraps at noon/midnight without altering the existing `Hour (12-hour)` behavior. At `Format = 0.00`, an hour-hand step is 0.01 hour (36 seconds), not continuous motion. See [Component](properties.md#component).
 
 !!! warning
     The range and threshold numbers must be understood in the selected `Unit`. For example, if a temperature metric is converted to Fahrenheit, configure `Min`, `Max`, and threshold values in Fahrenheit as well.
@@ -128,7 +128,7 @@ Gauge supports **three configurable threshold slots**. Each slot has an `Enabled
 | `SegmentTransition` | Colors blend along the scale between the base color and enabled threshold colors. |
 | `State` | The entire active portion of the arc uses the color corresponding to the latest crossed threshold. |
 
-The `Appearance → Container → Foreground Color` property supplies the base color before the first enabled threshold.
+The `Gauge → Horseshoe → Indicator Color` property supplies the base color before the first enabled threshold.
 
 For example, with `Min = 0`, `Max = 100`, and thresholds at 60 (yellow) and 85 (red):
 
@@ -146,11 +146,11 @@ See [Threshold Mode](properties.md#threshold-mode), [Threshold Enabled](properti
 
 ### Step 7. Adjust size and general appearance
 
-Under `General → Geometry`, set the position and `Width`, or resize the gauge directly on the Canvas.
+Under `Panel → Geometry`, set the position and `Width`, or resize the gauge directly on the Canvas.
 
 Gauge is always **square**. `Height` is derived from `Width` and is not independently editable. Rotation can be applied through the shared `Rotation` property.
 
-The `Appearance` tab also provides widget-wide background, border, shadow, and foreground color settings. These are distinct from the track's own background and border and from the needle's colors.
+The `Panel` owns widget-wide background, foreground visual layer, border and shadow settings; `Gauge → Horseshoe → Indicator Color` owns the active dial color. These are distinct from the track's own background and border and from the needle's colors.
 
 See [Width](properties.md#width), [Height](properties.md#height), [Rotation](properties.md#rotation), and [Widget Properties — Tabs](properties-by-tab.md).
 
@@ -261,7 +261,7 @@ The required radial fit constraint, when the track is enabled, is:
 
   `2 * Track.BorderWidth + 2 * Gap + Track.Thickness <= OuterRadius`
 
-The track background and border are not automatically colored by the current threshold state. The active fill uses the threshold mode and base foreground color.
+The track background and border are not automatically colored by the current threshold state. The active fill uses the threshold mode and base indicator color.
 
 The track's `CornerRadius` is used for rounded end geometry on open arcs, with effective rounding limited by available band geometry. The full-circle path has no rounded open ends.
 
@@ -313,10 +313,10 @@ Gauge has no separate text fallback or dedicated Unavailable state profile. A st
 
 The Editor exposes properties through `CanonicalPropertyViewBuilder`:
 
-- `General → Source → Metric` and geometry;
+- `General → Data Source → Metric` and geometry;
 - `Data → Value` for read-only Source Unit and selectable numeric Unit;
 - `Data → Range` for Min and Max;
-- `Appearance → Container`, Border, Shadow, and Thresholds;
+- `Panel → Geometry/Background/Foreground/Border/Shadow; Appearance → Thresholds;
 - `Gauge → Horseshoe` for track, angles, reverse, and gap;
 - `Gauge → Needle` for needle and pointer controls.
 

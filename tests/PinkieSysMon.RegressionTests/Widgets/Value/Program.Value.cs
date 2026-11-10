@@ -89,9 +89,9 @@ internal static partial class Program
             Width = 100
         };
         var metricProperties = CurrentPropertyView(metricWidget, section: EditorPropertySection.General).GetProperties();
-        var metricSourceType = GetNestedProperty(metricProperties, "Source", nameof(C.ValueWidgetDefinition.SourceKind));
+        var metricSourceType = GetNestedProperty(metricProperties, "Data Source", nameof(C.ValueWidgetDefinition.SourceKind));
         var metricSourceMetric = GetNestedProperty(metricProperties, "Data Source", nameof(WidgetDefinition.Metric));
-        var metricSourceText = GetNestedProperty(metricProperties, "Source", nameof(WidgetDefinition.Text));
+        var metricSourceText = GetNestedProperty(metricProperties, "Data Source", nameof(WidgetDefinition.Text));
         Assert(metricSourceType is not null && metricSourceType.DisplayName == "Type" &&
                string.Equals(Convert.ToString(metricSourceType.GetValue(null)), TextValueContract.SourceMetric, StringComparison.Ordinal),
             "Metric-source value must expose Source/Type=Metric.");
@@ -110,8 +110,8 @@ internal static partial class Program
             Width = 100
         };
         var textProperties = CurrentPropertyView(textWidget, section: EditorPropertySection.General).GetProperties();
-        var textSourceType = GetNestedProperty(textProperties, "Source", nameof(C.ValueWidgetDefinition.SourceKind));
-        var textSourceText = GetNestedProperty(textProperties, "Source", nameof(WidgetDefinition.Text));
+        var textSourceType = GetNestedProperty(textProperties, "Data Source", nameof(C.ValueWidgetDefinition.SourceKind));
+        var textSourceText = GetNestedProperty(textProperties, "Data Source", nameof(WidgetDefinition.Text));
         var textSourceMetric = GetNestedProperty(textProperties, "Data Source", nameof(WidgetDefinition.Metric));
         Assert(textSourceType is not null && textSourceType.DisplayName == "Type" &&
                string.Equals(Convert.ToString(textSourceType.GetValue(null)), TextValueContract.SourceText, StringComparison.Ordinal),

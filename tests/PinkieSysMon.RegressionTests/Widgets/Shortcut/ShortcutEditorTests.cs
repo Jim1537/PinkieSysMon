@@ -12,7 +12,7 @@ internal static class ShortcutEditorTests
         var shortcut = ShortcutModelTests.Shortcut(); shortcut.Label = "";
         var board = ShortcutModelTests.Board(shortcut);
         var before = DashboardJson.SerializeEditorSnapshot(board);
-        var general = new EditorPropertyView(shortcut, section: EditorPropertySection.General).GetProperties();
+        var general = new EditorPropertyView(shortcut, section: EditorPropertySection.Appearance).GetProperties();
         var target = (CanonicalPropertyDescriptor)TypeDescriptor.GetProperties(general["Activation"]!.GetValue(null)!)["Target"]!;
         string? checkpoint = null;
         target.BeforeValueChange = () => checkpoint = DashboardJson.SerializeEditorSnapshot(board);
@@ -29,8 +29,8 @@ internal static class ShortcutEditorTests
         var manual = ShortcutModelTests.Shortcut(); manual.Label = "Keep this label";
         shortcut.Label = "";
         var multi = new EditorMultiPropertyView([
-            new EditorPropertyView(shortcut, section: EditorPropertySection.General),
-            new EditorPropertyView(manual, section: EditorPropertySection.General)
+            new EditorPropertyView(shortcut, section: EditorPropertySection.Appearance),
+            new EditorPropertyView(manual, section: EditorPropertySection.Appearance)
         ]);
         var activation = TypeDescriptor.GetProperties(multi.GetProperties()["Activation"]!.GetValue(null)!);
         var selected = Path.Combine(Path.GetTempPath(), "Shared choice.exe");
@@ -44,11 +44,11 @@ internal static class ShortcutEditorTests
         var s = ShortcutModelTests.Shortcut(); s.LabelPosition = ShortcutContract.Bottom;
         PropertyDescriptorCollection View(EditorPropertySection section) => new EditorPropertyView(s, section: section).GetProperties();
         static PropertyDescriptorCollection Rows(PropertyDescriptorCollection groups, string name) => TypeDescriptor.GetProperties(groups[name]!.GetValue(null)!);
-        var general = View(EditorPropertySection.General); var activation = Rows(general, "Activation");
+        var general = View(EditorPropertySection.Appearance); var activation = Rows(general, "Activation");
         Check(activation["Target"]!.GetEditor(typeof(UITypeEditor)) is ShortcutTargetEditor && activation["Arguments"] is not null,
             "Target must have the standard picker; Arguments must remain an independent editable field.");
         var target = s.Target; var arguments = s.Arguments;
-        var source = Rows(general, "Source");
+        var source = Rows(View(EditorPropertySection.Image), "Image");
         Check(source["Source"]!.IsReadOnly, "Auto has no custom asset source.");
         source["SourceType"]!.SetValue(null, "Image"); source["Source"]!.SetValue(null, "images/custom.png");
         source["SourceType"]!.SetValue(null, "Auto");
@@ -56,7 +56,7 @@ internal static class ShortcutEditorTests
             "Changing artwork must clear only the custom Source, preserving the exact Shell payload.");
         activation["Activation"]!.SetValue(null, "Double click");
         Check(s.Activation == ShortcutContract.DoubleClick && s.Target == target, "Activation selection must update only its canonical field.");
-        Check(!Rows(general, "Geometry")["Height"]!.IsReadOnly && View(EditorPropertySection.Data).Count == 0 && View(EditorPropertySection.States).Count == 0,
+        Check(!Rows(View(EditorPropertySection.Panel), "Geometry")["Height"]!.IsReadOnly && View(EditorPropertySection.Data).Count == 0 && View(EditorPropertySection.States).Count == 0,
             "Shortcut has independent rectangular geometry and no invented telemetry/state properties.");
         var text = View(EditorPropertySection.Text); var label = Rows(text, "Label");
         label["Gap"]!.SetValue(null, -40f); label["LabelPosition"]!.SetValue(null, "Middle");
@@ -70,7 +70,8 @@ internal static class ShortcutEditorTests
         overflow["OverflowMode"]!.SetValue(null, "Bump");
         Check(!overflow["BumpPauseMs"]!.IsReadOnly, "Bump must expose its pause.");
         var image = Rows(View(EditorPropertySection.Image), "Image");
-        Check(image["Loop"]!.IsReadOnly && !image["Opacity"]!.IsReadOnly, "Auto is static; graphic opacity remains editable.");
+        Check(image["Loop"]!.IsReadOnly && image["IconOpacity"] is { IsReadOnly: false },
+            "Auto Shell icon is static but retains icon-specific Opacity.");
         Check(EditorForm.IsPropertyContextSwitch("LabelPosition"), "Changing label position must refresh applicability in the actual property UI.");
         var second = ShortcutModelTests.Shortcut(); second.LabelPosition = ShortcutContract.Top; second.Gap = -5;
         var multi = new EditorMultiPropertyView([

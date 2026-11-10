@@ -30,6 +30,13 @@ internal sealed class IconAssetCache : IDisposable
         {
             try
             {
+                foreach (var layer in new[] { widget.PanelBackground, widget.PanelForeground })
+                {
+                    if (layer.Mode == CanonicalDashboard.WidgetPanelLayerMode.Icon &&
+                        !string.IsNullOrWhiteSpace(layer.Icon.Source))
+                        _ = Get(layer.Icon.Source!);
+                }
+
                 switch (widget)
                 {
                     case CanonicalDashboard.ShortcutWidgetDefinition shortcut

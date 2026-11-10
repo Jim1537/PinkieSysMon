@@ -17,17 +17,19 @@ internal static class CommonWidgetPropertyTests
         foreach (var widget in widgets)
         {
             var general = new EditorPropertyView(widget, section: EditorPropertySection.General).GetProperties();
-            var appearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
-            ExpectPrefix(general, "Identity", "Data Source", "Geometry");
-            ExpectPrefix(appearance, "Container", "Border", "Shadow");
+            var panel = new EditorPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+            ExpectPrefix(general, "Identity", "Data Source");
+            ExpectPrefix(panel, "Geometry", "Background", "Foreground", "Border", "Shadow");
             ExpectRows(general, "Identity", "Name", "Type", "ID");
-            ExpectRows(general, "Data Source", "Metric");
-            ExpectRows(general, "Geometry", "X", "Y", "Width", "Height", "Padding", "Rotation", "Z-order");
-            ExpectRows(appearance, "Container", "Foreground Color", "Background Color", "Corner Radius");
-            ExpectRows(appearance, "Border", "Width", "Color", "Style", "Top", "Right", "Bottom", "Left");
-            ExpectRows(appearance, "Shadow", "Enabled", "Color", "Opacity", "Blur", "Offset X", "Offset Y");
+            Check(Children(general, "Data Source")["Metric"] is not null,
+                "General must expose metric binding.");
+            ExpectRows(panel, "Geometry", "X", "Y", "Width", "Height", "Padding", "Rotation", "Corner Radius", "Z-order");
+            ExpectRows(panel, "Background", "Mode");
+            ExpectRows(panel, "Foreground", "Mode");
+            ExpectRows(panel, "Border", "Width", "Color", "Style", "Top", "Right", "Bottom", "Left");
+            ExpectRows(panel, "Shadow", "Enabled", "Color", "Opacity", "Blur", "Offset X", "Offset Y");
 
-            var border = Children(appearance, "Border");
+            var border = Children(panel, "Border");
             Check(border["BorderLeft"]!.IsReadOnly, "Zero-width border sides must be disabled.");
             border["BorderWidth"]!.SetValue(null, 2f);
             border["BorderStyle"]!.SetValue(null, "Dotted");
@@ -50,8 +52,8 @@ internal static class CommonWidgetPropertyTests
     {
         var image = new C.ImageWidgetDefinition { Width = 100, Height = 100 };
         var gauge = new C.GaugeWidgetDefinition { Width = 100, Height = 100 };
-        var views = new[] { new EditorPropertyView(image, section: EditorPropertySection.General),
-            new EditorPropertyView(gauge, section: EditorPropertySection.General) };
+        var views = new[] { new EditorPropertyView(image, section: EditorPropertySection.Panel),
+            new EditorPropertyView(gauge, section: EditorPropertySection.Panel) };
         var field = Children(new EditorMultiPropertyView(views).GetProperties(), "Geometry")["Padding"]!;
         var converter = field.Converter;
         var uniform = converter.ConvertFromInvariantString("3.5");

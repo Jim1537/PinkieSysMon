@@ -8,7 +8,7 @@ In **General → Activation**, edit [Target](properties.md#shortcut-target), use
 
 [Activation](properties.md#shortcut-activation) defaults to **Double click**. **Single click** invokes on the first completed click and suppresses the second click of an ordinary double-click. Dragging cancels activation. Native timing and movement thresholds come from Windows.
 
-Choose the artwork in **General → Source**, then configure it in **Image**:
+Choose the artwork in **Image → Image**, then configure it in **Image**:
 
 | Source | Acquisition |
 | --- | --- |

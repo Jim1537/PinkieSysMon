@@ -190,6 +190,7 @@ internal static class CanonicalPropertyViewBuilder
         return section switch
         {
             EditorPropertySection.General => BuildGeneral(widget, applicationRoot, dashboardDirectory, effectiveSizeAccessor),
+            EditorPropertySection.Panel => BuildPanel(widget, applicationRoot, dashboardDirectory, effectiveSizeAccessor),
             EditorPropertySection.Appearance => BuildAppearance(widget, applicationRoot),
             EditorPropertySection.Data => BuildData(widget, mediaEndpoints, endpointTypeOverrides),
             EditorPropertySection.Gauge => BuildGauge(widget, dashboardDirectory),
@@ -213,7 +214,7 @@ internal static class CanonicalPropertyViewBuilder
         var result = new List<PropertyDescriptor>();
         foreach (var section in new[]
                  {
-                     EditorPropertySection.General, EditorPropertySection.Appearance, EditorPropertySection.Data,
+                     EditorPropertySection.General, EditorPropertySection.Panel, EditorPropertySection.Appearance, EditorPropertySection.Data,
                      EditorPropertySection.Gauge, EditorPropertySection.Graph, EditorPropertySection.States, EditorPropertySection.Image,
                      EditorPropertySection.Text
                  })
@@ -235,7 +236,67 @@ internal static class CanonicalPropertyViewBuilder
             new CanonicalPropertyDescriptor(nameof(widget.Type), "general.identity.type", "Type", widget, typeof(string), () => widget.Type, null),
             new CanonicalPropertyDescriptor(nameof(widget.Id), "general.identity.id", "ID", widget, typeof(string), () => widget.Id, null)
         ]));
-        result.Add(Group("Data Source", [CommonMetric(widget)]));
+        var source = new List<PropertyDescriptor> { CommonMetric(widget) };
+        switch (widget)
+        {
+            case C.ValueWidgetDefinition value:
+                source.Add(new CanonicalPropertyDescriptor(
+                    nameof(C.ValueWidgetDefinition.SourceKind), "general.source.value.kind", "Type", value, typeof(string),
+                    () => C.ValueSourceKind.IsText(value.SourceKind) ? "Text" : "Metric",
+                    v => value.SourceKind = string.Equals(Convert.ToString(v), "Text", StringComparison.OrdinalIgnoreCase)
+                        ? C.ValueSourceKind.Text : C.ValueSourceKind.Metric,
+                    converter: SourceKindConverter));
+                source.Add(String(value, nameof(C.ValueWidgetDefinition.Text), "general.source.value.text", "Text", () => value.Text,
+                    v => value.Text = Convert.ToString(v) ?? string.Empty,
+                    disabled: () => C.ValueSourceKind.IsText(value.SourceKind) ? null : NotApplicable("Type")));
+                break;
+            case C.PowerWidgetDefinition power:
+                source.Add(String(power, nameof(C.PowerWidgetDefinition.PowerSource), "general.source.power", "Source", () => power.PowerSource,
+                    v => power.PowerSource = Convert.ToString(v) ?? PowerMetricContract.UpsSource, converter: PowerSourceConverter));
+                break;
+            case C.MediaSystemWidgetDefinition media:
+                source.Add(String(media, nameof(C.MediaSystemWidgetDefinition.MediaSource), "general.source.media", "Source", () => media.MediaSource,
+                    v => media.MediaSource = Convert.ToString(v) ?? MediaMetricContract.OutputSource, converter: MediaSourceConverter));
+                break;
+        }
+        result.Add(Group("Data Source", source));
+
+        return result;
+    }
+
+    private static CanonicalPropertyDescriptor CommonMetric(C.WidgetDefinition widget)
+    {
+        const string key = "general.source.metric";
+        switch (widget)
+        {
+            case C.ValueWidgetDefinition value:
+                return Metric(value, "Metric", key, "Metric", () => value.Metric, v => value.Metric = EmptyToNull(v),
+                    () => C.ValueSourceKind.IsMetric(value.SourceKind) ? null : NotApplicable("Type"));
+            case C.BinaryWidgetDefinition binary:
+                return Metric(binary, "Metric", key, "Metric", () => binary.Metric, v => binary.Metric = EmptyToNull(v));
+            case C.NumericWidgetDefinition numeric:
+                return Metric(numeric, "Metric", key, "Metric", () => numeric.Metric, v => numeric.Metric = EmptyToNull(v));
+        }
+
+        string DisplayBinding() => widget switch
+        {
+            C.PowerWidgetDefinition power => PowerMetricContract.StateMetric(power.PowerSource),
+            C.MediaSystemWidgetDefinition media => string.Join(", ", MediaMetricContract.GetEndpointBinding(media.MediaSource)),
+            C.MediaPlayerWidgetDefinition => MediaMetricContract.PlaybackStatus,
+            _ => "Not applicable"
+        };
+        return new CanonicalPropertyDescriptor("Metric", key, "Metric", widget, typeof(string), () => DisplayBinding(), null,
+            editor: MetricEditor, description: widget is C.ImageWidgetDefinition or C.ShortcutWidgetDefinition
+                ? "Not applicable to this widget." : "Binding determined by the widget source.");
+    }
+
+    private static List<PropertyDescriptor> BuildPanel(
+        C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory,
+        Func<C.WidgetDefinition, (float Width, float Height)?>? effectiveSizeAccessor)
+    {
+        var result = new List<PropertyDescriptor>();
+        string? BorderDisabled() => widget.BorderWidth == 0 ? NotApplicable("Width") : null;
+        string? ShadowDisabled() => widget.ShadowEnabled ? null : NotApplicable("Enabled");
 
         var geometry = new List<PropertyDescriptor>
         {
@@ -272,119 +333,16 @@ internal static class CanonicalPropertyViewBuilder
                 widget.Padding = padding;
             }, converter: new WidgetPaddingConverter(), description: WidgetPaddingConverter.Help));
         geometry.Add(Double(widget, nameof(C.WidgetDefinition.Rotation), "general.geometry.rotation", "Rotation", () => widget.Rotation, v => widget.Rotation = v));
+        geometry.Add(Float(widget, nameof(widget.CornerRadius), "panel.corner.radius", "Corner Radius",
+            () => widget.CornerRadius, v => widget.CornerRadius = Math.Max(0f, v)));
         geometry.Add(new CanonicalPropertyDescriptor(nameof(widget.Z), "general.geometry.z", "Z-order",
             widget, typeof(int), () => widget.Z, null, description: "Use the layer commands to change the draw order."));
         result.Add(Group("Geometry", geometry));
 
-        var source = new List<PropertyDescriptor>();
-        switch (widget)
-        {
-            case C.ShortcutWidgetDefinition shortcut:
-                source.AddRange(ImageAssetSourceProperties(shortcut.Asset, "general.source.image.kind", "general.source.image.source",
-                    !string.IsNullOrWhiteSpace(applicationRoot) && !string.IsNullOrWhiteSpace(dashboardDirectory)
-                        ? new ImageAssetSourceEditor(shortcut.Asset, applicationRoot!, dashboardDirectory!) : null,
-                    allowShellIcon: true));
-                break;
-            case C.ValueWidgetDefinition value:
-                source.Add(new CanonicalPropertyDescriptor(
-                    nameof(C.ValueWidgetDefinition.SourceKind), "general.source.value.kind", "Type", value, typeof(string),
-                    () => C.ValueSourceKind.IsText(value.SourceKind) ? "Text" : "Metric",
-                    v => value.SourceKind = string.Equals(Convert.ToString(v), "Text", StringComparison.OrdinalIgnoreCase)
-                        ? C.ValueSourceKind.Text : C.ValueSourceKind.Metric,
-                    converter: SourceKindConverter));
-                source.Add(String(value, nameof(C.ValueWidgetDefinition.Text), "general.source.value.text", "Text", () => value.Text,
-                    v => value.Text = Convert.ToString(v) ?? string.Empty,
-                    disabled: () => C.ValueSourceKind.IsText(value.SourceKind) ? null : NotApplicable("Type")));
-                break;
-            case C.ImageWidgetDefinition image:
-            {
-                var editor = !string.IsNullOrWhiteSpace(applicationRoot) && !string.IsNullOrWhiteSpace(dashboardDirectory)
-                    ? new ImageAssetSourceEditor(image.Asset, applicationRoot!, dashboardDirectory!) : null;
-                source.AddRange(ImageAssetSourceProperties(
-                    image.Asset,
-                    "general.source.image.kind",
-                    "general.source.image.source",
-                    editor,
-                    () => C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) ? "Icon" : "Image"));
-                break;
-            }
-            case C.PowerWidgetDefinition power:
-                source.Add(String(power, nameof(C.PowerWidgetDefinition.PowerSource), "general.source.power", "Source", () => power.PowerSource,
-                    v => power.PowerSource = Convert.ToString(v) ?? PowerMetricContract.UpsSource, converter: PowerSourceConverter));
-                break;
-            case C.MediaSystemWidgetDefinition media:
-                source.Add(String(media, nameof(C.MediaSystemWidgetDefinition.MediaSource), "general.source.media", "Source", () => media.MediaSource,
-                    v => media.MediaSource = Convert.ToString(v) ?? MediaMetricContract.OutputSource, converter: MediaSourceConverter));
-                break;
-        }
-        if (source.Count > 0)
-            result.Add(Group("Source", source));
-        if (widget is C.ShortcutWidgetDefinition shortcutActivation)
-            result.Add(Group("Activation", [
-                new CanonicalPropertyDescriptor("Target", "shortcut.target", "Target", shortcutActivation, typeof(string),
-                    () => shortcutActivation.Target, v => ShortcutTargetEditing.SetTarget(shortcutActivation, Convert.ToString(v) ?? string.Empty), editor: new ShortcutTargetEditor()),
-                String(shortcutActivation, "Arguments", "shortcut.arguments", "Arguments", () => shortcutActivation.Arguments, v => shortcutActivation.Arguments = Convert.ToString(v) ?? string.Empty),
-                new CanonicalPropertyDescriptor("Activation", "shortcut.activation", "Activation", shortcutActivation, typeof(string),
-                    () => string.Equals(shortcutActivation.Activation, ShortcutContract.SingleClick, StringComparison.OrdinalIgnoreCase) ? "Single click" : "Double click",
-                    v => shortcutActivation.Activation = string.Equals(Convert.ToString(v), "Single click", StringComparison.OrdinalIgnoreCase) ? ShortcutContract.SingleClick : ShortcutContract.DoubleClick,
-                    converter: new FixedStringConverter(["Single click", "Double click"]))
-            ]));
-        if (widget is C.GraphWidgetDefinition graphBackground)
-            result.Add(Group("Background Image", BuildImageLayer("background_image", graphBackground.Image, applicationRoot, dashboardDirectory, sourceOnly: true)));
-
-        return result;
-    }
-
-    private static CanonicalPropertyDescriptor CommonMetric(C.WidgetDefinition widget)
-    {
-        const string key = "general.source.metric";
-        switch (widget)
-        {
-            case C.ValueWidgetDefinition value:
-                return Metric(value, "Metric", key, "Metric", () => value.Metric, v => value.Metric = EmptyToNull(v),
-                    () => C.ValueSourceKind.IsMetric(value.SourceKind) ? null : NotApplicable("Type"));
-            case C.BinaryWidgetDefinition binary:
-                return Metric(binary, "Metric", key, "Metric", () => binary.Metric, v => binary.Metric = EmptyToNull(v));
-            case C.NumericWidgetDefinition numeric:
-                return Metric(numeric, "Metric", key, "Metric", () => numeric.Metric, v => numeric.Metric = EmptyToNull(v));
-        }
-
-        string DisplayBinding() => widget switch
-        {
-            C.PowerWidgetDefinition power => PowerMetricContract.StateMetric(power.PowerSource),
-            C.MediaSystemWidgetDefinition media => string.Join(", ", MediaMetricContract.GetEndpointBinding(media.MediaSource)),
-            C.MediaPlayerWidgetDefinition => MediaMetricContract.PlaybackStatus,
-            _ => "Not applicable"
-        };
-        return new CanonicalPropertyDescriptor("Metric", key, "Metric", widget, typeof(string), () => DisplayBinding(), null,
-            editor: MetricEditor, description: widget is C.ImageWidgetDefinition or C.ShortcutWidgetDefinition
-                ? "Not applicable to this widget." : "Binding determined by the widget source.");
-    }
-
-    private static List<PropertyDescriptor> BuildAppearance(C.WidgetDefinition widget, string? applicationRoot)
-    {
-        var result = new List<PropertyDescriptor>();
-        string? TintDisabled(C.ImageAssetPresentationDefinition asset) =>
-            C.ImageAssetSourceType.IsIcon(asset.SourceType) &&
-            IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, asset.Source, out var caps) && caps.Tintable
-                ? null : NotApplicable("Source");
-
-        string? ForegroundDisabled() => widget switch
-        {
-            C.ShortcutWidgetDefinition shortcut => TintDisabled(shortcut.Asset),
-            C.ImageWidgetDefinition image => TintDisabled(image.Asset),
-            C.BarWidgetDefinition bar when BarImageContract.IsImageMode(bar.ContentMode) => NotApplicable("Mode"),
-            C.StateVisualWidgetDefinition state when !state.Profiles.Values.Any(profile =>
-                C.StateContentType.IsValue(profile.ContentType) || TintDisabled(profile.Asset) is null) => NotApplicable("Source"),
-            _ => null
-        };
-        string? BorderDisabled() => widget.BorderWidth == 0 ? NotApplicable("Width") : null;
-        string? ShadowDisabled() => widget.ShadowEnabled ? null : NotApplicable("Enabled");
-        result.Add(Group("Container", [
-            Color(widget, nameof(widget.Color), "appearance.foreground.color", "Foreground Color", () => widget.Color, v => widget.Color = v, ForegroundDisabled),
-            Color(widget, nameof(widget.BackgroundColor), "appearance.background.color", "Background Color", () => widget.BackgroundColor, v => widget.BackgroundColor = v),
-            Float(widget, nameof(widget.CornerRadius), "appearance.border.corner_radius", "Corner Radius", () => widget.CornerRadius, v => widget.CornerRadius = Math.Max(0f, v))
-        ]));
+        result.Add(Group("Background", BuildPanelLayerProperties(widget.PanelBackground, "background",
+            applicationRoot, dashboardDirectory)));
+        result.Add(Group("Foreground", BuildPanelLayerProperties(widget.PanelForeground, "foreground",
+            applicationRoot, dashboardDirectory)));
         result.Add(Group("Border", [
             Float(widget, nameof(widget.BorderWidth), "appearance.border.width", "Width", () => widget.BorderWidth, v => widget.BorderWidth = Math.Max(0f, v)),
             Color(widget, nameof(widget.BorderColor), "appearance.border.color", "Color", () => widget.BorderColor, v => widget.BorderColor = v, BorderDisabled),
@@ -410,6 +368,66 @@ internal static class CanonicalPropertyViewBuilder
             Float(widget, nameof(widget.ShadowOffsetY), "appearance.shadow.offset_y", "Offset Y", () => widget.ShadowOffsetY, v => widget.ShadowOffsetY = v, ShadowDisabled)
         ]));
 
+        return result;
+    }
+
+    private static List<PropertyDescriptor> BuildPanelLayerProperties(
+        C.WidgetPanelLayerDefinition layer, string role,
+        string? applicationRoot, string? dashboardDirectory)
+    {
+        var rows = new List<PropertyDescriptor>
+        {
+            String(layer, nameof(layer.Mode), $"panel.{role}.mode", "Mode",
+                () => layer.Mode, value => layer.Mode = Convert.ToString(value) ?? C.WidgetPanelLayerMode.None,
+                converter: new FixedStringConverter(["None", "Color", "Image", "Icon"]))
+        };
+
+        if (layer.Mode == C.WidgetPanelLayerMode.Color)
+            rows.Add(Color(layer, "Color", $"panel.{role}.color", "Color",
+                () => layer.Color, value => layer.Color = value));
+
+        var active = layer.ActiveAsset;
+        if (active is not null)
+        {
+            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
+                         !string.IsNullOrWhiteSpace(dashboardDirectory)
+                ? new ImageAssetSourceEditor(active, applicationRoot!, dashboardDirectory!)
+                : null;
+            rows.Add(new CanonicalPropertyDescriptor(
+                "Source", $"panel.{role}.source", "Source", layer, typeof(string),
+                () => layer.ActiveAsset?.Source ?? string.Empty,
+                value =>
+                {
+                    if (layer.ActiveAsset is { } asset)
+                        asset.Source = EmptyToNull(value);
+                },
+                editor: editor,
+                multiEditContextKey: layer.Mode,
+                multiEditContextController: "Mode"));
+        }
+
+        return rows;
+    }
+
+    private static List<PropertyDescriptor> BuildAppearance(C.WidgetDefinition widget, string? applicationRoot)
+    {
+        var result = new List<PropertyDescriptor>();
+        if (widget is C.StateVisualWidgetDefinition)
+            result.Add(Group("Content", [
+                Color(widget, nameof(widget.Color), "appearance.content.default_color", "Default Color",
+                    () => widget.Color, value => widget.Color = value)
+            ]));
+
+        if (widget is C.ShortcutWidgetDefinition shortcutActivation)
+            result.Add(Group("Activation", [
+                new CanonicalPropertyDescriptor("Target", "shortcut.target", "Target", shortcutActivation, typeof(string),
+                    () => shortcutActivation.Target, v => ShortcutTargetEditing.SetTarget(shortcutActivation, Convert.ToString(v) ?? string.Empty), editor: new ShortcutTargetEditor()),
+                String(shortcutActivation, "Arguments", "shortcut.arguments", "Arguments", () => shortcutActivation.Arguments, v => shortcutActivation.Arguments = Convert.ToString(v) ?? string.Empty),
+                new CanonicalPropertyDescriptor("Activation", "shortcut.activation", "Activation", shortcutActivation, typeof(string),
+                    () => string.Equals(shortcutActivation.Activation, ShortcutContract.SingleClick, StringComparison.OrdinalIgnoreCase) ? "Single click" : "Double click",
+                    v => shortcutActivation.Activation = string.Equals(Convert.ToString(v), "Single click", StringComparison.OrdinalIgnoreCase) ? ShortcutContract.SingleClick : ShortcutContract.DoubleClick,
+                    converter: new FixedStringConverter(["Single click", "Double click"]))
+            ]));
         if (widget is C.NumericWidgetDefinition quantitative &&
             (widget is not C.BarWidgetDefinition thresholdBar || !BarImageContract.IsImageMode(thresholdBar.ContentMode)))
         {
@@ -710,6 +728,10 @@ internal static class CanonicalPropertyViewBuilder
         if (widget is not C.GraphWidgetDefinition graph) return [];
         Func<string?> lineDisabled = () => graph.Mode == "Line" ? null : NotApplicable("Mode");
         return [
+            Group("Plot", [
+                Color(graph, nameof(graph.Color), "graph.plot.color", "Color",
+                    () => graph.Color, value => graph.Color = value)
+            ]),
             Group("Timeline", [
                 Double(graph, nameof(C.GraphWidgetDefinition.WindowSeconds), "graph.window_seconds", "History Window (seconds)", () => graph.WindowSeconds,
                     v => graph.WindowSeconds = Math.Clamp(v, 1, MetricHistoryStore.MaximumWindowSeconds)),
@@ -739,6 +761,9 @@ internal static class CanonicalPropertyViewBuilder
         {
             result.Add(Group("Bar", [
                 String(bar, "BarContentMode", "gauge.bar.content_mode", "Mode", () => bar.ContentMode, v => bar.ContentMode = Convert.ToString(v) ?? BarImageContract.ContentModeFill, converter: BarContentConverter),
+                Color(bar, nameof(bar.Color), "gauge.bar.indicator_color", "Indicator Color",
+                    () => bar.Color, value => bar.Color = value,
+                    () => BarImageContract.IsImageMode(bar.ContentMode) ? NotApplicable("Mode") : null),
                 Bool(bar, nameof(C.QuantitativeWidgetDefinition.Reverse), "gauge.bar.reverse", "Reverse", () => bar.Reverse, v => bar.Reverse = v),
                 Float(bar, nameof(C.QuantitativeWidgetDefinition.Gap), "gauge.bar.gap", "Gap", () => bar.Gap, v => bar.Gap = Math.Max(0f, v)),
                 Color(bar.Track, "BarTrackBackgroundColor", "gauge.bar.track.color", "Track Color", () => bar.Track.BackgroundColor, v => bar.Track.BackgroundColor = v)
@@ -749,6 +774,8 @@ internal static class CanonicalPropertyViewBuilder
             return result;
 
         result.Add(Group("Horseshoe", [
+            Color(gauge, nameof(gauge.Color), "gauge.indicator.color", "Indicator Color",
+                () => gauge.Color, value => gauge.Color = value),
             Bool(gauge.Track, "TrackEnabled", "gauge.track.enabled", "Enabled", () => gauge.Track.Enabled, v => gauge.Track.Enabled = v),
             Bool(gauge, nameof(C.QuantitativeWidgetDefinition.Reverse), "gauge.reverse", "Reverse", () => gauge.Reverse, v => gauge.Reverse = v),
             Float(gauge, nameof(C.GaugeWidgetDefinition.StartAngle), "gauge.arc.start", "Start Angle", () => gauge.StartAngle, v => gauge.StartAngle = v),
@@ -792,70 +819,170 @@ internal static class CanonicalPropertyViewBuilder
         return result;
     }
 
-    private static List<PropertyDescriptor> BuildImage(C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory)
+    private static List<PropertyDescriptor> BuildImage(
+        C.WidgetDefinition widget, string? applicationRoot, string? dashboardDirectory)
     {
         var result = new List<PropertyDescriptor>();
+        AddPanelLayerImageGroup(result, "Background", "background", widget.PanelBackground,
+            applicationRoot, dashboardDirectory);
+        AddPanelLayerImageGroup(result, "Foreground", "foreground", widget.PanelForeground,
+            applicationRoot, dashboardDirectory);
+
         if (widget is C.ShortcutWidgetDefinition shortcut)
-            return [Group("Image", [
-                String(shortcut.Asset, "Fit", "image.asset.fit", "Fit", () => shortcut.Asset.Fit, v => shortcut.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter),
-                Bool(shortcut.Asset, "Loop", "image.asset.loop", "Loop", () => shortcut.Asset.Loop, v => shortcut.Asset.Loop = v,
-                    () => LoopDisabled(shortcut.Asset.SourceType, shortcut.Asset.Source, applicationRoot, dashboardDirectory)),
-                Float(shortcut, "Opacity", "image.opacity", "Opacity", () => shortcut.Opacity, v => shortcut.Opacity = Math.Clamp(v, 0f, 1f))
-            ])];
-        if (widget is C.GraphWidgetDefinition graph)
         {
-            AddConfiguredLayer(result, "Background Image", "background_image", graph.Image, applicationRoot, dashboardDirectory);
-            return result;
+            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
+                         !string.IsNullOrWhiteSpace(dashboardDirectory)
+                ? new ImageAssetSourceEditor(shortcut.Asset, applicationRoot!, dashboardDirectory!) : null;
+            var rows = ImageAssetSourceProperties(shortcut.Asset,
+                "image.content.kind", "image.content.source", editor, allowShellIcon: true);
+            rows.Add(String(shortcut.Asset, "Fit", "image.asset.fit", "Fit",
+                () => shortcut.Asset.Fit, v => shortcut.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter));
+            rows.Add(Bool(shortcut.Asset, "Loop", "image.asset.loop", "Loop",
+                () => shortcut.Asset.Loop, v => shortcut.Asset.Loop = v,
+                () => LoopDisabled(shortcut.Asset.SourceType, shortcut.Asset.Source, applicationRoot, dashboardDirectory)));
+            AddContentIconColorAndOpacity(rows, shortcut, shortcut.Asset, () => shortcut.IconOpacity,
+                opacity => shortcut.IconOpacity = opacity, applicationRoot);
+            result.Add(Group("Image", rows));
         }
-        if (widget is C.ImageWidgetDefinition image)
+        else if (widget is C.ImageWidgetDefinition image)
         {
+            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
+                         !string.IsNullOrWhiteSpace(dashboardDirectory)
+                ? new ImageAssetSourceEditor(image.Asset, applicationRoot!, dashboardDirectory!) : null;
+            var rows = ImageAssetSourceProperties(image.Asset,
+                "image.content.kind", "image.content.source", editor,
+                () => C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) ? "Icon" : "Image");
+            rows.Add(String(image.Asset, "Fit", "image.asset.fit", "Fit",
+                () => image.Asset.Fit, v => image.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter));
+            rows.Add(Bool(image.Asset, "Loop", "image.asset.loop", "Loop",
+                () => image.Asset.Loop, v => image.Asset.Loop = v,
+                () => LoopDisabled(image.Asset.SourceType, image.Asset.Source, applicationRoot, dashboardDirectory)));
+            AddContentIconColorAndOpacity(rows, image, image.Asset, () => image.IconOpacity,
+                opacity => image.IconOpacity = opacity, applicationRoot);
+            result.Add(Group("Image", rows));
+        }
+        else if (widget is C.GraphWidgetDefinition graph)
+        {
+            if (!string.IsNullOrWhiteSpace(graph.Image.Asset.Source))
+            {
+                var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
+                             !string.IsNullOrWhiteSpace(dashboardDirectory)
+                    ? new ImageAssetSourceEditor(graph.Image.Asset, applicationRoot!, dashboardDirectory!)
+                    : null;
+                var rows = ImageAssetSourceProperties(graph.Image.Asset,
+                    "image.graph.plot_background.kind", "image.graph.plot_background.source", editor);
+                rows.AddRange(BuildImageLayer("background_image", graph.Image,
+                    applicationRoot, dashboardDirectory, sourceOnly: false));
+                result.Add(Group("Plot Background (Legacy)", rows));
+            }
+        }
+        else if (widget is C.BarWidgetDefinition bar && BarImageContract.IsImageMode(bar.ContentMode))
+        {
+            var editor = !string.IsNullOrWhiteSpace(dashboardDirectory)
+                ? new DashboardImageSourceEditor(dashboardDirectory!) : null;
             result.Add(Group("Image", [
-                String(image.Asset, "Fit", "image.asset.fit", "Fit", () => image.Asset.Fit, v => image.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter),
-                Bool(image.Asset, "Loop", "image.asset.loop", "Loop", () => image.Asset.Loop, v => image.Asset.Loop = v,
-                    () => LoopDisabled(image.Asset.SourceType, image.Asset.Source, applicationRoot, dashboardDirectory)),
-                Float(image, nameof(C.ImageWidgetDefinition.Opacity), "image.opacity", "Opacity", () => image.Opacity, v => image.Opacity = Math.Clamp(v, 0f, 1f))
+                new CanonicalPropertyDescriptor("BarImageSource", "bar.image.source", "Source",
+                    bar.Image, typeof(string), () => bar.Image.Source ?? string.Empty,
+                    v => bar.Image.Source = EmptyToNull(v), editor: editor),
+                String(bar.Image, "BarImageFit", "bar.image.fit", "Fit",
+                    () => bar.Image.Fit, v => bar.Image.Fit = Convert.ToString(v) ?? BarImageContract.ImageFitStretch, converter: BarFitConverter),
+                String(bar.Image, "BarProgressMode", "bar.image.progress_mode", "Progress Mode",
+                    () => bar.Image.ProgressMode, v => bar.Image.ProgressMode = Convert.ToString(v) ?? BarImageContract.ProgressModeScale,
+                    converter: BarProgressConverter),
+                Bool(bar.Image, "Loop", "bar.image.loop", "Loop",
+                    () => bar.Image.Loop, v => bar.Image.Loop = v,
+                    () => LoopDisabled(C.ImageAssetSourceType.File, bar.Image.Source,
+                        applicationRoot, dashboardDirectory))
             ]));
-            return result;
         }
-
-        if (widget is C.BarWidgetDefinition bar)
-        {
-            if (!BarImageContract.IsImageMode(bar.ContentMode))
-                return [];
-            var editor = !string.IsNullOrWhiteSpace(dashboardDirectory) ? new DashboardImageSourceEditor(dashboardDirectory!) : null;
-            result.Add(Group("Image", [
-                new CanonicalPropertyDescriptor("BarImageSource", "bar.image.source", "Source", bar.Image, typeof(string), () => bar.Image.Source ?? string.Empty, v => bar.Image.Source = EmptyToNull(v), editor: editor),
-                String(bar.Image, "BarImageFit", "bar.image.fit", "Fit", () => bar.Image.Fit, v => bar.Image.Fit = Convert.ToString(v) ?? BarImageContract.ImageFitStretch, converter: BarFitConverter),
-                String(bar.Image, "BarProgressMode", "bar.image.progress_mode", "Progress Mode", () => bar.Image.ProgressMode, v => bar.Image.ProgressMode = Convert.ToString(v) ?? BarImageContract.ProgressModeScale, converter: BarProgressConverter),
-                Bool(bar.Image, "Loop", "bar.image.loop", "Loop", () => bar.Image.Loop, v => bar.Image.Loop = v,
-                    () => LoopDisabled(C.ImageAssetSourceType.File, bar.Image.Source, applicationRoot, dashboardDirectory))
-            ]));
-            return result;
-        }
-
-        if (widget is C.StateVisualWidgetDefinition stateWidget)
+        else if (widget is C.StateVisualWidgetDefinition stateWidget)
         {
             foreach (var spec in StateVisualProfileContract.GetSpecs(widget.Type).OrderBy(spec => spec.Order))
             {
-                if (!stateWidget.Profiles.TryGetValue(spec.Key, out var profile))
+                if (!stateWidget.Profiles.TryGetValue(spec.Key, out var profile) ||
+                    !C.StateContentType.IsImage(profile.ContentType))
                     continue;
-                if (!C.StateContentType.IsImage(profile.ContentType))
-                    continue;
-                result.Add(Group(spec.Category, [
-                    String(profile.Asset, StateName(spec.Key, StateVisualProfileField.Fit), $"image.state.{spec.Key}.fit", "Fit", () => profile.Asset.Fit, v => profile.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter),
-                    Bool(profile.Asset, StateName(spec.Key, StateVisualProfileField.Loop), $"image.state.{spec.Key}.loop", "Loop", () => profile.Asset.Loop, v => profile.Asset.Loop = v,
-                        () => LoopDisabled(profile.Asset.SourceType, profile.Asset.Source, applicationRoot, dashboardDirectory)),
-                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"image.state.{spec.Key}.color", "Color", () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color, v => profile.Color = v,
-                        () => C.ImageAssetSourceType.IsFile(profile.Asset.SourceType)
-                            ? NotApplicable("Source Type")
-                            : (!IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, profile.Asset.Source, out var colorCapabilities) || !colorCapabilities.Tintable)
-                                ? NotApplicable("Source")
-                                : null),
-                    Float(profile, StateName(spec.Key, StateVisualProfileField.Opacity), $"image.state.{spec.Key}.opacity", "Opacity", () => profile.Opacity, v => profile.Opacity = Math.Clamp(v, 0f, 1f))
-                ]));
+                var rows = new List<PropertyDescriptor>
+                {
+                    String(profile.Asset, StateName(spec.Key, StateVisualProfileField.Fit),
+                        $"image.state.{spec.Key}.fit", "Fit",
+                        () => profile.Asset.Fit, v => profile.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain,
+                        converter: FitConverter),
+                    Bool(profile.Asset, StateName(spec.Key, StateVisualProfileField.Loop),
+                        $"image.state.{spec.Key}.loop", "Loop",
+                        () => profile.Asset.Loop, v => profile.Asset.Loop = v,
+                        () => LoopDisabled(profile.Asset.SourceType, profile.Asset.Source,
+                            applicationRoot, dashboardDirectory))
+                };
+                if (C.ImageAssetSourceType.IsIcon(profile.Asset.SourceType))
+                {
+                    rows.Add(Bool(profile, StateName(spec.Key, StateVisualProfileField.Color) + "Inherit",
+                        $"image.state.{spec.Key}.inherit_color", "Use Default Color",
+                        () => string.IsNullOrWhiteSpace(profile.Color),
+                        inherit => profile.Color = inherit ? null : widget.Color));
+                    rows.Add(Color(profile, StateName(spec.Key, StateVisualProfileField.Color),
+                        $"image.state.{spec.Key}.color", "Color",
+                        () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color,
+                        v => profile.Color = v,
+                        () => IconAssetLoader.TryReadCapabilitiesFromRoot(
+                            applicationRoot, profile.Asset.Source, out var capabilities) && capabilities.Tintable
+                            ? null : NotApplicable("Source")));
+                    rows.Add(Float(profile, StateName(spec.Key, StateVisualProfileField.Opacity),
+                        $"image.state.{spec.Key}.icon_opacity", "Opacity",
+                        () => profile.IconOpacity, opacity => profile.IconOpacity = Math.Clamp(opacity, 0f, 1f)));
+                }
+                result.Add(Group(spec.Category, rows));
             }
         }
         return result;
+    }
+
+    private static void AddContentIconColorAndOpacity(
+        List<PropertyDescriptor> rows, C.WidgetDefinition widget,
+        C.ImageAssetPresentationDefinition asset,
+        Func<float> opacityGetter, Action<float> opacitySetter,
+        string? applicationRoot)
+    {
+        if (!C.ImageAssetSourceType.IsIcon(asset.SourceType) &&
+            !(widget is C.ShortcutWidgetDefinition && ShortcutContract.IsAuto(asset.SourceType)))
+            return;
+        rows.Add(Color(widget, nameof(widget.Color), "image.content.icon_color", "Color",
+            () => widget.Color, color => widget.Color = color,
+            () => IconAssetLoader.TryReadCapabilitiesFromRoot(
+                applicationRoot, asset.Source, out var capability) && capability.Tintable
+                ? null : NotApplicable("Source")));
+        rows.Add(Float(widget, "IconOpacity", "image.content.icon_opacity", "Opacity",
+            opacityGetter, value => opacitySetter(Math.Clamp(value, 0f, 1f))));
+    }
+
+    private static void AddPanelLayerImageGroup(
+        List<PropertyDescriptor> groups, string label, string role,
+        C.WidgetPanelLayerDefinition layer,
+        string? applicationRoot, string? dashboardDirectory)
+    {
+        var active = layer.ActiveAsset;
+        if (active is null)
+            return;
+        var rows = new List<PropertyDescriptor>
+        {
+            String(active, "Fit", $"image.panel.{role}.fit", "Fit",
+                () => active.Fit, value => active.Fit = Convert.ToString(value) ?? StateVisualProfileContract.FitStretch, converter: FitConverter),
+            Bool(active, "Loop", $"image.panel.{role}.loop", "Loop",
+                () => active.Loop, value => active.Loop = value,
+                () => LoopDisabled(active.SourceType, active.Source, applicationRoot, dashboardDirectory))
+        };
+        if (layer.Mode == C.WidgetPanelLayerMode.Icon)
+        {
+            rows.Add(Color(layer, nameof(layer.IconColor), $"image.panel.{role}.icon_color",
+                "Color", () => layer.IconColor, color => layer.IconColor = color,
+                () => IconAssetLoader.TryReadCapabilitiesFromRoot(
+                    applicationRoot, active.Source, out var capabilities) && capabilities.Tintable
+                    ? null : NotApplicable("Source")));
+            rows.Add(Float(layer, nameof(layer.IconOpacity), $"image.panel.{role}.icon_opacity",
+                "Opacity", () => layer.IconOpacity,
+                value => layer.IconOpacity = Math.Clamp(value, 0f, 1f)));
+        }
+        groups.Add(Group(label, rows));
     }
 
     private static List<PropertyDescriptor> BuildText(C.WidgetDefinition widget, string? applicationRoot)
@@ -878,6 +1005,10 @@ internal static class CanonicalPropertyViewBuilder
         }
         if (widget is C.ValueWidgetDefinition value)
         {
+            result.Add(Group("Color", [
+                Color(value, nameof(value.Color), "text.value.color", "Color",
+                    () => value.Color, color => value.Color = color)
+            ]));
             AddTextGroups(result, value.TextPresentation, "text.value", null, fontConverter);
             return result;
         }
@@ -890,9 +1021,15 @@ internal static class CanonicalPropertyViewBuilder
                 if (!C.StateContentType.IsValue(profile.ContentType))
                     continue;
                 var nested = new List<PropertyDescriptor>();
-                nested.Add(Group("Foreground", [
-                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"text.state.{spec.Key}.color", "Color", () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color, v => profile.Color = v),
-                    Float(profile, StateName(spec.Key, StateVisualProfileField.Opacity), $"text.state.{spec.Key}.opacity", "Opacity", () => profile.Opacity, v => profile.Opacity = Math.Clamp(v, 0f, 1f))
+                nested.Add(Group("Color", [
+                    Bool(profile, StateName(spec.Key, StateVisualProfileField.Color) + "Inherit",
+                        $"text.state.{spec.Key}.inherit_color", "Use Default Color",
+                        () => string.IsNullOrWhiteSpace(profile.Color),
+                        inherit => profile.Color = inherit ? null : widget.Color),
+                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color),
+                        $"text.state.{spec.Key}.color", "Color",
+                        () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color,
+                        v => profile.Color = v)
                 ]));
                 AddTextGroups(nested, profile.TextPresentation, $"text.state.{spec.Key}", null, fontConverter, spec.Key);
                 result.Add(Group(spec.Category, nested));
@@ -1009,13 +1146,29 @@ internal static class CanonicalPropertyViewBuilder
         }
 
         var prefix = $"image.{role}";
-        return [
-            String(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Fit), $"{prefix}.asset.fit", "Fit", () => layer.Asset.Fit, v => layer.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter, disabled: () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
-            Float(layer, nameof(C.CanvasImageLayerDefinition.Opacity), $"{prefix}.opacity", "Opacity", () => layer.Opacity, v => layer.Opacity = Math.Clamp(v, 0f, 1f), () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
-            Bool(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Loop), $"{prefix}.asset.loop", "Loop", () => layer.Asset.Loop, v => layer.Asset.Loop = v,
-                () => LoopDisabled(layer.Asset.SourceType, layer.Asset.Source, applicationRoot, dashboardDirectory)),
-            Color(layer, nameof(C.CanvasImageLayerDefinition.Color), $"{prefix}.color", "Color", () => layer.Color, v => layer.Color = v, ColorDisabledReason)
-        ];
+        var rows = new List<PropertyDescriptor>
+        {
+            String(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Fit),
+                $"{prefix}.asset.fit", "Fit", () => layer.Asset.Fit,
+                v => layer.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter,
+                disabled: () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null),
+            Bool(layer.Asset, nameof(C.ImageAssetPresentationDefinition.Loop),
+                $"{prefix}.asset.loop", "Loop", () => layer.Asset.Loop,
+                v => layer.Asset.Loop = v,
+                () => LoopDisabled(layer.Asset.SourceType, layer.Asset.Source,
+                    applicationRoot, dashboardDirectory))
+        };
+        if (C.ImageAssetSourceType.IsIcon(layer.Asset.SourceType))
+        {
+            rows.Add(Float(layer, nameof(C.CanvasImageLayerDefinition.IconOpacity),
+                $"{prefix}.icon_opacity", "Opacity", () => layer.IconOpacity,
+                v => layer.IconOpacity = Math.Clamp(v, 0f, 1f),
+                () => string.IsNullOrWhiteSpace(layer.Asset.Source) ? NotApplicable("Source") : null));
+            rows.Add(Color(layer, nameof(C.CanvasImageLayerDefinition.Color),
+                $"{prefix}.color", "Color", () => layer.Color,
+                v => layer.Color = v, ColorDisabledReason));
+        }
+        return rows;
     }
 
     private static List<PropertyDescriptor> ImageAssetSourceProperties(

@@ -83,6 +83,8 @@ internal sealed class DashboardRenderer : IDisposable
             imageAssets.Preload(widgets);
             phase = "icons.preload";
             iconAssets.Preload(widgets);
+            phase = "panels.prepare";
+            renderContext.InitializePanelAssets(imageAssets, iconAssets, widgets);
             backgroundImage = CreateCanvasImageVisual(
                 imageAssets, iconAssets, definition.Canvas.BackgroundImage);
             foregroundImage = CreateCanvasImageVisual(

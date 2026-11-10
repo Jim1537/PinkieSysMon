@@ -21,7 +21,7 @@ Open a dashboard in **PinkieSysMon Dashboard Editor**, select `Power` from the `
 
 ### Step 2. Select UPS or Battery
 
-Open `General → Source` and change `Source` to one of the supported logical power sources:
+Open `General → Data Source` and change `Source` to one of the supported logical power sources:
 
 | Source | Meaning | State metric used internally |
 | --- | --- | --- |
@@ -93,9 +93,9 @@ For profiles using `Icon` or `Image`, open the `Image` tab. The properties are o
 - `Fit` controls how the source is positioned within the widget bounds: `Contain`, `Cover`, or `Stretch`.
 - `Loop` controls repetition for a source that supports animation. A static icon does not gain animation when Loop is enabled.
 - `Color` controls tint for icons that support tinting. It is not a universal recoloring control for file-backed images.
-- `Opacity` controls the visual transparency for the selected state.
+- For Icon content, `Opacity` controls its transparency. Image files use embedded alpha only; Value text uses RGBA Color/Outline Color alpha.
 
-Set these independently for states that need different appearances. The `Appearance` tab supplies shared widget background, border, and shadow settings.
+Set these independently for states that need different appearances. The `Panel` tab owns background, foreground layer, border, shadow and geometry; `Appearance → Content → Default Color` controls inherited state colors.
 
 See [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop), [State Color](properties.md#state-color), and [Opacity](properties.md#opacity).
 
@@ -103,7 +103,7 @@ See [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop)
 
 If a state uses `Value`, configure its presentation in the `Text` tab. Each Value state has independent settings for:
 
-- foreground color and opacity;
+- RGBA text color and independent RGBA outline color;
 - font family, size, weight, and italic styling;
 - horizontal and vertical alignment;
 - outline color and width;
@@ -256,7 +256,7 @@ For Power, that function returns **the normalized state key itself**. Examples i
 
 This is **not** `system.power.*.charge`, `system.power.*.runtime.remaining`, a formatted percentage, or a user-supplied label. That distinction is an important compatibility contract.
 
-State text is rendered through `TextContentRenderer` and the profile's own `TextPresentationDefinition`. Its color and opacity belong to the profile rather than to a global text value field.
+State text is rendered through `TextContentRenderer` and the profile's own `TextPresentationDefinition`. Its explicit text Color/Outline RGBA alpha or inherited Default Color belongs to the state profile; there is no separate text Opacity.
 
 The Text tab exposes only Value-backed state groups; the Image tab exposes only graphical state groups.
 
@@ -277,8 +277,8 @@ For Power, **all nine** profiles must use Value before auto-width is allowed. It
 | Tab | Group | Configuration |
 | --- | --- | --- |
 | `General` | `Source` | `Source` chooses UPS or Battery. |
-| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
-| `Appearance` | `Container / Border / Shadow` | Common widget appearance. |
+| `Panel` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Panel` | `Background / Foreground / Border / Shadow` | Common widget presentation. |
 | `States` | Nine state groups | `Source Type` and graphical `Source` (where applicable). |
 | `Image` | Graphical states | Fit, Loop, applicable Color/Tint, Opacity. |
 | `Text` | Value states | Foreground, Font, Alignment, Outline, Overflow. |
@@ -294,7 +294,7 @@ The canonical definition requires:
 - a supported `powerSource` value (`power.ups` or `power.battery`);
 - all nine required state profiles, without unknown additional profile keys;
 - valid graphical asset references for profiles whose `contentType` is `image`;
-- valid text presentation definitions and finite profile opacity;
+- valid text-presentation structures, valid RGBA colors and icon-only Opacity;
 - positive Width and Height for graphical/mixed content or non-negative dimensions for all-Value content;
 - valid inherited geometry, color, background, border, and shadow properties.
 

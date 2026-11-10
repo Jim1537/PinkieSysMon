@@ -53,8 +53,8 @@ internal static class Issue80PropertyUndoTests
 
         var view = new EditorMultiPropertyView(
         [
-            new EditorPropertyView(first, section: EditorPropertySection.General, beforeValueChange: Capture),
-            new EditorPropertyView(second, section: EditorPropertySection.General, beforeValueChange: Capture)
+            new EditorPropertyView(first, section: EditorPropertySection.Panel, beforeValueChange: Capture),
+            new EditorPropertyView(second, section: EditorPropertySection.Panel, beforeValueChange: Capture)
         ]);
 
         var x = FindNestedProperty(view.GetProperties(), "Geometry", nameof(C.WidgetDefinition.X));

@@ -44,12 +44,12 @@ internal static class SharedAlphaStage08Tests
     {
         InSandbox(root =>
         {
-            WriteImage(root, "red.png", SKColors.Red);
+            WriteImage(root, "red.png", new SKColor(255, 0, 0, 128));
             WriteImage(root, "green.png", SKColors.Lime);
-            WriteImage(root, "blue.png", SKColors.Blue);
+            WriteImage(root, "blue.png", new SKColor(0, 0, 255, 128));
             var dashboard = Dashboard(root, orientation: 90);
-            dashboard.Canvas.BackgroundImage = Layer("red.png", 0.5f);
-            dashboard.Canvas.ForegroundImage = Layer("blue.png", 0.5f);
+            dashboard.Canvas.BackgroundImage = Layer("red.png", 1f);
+            dashboard.Canvas.ForegroundImage = Layer("blue.png", 1f);
             dashboard.Widgets[0].X = 8;
             dashboard.Widgets[0].Y = 20;
 

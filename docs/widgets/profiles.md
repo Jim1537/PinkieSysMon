@@ -16,8 +16,8 @@ Each entry in the persisted `profiles` dictionary is a `DashboardModel.StateVisu
 
 - **Content selection:** `contentType` chooses graphical or Value presentation, with `asset.sourceType` identifying the graphical source kind.
 - **Graphical payload:** the `asset` object contains the graphical source and its fit/loop presentation.
-- **State appearance:** `color` and `opacity` belong to that particular profile.
-- **Value payload:** `textPresentation` holds the state's font, alignment, outline, and overflow presentation.
+- **State appearance:** nullable `color` selects an explicit RGBA override or inherits the widget's content Default Color. `iconOpacity` applies only to icon-backed state artwork; Value text uses RGBA fill and outline alpha.
+- **Value payload:** `textPresentation` holds the state's font, alignment, outline and overflow presentation; its outline color uses a separate RGBA alpha.
 
 This list describes **model composition**, not a second set of property definitions. The [Property Dictionary](properties.md) exclusively defines Editor labels, supported values, persisted JSON paths, and applicability: [State Source Type](properties.md#state-source-type), [Image Source](properties.md#image-source), [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop), [State Color](properties.md#state-color), [Opacity](properties.md#opacity), and the [Text property groups](properties-by-tab.md#text). For example, the exact Icon/Image/Value-to-JSON mapping is owned by **State Source Type**, not repeated here.
 
@@ -31,9 +31,9 @@ Each widget owns its required profile keys, defaults, and state-selection/unavai
 
 <!-- --8<-- [start:profile-rendering] -->
 
-State-driven widgets delegate their graphical and Value-state drawing to `StateProfileWidgetRenderer`, using a projection of the canonical state profile into the common render profile. An active Image/Icon uses the shared `StateIconVisualCache` and image-asset rendering paths, image fit, state opacity, and supported icon tint. File-backed images preserve their own colors rather than acquiring an icon-only tint.
+State-driven widgets delegate their graphical and Value-state drawing to `StateProfileWidgetRenderer`, using a projection of the canonical state profile into the common render profile. An active Image/Icon uses the shared `StateIconVisualCache` and image-asset rendering paths, image fit, icon-only opacity, and supported icon tint. File-backed images preserve their own colors rather than acquiring an icon-only tint.
 
-For Value content, `TextContentRenderer` uses the selected state's own `TextPresentationDefinition`, foreground color, opacity, alignment, and outline. **The text being displayed is widget-specific**; choosing Value does not turn every state widget into a general metric reader.
+For Value content, `TextContentRenderer` uses the selected state's own `TextPresentationDefinition`, RGBA foreground color, alignment, and RGBA outline color. **The text being displayed is widget-specific**; choosing Value does not turn every state widget into a general metric reader.
 
 Where an asset supports animation, **activation-relative playback** can be measured from the time the current state/source becomes active; changing state can reset or restart that animation. `Loop` has a visible effect only when the asset is animated and supports looping. If no state profile is active, the state renderer deactivates its playback tracker. None of these visual behaviors controls the underlying hardware or media application.
 

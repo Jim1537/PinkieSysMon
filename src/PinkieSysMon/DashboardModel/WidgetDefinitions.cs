@@ -48,8 +48,23 @@ internal abstract class WidgetDefinition
     [JsonPropertyName("color")]
     public string Color { get; set; } = "#FFFFFFFF";
 
-    [JsonPropertyName("backgroundColor")]
-    public string BackgroundColor { get; set; } = "#00000000";
+    [JsonPropertyName("panelBackground")]
+    public WidgetPanelLayerDefinition PanelBackground { get; set; } = new();
+
+    [JsonPropertyName("panelForeground")]
+    public WidgetPanelLayerDefinition PanelForeground { get; set; } = new();
+
+    // Source-level compatibility alias. The single persisted background owner is Panel.
+    [JsonIgnore]
+    public string BackgroundColor
+    {
+        get => PanelBackground.Color;
+        set
+        {
+            PanelBackground.Color = value;
+            PanelBackground.Mode = WidgetPanelLayerMode.Color;
+        }
+    }
 
     [JsonPropertyName("borderColor")]
     public string BorderColor { get; set; } = "#00000000";
@@ -122,7 +137,10 @@ internal abstract class WidgetDefinition
             throw new InvalidDataException($"Widget '{Id}' ShadowOpacity must be in the range 0..1.");
 
         _ = global::PinkieSysMon.ColorParser.Parse(Color);
-        _ = global::PinkieSysMon.ColorParser.Parse(BackgroundColor);
+        if (PanelBackground is null || PanelForeground is null)
+            throw new InvalidDataException($"Widget '{Id}' panel layers must not be null.");
+        PanelBackground.Validate(dashboardBaseDirectory, $"Widget '{Id}' Panel Background", allowUnavailableArtwork);
+        PanelForeground.Validate(dashboardBaseDirectory, $"Widget '{Id}' Panel Foreground", allowUnavailableArtwork);
         _ = global::PinkieSysMon.ColorParser.Parse(BorderColor);
         _ = global::PinkieSysMon.ColorParser.Parse(ShadowColor);
     }
@@ -452,14 +470,17 @@ internal sealed class ImageWidgetDefinition : WidgetDefinition
     [JsonPropertyName("asset")]
     public ImageAssetPresentationDefinition Asset { get; set; } = new();
 
-    [JsonPropertyName("opacity")]
-    public float Opacity { get; set; } = 1f;
+    [JsonPropertyName("iconOpacity")]
+    public float IconOpacity { get; set; } = 1f;
+
+    [JsonIgnore]
+    public float Opacity { get => IconOpacity; set => IconOpacity = value; }
 
     internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
         base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
-        if (!float.IsFinite(Opacity) || Opacity is < 0f or > 1f)
+        if (!float.IsFinite(IconOpacity) || IconOpacity is < 0f or > 1f)
             throw new InvalidDataException($"Image widget '{Id}' Opacity must be in the range 0..1.");
         if (Asset is null)
             throw new InvalidDataException($"Image widget '{Id}' Asset must not be null.");

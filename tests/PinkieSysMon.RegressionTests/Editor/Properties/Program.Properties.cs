@@ -59,20 +59,20 @@ internal static partial class Program
         };
 
         var sourceMetric = CurrentPropertyView(value, section: EditorPropertySection.General).GetProperties();
-        var metricSourceOrder = ChildDisplayNames(sourceMetric, "Source");
+        var metricSourceOrder = ChildDisplayNames(sourceMetric, "Data Source");
         AssertEnabled(GetNestedProperty(sourceMetric, "Data Source", nameof(WidgetDefinition.Metric)),
             "Metric-source Value/Metric");
-        AssertDisabled(GetNestedProperty(sourceMetric, "Source", nameof(WidgetDefinition.Text)), typeReason,
+        AssertDisabled(GetNestedProperty(sourceMetric, "Data Source", nameof(WidgetDefinition.Text)), typeReason,
             "Metric-source Value/Text");
 
         value.ValueSource = TextValueContract.SourceText;
         value.Text = "STATIC";
         var sourceText = CurrentPropertyView(value, section: EditorPropertySection.General).GetProperties();
-        Assert(metricSourceOrder.SequenceEqual(ChildDisplayNames(sourceText, "Source")),
+        Assert(metricSourceOrder.SequenceEqual(ChildDisplayNames(sourceText, "Data Source")),
             "Value Source row order must remain stable when Type changes.");
         AssertDisabled(GetNestedProperty(sourceText, "Data Source", nameof(WidgetDefinition.Metric)), typeReason,
             "Text-source Value/Metric");
-        AssertEnabled(GetNestedProperty(sourceText, "Source", nameof(WidgetDefinition.Text)),
+        AssertEnabled(GetNestedProperty(sourceText, "Data Source", nameof(WidgetDefinition.Text)),
             "Text-source Value/Text");
 
         var textClip = CurrentPropertyView(value, section: EditorPropertySection.Text).GetProperties();
@@ -100,7 +100,7 @@ internal static partial class Program
         AssertEnabled(GetNestedProperty(textBump, "Overflow", nameof(WidgetDefinition.BumpPauseMs)),
             "Bump overflow/Bump Pause");
 
-        var shadowOff = CurrentPropertyView(value, section: EditorPropertySection.Appearance).GetProperties();
+        var shadowOff = CurrentPropertyView(value, section: EditorPropertySection.Panel).GetProperties();
         var shadowOrder = ChildDisplayNames(shadowOff, "Shadow");
         AssertDisabled(GetNestedProperty(shadowOff, "Shadow", nameof(WidgetDefinition.ShadowOffsetX)), enabledReason,
             "Disabled shadow/Offset X");
@@ -108,7 +108,7 @@ internal static partial class Program
             "Disabled shadow/Color");
 
         value.ShadowEnabled = true;
-        var shadowOn = CurrentPropertyView(value, section: EditorPropertySection.Appearance).GetProperties();
+        var shadowOn = CurrentPropertyView(value, section: EditorPropertySection.Panel).GetProperties();
         Assert(shadowOrder.SequenceEqual(ChildDisplayNames(shadowOn, "Shadow")),
             "Shadow property order must remain stable when Enabled changes.");
         AssertEnabled(GetNestedProperty(shadowOn, "Shadow", nameof(WidgetDefinition.ShadowOffsetX)),
@@ -181,8 +181,9 @@ internal static partial class Program
         image.SourceType = "file";
         image.Source = "example.gif";
         var fileImage = CurrentPropertyView(image, section: EditorPropertySection.Image).GetProperties();
-        Assert(imageOrder.SequenceEqual(ChildDisplayNames(fileImage, "Image")),
-            "Image property order must remain stable when Source Type changes.");
+        Assert(!imageOrder.SequenceEqual(ChildDisplayNames(fileImage, "Image")) &&
+               GetNestedProperty(fileImage, "Image", "IconOpacity") is null,
+            "File images must not expose icon-only Opacity or tint.");
         AssertDisabled(GetNestedProperty(fileImage, "Image", nameof(WidgetDefinition.Loop)),
             "Not applicable for selected Source.", "Unresolved file image/Loop");
 
@@ -420,14 +421,18 @@ internal static partial class Program
         };
 
         var view = new EditorMultiPropertyView([
-            new EditorPropertyView(first, section: EditorPropertySection.General),
-            new EditorPropertyView(second, section: EditorPropertySection.General)
+            new EditorPropertyView(first, section: EditorPropertySection.Panel),
+            new EditorPropertyView(second, section: EditorPropertySection.Panel)
         ]);
         var properties = view.GetProperties();
 
         var x = GetNestedProperty(properties, "Geometry", nameof(C.WidgetDefinition.X));
         var y = GetNestedProperty(properties, "Geometry", nameof(C.WidgetDefinition.Y));
-        var name = GetNestedProperty(properties, "Identity", nameof(C.WidgetDefinition.Name));
+        var generalView = new EditorMultiPropertyView([
+            new EditorPropertyView(first, section: EditorPropertySection.General),
+            new EditorPropertyView(second, section: EditorPropertySection.General)
+        ]);
+        var name = GetNestedProperty(generalView.GetProperties(), "Identity", nameof(C.WidgetDefinition.Name));
         Assert(x is MultiSelectionPropertyDescriptor && y is MultiSelectionPropertyDescriptor &&
                name is MultiSelectionPropertyDescriptor,
             "Canonical multi-selection common properties must use the multi-selection descriptor.");
@@ -440,7 +445,7 @@ internal static partial class Program
         x.SetValue(view, 64f);
         Assert(first.X == 64f && second.X == 64f,
             "Editing a canonical common mixed property must apply to every selected widget.");
-        name!.SetValue(view, "Shared name");
+        name!.SetValue(generalView, "Shared name");
         Assert(first.Name == "Shared name" && second.Name == "Shared name",
             "Editing a canonical common string property must apply to every selected widget.");
 
@@ -451,8 +456,8 @@ internal static partial class Program
             "Reading an untouched canonical mixed property must preserve individual values.");
 
         var reversed = new EditorMultiPropertyView([
-            new EditorPropertyView(second, section: EditorPropertySection.General),
-            new EditorPropertyView(first, section: EditorPropertySection.General)
+            new EditorPropertyView(second, section: EditorPropertySection.Panel),
+            new EditorPropertyView(first, section: EditorPropertySection.Panel)
         ]).GetProperties();
         Assert(properties.Cast<PropertyDescriptor>().Select(property => property.Name)
                 .SequenceEqual(reversed.Cast<PropertyDescriptor>().Select(property => property.Name)),
@@ -473,15 +478,19 @@ internal static partial class Program
             Height = 100f
         };
         var heterogeneous = new EditorMultiPropertyView([
-            new EditorPropertyView(first, section: EditorPropertySection.General),
-            new EditorPropertyView(gauge, section: EditorPropertySection.General)
+            new EditorPropertyView(first, section: EditorPropertySection.Panel),
+            new EditorPropertyView(gauge, section: EditorPropertySection.Panel)
         ]).GetProperties();
         Assert(GetNestedProperty(heterogeneous, "Geometry", nameof(C.WidgetDefinition.X)) is not null,
             "Different canonical widget types must retain semantically common Geometry properties.");
-        Assert(GetNestedProperty(heterogeneous, "Data Source", nameof(C.ValueWidgetDefinition.Metric)) is not null,
-            "Different metric-backed canonical widgets must intersect by the shared metric semantic key.");
-        Assert(GetNestedProperty(heterogeneous, "Source", nameof(C.ValueWidgetDefinition.SourceKind)) is null,
-            "Value-only SourceKind must not leak into heterogeneous canonical multi-selection.");
+        var source = new EditorMultiPropertyView([
+            new EditorPropertyView(first, section: EditorPropertySection.General),
+            new EditorPropertyView(gauge, section: EditorPropertySection.General)
+        ]).GetProperties();
+        Assert(GetNestedProperty(source, "Data Source", nameof(C.ValueWidgetDefinition.Metric)) is not null,
+            "Metric-backed canonical widgets must share the metric semantic key.");
+        Assert(GetNestedProperty(source, "Data Source", nameof(C.ValueWidgetDefinition.SourceKind)) is null,
+            "Value-only SourceKind must not leak into heterogeneous selection.");
     }
 
     private static void MultiSelectionApplicabilityAndContext()
@@ -553,10 +562,10 @@ internal static partial class Program
             Asset = new C.ImageAssetPresentationDefinition { SourceType = C.ImageAssetSourceType.Icon, Source = "activity" }
         };
         var imageView = new EditorMultiPropertyView([
-            new EditorPropertyView(fileImage, "root", "dashboard", section: EditorPropertySection.General),
-            new EditorPropertyView(iconImage, "root", "dashboard", section: EditorPropertySection.General)
+            new EditorPropertyView(fileImage, "root", "dashboard", section: EditorPropertySection.Image),
+            new EditorPropertyView(iconImage, "root", "dashboard", section: EditorPropertySection.Image)
         ]);
-        var imageSource = GetNestedProperty(imageView.GetProperties(), "Source", "Source");
+        var imageSource = GetNestedProperty(imageView.GetProperties(), "Image", "Source");
         Assert(imageSource is not null && imageSource.IsReadOnly &&
                string.Equals(imageSource.Description, sourceTypeReason, StringComparison.Ordinal),
             "A canonical image source editor with mixed Source Type context must remain visible but disabled.");
@@ -855,33 +864,27 @@ internal static partial class Program
                 }
             };
 
-            var svgAppearance = new EditorPropertyView(
-                image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var svgColor = GetNestedProperty(svgAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var svgImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
+            var svgColor = GetNestedProperty(svgImage, "Image", nameof(C.WidgetDefinition.Color));
             var svgLoop = GetNestedProperty(svgImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
             Assert(svgColor is { IsReadOnly: false } &&
                    svgLoop is { IsReadOnly: true, Description: "Not applicable for selected Source." },
                 "Static tintable SVG icons must enable Color and disable Loop by asset capability.");
 
             image.Asset.Source = "mixed:red.png";
-            var pngAppearance = new EditorPropertyView(
-                image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var pngColor = GetNestedProperty(pngAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var pngImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
+            var pngColor = GetNestedProperty(pngImage, "Image", nameof(C.WidgetDefinition.Color));
             var pngLoop = GetNestedProperty(pngImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
             Assert(pngColor is { IsReadOnly: true, Description: "Not applicable for selected Source." } &&
                    pngLoop is { IsReadOnly: true, Description: "Not applicable for selected Source." },
-                "Static intrinsic-color raster icons must keep Color/Loop visible but disabled.");
+                "Static raster icons hide unsupported tint and disable nonanimated Loop.");
 
             image.Asset.Source = "mixed:animated.gif";
-            var gifAppearance = new EditorPropertyView(
-                image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var gifColor = GetNestedProperty(gifAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var gifImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
+            var gifColor = GetNestedProperty(gifImage, "Image", nameof(C.WidgetDefinition.Color));
             var gifLoop = GetNestedProperty(gifImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
             Assert(gifColor is { IsReadOnly: true } && gifLoop is { IsReadOnly: false },
                 "Animated raster icons must keep intrinsic Color disabled while enabling Loop.");
@@ -986,6 +989,7 @@ internal static partial class Program
             foreach (var section in new[]
                      {
                          EditorPropertySection.General,
+                         EditorPropertySection.Panel,
                          EditorPropertySection.Appearance,
                          EditorPropertySection.Data,
                          EditorPropertySection.Gauge,
@@ -1316,7 +1320,7 @@ internal static partial class Program
             Width = 100.25f,
             Height = 38.40625f
         };
-        var properties = new EditorPropertyView(bar, section: EditorPropertySection.General).GetProperties();
+        var properties = new EditorPropertyView(bar, section: EditorPropertySection.Panel).GetProperties();
         var x = GetNestedProperty(properties, "Geometry", nameof(C.WidgetDefinition.X))
             ?? throw new InvalidOperationException("Bar X property is missing.");
         var y = GetNestedProperty(properties, "Geometry", nameof(C.WidgetDefinition.Y))
@@ -1350,7 +1354,7 @@ internal static partial class Program
         var valueProperties = new EditorPropertyView(
             value,
             effectiveSizeAccessor: _ => (100.25f, 167.57812f),
-            section: EditorPropertySection.General).GetProperties();
+            section: EditorPropertySection.Panel).GetProperties();
         var derivedHeight = GetNestedProperty(valueProperties, "Geometry", nameof(C.WidgetDefinition.Height))
             ?? throw new InvalidOperationException("Canonical Value Height property is missing.");
         Assert(derivedHeight.IsReadOnly && Convert.ToSingle(derivedHeight.GetValue(null)) == 168f,

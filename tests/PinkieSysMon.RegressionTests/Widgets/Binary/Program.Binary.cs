@@ -392,10 +392,10 @@ internal static partial class Program
         trueProfile.Asset.Source = "state.png";
         var fileProperties = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
         var fileColor = GetNestedProperty(fileProperties, "State: True", trueColorName);
-        Assert(fileColor is { IsReadOnly: true } &&
+        Assert(fileColor is null &&
                GetNestedProperty(fileProperties, "State: True", trueFitName) is not null &&
                GetNestedProperty(fileProperties, "State: True", trueLoopName) is not null,
-            "File-backed Binary state visuals must keep Fit/Loop while Color remains visible but disabled by Source Type.");
+            "File-backed Binary state visuals must keep Fit/Loop without an image tint property.");
         Assert(GetNestedProperty(fileProperties, "State: False", falseColorName) is not null,
             "Changing one state to a file source must not remove the sibling state's Color row.");
 
@@ -403,7 +403,7 @@ internal static partial class Program
         var valueImageProperties = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
         var valueTextProperties = new EditorPropertyView(widget, section: EditorPropertySection.Text).GetProperties();
         Assert(valueImageProperties["State: True"] is null &&
-               GetNestedProperty(valueTextProperties, "State: True", "Foreground", trueColorName) is not null,
+               GetNestedProperty(valueTextProperties, "State: True", "Color", trueColorName) is not null,
             "Value-backed Binary states must move Color to Text presentation and omit image-only presentation rows.");
     }
 
@@ -438,8 +438,9 @@ internal static partial class Program
             var falseProfile = widget.Profiles![BinarySignalContract.FalseKey];
             falseProfile.SourceType = StateVisualProfileContract.SourceValue;
             falseProfile.Source = "must-not-be-loaded-either.png";
-            falseProfile.Color = "#FF0000FF";
-            falseProfile.Opacity = 0.5f;
+            // Text transparency belongs to the RGBA color, not an independent Opacity field.
+            falseProfile.Color = "#800000FF";
+            falseProfile.Opacity = 1f;
 
             foreach (var text in new[] { trueProfile.Text!, falseProfile.Text! })
             {
@@ -509,7 +510,7 @@ internal static partial class Program
                 }
 
                 Assert(sawHalfBlue,
-                    "Binary value visual did not apply the False-state color and opacity after a state transition.");
+                    "Binary value visual did not apply the False-state RGBA alpha after a state transition.");
             }
         }
         finally
@@ -792,7 +793,7 @@ internal static partial class Program
         var iconAppearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
         var iconText = new EditorPropertyView(widget, section: EditorPropertySection.Text).GetProperties();
         var iconStates = new EditorPropertyView(widget, section: EditorPropertySection.States).GetProperties();
-        Assert(GetNestedProperty(iconAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { DisplayName: "Foreground Color" } &&
+        Assert(GetNestedProperty(iconAppearance, "Content", nameof(C.WidgetDefinition.Color)) is { DisplayName: "Default Color" } &&
                iconText.Count == 0,
             "Icon-only Binary must expose universal Foreground fallback while hiding Text presentation.");
         Assert(GetNestedProperty(iconStates, "State: True", trueSourceName) is { IsReadOnly: false },
@@ -824,15 +825,15 @@ internal static partial class Program
                mixedImage["State: True"] is null,
             "Mixed Binary value/icon states must retain image presentation only for the image-backed state.");
 
-        var mixedGeneral = new EditorPropertyView(widget, section: EditorPropertySection.General).GetProperties();
-        var mixedHeight = GetNestedProperty(mixedGeneral, "Geometry", nameof(C.WidgetDefinition.Height));
+        var mixedPanel = new EditorPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+        var mixedHeight = GetNestedProperty(mixedPanel, "Geometry", nameof(C.WidgetDefinition.Height));
         Assert(mixedHeight is { IsReadOnly: false },
             "Mixed Binary value/icon states must expose editable Height.");
 
         var mixedText = new EditorPropertyView(widget, section: EditorPropertySection.Text).GetProperties();
         Assert(mixedText["State: True"] is PropertyGroupPropertyDescriptor && mixedText["State: False"] is null,
             "Mixed Binary must expose Text presentation only for its value-backed state.");
-        Assert(GetNestedProperty(mixedText, "State: True", "Foreground", trueColorName) is { DisplayName: "Color" } &&
+        Assert(GetNestedProperty(mixedText, "State: True", "Color", trueColorName) is { DisplayName: "Color" } &&
                GetNestedProperty(mixedText, "State: True", "Font", trueFontName) is { DisplayName: "Family" } &&
                GetNestedProperty(mixedText, "State: True", "Alignment",
                    StateProperty(BinarySignalContract.TrueKey, StateVisualProfileField.Align)) is { DisplayName: "Horizontal" } &&
@@ -853,8 +854,8 @@ internal static partial class Program
         TextOverflowStateContract.ApplyContextChange(widget, 100f, 32f);
         var valueOnlyImage = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
         var valueOnlyText = new EditorPropertyView(widget, section: EditorPropertySection.Text).GetProperties();
-        var valueOnlyGeneral = new EditorPropertyView(widget, section: EditorPropertySection.General).GetProperties();
-        var valueOnlyHeight = GetNestedProperty(valueOnlyGeneral, "Geometry", nameof(C.WidgetDefinition.Height));
+        var valueOnlyPanel = new EditorPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+        var valueOnlyHeight = GetNestedProperty(valueOnlyPanel, "Geometry", nameof(C.WidgetDefinition.Height));
         Assert(valueOnlyHeight is { IsReadOnly: true },
             "Value-only Binary must expose disabled derived Height.");
         Assert(valueOnlyImage.Count == 0 &&

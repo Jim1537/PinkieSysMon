@@ -28,12 +28,12 @@ The Editor then opens the corresponding file selector or icon browser. Complete 
 !!! info
     A newly added icon starts at **96 × 96** logical pixels. A newly added image file uses the decoded image's dimensions, capped at **400 pixels wide** and **300 pixels high** independently.
 
-    New Image widgets start at `X = 100`, `Y = 100`, `Fit = stretch`, `Loop = true`, `Opacity = 1`, and a white foreground color. You can change their size, placement, and appearance afterward.
+    New Image widgets start at `X = 100`, `Y = 100`, `Fit = stretch`, `Loop = true`, `Icon Opacity = 1`, and a white icon tint color. You can change their size, placement, and appearance afterward.
 
 
 ### Step 2. Select or change the source
 
-Open `General → Source` to configure the widget.
+Open `Image → Image` to configure the widget.
 
 | Property | Meaning |
 | --- | --- |
@@ -64,7 +64,7 @@ See [Image Source Type](properties.md#image-source-type) and [Image Source](prop
 
 ### Step 3. Set the size and position
 
-Use `General → Geometry` or the Canvas handles to configure the widget's position and dimensions. Unlike Gauge, Image does not force a square layout.
+Use `Panel → Geometry` or the Canvas handles to configure the widget's position and dimensions. Unlike Gauge, Image does not force a square layout.
 
 - `X` / `Y` — logical position on the dashboard Canvas.
 - `Width` / `Height` — the bounds into which the graphic is drawn.
@@ -92,23 +92,13 @@ For an icon or logo whose proportions matter, `contain` is generally the best ch
 
 See [Image Fit](properties.md#image-fit).
 
-### Step 5. Set opacity and optional icon tint
+### Step 5. Set optional icon tint and opacity
 
-Open `Image → Image → Opacity` to adjust the graphic's transparency.
+For an **Icon**, open `Image → Image`. Its `Opacity` can range from `0` (hidden) to `1` (normal icon alpha). The `Color` row is available for icons that support Tint, and disabled for raster icons with intrinsic colors.
 
-- `Opacity = 1` — fully visible, subject to the source graphic's own transparency.
-- `Opacity = 0.5` — approximately half opacity.
-- `Opacity = 0` — the graphic is invisible.
+For an **Image file**, neither Color nor Opacity is provided. Keep the file's own colors and use the built-in alpha channel (for example, PNG) for transparency. The file's alpha is respected wherever the image is used, including Panel Background and Foreground.
 
-For `Type = Icon`, `Appearance → Container → Foreground Color` is available **only when the selected icon supports tinting**. SVG icons in the shared library commonly provide this capability; raster icons generally retain their own colors. The icon browser's capability information is authoritative for the selected asset.
-
-For `Type = Image`, the original file colors are used. The Foreground Color property is not applicable to file-backed Image widgets. To change a file's colors, edit the image itself rather than relying on an icon-tint control.
-
-!!! warning
-    `Opacity` applies to the image content; it does not replace the common widget's background, border, or shadow settings. A transparent image may still occupy a widget with a separately configured background or border.
-
-
-See [Opacity](properties.md#opacity) and [Foreground Color](properties.md#foreground-color).
+See [Icon Opacity](properties.md#opacity) and [Content Color](properties.md#foreground-color).
 
 ### Step 6. Configure animation
 
@@ -127,19 +117,17 @@ A single-frame image has no animation to repeat. For icons, the Editor makes `Lo
 
 See [Image Loop](properties.md#image-loop).
 
-### Step 7. Configure common appearance and layering
+### Step 7. Configure the Panel
 
-The `Appearance` tab contains the regular widget presentation controls:
+Every Image widget includes the same **Panel** as all other widgets:
 
-- `Container` — foreground tint, background color and corner radius.
-- `Border` — width, color, style and enabled sides.
-- `Shadow` — optional shadow with color, opacity, blur, and offsets.
+- `Panel → Geometry` owns position, dimensions, Padding, Rotation and Corner Radius.
+- `Panel → Background` and `Panel → Foreground` independently select None, Color, Image or Icon.
+- `Panel → Border` and `Panel → Shadow` own panel decorations.
 
-The Image widget also participates in the dashboard's normal layering, selection, grouping, and Z-order operations.
+Both graphical Panel layers fill the entire outer panel; Padding applies only to the widget's own Image content. The painter draws Background, then the content image, then Border, then Foreground. A single Image widget can therefore display three independent images.
 
-A regular Image widget is **not** the same as a Canvas Background Image or Canvas Foreground Image layer. Those layers use separate Canvas properties and have their own placement and ordering semantics.
-
-See [Background Color](properties.md#background-color), [Border Color](properties.md#border-color), [Border Width](properties.md#border-width), and [Shadow Enabled](properties.md#shadow-enabled).
+See the [common Panel contract](properties.md#common-inherited-widget-fields).
 
 ### Usage Examples
 
@@ -147,8 +135,8 @@ The following are configuration examples, not downloadable dashboard templates.
 
 | Scenario | Suggested configuration | Expected result |
 | --- | --- | --- |
-| Dashboard logo | `Type = Image`; select a transparent PNG; `Fit = contain`; `Opacity = 1` | A proportional logo in a movable widget rectangle. |
-| Single-color indicator symbol | `Type = Icon`; select a tintable icon; set `Foreground Color`; `Fit = contain` | An icon displayed using the configured tint, where supported. |
+| Dashboard logo | `Type = Image`; select a transparent PNG; `Fit = contain`; transparent PNG | A proportional logo in a movable widget rectangle. |
+| Single-color indicator symbol | `Type = Icon`; select a tintable icon; set icon `Color`; `Fit = contain` | An icon displayed using the configured tint, where supported. |
 | Decorative full-frame artwork | `Type = Image`; select a suitable dashboard image; `Fit = cover` | The source covers its bounds with aspect ratio preserved; edges may be cropped. |
 | Animated accent | `Type = Image`; select an animated GIF; `Loop = true` | Repeating playback of the supported multi-frame image. |
 | One-shot animated decoration | `Type = Image`; select a supported animated file; `Loop = false` | Playback progresses to the final frame and remains there. |
@@ -169,7 +157,7 @@ Image is a standalone graphical widget with:
 Relevant implementation components:
 
 - `DashboardModel.ImageAssetPresentationDefinition` — persistent source type, source, fit, and loop settings.
-- `DashboardModel.ImageWidgetDefinition` — widget-level image opacity and validation.
+- `DashboardModel.ImageWidgetDefinition` — widget-specific source, icon-only opacity, and validation.
 - `ImageVisual` — common file/icon image presentation with fit, tint, opacity, and playback.
 - `ImageAssetCache` and `IconAssetCache` — caching and asset loading.
 - `AssetPathResolver` — dashboard-relative image path resolution.
@@ -192,12 +180,12 @@ Unlike metric-driven widgets, Image requires no `metric`, `unit`, `format`, `fal
 | `asset.source` | `Asset.Source` | Dashboard-relative file path or global icon logical name. |
 | `asset.fit` | `Asset.Fit` | `contain`, `cover`, or `stretch`. |
 | `asset.loop` | `Asset.Loop` | Whether supported animation repeats. |
-| `opacity` | `Opacity` | Widget graphic opacity in the range `0..1`. |
+| `iconOpacity` | `IconOpacity` | Icon-only opacity in the range `0..1`; not applied to files. |
 | `color` | Inherited `Color` | Foreground color for tint-capable icons. |
 
 --8<-- "widgets/properties.md:widget-base-fields"
 
-The Editor's display term `Image` for a file source maps to the canonical token `file`. `Icon` maps to `icon`. The asset model defaults to file source type, stretch fitting, and looping enabled; the widget opacity defaults to `1`.
+The Editor's display term `Image` for a file source maps to the canonical token `file`. `Icon` maps to `icon`. The asset model defaults to file source type, stretch fitting, and looping enabled; the icon opacity defaults to `1`.
 
 #### File source
 
@@ -237,15 +225,9 @@ These asset paths have different owners: [Bar Image](bar.md#image-rendering) has
 
 ### Color and Opacity Contract
 
-`ImageWidgetDefinition.Opacity` is validated as a finite number between `0` and `1` inclusive.
+File-backed Image content draws using its own embedded pixel alpha and intrinsic colors. No standalone file Opacity or tint exists.
 
-For file-backed images, rendering preserves the source's intrinsic colors. When widget opacity is less than approximately 1, the file pipeline uses a separate drawing paint with adjusted alpha.
-
-For icon-backed images, `ImageVisual` passes the inherited widget `Color` together with opacity to the icon renderer. Whether the color is applied as tint is determined by the actual icon's capabilities; raster icons normally preserve their intrinsic colors.
-
-The Editor enables Foreground Color only for selected icon assets that report tint capability. For a file source, or an untintable icon, this setting is not applicable even though the inherited color field remains in the canonical widget model.
-
-Common background, border, and shadow settings are separate from the graphic's opacity and are applied through the widget rendering framework.
+For Icon content, `IconOpacity` multiplies the icon's intrinsic alpha. The widget `color` is an optional tint, applied only when the selected icon supports it. Icon Color remains visible but disabled for untintable assets. The same resource contract governs Canvas, Panel and state-profile artwork; common Panel layers are independent from this widget's own graphic.
 
 ### Animation and Playback Contract
 
@@ -271,11 +253,10 @@ The principal Editor properties are:
 
 | Tab | Group | Settings |
 | --- | --- | --- |
-| `General` | `Source` | `Type` and dynamic `Source` (Image or Icon). |
-| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
-| `Appearance` | `Container` | Foreground Color applies to tint-capable icons. Background Color and Corner Radius control the container. |
-| `Appearance` | `Border / Shadow` | Common widget presentation. |
-| `Image` | `Image` | Fit, Loop, and Opacity. |
+| General | Identity / Data Source | Read-only Type and ID, editable Name; no metric |
+| Panel | Geometry / Background / Foreground / Border / Shadow | Common container settings and independent visual layers |
+| Image | Image | Source Type, Source, Fit, Loop; icon-only Color and Opacity |
+| Image | Background / Foreground | Fit, Loop and icon-only presentation for active graphical Panel layers |
 
 The Image tab enables [Loop](properties.md#image-loop) for animated files and icons.
 
@@ -297,7 +278,7 @@ The canonical model requires:
 - A non-empty, resolvable `asset.source`.
 - For file sources, an existing image within the dashboard directory and no path escape.
 - For icon sources, a valid logical library/icon reference resolving to an installed asset.
-- A finite `opacity` in `0..1`.
+- A finite `iconOpacity` in `0..1` for icon content. There is no file-opacity property.
 
 Compatibility-sensitive behavior includes:
 

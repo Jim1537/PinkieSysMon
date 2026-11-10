@@ -23,8 +23,11 @@ internal sealed class ShortcutWidgetDefinition : WidgetDefinition
         Fit = StateVisualProfileContract.FitContain
     };
 
-    [JsonPropertyName("opacity")]
-    public float Opacity { get; set; } = 1f;
+    [JsonPropertyName("iconOpacity")]
+    public float IconOpacity { get; set; } = 1f;
+
+    [JsonIgnore]
+    public float Opacity { get => IconOpacity; set => IconOpacity = value; }
 
     [JsonPropertyName("label")]
     public string Label { get; set; } = string.Empty;
@@ -55,7 +58,7 @@ internal sealed class ShortcutWidgetDefinition : WidgetDefinition
         if (!ShortcutContract.LabelPositions.Contains(LabelPosition, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"Shortcut widget '{Id}' has invalid LabelPosition '{LabelPosition}'.");
         RequireFinite(Gap, nameof(Gap));
-        if (!float.IsFinite(Opacity) || Opacity is < 0f or > 1f)
+        if (!float.IsFinite(IconOpacity) || IconOpacity is < 0f or > 1f)
             throw new InvalidDataException($"Shortcut widget '{Id}' Opacity must be in the range 0..1.");
         _ = ColorParser.Parse(LabelColor);
         if (Asset is null || TextPresentation is null)

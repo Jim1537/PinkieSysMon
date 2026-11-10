@@ -19,7 +19,7 @@ Select the new widget on the Canvas. Its settings appear in the Properties panel
 
 ### Step 2. Choose a data source
 
-On the `General` tab, locate the `Source` group and set `Type` to one of the following:
+On the `General` tab, locate the `Data Source` group and set `Type` to one of the following:
 
 - `Metric` — display a value provided by System, Libre Hardware Monitor, iCUE, or another available telemetry provider.
 - `Text` — display a literal string entered in the `Text` property.
@@ -284,15 +284,15 @@ Animation state is keyed by widget identity, displayed text, mode, and motion-re
 
 The canonical Properties panel applies settings contextually:
 
-- `General → Source → Type` selects `Metric` or `Text`.
-- `General → Source → Metric` is inapplicable for `Type = Text`.
-- `General → Source → Text` is inapplicable for `Type = Metric`.
+- `General → Data Source → Type` selects `Metric` or `Text`.
+- `General → Data Source → Metric` is inapplicable for `Type = Text`.
+- `General → Data Source → Text` is inapplicable for `Type = Metric`.
 - `Data → Value → Source Unit` is read-only for a metric and user-selectable for a numeric literal.
 - `Data → Value → Unit / Format` depend on the semantic type of the active source.
 - `Data → Display → Fallback` is inapplicable for `Type = Text`.
 - `Text → Overflow → Scroll Speed` applies to `Scroll` and `Bump`.
 - `Text → Overflow → Bump Pause` applies only to `Bump`.
-- `General → Geometry → Height` is derived rather than independently adjustable.
+- `Panel → Geometry → Height` is derived rather than independently adjustable.
 
 The Editor reconciles `SourceUnit`, `Unit`, `Format`, and `OverflowMode` after relevant edits instead of leaving contradictory selections. For complete property names, values, and applicability rules, see [Widget Properties — Tabs](properties-by-tab.md) and [Widget Property Dictionary](properties.md).
 

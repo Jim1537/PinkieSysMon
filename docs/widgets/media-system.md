@@ -21,7 +21,7 @@ Open a dashboard in **PinkieSysMon Dashboard Editor**. From `Add Widget` (or `Ad
 
 ### Step 2. Choose Output or Input
 
-Open `General → Source` and choose the `Source` value:
+Open `General → Data Source` and choose the `Source` value:
 
 | Source | Monitored device | Availability metric | Type metric |
 | --- | --- | --- | --- |
@@ -100,7 +100,7 @@ For any profile using `Icon` or `Image`, open the `Image` tab. Configure its sta
 - `Fit` — `Contain`, `Cover`, or `Stretch` within the widget bounds.
 - `Loop` — whether an animated source repeats.
 - `Color` — tint for a source that supports icon tinting.
-- `Opacity` — transparency of that state's visual content.
+- `Opacity` — icon-only transparency; file images use embedded alpha and Value text uses RGBA Color/Outline Color.
 
 File-backed images retain their own image colors; the icon Color control is not a general file-recoloring feature. Loop has an observable effect only for an animated asset.
 
@@ -112,7 +112,7 @@ See [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop)
 
 For profiles using `Value`, open the `Text` tab to configure:
 
-- foreground color and opacity;
+- RGBA text color and independent outline RGBA alpha;
 - font family, size, weight, and italic style;
 - horizontal and vertical alignment;
 - text outline;
@@ -120,7 +120,7 @@ For profiles using `Value`, open the `Text` tab to configure:
 
 These settings belong to the individual profile. For example, `unknown` can appear in gray while `unavailable` appears in red.
 
-`Appearance` controls the shared widget background, border, and shadow. `General → Geometry` controls position, Width, Height, and rotation.
+`Panel` owns geometry, background, foreground, border and shadow. `Appearance → Content → Default Color` supplies the common inherited state color.
 
 The widget does not provide an arbitrary custom label field for the Value profile. If you want a descriptive phrase such as `Audio Output`, use a separate Text / Value widget.
 
@@ -301,8 +301,8 @@ For Media System, **all eleven** profiles must be Value-backed for auto-width to
 | Tab | Group | Controls |
 | --- | --- | --- |
 | `General` | `Source` | `Source` = `media.output` or `media.input`. |
-| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
-| `Appearance` | Container, Border, Shadow | Shared appearance configuration. |
+| `Panel` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Panel` | Background, Foreground, Border, Shadow | Shared presentation. |
 | `Data` | `Endpoint Overrides` | Available when active endpoints can be enumerated and the override configuration is accessible. |
 | `States` | Eleven type/unavailable groups | State-specific `Source Type` and graphical `Source`. |
 | `Image` | Graphical profiles | Fit, Loop, supported Color/Tint, Opacity. |
@@ -319,7 +319,7 @@ Canonical validation requires:
 - a supported `mediaSource` (`media.output` or `media.input`);
 - all eleven required visual profiles and no unsupported extra keys;
 - valid state content types and corresponding graphical assets when applicable;
-- valid text-presentation structures and finite profile opacity;
+- valid text-presentation structures, RGBA text/outline alpha and icon-only Opacity;
 - positive geometry for graphical or mixed state content; non-negative dimensions for all-Value content;
 - valid common widget colors, geometry, background, border, and shadow definitions.
 

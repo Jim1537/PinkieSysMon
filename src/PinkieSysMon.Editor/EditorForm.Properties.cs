@@ -27,6 +27,7 @@ internal sealed partial class EditorForm
     };
 
     private readonly TabPage _generalPropertyTab = new() { Name = "General", Padding = Padding.Empty, ToolTipText = "General", AccessibleName = "General" };
+    private readonly TabPage _panelPropertyTab = new() { Name = "Panel", Padding = Padding.Empty, ToolTipText = "Panel", AccessibleName = "Panel" };
     private readonly TabPage _appearancePropertyTab = new() { Name = "Appearance", Padding = Padding.Empty, ToolTipText = "Appearance", AccessibleName = "Appearance" };
     private readonly TabPage _dataPropertyTab = new() { Name = "Data", Padding = Padding.Empty, ToolTipText = "Data", AccessibleName = "Data" };
     private readonly TabPage _gaugePropertyTab = new() { Name = "Gauge", Padding = Padding.Empty, ToolTipText = "Gauge", AccessibleName = "Gauge" };
@@ -36,6 +37,7 @@ internal sealed partial class EditorForm
     private readonly TabPage _textPropertyTab = new() { Name = "Text", Padding = Padding.Empty, ToolTipText = "Text", AccessibleName = "Text" };
 
     private static readonly string[] PropertyGeneralIcons = ["settings-2", "settings", "sliders-horizontal", "grid-3x3"];
+    private static readonly string[] PropertyPanelIcons = ["layers-2", "layers", "square"];
     private static readonly string[] PropertyAppearanceIcons = ["palette", "paintbrush", "swatch-book", "focus"];
     private static readonly string[] PropertyDataIcons = ["database", "server", "hard-drive", "folder-open"];
     private static readonly string[] PropertyGaugeIcons = ["gauge", "activity", "focus"];
@@ -197,6 +199,7 @@ internal sealed partial class EditorForm
         try
         {
             replacements.Add((_generalPropertyTab, CreateLucideToolbarImage(size, PropertyGeneralIcons)));
+            replacements.Add((_panelPropertyTab, CreateLucideToolbarImage(size, PropertyPanelIcons)));
             replacements.Add((_appearancePropertyTab, CreateLucideToolbarImage(size, PropertyAppearanceIcons)));
             replacements.Add((_dataPropertyTab, CreateLucideToolbarImage(size, PropertyDataIcons)));
             replacements.Add((_gaugePropertyTab, CreateLucideToolbarImage(size, PropertyGaugeIcons)));
@@ -270,15 +273,17 @@ internal sealed partial class EditorForm
             {
                 if (IsWidgetPropertyTarget(target))
                 {
+                    var includeAppearance = CreatePropertyTargetView(target!, EditorPropertySection.Appearance).GetProperties().Count > 0;
                     var includeData = CreatePropertyTargetView(target!, EditorPropertySection.Data).GetProperties().Count > 0;
                     var includeGauge = CreatePropertyTargetView(target!, EditorPropertySection.Gauge).GetProperties().Count > 0;
                     var includeStates = CreatePropertyTargetView(target!, EditorPropertySection.States).GetProperties().Count > 0;
                     var includeImage = CreatePropertyTargetView(target!, EditorPropertySection.Image).GetProperties().Count > 0;
                     var includeText = CreatePropertyTargetView(target!, EditorPropertySection.Text).GetProperties().Count > 0;
                     var includeGraph = CreatePropertyTargetView(target!, EditorPropertySection.Graph).GetProperties().Count > 0;
-                    ConfigureWidgetPropertyTabs(includeData, includeGauge, includeStates, includeImage, includeText, includeGraph);
+                    ConfigureWidgetPropertyTabs(includeAppearance, includeData, includeGauge, includeStates, includeImage, includeText, includeGraph);
 
                     _generalPropertyTab.Enabled = true;
+                    _panelPropertyTab.Enabled = true;
                     _appearancePropertyTab.Enabled = true;
                     _dataPropertyTab.Enabled = true;
                     _gaugePropertyTab.Enabled = true;
@@ -331,13 +336,15 @@ internal sealed partial class EditorForm
             _ => throw new InvalidOperationException($"Unsupported property target '{target.GetType().Name}'.")
         };
 
-    private void ConfigureWidgetPropertyTabs(bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText, bool includeGraph = false)
+    private void ConfigureWidgetPropertyTabs(bool includeAppearance, bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText, bool includeGraph = false)
     {
         var desired = new List<TabPage>
         {
             _generalPropertyTab,
-            _appearancePropertyTab
+            _panelPropertyTab
         };
+        if (includeAppearance)
+            desired.Add(_appearancePropertyTab);
         if (includeData)
             desired.Add(_dataPropertyTab);
         if (includeGauge)
@@ -419,6 +426,7 @@ internal sealed partial class EditorForm
             : EditorPropertySection.All;
 
         _propertyGrid.PropertySort = section is EditorPropertySection.General or
+            EditorPropertySection.Panel or
             EditorPropertySection.Appearance or
             EditorPropertySection.Data or
             EditorPropertySection.Gauge or
@@ -438,6 +446,11 @@ internal sealed partial class EditorForm
         if (ReferenceEquals(page, _generalPropertyTab))
         {
             section = EditorPropertySection.General;
+            return true;
+        }
+        if (ReferenceEquals(page, _panelPropertyTab))
+        {
+            section = EditorPropertySection.Panel;
             return true;
         }
         if (ReferenceEquals(page, _appearancePropertyTab))
@@ -482,6 +495,7 @@ internal sealed partial class EditorForm
     private TabPage? GetPropertyTab(EditorPropertySection section) => section switch
     {
         EditorPropertySection.General => _generalPropertyTab,
+        EditorPropertySection.Panel => _panelPropertyTab,
         EditorPropertySection.Appearance => _appearancePropertyTab,
         EditorPropertySection.Data => _dataPropertyTab,
         EditorPropertySection.Gauge => _gaugePropertyTab,

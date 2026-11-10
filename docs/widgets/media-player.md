@@ -21,7 +21,7 @@ Open a dashboard in **PinkieSysMon Dashboard Editor**, choose `Add Widget` (or t
 
 ### Step 2. Understand its fixed source
 
-On `General → Source`, the `Metric` field is read-only:
+On `General → Data Source`, the `Metric` field is read-only:
 
   `system.media.playback.status`
 
@@ -89,7 +89,7 @@ When a profile uses Icon or Image, open the `Image` tab to customize its graphic
 - `Fit` — choose Contain, Cover, or Stretch.
 - `Loop` — repeat supported animation or stop after one playback.
 - `Color` — use a color tint when the chosen icon supports tinting.
-- `Opacity` — adjust transparency of the selected state's content.
+- `Opacity` — adjusts Icon content only; file images use embedded alpha and Value text uses RGBA color alpha.
 
 Each graphical profile has its own settings. Tinting does not recolor a file-backed image, and the Loop setting has a visible effect only for animated content.
 
@@ -101,7 +101,7 @@ See [Image Fit](properties.md#image-fit), [Image Loop](properties.md#image-loop)
 
 For any state using Value, open the `Text` tab. Its appearance is controlled independently of the other states:
 
-- text color and opacity;
+- RGBA text color and independent RGBA outline color;
 - font family, size, weight, and italic style;
 - horizontal and vertical alignment;
 - outline color and width;
@@ -109,7 +109,7 @@ For any state using Value, open the `Text` tab. Its appearance is controlled ind
 
 For example, the Playing text can be green, Paused amber, Stopped gray, and Unavailable red.
 
-The `Appearance` tab controls the common widget background, border, shadow, and applicable common foreground settings. `General → Geometry` controls placement, dimensions, and rotation.
+`Panel` owns common background/foreground visual layers, border, shadow and geometry. `Appearance → Content → Default Color` owns inherited content color.
 
 See [Font Family](properties.md#font-family), [Overflow Mode](properties.md#overflow-mode), and [Widget Properties — Tabs](properties-by-tab.md).
 
@@ -246,7 +246,7 @@ For Media Player, `WidgetRenderContext.ResolveStateValueText` returns the resolv
 
 It never substitutes track title, artist, album, player name, playback progress, or a user-configured arbitrary label. Value-state content has no numerical Unit, Format, Prefix, Suffix, or Fallback pipeline on this widget.
 
-The shared `TextContentRenderer` renders the state text using the profile's canonical `TextPresentationDefinition` and its own color/opacity. The `Text` tab is contextual: only Value-backed profiles expose text-presentation settings.
+The shared `TextContentRenderer` renders the state text using the profile's canonical `TextPresentationDefinition` and its own RGBA color/outline alpha. The `Text` tab is contextual: only Value-backed profiles expose text-presentation settings.
 
 ### Image, Icon, and Animation Rendering
 
@@ -267,8 +267,8 @@ For Media Player, **all four** profiles must use Value for auto-width to be elig
 | Tab | Group | Media Player controls |
 | --- | --- | --- |
 | `General` | `Data Source` | Fixed, read-only `Metric = system.media.playback.status`. |
-| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
-| `Appearance` | Container, Border, Shadow | Widget-wide appearance settings. |
+| `Panel` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Panel` | Background, Foreground, Border, Shadow | Common presentation. |
 | `States` | Playing, Paused, Stopped, Unavailable | State-specific Source Type and Source. |
 | `Image` | Graphical state profiles | Fit, Loop, supported Color, Opacity. |
 | `Text` | Value state profiles | Foreground, Font, Alignment, Outline, Overflow. |
@@ -284,7 +284,7 @@ Canonical validation requires:
 - a recognized widget type `media.player`;
 - the four required visual profiles, with no unsupported extra state keys;
 - valid state content type, asset structure, and asset existence for every active graphical profile;
-- valid text-presentation structures and finite state opacity;
+- valid text-presentation structures, RGBA text/outline colors and icon-only Opacity;
 - positive Width and Height for graphical or mixed profiles, or non-negative dimensions for all-Value profiles;
 - valid shared appearance, geometry, and color fields.
 

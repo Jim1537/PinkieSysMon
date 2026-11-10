@@ -101,7 +101,7 @@ internal sealed class ImageVisual : IDisposable
             profile.Source,
             fit,
             loop,
-            profile.Opacity,
+            StateVisualProfileContract.IsIconSource(profile.SourceType) ? profile.Opacity : 1f,
             color,
             antialias,
             BlankSourceTypeMeaning.Icon);
@@ -178,11 +178,20 @@ internal sealed class ImageVisual : IDisposable
             throw new InvalidDataException($"Unsupported image source type '{sourceType}'.");
         }
 
-        return CreateImage(images.Get(source), fit, loop, opacity, antialias);
+        // A file's embedded alpha is authoritative. Independent Opacity is icon-only.
+        return CreateImage(images.Get(source), fit, loop, 1f, antialias);
     }
 
-    // Borrows the asset exactly like the dashboard caches. Its acquisition owner disposes it.
-    internal static ImageVisual CreateImage(ImageAsset image, string? fit, bool loop, float opacity, bool antialias)
+    // Dashboard file images always use the alpha encoded in their own pixels.
+    internal static ImageVisual CreateImage(ImageAsset image, string? fit, bool loop, float opacity, bool antialias) =>
+        CreateRasterImage(image, fit, loop, 1f, antialias);
+
+    // A Shell-extracted Shortcut is a system icon, not a dashboard image file.
+    // Preserve icon Opacity independently from the file-image alpha contract.
+    internal static ImageVisual CreateShellIcon(ImageAsset image, string? fit, bool loop, float opacity, bool antialias) =>
+        CreateRasterImage(image, fit, loop, opacity, antialias);
+
+    private static ImageVisual CreateRasterImage(ImageAsset image, string? fit, bool loop, float opacity, bool antialias)
     {
         var normalizedFit = NormalizeFit(fit);
         var fitName = normalizedFit switch
@@ -196,24 +205,12 @@ internal sealed class ImageVisual : IDisposable
         {
             paint = new SKPaint
             {
-                Color = new SKColor(
-                    255,
-                    255,
-                    255,
+                Color = new SKColor(255, 255, 255,
                     (byte)Math.Clamp((int)Math.Round(Math.Clamp(opacity, 0f, 1f) * 255f), 0, 255)),
                 IsAntialias = antialias
             };
         }
-
-        return new ImageVisual(
-            normalizedFit,
-            fitName,
-            loop,
-            opacity,
-            null,
-            default,
-            image,
-            paint);
+        return new ImageVisual(normalizedFit, fitName, loop, opacity, null, default, image, paint);
     }
 
     public void Draw(SKCanvas canvas, SKRect bounds, bool antialias) =>

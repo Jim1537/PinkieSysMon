@@ -265,8 +265,9 @@ internal static partial class Program
 
         var fillAppearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
         var fillImage = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
-        Assert(GetNestedProperty(fillAppearance, "Container", nameof(C.WidgetDefinition.Color)) is not null,
-            "Fill-mode Bar must expose universal Color.");
+        Assert(GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Gauge).GetProperties(),
+            "Bar", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: false },
+            "Fill-mode Bar indicator Color belongs to Gauge.");
         Assert(fillAppearance["ThresholdMode"] is not null &&
                fillAppearance["Threshold 1"] is not null,
             "Fill-mode Bar must expose threshold controls.");
@@ -294,8 +295,9 @@ internal static partial class Program
             "Image-mode Bar must expose Progress Mode.");
         Assert(GetNestedProperty(imageProperties, "Image", "Loop") is not null,
             "Image-mode Bar must expose Loop because animated image playback uses the canonical image Loop setting.");
-        Assert(GetNestedProperty(imageAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true },
-            "Image-mode Bar must hide universal foreground Color.");
+        Assert(GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Gauge).GetProperties(),
+            "Bar", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true },
+            "Image-mode Bar indicator Color must be disabled.");
         Assert(imageAppearance["ThresholdMode"] is null &&
                imageAppearance["Threshold 1"] is null &&
                imageAppearance["Threshold 2"] is null &&
@@ -309,8 +311,8 @@ internal static partial class Program
 
         modeProperty.SetValue(null, BarImageContract.ContentModeFill);
         Assert(new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties().Count == 0 &&
-               GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties(),
-                   "Container", nameof(C.WidgetDefinition.Color)) is not null,
+               GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Gauge).GetProperties(),
+                   "Bar", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: false },
             "Issue75: returning to Fill must remove the Image tab and restore Fill-only properties.");
 
         modeProperty.SetValue(null, BarImageContract.ContentModeImage);

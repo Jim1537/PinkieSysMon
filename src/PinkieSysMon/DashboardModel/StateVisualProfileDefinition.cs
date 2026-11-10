@@ -17,8 +17,12 @@ internal sealed class StateVisualProfileDefinition
     [JsonPropertyName("color")]
     public string? Color { get; set; }
 
-    [JsonPropertyName("opacity")]
-    public float Opacity { get; set; } = 1f;
+    [JsonPropertyName("iconOpacity")]
+    public float IconOpacity { get; set; } = 1f;
+
+    // Source compatibility for existing profile factories; Value/File never use it.
+    [JsonIgnore]
+    public float Opacity { get => IconOpacity; set => IconOpacity = value; }
 
     [JsonPropertyName("textPresentation")]
     public TextPresentationDefinition TextPresentation { get; set; } = new();
@@ -33,7 +37,7 @@ internal sealed class StateVisualProfileDefinition
             throw new InvalidDataException($"{context} Asset must not be null.");
         if (TextPresentation is null)
             throw new InvalidDataException($"{context} TextPresentation must not be null.");
-        if (!float.IsFinite(Opacity) || Opacity is < 0f or > 1f)
+        if (!float.IsFinite(IconOpacity) || IconOpacity is < 0f or > 1f)
             throw new InvalidDataException($"{context} Opacity must be a finite value in the range 0..1.");
         if (!string.IsNullOrWhiteSpace(Color))
             _ = global::PinkieSysMon.ColorParser.Parse(Color);

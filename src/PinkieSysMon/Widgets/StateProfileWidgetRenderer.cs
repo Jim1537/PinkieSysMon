@@ -45,7 +45,7 @@ internal abstract class StateProfileWidgetRenderer : IWidgetRenderer, IWidgetSha
                 context,
                 context.ResolveStateValueText(widget, stateKey),
                 profile.Color,
-                profile.Opacity,
+                1f, // State text alpha belongs to its RGBA fill and outline colors.
                 stateWidget.UsesOnlyValueSources()
                     ? TextContentLayoutMode.AutoHeightContainer
                     : TextContentLayoutMode.Container,

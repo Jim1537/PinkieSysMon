@@ -28,7 +28,7 @@ internal sealed class ShortcutWidgetRenderer : IWidgetRenderer, IWidgetOverlayRe
                 var image = _shell.Get(shortcut.Target, out var pending, shortcut.Id);
                 if (pending) _pending.Add(shortcut); else _pending.Remove(shortcut);
                 if (image is null) return;
-                visual = ImageVisual.CreateImage(image, shortcut.Asset.Fit, shortcut.Asset.Loop, shortcut.Opacity, context.Antialias);
+                visual = ImageVisual.CreateShellIcon(image, shortcut.Asset.Fit, shortcut.Asset.Loop, shortcut.IconOpacity, context.Antialias);
             }
             else
                 visual = ImageVisual.Create(_images, _icons, shortcut.Asset.SourceType, shortcut.Asset.Source!,

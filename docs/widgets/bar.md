@@ -26,7 +26,7 @@ Open a dashboard in **PinkieSysMon Dashboard Editor**, then choose `Bar` from `A
 
 ### Step 2. Select a metric
 
-Open `General → Source → Metric` and select the telemetry metric to display.
+Open `General → Data Source → Metric` and select the telemetry metric to display.
 
 Supported metrics may come from [System](../telemetry/system.md), [Libre Hardware Monitor](../telemetry/libre-hardware-monitor.md), or [iCUE Sensor Logging](../telemetry/icue-sensor-logging.md), depending on which providers are configured and supplying data.
 
@@ -82,7 +82,7 @@ See [Bar Mode](properties.md#bar-mode), [Reverse](properties.md#reverse), and [G
 
 Set `Gauge → Bar → Mode = Fill`.
 
-The active part of the bar uses `Appearance → Container → Foreground Color` as its base color. Use `Appearance → Container → Background Color` for the widget background, `Container → Corner Radius` for rounded corners, and `Border` for the outline.
+The active part of the bar uses `Gauge → Bar → Indicator Color` as its base color. Use `Panel → Background → Mode = Color → Color` for the widget background, `Container → Corner Radius` for rounded corners, and `Border` for the outline.
 
 The unfilled region is the widget's background, not a separately configured Bar track. With a fully transparent widget background, the unfilled portion may appear transparent.
 
@@ -96,7 +96,7 @@ In `Fill` mode, the `Appearance` tab exposes `Threshold Mode` and up to three th
 | `SegmentTransition` | Uses color transitions across the defined range and reveals the gradient up to the current value. |
 | `State` | Colors the entire active fill with the color corresponding to the highest threshold reached by the current value. |
 
-Threshold colors supplement the base foreground color. Before the first enabled threshold, the base color is used.
+Threshold colors supplement the base indicator color. Before the first enabled threshold, the base color is used.
 
 For an illustration, consider a bar with `Min = 0`, `Max = 100`, base color green, an enabled threshold at `70` colored orange, and another at `90` colored red.
 
@@ -156,12 +156,12 @@ See [Image Source](properties.md#image-source), [Image Fit](properties.md#image-
 
 ### Step 7. Adjust geometry and common appearance
 
-The `General → Geometry` group controls position, width, height, and rotation. Unlike Gauge, Bar has independent width and height and is not constrained to a square.
+The `Panel → Geometry` group controls position, width, height, and rotation. Unlike Gauge, Bar has independent width and height and is not constrained to a square.
 
 The `Appearance` tab provides:
 
-- `Container → Foreground Color` in Fill mode;
-- `Container → Background Color` for the outer widget background;
+- `Gauge → Bar → Indicator Color` in Fill mode;
+- `Panel → Background → Mode = Color → Color` for the outer widget background;
 - `Container → Corner Radius` and the separate `Border` controls;
 - optional `Shadow` settings;
 - threshold controls in Fill mode.
@@ -308,15 +308,15 @@ At zero drawable interior area, the active renderer likewise has nothing to pain
 
 The current canonical Editor model organizes Bar properties as follows:
 
-- `General → Source → Metric` — telemetry binding.
-- `General → Geometry` — X, Y, Width, Height, Rotation.
+- `General → Data Source → Metric` — telemetry binding.
+- `Panel → Geometry` — X, Y, Width, Height, Rotation.
 - `Data → Value` — read-only Source Unit and eligible numeric Unit options.
 - `Data → Range` — Min and Max.
 - `Gauge → Bar` — Mode, Reverse, Gap.
 - `Appearance` — common background, border, shadow; foreground and thresholds where applicable.
 - `Image → Image` — Source, Fit, Progress Mode, Loop, only when Mode is Image.
 
-Fill mode enables Foreground Color and shows the threshold groups. Image mode disables Foreground Color, hides the threshold groups and shows the Image tab.
+Fill mode enables Indicator Color and shows the threshold groups. Image mode disables Indicator Color, hides the threshold groups and shows the Image tab.
 
 See [Widget Properties — Tabs](properties-by-tab.md) and [Widget Property Dictionary](properties.md) for the authoritative list of property names, supported values, and conditional availability.
 

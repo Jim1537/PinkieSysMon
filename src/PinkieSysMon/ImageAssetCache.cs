@@ -28,6 +28,13 @@ internal sealed class ImageAssetCache : IDisposable
         {
             try
             {
+                foreach (var layer in new[] { widget.PanelBackground, widget.PanelForeground })
+                {
+                    if (layer.Mode == CanonicalDashboard.WidgetPanelLayerMode.Image &&
+                        !string.IsNullOrWhiteSpace(layer.Image.Source))
+                        _ = Get(layer.Image.Source!);
+                }
+
                 switch (widget)
                 {
                     case CanonicalDashboard.ShortcutWidgetDefinition shortcut

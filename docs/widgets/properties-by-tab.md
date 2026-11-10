@@ -15,172 +15,97 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     --8<-- "widgets/properties.md:name"
 
     #### Type and ID
-    Read-only widget type and instance identity.
+    Widget type and instance identity are read-only.
 
     ### Data Source
 
     #### Metric
     --8<-- "widgets/properties.md:metric"
 
+    #### Source selection for Value, Power, and Media System
+    --8<-- "widgets/properties.md:value-source-type"
+    --8<-- "widgets/properties.md:power-source"
+    --8<-- "widgets/properties.md:media-source"
+
+    #### Literal Text (Value)
+    --8<-- "widgets/properties.md:text"
+
     #### Media Player Metric
     --8<-- "widgets/properties.md:media-player-metric"
 
+    Canvas is not a widget: its General tab retains Canvas geometry and its own image-source pickers.
+
+=== "Panel"
+
+    ## Panel
+
+    The same Panel tab is available on every widget. It owns geometry, both graphical layers, border and shadow, independently of widget-content styling.
+
     ### Geometry
 
-    #### X
+    #### X / Y
     --8<-- "widgets/properties.md:x"
-
-    #### Y
     --8<-- "widgets/properties.md:y"
 
-    #### Width
+    #### Width / Height
     --8<-- "widgets/properties.md:width"
-
-    #### Height
     --8<-- "widgets/properties.md:height"
 
-    #### Padding
-    See [common widget fields](properties.md#common-inherited-widget-fields).
+    #### Padding, Rotation, Corner Radius and Z-order
+    --8<-- "widgets/properties.md:widget-base-fields"
 
-    #### Rotation
-    --8<-- "widgets/properties.md:rotation"
+    ### Background
 
+    #### Mode / Color / Source
+    --8<-- "widgets/properties.md:background-color"
 
-    #### Z-order
-    Read-only layer order.
+    ### Foreground
 
-    #### Orientation (Canvas)
-    --8<-- "widgets/properties.md:orientation"
+    #### Mode / Color / Source
+    Same layer contract as Background, drawn last above Border. This is **not** the content Color.
 
-    ### Source
+    ### Border
 
-    #### Value Source Type
-    --8<-- "widgets/properties.md:value-source-type"
+    #### Color / Width / Style / Sides
+    --8<-- "widgets/properties.md:border-color"
+    --8<-- "widgets/properties.md:border-width"
 
-    #### Text
-    --8<-- "widgets/properties.md:text"
+    ### Shadow
 
-    #### Image Source Type
-    --8<-- "widgets/properties.md:image-source-type"
-
-    #### Image Source
-    --8<-- "widgets/properties.md:image-source"
-
-    #### Power Source
-    --8<-- "widgets/properties.md:power-source"
-
-    #### Media Source
-    --8<-- "widgets/properties.md:media-source"
-
-    ### Background Image
-
-    #### Image Source Type
-    --8<-- "widgets/properties.md:image-source-type"
-
-    #### Image Source
-    --8<-- "widgets/properties.md:image-source"
-
-    ### Foreground Image
-
-    #### Image Source Type
-    --8<-- "widgets/properties.md:image-source-type"
-
-    #### Image Source
-    --8<-- "widgets/properties.md:image-source"
-
-    ### Activation
-
-    #### Target
-    --8<-- "widgets/properties.md:shortcut-target"
-
-    #### Arguments
-    --8<-- "widgets/properties.md:shortcut-arguments"
-
-    #### Activation
-    --8<-- "widgets/properties.md:shortcut-activation"
+    #### Enabled / Color / Opacity / Blur / Offsets
+    --8<-- "widgets/properties.md:shadow-enabled"
+    --8<-- "widgets/properties.md:shadow-color"
+    --8<-- "widgets/properties.md:shadow-opacity"
+    --8<-- "widgets/properties.md:shadow-blur"
+    --8<-- "widgets/properties.md:shadow-offset-x"
+    --8<-- "widgets/properties.md:shadow-offset-y"
 
 === "Appearance"
 
     ## Appearance
 
-    ### Container
+    Appearance is content-specific, not a second owner of Panel geometry or decoration.
 
-    #### Foreground Color
+    ### Content
+
+    #### Default Color (state-driven widgets)
     --8<-- "widgets/properties.md:foreground-color"
 
-    #### Background Color
-    --8<-- "widgets/properties.md:background-color"
+    ### Activation (Shortcut)
 
-    #### Corner Radius
-    --8<-- "widgets/properties.md:corner-radius"
+    #### Target / Arguments / Activation
+    --8<-- "widgets/properties.md:shortcut-target"
+    --8<-- "widgets/properties.md:shortcut-arguments"
+    --8<-- "widgets/properties.md:shortcut-activation"
 
-    ### Border
-
-    #### Width
-    --8<-- "widgets/properties.md:border-width"
-
-    #### Color
-    --8<-- "widgets/properties.md:border-color"
-
-    #### Style and sides
-    See [common widget fields](properties.md#common-inherited-widget-fields).
-
-    ### Shadow
-
-    #### Shadow Enabled
-    --8<-- "widgets/properties.md:shadow-enabled"
-
-    #### Shadow Color
-    --8<-- "widgets/properties.md:shadow-color"
-
-    #### Shadow Opacity
-    --8<-- "widgets/properties.md:shadow-opacity"
-
-    #### Shadow Blur
-    --8<-- "widgets/properties.md:shadow-blur"
-
-    #### Shadow Offset X
-    --8<-- "widgets/properties.md:shadow-offset-x"
-
-    #### Shadow Offset Y
-    --8<-- "widgets/properties.md:shadow-offset-y"
-
-    ### Thresholds
+    ### Thresholds (Bar / Gauge / Graph)
 
     #### Threshold Mode
     --8<-- "widgets/properties.md:threshold-mode"
 
-    #### Threshold 1
-
-    ##### Threshold Enabled
+    #### Threshold 1 / 2 / 3
     --8<-- "widgets/properties.md:threshold-enabled"
-
-    ##### Threshold Value
     --8<-- "widgets/properties.md:threshold-value"
-
-    ##### Threshold Color
-    --8<-- "widgets/properties.md:threshold-color"
-
-    #### Threshold 2
-
-    ##### Threshold Enabled
-    --8<-- "widgets/properties.md:threshold-enabled"
-
-    ##### Threshold Value
-    --8<-- "widgets/properties.md:threshold-value"
-
-    ##### Threshold Color
-    --8<-- "widgets/properties.md:threshold-color"
-
-    #### Threshold 3
-
-    ##### Threshold Enabled
-    --8<-- "widgets/properties.md:threshold-enabled"
-
-    ##### Threshold Value
-    --8<-- "widgets/properties.md:threshold-value"
-
-    ##### Threshold Color
     --8<-- "widgets/properties.md:threshold-color"
 
 === "Data"
@@ -373,80 +298,50 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     ## Image
 
-    The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, Shortcut artwork, or configured Graph and Canvas layers. Each optional layer appears when its Source is set. Clearing the last optional layer removes the Image tab. General retains the source pickers.
+    Image is a contextual tab. The widget’s own graphical content and active graphical Panel Background / Foreground each have a **separate named group**. A None/Color Panel layer contributes no Image group. The tab is hidden when no group applies.
 
-    The `Image` property group changes with widget type: standalone Image exposes Fit, Loop, and Opacity; Bar in Image mode exposes Source, Fit, Progress Mode, and Loop. The repeated Fit/Loop references below are **different Editor contexts**, not duplicate simultaneous controls. State profiles and Canvas layers have their own groups.
+    ### Image (widget content)
 
-    ### Image
-
-    #### Image Source
+    #### Source Type / Source
+    --8<-- "widgets/properties.md:image-source-type"
     --8<-- "widgets/properties.md:image-source"
 
-    #### Image Fit (standalone Image)
+    #### Fit / Loop
     --8<-- "widgets/properties.md:image-fit"
+    --8<-- "widgets/properties.md:image-loop"
 
-    #### Image Fit (Bar Image mode)
-    --8<-- "widgets/properties.md:image-fit"
+    #### Icon Color / Opacity
+    --8<-- "widgets/properties.md:foreground-color"
+    --8<-- "widgets/properties.md:opacity"
 
-    #### Progress Mode
+    ### Bar image (Image mode only)
     --8<-- "widgets/properties.md:progress-mode"
 
-    #### Image Loop (standalone Image)
-    --8<-- "widgets/properties.md:image-loop"
-
-    #### Image Loop (Bar Image mode)
-    --8<-- "widgets/properties.md:image-loop"
-
-    #### Opacity
-    --8<-- "widgets/properties.md:opacity"
-
-    ### State
-
-    #### Image Fit
-    --8<-- "widgets/properties.md:image-fit"
-
-    #### Image Loop
-    --8<-- "widgets/properties.md:image-loop"
-
-    #### State Color
+    ### State-specific image / icon
     --8<-- "widgets/properties.md:state-color"
-
-    #### Opacity
-    --8<-- "widgets/properties.md:opacity"
-
-    ### Background Image
-
-    #### Image Fit
     --8<-- "widgets/properties.md:image-fit"
-
-    #### Opacity
+    --8<-- "widgets/properties.md:image-loop"
     --8<-- "widgets/properties.md:opacity"
 
-    #### Image Loop
+    ### Panel Background / Foreground (Image and Icon modes only)
+
+    #### Fit / Loop
+    --8<-- "widgets/properties.md:image-fit"
     --8<-- "widgets/properties.md:image-loop"
 
-    #### Image Layer Color
+    #### Icon Color / Opacity
     --8<-- "widgets/properties.md:image-layer-color"
-
-    ### Foreground Image
-
-    #### Image Fit
-    --8<-- "widgets/properties.md:image-fit"
-
-    #### Opacity
     --8<-- "widgets/properties.md:opacity"
 
-    #### Image Loop
-    --8<-- "widgets/properties.md:image-loop"
+    ### Canvas Background Image / Foreground Image
 
-    #### Image Layer Color
-    --8<-- "widgets/properties.md:image-layer-color"
+    Canvas has separate graphical layers. Its image presentation follows the same file-alpha / icon-opacity rules; Canvas layer sources remain on the Canvas General tab.
 
 === "Text"
 
     ## Text
 
-    For **Text / Value** and **Shortcut labels**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; foreground state color/opacity remain fields of the profile itself.
+    For **Text / Value** and **Shortcut labels**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; state Color uses its RGBA alpha; only Icon has an independent iconOpacity.
 
     ### Label
 
@@ -462,13 +357,10 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Label Color
     --8<-- "widgets/properties.md:shortcut-label-color"
 
-    ### Foreground
+    ### Color
 
-    #### State Color
+    #### State Text Color and inheritance
     --8<-- "widgets/properties.md:state-color"
-
-    #### Opacity
-    --8<-- "widgets/properties.md:opacity"
 
     ### Font
 

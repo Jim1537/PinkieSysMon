@@ -1264,7 +1264,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
     }
 
     internal static bool IsPropertyContextSwitch(string propertyName) =>
-        propertyName is "Source" or "SourceType" or "BarImageSource" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled" or "LabelPosition";
+        propertyName is "Mode" or "Source" or "SourceType" or "BarImageSource" or "SourceKind" or "ContentMode" or "BarContentMode" or "GraphMode" or "GraphScaleMode" or "FillEnabled" or "LabelPosition";
 
     private bool ApplyWidgetPropertyChange(
         CanonicalWidgetDefinition widget,

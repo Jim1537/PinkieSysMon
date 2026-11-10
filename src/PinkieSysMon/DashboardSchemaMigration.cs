@@ -23,7 +23,8 @@ internal static class DashboardSchemaMigration
     public const int ShortcutSchemaVersion = 26;
     public const int CommonWidgetGeometrySchemaVersion = 27;
     public const int BarTrackSchemaVersion = 28;
-    public const int CurrentSchemaVersion = BarTrackSchemaVersion;
+    public const int WidgetPanelLayersSchemaVersion = 29;
+    public const int CurrentSchemaVersion = WidgetPanelLayersSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -51,7 +52,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -137,10 +138,130 @@ internal static class DashboardSchemaMigration
             schemaVersion = BarTrackSchemaVersion;
         }
 
+        if (schemaVersion == BarTrackSchemaVersion)
+        {
+            UpgradeSchema28To29(root);
+            root["schemaVersion"] = WidgetPanelLayersSchemaVersion;
+            schemaVersion = WidgetPanelLayersSchemaVersion;
+        }
+
         if (schemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
         return true;
+    }
+
+
+    private static void UpgradeSchema28To29(JsonObject root)
+    {
+        if (root["widgets"] is JsonArray widgets)
+        {
+            foreach (var widget in widgets.OfType<JsonObject>())
+            {
+                var background = widget["backgroundColor"]?.GetValue<string>() ?? "#00000000";
+                var backgroundColor = ColorParser.Parse(background);
+                widget["panelBackground"] = new JsonObject
+                {
+                    ["mode"] = backgroundColor.Alpha == 0
+                        ? DashboardModel.WidgetPanelLayerMode.None
+                        : DashboardModel.WidgetPanelLayerMode.Color,
+                    ["color"] = background
+                };
+                widget["panelForeground"] = new JsonObject
+                {
+                    ["mode"] = DashboardModel.WidgetPanelLayerMode.None
+                };
+                widget.Remove("backgroundColor");
+
+                var type = widget["type"]?.GetValue<string>();
+                if (WidgetTypeContract.Is(type, WidgetTypeContract.Image) ||
+                    WidgetTypeContract.Is(type, WidgetTypeContract.Shortcut))
+                {
+                    MigrateIconOpacity(widget, widget["asset"] as JsonObject, "opacity");
+                }
+
+                if (widget["profiles"] is JsonObject profiles)
+                {
+                    foreach (var profile in profiles.Select(pair => pair.Value).OfType<JsonObject>())
+                    {
+                        var opacity = ReadLegacyOpacity(profile);
+                        var isValue = DashboardModel.StateContentType.IsValue(
+                            profile["contentType"]?.GetValue<string>());
+                        if (isValue && opacity != 1f)
+                        {
+                            // A text state inheriting the default color with its own opacity
+                            // cannot be converted without either losing inheritance or changing
+                            // the rendered alpha. Reject this rare case instead of silently
+                            // breaking the owner's inherited-color contract.
+                            if (profile["color"] is null)
+                                throw new InvalidDataException(
+                                    $"Schema 28 widget '{widget["id"]}' has inherited state text color with separate Opacity. " +
+                                    "Set an explicit RGBA state color in the original dashboard before upgrading.");
+                            var effective = profile["color"]!.GetValue<string>();
+                            profile["color"] = FoldAlpha(effective, opacity);
+                            var text = profile["textPresentation"] as JsonObject;
+                            if (text is not null)
+                            {
+                                var outline = text["outlineColor"]?.GetValue<string>() ?? "#FF000000";
+                                text["outlineColor"] = FoldAlpha(outline, opacity);
+                            }
+                        }
+
+                        if (isValue)
+                            profile.Remove("opacity");
+                        else
+                            MigrateIconOpacity(profile, profile["asset"] as JsonObject, "opacity");
+                    }
+                }
+            }
+        }
+
+        // Canvas layers have the same resource contract: only library icons retain
+        // independent opacity; file image alpha is owned entirely by the file.
+        if (root["canvas"] is JsonObject canvas)
+        {
+            MigrateIconOpacity(canvas["backgroundImage"] as JsonObject,
+                (canvas["backgroundImage"] as JsonObject)?["asset"] as JsonObject, "opacity");
+            MigrateIconOpacity(canvas["foregroundImage"] as JsonObject,
+                (canvas["foregroundImage"] as JsonObject)?["asset"] as JsonObject, "opacity");
+        }
+
+        // The historical Graph plot-background resource is deliberately not promoted to
+        // the widget Panel; that independent feature is deferred.
+        if (root["widgets"] is JsonArray graphWidgets)
+        {
+            foreach (var widget in graphWidgets.OfType<JsonObject>().Where(widget =>
+                WidgetTypeContract.Is(widget["type"]?.GetValue<string>(), WidgetTypeContract.Graph)))
+            {
+                var graphLayer = widget["image"] as JsonObject;
+                MigrateIconOpacity(graphLayer, graphLayer?["asset"] as JsonObject, "opacity");
+            }
+        }
+    }
+
+    private static float ReadLegacyOpacity(JsonObject owner) =>
+        owner["opacity"] is JsonValue value
+            ? JsonSerializer.Deserialize<float>(value.ToJsonString())
+            : 1f;
+
+    private static void MigrateIconOpacity(JsonObject? owner, JsonObject? asset, string legacyProperty)
+    {
+        if (owner is null)
+            return;
+        if (DashboardModel.ImageAssetSourceType.IsIcon(asset?["sourceType"]?.GetValue<string>()) ||
+            ShortcutContract.IsAuto(asset?["sourceType"]?.GetValue<string>()))
+        {
+            if (owner[legacyProperty] is JsonNode old)
+                owner["iconOpacity"] = old.DeepClone();
+        }
+        owner.Remove(legacyProperty);
+    }
+
+    private static string FoldAlpha(string color, float opacity)
+    {
+        var parsed = ColorParser.Parse(color);
+        var alpha = (byte)Math.Clamp((int)Math.Round(parsed.Alpha * opacity), 0, 255);
+        return $"#{alpha:X2}{parsed.Red:X2}{parsed.Green:X2}{parsed.Blue:X2}";
     }
 
     public static bool UpgradeToPropertyModelNormalization(JsonObject root)

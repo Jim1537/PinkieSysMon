@@ -4,30 +4,25 @@
 
 <!-- --8<-- [start:widget-base-fields] -->
 
-Every widget inherits the shared persisted `WidgetDefinition` fields: `id` (the widget's instance identity), optional `name`, `z` (layer order), `x`, `y`, `width`, `height`, `rotation`, `color` (foreground), `backgroundColor`, `borderColor`, `borderWidth`, `cornerRadius`, and `shadowEnabled`, `shadowOffsetX`, `shadowOffsetY`, `shadowBlur`, `shadowOpacity`, `shadowColor`.
+Schema 29 gives **every widget** a common Panel. The Panel owns widget geometry, corner radius, border, shadow and two independent graphical layers. Widget content styling is separate.
 
-Schema 27 adds `padding` (four numeric fields named `top`, `right`, `bottom`, and `left`), `borderStyle` (`solid` or `dotted`), and the booleans `borderTop`, `borderRight`, `borderBottom`, and `borderLeft`. Each inset is a finite, nonnegative distance in dashboard pixels. Omitted fields default to zero padding, a solid border and four enabled sides. Opening an older supported dashboard preserves its geometry. Keep a pre-migration copy to open it with a schema-26 application after saving.
-
-Individual widgets retain their own geometry validation, source-specific meaning of foreground color, and Editor property applicability. This shared list does not replace their widget-specific persisted fields.
-
-The Editor shows the same common rows in the same order on every widget. Specialized controls follow these groups. An unsupported setting stays visible with its applicability explanation. Mixed selections allow an edit only when all targets can apply it.
-
-| Card | Group | Rows in display order |
+| Editor | Group | Fields |
 | --- | --- | --- |
-| General | Identity | Name, Type, ID |
-| General | Data Source | Metric |
-| General | Geometry | X, Y, Width, Height, Padding, Rotation, Z-order |
-| Appearance | Container | Foreground Color, Background Color, Corner Radius |
-| Appearance | Border | Width, Color, Style, Top, Right, Bottom, Left |
-| Appearance | Shadow | Enabled, Color, Opacity, Blur, Offset X, Offset Y |
+| General | Identity | Name, Type (read-only), ID (read-only) |
+| General | Data Source | Metric and applicable source bindings |
+| Panel | Geometry | X, Y, Width, Height, Padding, Rotation, Corner Radius, Z-order (read-only) |
+| Panel | Background | Mode and contextual Color or Source |
+| Panel | Foreground | Mode and contextual Color or Source |
+| Panel | Border | Width, Color, Style, Top, Right, Bottom, Left |
+| Panel | Shadow | Enabled, Color, Opacity, Blur, Offset X, Offset Y |
 
-Type, ID and Z-order are read-only. Use the layer commands to change draw order. Metric shows both endpoint bindings for Media System. Power and Media Player also show their derived binding; Image and Shortcut show Not applicable. Text mode retains its dormant Metric selection.
+Each Panel layer independently chooses **None**, **Color**, **Image**, or **Icon**. None draws nothing. Color uses its RGBA alpha. File-backed Image uses only its embedded alpha. Icon supports tint if the asset is tintable, and an additional Opacity. Panel source pickers appear only for Image/Icon; their Fit/Loop and icon-only Opacity/Color appear on the contextual Image tab. Switching modes retains dormant settings, and inactive file references are not resolved.
 
-Enter Padding as one nonnegative number or four separated by `|` in top, right, bottom, left order. For example, `0|0|0|8` reserves eight pixels on the left. The default is `0`. Gauge retains track and needle dimensions in pixels and rejects insets that leave insufficient dial radius. Border Width = 0 disables the other Border controls while retaining their values.
+**Draw order:** Panel Background → widget content → Border → Panel Foreground. Both layers cover the **full panel bounds**, including the Padding area. Padding insets only the content. An opaque Foreground may hide the Border. An Image widget can therefore display three independent images: Background, own padded content image, and Foreground.
 
-Padding is applied in local coordinates before rotation. The container color, background image and border keep their outer bounds. Graph uses the inner rectangle for its plot. Shortcut uses it for the artwork and measures the detached label against the full graphic width. Text wraps at the inner width and includes vertical padding in its automatic height. With Baseline alignment, Y = 100 and top padding = 8 place the first baseline at 108.
+Common persisted widget properties include id, name, z, x, y, width, height, padding, rotation, color (content), panelBackground, panelForeground, borderColor, borderWidth, borderStyle, borderTop/Right/Bottom/Left, cornerRadius, shadowEnabled, shadowOffsetX/Y, shadowBlur, shadowOpacity, and shadowColor. Schema 29 replaces legacy widget backgroundColor with the panelBackground layer and introduces panelForeground = None. The existing content color remains independent.
 
-The border follows the local Top, Right, Bottom and Left switches. On a rounded corner each adjacent side owns 45 degrees of the arc. Dotted draws round dots with a diameter equal to Border Width. The pattern continues across adjacent enabled sides and closes evenly around a complete outline.
+Padding accepts one nonnegative value or four numbers in top|right|bottom|left order, such as 0|0|0|8. Border Width 0 disables remaining border controls without deleting their values. Corner Radius clips rounded content and graphical panel layers. Legacy documents are upgraded once on loading; retain a pre-migration copy for older applications.
 
 <!-- --8<-- [end:widget-base-fields] -->
 
@@ -35,24 +30,11 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
 
 ## Background Color
 
-
 <!-- --8<-- [start:background-color] -->
 
-!!! info ""
+The Canvas uses **Appearance → Background → Color** (JSON: canvas.backgroundColor).
 
-    **Editor name:** Background Color (widget), Color (Canvas)<br>
-    **Semantic key:** `appearance.background.color`  
-    **Canonical model:** `WidgetDefinition.BackgroundColor / CanvasDefinition.BackgroundColor`  
-    **JSON:** `backgroundColor` (widgets); `canvas.backgroundColor` (Canvas)
-
-
-    **Values:**
-    - Color.
-
-
-    Background color of the widget container or Canvas.
-
-    **Used by:** All widgets, Canvas
+Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA alpha and persisted fields panelBackground.mode/panelBackground.color. In Image/Icon mode the same panel layer uses Source instead. Legacy widget backgroundColor is converted automatically when moving from schema 28 to 29.
 
 <!-- --8<-- [end:background-color] -->
 
@@ -543,29 +525,20 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
 ---
 ## Foreground Color
 
-
 <!-- --8<-- [start:foreground-color] -->
 
-!!! info ""
+WidgetDefinition.Color (JSON: color) is the color of the **widget's content**, never the Panel Foreground overlay.
 
-    **Editor name:** Foreground Color<br>
-    **Semantic key:** `appearance.foreground.color`  
-    **Canonical model:** `WidgetDefinition.Color`  
-    **JSON:** `color`
+| Widget | Editor owner |
+| --- | --- |
+| Text/Value | Text → Color: text RGBA |
+| Bar | Gauge → Bar → Indicator Color: fill/threshold base, disabled in Image mode |
+| Gauge | Gauge → Horseshoe → Indicator Color: active arc/threshold base |
+| Graph | Graph → Plot → Color: plotted line/columns/threshold base |
+| Image and Shortcut | Image → Image → Color: icon tint where supported; no tint for image files |
+| Binary, Power, Media System, Media Player | Appearance → Content → Default Color: inherited by each state unless overridden |
 
-
-    **Values:**
-    - Color.
-
-
-    Primary foreground color. For state-driven widgets, it serves as a fallback when the active profile does not define its own Color.
-
-    **Used by:** Text / Value, Gauge, Graph, Binary, Power, Media System, Media Player, Bar in Fill mode, Image/Shortcut with a tintable Icon source
-
-    **Disabled / read-only when:**
-    - Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
-
-    - Bar in Image mode, file-backed images and automatic Shell artwork keep their intrinsic colors. The common foreground row stays visible and disabled.
+A non-tintable icon retains a disabled Color row, and file-backed images have no Color row. Text transparency is the alpha channel of its RGBA color.
 
 <!-- --8<-- [end:foreground-color] -->
 
@@ -753,6 +726,8 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     - `image.asset.fit`
     - `image.state.{state}.fit`
     - `image.background_image.asset.fit`
+    - `image.panel.background.fit`
+    - `image.panel.foreground.fit`
     - `image.foreground_image.asset.fit`
     - `bar.image.fit`
 
@@ -809,7 +784,7 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     - Color.
 
 
-    Tint color of a Canvas or Graph image layer.
+    Tint color of a tintable Canvas, Graph, or Panel icon layer. File images retain their original pixel colors and alpha.
 
     **Used by:** Graph background image, Canvas background image layer, Canvas foreground image layer
 
@@ -834,6 +809,8 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     - `image.asset.loop`
     - `image.state.{state}.loop`
     - `image.background_image.asset.loop`
+    - `image.panel.background.loop`
+    - `image.panel.foreground.loop`
     - `image.foreground_image.asset.loop`
     - `bar.image.loop`
 
@@ -874,9 +851,11 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Editor name:** Source; standalone Image displays Image or Icon dynamically
 
     **Semantic keys:**
-    - `general.source.image.source`
+    - `image.content.source`
     - `general.background_image.asset.source`
     - `general.foreground_image.asset.source`
+    - `panel.background.source`
+    - `panel.foreground.source`
     - `states.{state}.asset.source`
     - `bar.image.source`
 
@@ -923,9 +902,10 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Editor name:** Type
 
     **Semantic keys:**
-    - `general.source.image.kind`
+    - `image.content.kind`
     - `general.background_image.asset.kind`
     - `general.foreground_image.asset.kind`
+    - `image.content.kind`
 
     **Canonical model:** `ImageAssetPresentationDefinition.SourceType`
 
@@ -1296,44 +1276,15 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
 ---
 ## Opacity
 
-
 <!-- --8<-- [start:opacity] -->
 
-!!! info ""
+**Editor label:** Opacity. Canonical properties: ImageWidgetDefinition.IconOpacity, ShortcutWidgetDefinition.IconOpacity, StateVisualProfileDefinition.IconOpacity, CanvasImageLayerDefinition.IconOpacity, and WidgetPanelLayerDefinition.IconOpacity. Persisted name: **iconOpacity**.
 
-    **Editor name:** Opacity
+Allowed values: finite 0..1. This property applies **only to icons**, including automatic Shortcut Shell artwork. It multiplies icon transparency while keeping the asset's intrinsic color/tint behavior. Icon-only Opacity belongs to the relevant Image-tab group.
 
-    **Semantic keys:**
-    - `image.opacity`
-    - `image.state.{state}.opacity`
-    - `text.state.{state}.opacity`
-    - `image.background_image.opacity`
-    - `image.foreground_image.opacity`
+File-backed images use their **embedded alpha only**; no independent Opacity or Color control exists. Text also has no standalone Opacity; text and outline RGBA colors have independent alpha. The unrelated Shadow Opacity and Graph Fill Opacity properties remain in place.
 
-    **Canonical model:**
-    - `ImageWidgetDefinition.Opacity`
-    - `ShortcutWidgetDefinition.Opacity`
-    - `StateVisualProfileDefinition.Opacity`
-    - `CanvasImageLayerDefinition.Opacity`
-
-    **JSON:**
-    - Image: `opacity`
-    - State profile: `profiles.{state}.opacity`
-    - Canvas background: `canvas.backgroundImage.opacity`
-    - Canvas foreground: `canvas.foregroundImage.opacity`
-    - Graph background: `image.opacity`
-
-
-    **Values:**
-    - Number `0..1`.
-
-
-    Opacity of the visual content represented by the current context.
-
-    **Used by:** Graph background image, Image, Shortcut, Value/graphical state profiles, Canvas background/foreground image layers
-
-    **Context notes:**
-    - Canvas/Graph layer Opacity appears when [Source](properties.md#image-source) is set.
+Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text opacity fields. See the migration discussion in Issue #112 for edge cases.
 
 <!-- --8<-- [end:opacity] -->
 
@@ -1984,9 +1935,9 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Context notes:**
     - For a Value state, Color is the text foreground color.
     - For an Icon state, Color is a tint override.
-    - For a file-backed Image state, Color is not applicable.
-    - If no state Color is stored, the widget [foreground Color](properties.md#foreground-color) may serve as a fallback.
-    - Icon tint is read-only when the selected icon does not expose tint capability.
+    - For a file-backed Image state, Color is absent; pixel colors and alpha come from the file.
+    - If no state Color is stored, the widget's [Default Color](properties.md#foreground-color) is inherited. Selecting an explicit RGBA Color overrides it.
+    - Icon Color remains visible but read-only when the selected icon does not expose tint capability.
 
 <!-- --8<-- [end:state-color] -->
 

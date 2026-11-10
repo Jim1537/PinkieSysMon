@@ -10,16 +10,18 @@ Choose **Add Widget → Graph**. A new Graph uses `system.uptime`, a 300 × 120 
 
 | Editor location | Settings |
 | --- | --- |
-| General → Source | [Metric](properties.md#metric) |
-| General → Background Image | Shared [Type](properties.md#image-source-type) and [Source](properties.md#image-source) |
-| General → Geometry | Position, independent Width/Height, Rotation |
+| General → Data Source | [Metric](properties.md#metric) |
+| Panel → Geometry | Position, independent Width/Height, Padding, Rotation |
+| Panel → Background / Foreground | Independent common visual layers; None, Color, Image or Icon |
 | Data → Value | [Source Unit](properties.md#source-unit), [Unit](properties.md#unit), DateTime [Component and Format](properties.md#component) |
 | Data → Range | [Scale Mode](properties.md#scale-mode), [Min](properties.md#min), [Max](properties.md#max) |
+| Graph → Plot | Content color for line/columns, independent from Panel Foreground |
 | Graph → Timeline | [History Window](properties.md#history-window), [Mode](properties.md#graph-mode), [Reverse](properties.md#reverse) |
 | Graph → Processing | [Filter](properties.md#filter) |
 | Graph → Line | [Interpolation](properties.md#interpolation), [Stroke Width](properties.md#stroke-width), [Fill Enabled](properties.md#fill-enabled), [Fill Opacity](properties.md#fill-opacity) |
-| Image → Background Image | Shared [Fit](properties.md#image-fit), [Opacity](properties.md#opacity), [Loop](properties.md#image-loop), [Color](properties.md#image-layer-color) |
-| Appearance | Foreground, background, border, rounded corners, shadow and three threshold slots |
+| Image → Background / Foreground | Contextual Fit/Loop and icon Color/Opacity for active Panel graphical layers |
+| Appearance | Three threshold slots |
+| Panel → Border / Shadow | Common border and shadow; drawn between content and Panel Foreground |
 
 Auto follows the visible observations. Fixed uses the saved Min/Max; changing to Auto retains those settings for a later return to Fixed. Unit changes affect the plotted values: review Fixed bounds and threshold values in the selected unit.
 
@@ -57,7 +59,7 @@ Shared [threshold settings](properties.md#threshold-mode) apply in both plot mod
 | `scaleMode` | `ScaleMode` |
 | `strokeWidth` | `StrokeWidth` |
 | `fillEnabled`, `fillOpacity` | `FillEnabled`, `FillOpacity` |
-| `image` | `CanvasImageLayerDefinition`; `asset` plus layer opacity/color |
+| `image` | Legacy plot-background `CanvasImageLayerDefinition`; Graph content artwork is deferred for new configuration |
 
 --8<-- "widgets/properties.md:widget-base-fields"
 
@@ -79,7 +81,7 @@ Auto takes extrema from every finite displayed (converted and optionally filtere
 
 Dense continuous runs retain chronological first/minimum/maximum/last observations per pixel bin, preserving spikes and gaps. Columns use bounded widths derived from neighboring real observation times. A Line fill closes each continuous run to the effective lower bound; gaps and isolated points do not gain a filled bridge. Fill opacity multiplies the selected color alpha once, including segment joins.
 
-Common border width insets the plot and optional background image. Both are clipped to the remaining rounded interior. Rotation and common container effects use the same enclosing rendering pipeline as other widgets. Scrolling Graph content uses uncached shadow rendering so an unchanged latest scalar cannot freeze a shadow.
+Panel Padding insets the plot. Common Panel Background and Foreground span the full panel, while Border is drawn after the plot and before Panel Foreground. An older configured Graph plot-background image remains distinct from the Panel Background; creating new plot-background artwork is deferred. Rotation and common container effects use the shared pipeline. Scrolling Graph content uses uncached shadow rendering so an unchanged latest scalar cannot freeze a shadow.
 
 ### Per-Graph signal processing
 

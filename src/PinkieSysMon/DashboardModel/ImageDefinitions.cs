@@ -77,8 +77,11 @@ internal sealed class CanvasImageLayerDefinition
     [JsonPropertyName("asset")]
     public ImageAssetPresentationDefinition Asset { get; set; } = new();
 
-    [JsonPropertyName("opacity")]
-    public float Opacity { get; set; } = 1f;
+    [JsonPropertyName("iconOpacity")]
+    public float IconOpacity { get; set; } = 1f;
+
+    [JsonIgnore]
+    public float Opacity { get => IconOpacity; set => IconOpacity = value; }
 
     [JsonPropertyName("color")]
     public string Color { get; set; } = "#FFFFFFFF";
@@ -89,7 +92,7 @@ internal sealed class CanvasImageLayerDefinition
             throw new InvalidDataException($"Canvas {role} image Asset must not be null.");
 
         Asset.ValidateStructure($"Canvas {role} image");
-        if (!float.IsFinite(Opacity) || Opacity is < 0f or > 1f)
+        if (!float.IsFinite(IconOpacity) || IconOpacity is < 0f or > 1f)
             throw new InvalidDataException($"Canvas {role} image Opacity must be in the range 0..1.");
         _ = global::PinkieSysMon.ColorParser.Parse(Color);
 

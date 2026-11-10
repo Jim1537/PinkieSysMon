@@ -13,6 +13,8 @@ internal sealed class WidgetRenderContext : IDisposable
     private readonly TypefaceCache _typefaces;
     private readonly Dictionary<CanonicalWidgetDefinition, ShadowRenderResources?> _shadowResources = new();
     private readonly Dictionary<CanonicalWidgetDefinition, ContainerRenderResources> _containerResources = new();
+    private ImageAssetCache? _panelImageAssets;
+    private IconAssetCache? _panelIconAssets;
     private readonly Dictionary<CanonicalWidgetDefinition, string> _formattedMetricCache = new();
     private readonly Dictionary<NumericMetricCacheKey, double?> _doubleMetricCache = new();
     // The wall-clock display has a per-frame lifetime, unlike immutable telemetry snapshots.
@@ -283,12 +285,22 @@ internal sealed class WidgetRenderContext : IDisposable
         }
     }
 
+    internal void InitializePanelAssets(ImageAssetCache images, IconAssetCache icons,
+        IEnumerable<CanonicalWidgetDefinition> widgets)
+    {
+        _panelImageAssets = images;
+        _panelIconAssets = icons;
+        // Resolve enabled resources during renderer construction, not after a live frame begins.
+        foreach (var widget in widgets)
+            _ = GetContainerResources(widget);
+    }
+
     public ContainerRenderResources GetContainerResources(CanonicalWidgetDefinition widget)
     {
         if (_containerResources.TryGetValue(widget, out var cached))
             return cached;
 
-        var created = ContainerRenderResources.Create(widget, Antialias);
+        var created = ContainerRenderResources.Create(widget, Antialias, _panelImageAssets, _panelIconAssets);
         _containerResources.Add(widget, created);
         return created;
     }
@@ -337,6 +349,15 @@ internal sealed class WidgetRenderContext : IDisposable
         IWidgetRenderer renderer,
         out ShadowContentKey key)
     {
+        var container = GetContainerResources(widget);
+        if (container.BackgroundVisual?.IsAnimated == true ||
+            container.ForegroundVisual?.IsAnimated == true)
+        {
+            // Animated panel artwork changes the shadow silhouette on every frame.
+            key = default;
+            return false;
+        }
+
         if (renderer is IWidgetShadowCacheKeyProvider provider)
             return provider.TryGetShadowContentKey(widget, this, out key);
 
@@ -407,16 +428,28 @@ internal sealed class WidgetRenderContext : IDisposable
 
     internal sealed class ContainerRenderResources : IDisposable
     {
-        private ContainerRenderResources(SKPaint? backgroundPaint, SKPaint? borderPaint, SKRoundRect clipRoundRect)
+        private ContainerRenderResources(
+            SKPaint? backgroundPaint,
+            SKPaint? borderPaint,
+            SKPaint? foregroundPaint,
+            SKRoundRect clipRoundRect,
+            ImageVisual? backgroundVisual,
+            ImageVisual? foregroundVisual)
         {
             BackgroundPaint = backgroundPaint;
             BorderPaint = borderPaint;
+            ForegroundPaint = foregroundPaint;
             ClipRoundRect = clipRoundRect;
+            BackgroundVisual = backgroundVisual;
+            ForegroundVisual = foregroundVisual;
         }
 
         public SKPaint? BackgroundPaint { get; }
         public SKPaint? BorderPaint { get; }
+        public SKPaint? ForegroundPaint { get; }
         public SKRoundRect ClipRoundRect { get; }
+        public ImageVisual? BackgroundVisual { get; }
+        public ImageVisual? ForegroundVisual { get; }
 
         private WidgetBorderPath? _borderPath;
         internal WidgetBorderPath GetBorderPath(WidgetBorderPath.Geometry geometry)
@@ -430,14 +463,20 @@ internal sealed class WidgetRenderContext : IDisposable
             return _borderPath;
         }
 
-        public static ContainerRenderResources Create(CanonicalWidgetDefinition widget, bool antialias)
+        public static ContainerRenderResources Create(
+            CanonicalWidgetDefinition widget, bool antialias,
+            ImageAssetCache? images, IconAssetCache? icons)
         {
             SKPaint? background = null;
             SKPaint? border = null;
+            SKPaint? foreground = null;
             SKRoundRect? clipRoundRect = null;
+            ImageVisual? backgroundVisual = null;
+            ImageVisual? foregroundVisual = null;
             try
             {
-                var backgroundColor = ColorParser.Parse(widget.BackgroundColor);
+                var backgroundColor = widget.PanelBackground.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color
+                    ? ColorParser.Parse(widget.PanelBackground.Color) : SKColors.Transparent;
                 if (backgroundColor.Alpha > 0)
                 {
                     background = new SKPaint
@@ -464,24 +503,61 @@ internal sealed class WidgetRenderContext : IDisposable
                     }
                 }
 
+                backgroundVisual = CreatePanelVisual(widget.PanelBackground, images, icons, antialias);
+                foregroundVisual = CreatePanelVisual(widget.PanelForeground, images, icons, antialias);
+                if (widget.PanelForeground.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color)
+                {
+                    var foregroundColor = ColorParser.Parse(widget.PanelForeground.Color);
+                    if (foregroundColor.Alpha > 0)
+                        foreground = new SKPaint
+                        {
+                            IsAntialias = antialias,
+                            Color = foregroundColor,
+                            Style = SKPaintStyle.Fill
+                        };
+                }
                 clipRoundRect = new SKRoundRect();
-                return new ContainerRenderResources(background, border, clipRoundRect);
+                return new ContainerRenderResources(
+                    background, border, foreground, clipRoundRect, backgroundVisual, foregroundVisual);
             }
             catch
             {
+                foregroundVisual?.Dispose();
+                backgroundVisual?.Dispose();
                 clipRoundRect?.Dispose();
                 background?.Dispose();
                 border?.Dispose();
+                foreground?.Dispose();
                 throw;
             }
+        }
+
+        private static ImageVisual? CreatePanelVisual(
+            CanonicalDashboard.WidgetPanelLayerDefinition layer,
+            ImageAssetCache? images,
+            IconAssetCache? icons,
+            bool antialias)
+        {
+            var asset = layer.ActiveAsset;
+            if (asset is null || string.IsNullOrWhiteSpace(asset.Source))
+                return null;
+            if (images is null || icons is null)
+                throw new InvalidOperationException("Panel image caches were not initialized.");
+            return ImageVisual.Create(
+                images, icons, asset.SourceType, asset.Source, asset.Fit, asset.Loop,
+                layer.Mode == CanonicalDashboard.WidgetPanelLayerMode.Icon ? layer.IconOpacity : 1f,
+                layer.IconColor, antialias);
         }
 
         public void Dispose()
         {
             _borderPath?.Dispose();
             ClipRoundRect.Dispose();
+            BackgroundVisual?.Dispose();
+            ForegroundVisual?.Dispose();
             BackgroundPaint?.Dispose();
             BorderPaint?.Dispose();
+            ForegroundPaint?.Dispose();
         }
     }
 

@@ -139,17 +139,17 @@ See [State Source Type](properties.md#state-source-type) and [Image Source](prop
 
 For icons and image files, use the `Image` tab. The appropriate group appears for each graphical state.
 
-Available settings include image fit, animation loop, and opacity. Icon tint is available when the selected icon supports it; file-backed images do not use the icon tint setting.
+Image-backed states expose Fit and Loop. Icons additionally expose Opacity and a Color control (disabled for untintable assets); file-backed images use their embedded alpha with no tint or separate Opacity.
 
 For a `Value` state, use the `Text` tab. Each value-backed state has its own:
 
-- foreground color and opacity;
+- RGBA text color (with alpha) and independent outline RGBA color;
 - font family, size, weight, and italic style;
 - horizontal and vertical alignment;
 - outline color and width;
 - text overflow mode and, where applicable, animation settings.
 
-The `Appearance` tab provides common widget-level background, border, and shadow properties. Position, dimensions, and rotation are configured on `General`.
+The `Panel` tab owns widget-level background, foreground layer, border, shadow, geometry and padding. `Appearance → Content → Default Color` provides inherited state text/icon color.
 
 If one or both states use `Value`, the `Data` tab may also expose source unit, display unit, format, prefix, suffix, and fallback controls. The exact property availability depends on the selected metric, the chosen evaluation mode, and the state source types.
 
@@ -355,16 +355,16 @@ Binary has **two** profiles. Both must use Value for auto-width to be eligible. 
 
 The current canonical Editor property model exposes:
 
-- `General → Source → Metric` — required data source.
+- `General → Data Source → Metric` — required data source.
 - `Data → Evaluation → Mode` — always available for Binary.
 - `Data → Value → Component` and adjacent `Format` — available for DateTime metrics regardless of state content; select the numeric input and precision for Auto/Setpoint. A Value state retains separate `Text Format`.
 - `Data → Evaluation → True If / Setpoint` — applicable when `Mode = Setpoint`.
 - `States → State: True / State: False` — separate state source selection.
-- `Image` — state image fit, loop, color/tint when supported, and opacity for graphical state sources.
+- `Image` — state image Fit/Loop and icon-only Color/Opacity; file images have no independent opacity.
 - `Text` — per-state foreground and text-presentation settings only for Value sources.
 - `Data → Value` — conditionally available for Value presentation or Setpoint evaluation.
 - `Data → Display` — present when at least one profile uses Value.
-- `Appearance` — common visual settings.
+- `Appearance` — state content Default Color; `Panel` — common visual layers and geometry.
 
 State-specific settings should not be presented as universal properties of every Binary instance. In particular, selecting Icon/Image must not expose active Value-only text controls for that state.
 
@@ -393,7 +393,7 @@ The following contracts are compatibility-sensitive:
 - Numeric Setpoint comparisons use the configured numeric presentation unit.
 - Boolean and string Setpoint evaluation use equality semantics, not the numeric operator.
 - The current metric value is displayed in a Value profile; it is not automatically replaced with a textual state label.
-- Separate True/False profiles preserve their individual asset, color, opacity, and text settings.
+- Separate True/False profiles preserve individual assets, explicit RGBA color overrides, iconOpacity and text settings. Unset colors continue to inherit Default Color.
 - Mixed graphical/value profiles use explicit container geometry; Value-only profiles can use content-derived geometry.
 - Editor preview and Runtime share the canonical state-profile projection and rendering semantics.
 - Missing telemetry must not reuse stale state data or silently choose the False profile.

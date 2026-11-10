@@ -9,6 +9,7 @@ internal enum EditorPropertySection
 {
     All,
     General,
+    Panel,
     Appearance,
     Data,
     Gauge,
