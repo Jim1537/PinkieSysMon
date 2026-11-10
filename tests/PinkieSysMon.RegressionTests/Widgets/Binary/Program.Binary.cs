@@ -792,7 +792,7 @@ internal static partial class Program
         var iconAppearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
         var iconText = new EditorPropertyView(widget, section: EditorPropertySection.Text).GetProperties();
         var iconStates = new EditorPropertyView(widget, section: EditorPropertySection.States).GetProperties();
-        Assert(GetNestedProperty(iconAppearance, "Foreground", nameof(C.WidgetDefinition.Color)) is { DisplayName: "Color" } &&
+        Assert(GetNestedProperty(iconAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { DisplayName: "Foreground Color" } &&
                iconText.Count == 0,
             "Icon-only Binary must expose universal Foreground fallback while hiding Text presentation.");
         Assert(GetNestedProperty(iconStates, "State: True", trueSourceName) is { IsReadOnly: false },

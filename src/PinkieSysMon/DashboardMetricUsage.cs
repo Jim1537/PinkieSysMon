@@ -31,15 +31,8 @@ internal static class DashboardMetricUsage
                     break;
 
                 case CanonicalDashboard.MediaSystemWidgetDefinition mediaSystem:
-                {
-                    var input = string.Equals(
-                        mediaSystem.MediaSource,
-                        MediaMetricContract.InputSource,
-                        StringComparison.OrdinalIgnoreCase);
-                    required.Add(input ? MediaMetricContract.InputAvailable : MediaMetricContract.OutputAvailable);
-                    required.Add(input ? MediaMetricContract.InputType : MediaMetricContract.OutputType);
+                    required.UnionWith(MediaMetricContract.GetEndpointBinding(mediaSystem.MediaSource));
                     break;
-                }
 
                 case CanonicalDashboard.PowerWidgetDefinition power:
                     required.Add(PowerMetricContract.StateMetric(power.PowerSource));

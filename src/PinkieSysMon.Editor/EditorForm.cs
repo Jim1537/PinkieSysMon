@@ -1167,6 +1167,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 return;
             }
 
+            if (propertyName == nameof(CanonicalWidgetDefinition.Padding) && undoBefore is not null && !SnapshotDiffers(undoBefore))
+                return;
+
             rollbackSnapshot = undoBefore;
 
             IReadOnlyList<CanonicalWidgetDefinition>? widgets = _propertyGrid.SelectedObject switch
@@ -1184,12 +1187,14 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (widgets is not null && widgets.Count > 0)
             {
                 handled = true;
-                rollbackOnFailure = widgets.Count > 1;
+                rollbackOnFailure = widgets.Count > 1 || widgets[0] is CanonicalGaugeWidgetDefinition;
 
                 foreach (var widget in widgets)
                 {
                     widgetPreviewNeedsRebuild = true;
                     refreshPropertyView |= ApplyWidgetPropertyChange(widget, propertyName);
+                    if (widget is CanonicalGaugeWidgetDefinition gauge)
+                        gauge.ValidateDialFit(gauge.Width, gauge.Height, gauge.Padding);
 
                     if (_widgetTreeNodes.TryGetValue(widget, out var treeNode))
                         treeNode.Text = WidgetCaption(widget);

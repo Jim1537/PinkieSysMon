@@ -174,6 +174,8 @@ internal static partial class Program
             ]),
             ("Widgets / Shared Properties", [
                 ("Widget source property hierarchy", WidgetSourcePropertyHierarchy),
+                ("common widget property order and bindings", CommonWidgetPropertyTests.OrderAndBindings),
+                ("common padding parsing and atomic edits", CommonWidgetPropertyTests.PaddingEdits),
                 ("Universal widget property hierarchy", UniversalWidgetPropertyHierarchy),
                 ("Appearance property hierarchy", AppearancePropertyHierarchy),
                 ("Data property hierarchy", DataPropertyHierarchy),

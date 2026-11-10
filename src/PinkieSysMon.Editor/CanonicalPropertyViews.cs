@@ -231,8 +231,50 @@ internal static class CanonicalPropertyViewBuilder
     {
         var result = new List<PropertyDescriptor>();
         result.Add(Group("Identity", [
-            String(widget, nameof(C.WidgetDefinition.Name), "general.identity.name", "Name", () => widget.Name ?? string.Empty, value => widget.Name = EmptyToNull(value))
+            String(widget, nameof(widget.Name), "general.identity.name", "Name", () => widget.Name ?? string.Empty, value => widget.Name = EmptyToNull(value)),
+            new CanonicalPropertyDescriptor(nameof(widget.Type), "general.identity.type", "Type", widget, typeof(string), () => widget.Type, null),
+            new CanonicalPropertyDescriptor(nameof(widget.Id), "general.identity.id", "ID", widget, typeof(string), () => widget.Id, null)
         ]));
+        result.Add(Group("Data Source", [CommonMetric(widget)]));
+
+        var geometry = new List<PropertyDescriptor>
+        {
+            WholePixelCoordinate(widget, nameof(C.WidgetDefinition.X), "general.geometry.x", "X", () => widget.X, v => widget.X = v),
+            WholePixelCoordinate(widget, nameof(C.WidgetDefinition.Y), "general.geometry.y", "Y", () => widget.Y, v => widget.Y = v),
+            WholePixelDimension(widget, nameof(C.WidgetDefinition.Width), "general.geometry.width", "Width", () => widget.Width, v =>
+            {
+                if (widget is C.GaugeWidgetDefinition gauge)
+                {
+                    if (!float.IsFinite(v) || v <= 0)
+                        throw new ArgumentOutOfRangeException(nameof(v), "Gauge width must be positive and finite.");
+                    gauge.ValidateDialFit(v, v, widget.Padding);
+                }
+                widget.Width = v;
+            })
+        };
+        geometry.Add(new CanonicalPropertyDescriptor(
+            nameof(C.WidgetDefinition.Height), "general.geometry.height", "Height", widget, typeof(float),
+            () => WidgetResizeGeometry.NormalizeLogicalDimension(
+                WidgetSizeContract.IsHeightDerived(widget)
+                    ? effectiveSizeAccessor?.Invoke(widget)?.Height ?? widget.Height
+                    : widget.Height),
+            WidgetSizeContract.IsHeightDerived(widget)
+                ? null
+                : v => widget.Height = Math.Max(0f, WidgetResizeGeometry.NormalizeLogicalDimension(Convert.ToSingle(v, CultureInfo.InvariantCulture))),
+            description: WidgetSizeContract.IsHeightDerived(widget) ? "Derived from the active widget layout." : string.Empty));
+        geometry.Add(new CanonicalPropertyDescriptor(nameof(widget.Padding), "general.geometry.padding", "Padding",
+            widget, typeof(C.WidgetPadding), () => widget.Padding, value =>
+            {
+                var padding = (C.WidgetPadding)value!;
+                padding.Validate(widget.Id);
+                if (widget is C.GaugeWidgetDefinition gauge)
+                    gauge.ValidateDialFit(gauge.Width, gauge.Height, padding);
+                widget.Padding = padding;
+            }, converter: new WidgetPaddingConverter(), description: WidgetPaddingConverter.Help));
+        geometry.Add(Double(widget, nameof(C.WidgetDefinition.Rotation), "general.geometry.rotation", "Rotation", () => widget.Rotation, v => widget.Rotation = v));
+        geometry.Add(new CanonicalPropertyDescriptor(nameof(widget.Z), "general.geometry.z", "Z-order",
+            widget, typeof(int), () => widget.Z, null, description: "Use the layer commands to change the draw order."));
+        result.Add(Group("Geometry", geometry));
 
         var source = new List<PropertyDescriptor>();
         switch (widget)
@@ -250,9 +292,6 @@ internal static class CanonicalPropertyViewBuilder
                     v => value.SourceKind = string.Equals(Convert.ToString(v), "Text", StringComparison.OrdinalIgnoreCase)
                         ? C.ValueSourceKind.Text : C.ValueSourceKind.Metric,
                     converter: SourceKindConverter));
-                source.Add(Metric(value, nameof(C.ValueWidgetDefinition.Metric), "general.source.metric", "Metric", () => value.Metric,
-                    v => value.Metric = EmptyToNull(v),
-                    () => C.ValueSourceKind.IsMetric(value.SourceKind) ? null : NotApplicable("Type")));
                 source.Add(String(value, nameof(C.ValueWidgetDefinition.Text), "general.source.value.text", "Text", () => value.Text,
                     v => value.Text = Convert.ToString(v) ?? string.Empty,
                     disabled: () => C.ValueSourceKind.IsText(value.SourceKind) ? null : NotApplicable("Type")));
@@ -269,18 +308,6 @@ internal static class CanonicalPropertyViewBuilder
                     () => C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) ? "Icon" : "Image"));
                 break;
             }
-            case C.BinaryWidgetDefinition binary:
-                source.Add(Metric(binary, nameof(C.BinaryWidgetDefinition.Metric), "general.source.metric", "Metric", () => binary.Metric, v => binary.Metric = EmptyToNull(v)));
-                break;
-            case C.GraphWidgetDefinition graph:
-                source.Add(Metric(graph, nameof(C.GraphWidgetDefinition.Metric), "general.source.metric", "Metric", () => graph.Metric, v => graph.Metric = EmptyToNull(v)));
-                break;
-            case C.GaugeWidgetDefinition gauge:
-                source.Add(Metric(gauge, nameof(C.GaugeWidgetDefinition.Metric), "general.source.metric", "Metric", () => gauge.Metric, v => gauge.Metric = EmptyToNull(v)));
-                break;
-            case C.BarWidgetDefinition bar:
-                source.Add(Metric(bar, nameof(C.BarWidgetDefinition.Metric), "general.source.metric", "Metric", () => bar.Metric, v => bar.Metric = EmptyToNull(v)));
-                break;
             case C.PowerWidgetDefinition power:
                 source.Add(String(power, nameof(C.PowerWidgetDefinition.PowerSource), "general.source.power", "Source", () => power.PowerSource,
                     v => power.PowerSource = Convert.ToString(v) ?? PowerMetricContract.UpsSource, converter: PowerSourceConverter));
@@ -288,11 +315,6 @@ internal static class CanonicalPropertyViewBuilder
             case C.MediaSystemWidgetDefinition media:
                 source.Add(String(media, nameof(C.MediaSystemWidgetDefinition.MediaSource), "general.source.media", "Source", () => media.MediaSource,
                     v => media.MediaSource = Convert.ToString(v) ?? MediaMetricContract.OutputSource, converter: MediaSourceConverter));
-                break;
-            case C.MediaPlayerWidgetDefinition player:
-                source.Add(new CanonicalPropertyDescriptor(
-                    "PlaybackMetric", "general.source.media_player.metric", "Metric", player, typeof(string),
-                    () => MediaMetricContract.PlaybackStatus, null));
                 break;
         }
         if (source.Count > 0)
@@ -310,68 +332,82 @@ internal static class CanonicalPropertyViewBuilder
         if (widget is C.GraphWidgetDefinition graphBackground)
             result.Add(Group("Background Image", BuildImageLayer("background_image", graphBackground.Image, applicationRoot, dashboardDirectory, sourceOnly: true)));
 
-        var geometry = new List<PropertyDescriptor>
-        {
-            WholePixelCoordinate(widget, nameof(C.WidgetDefinition.X), "general.geometry.x", "X", () => widget.X, v => widget.X = v),
-            WholePixelCoordinate(widget, nameof(C.WidgetDefinition.Y), "general.geometry.y", "Y", () => widget.Y, v => widget.Y = v),
-            WholePixelDimension(widget, nameof(C.WidgetDefinition.Width), "general.geometry.width", "Width", () => widget.Width, v => widget.Width = v)
-        };
-        geometry.Add(new CanonicalPropertyDescriptor(
-            nameof(C.WidgetDefinition.Height), "general.geometry.height", "Height", widget, typeof(float),
-            () => WidgetResizeGeometry.NormalizeLogicalDimension(
-                WidgetSizeContract.IsHeightDerived(widget)
-                    ? effectiveSizeAccessor?.Invoke(widget)?.Height ?? widget.Height
-                    : widget.Height),
-            WidgetSizeContract.IsHeightDerived(widget)
-                ? null
-                : v => widget.Height = Math.Max(0f, WidgetResizeGeometry.NormalizeLogicalDimension(Convert.ToSingle(v, CultureInfo.InvariantCulture))),
-            description: WidgetSizeContract.IsHeightDerived(widget) ? "Derived from the active widget layout." : string.Empty));
-        geometry.Add(Double(widget, nameof(C.WidgetDefinition.Rotation), "general.geometry.rotation", "Rotation", () => widget.Rotation, v => widget.Rotation = v));
-        result.Add(Group("Geometry", geometry));
         return result;
+    }
+
+    private static CanonicalPropertyDescriptor CommonMetric(C.WidgetDefinition widget)
+    {
+        const string key = "general.source.metric";
+        switch (widget)
+        {
+            case C.ValueWidgetDefinition value:
+                return Metric(value, "Metric", key, "Metric", () => value.Metric, v => value.Metric = EmptyToNull(v),
+                    () => C.ValueSourceKind.IsMetric(value.SourceKind) ? null : NotApplicable("Type"));
+            case C.BinaryWidgetDefinition binary:
+                return Metric(binary, "Metric", key, "Metric", () => binary.Metric, v => binary.Metric = EmptyToNull(v));
+            case C.NumericWidgetDefinition numeric:
+                return Metric(numeric, "Metric", key, "Metric", () => numeric.Metric, v => numeric.Metric = EmptyToNull(v));
+        }
+
+        string DisplayBinding() => widget switch
+        {
+            C.PowerWidgetDefinition power => PowerMetricContract.StateMetric(power.PowerSource),
+            C.MediaSystemWidgetDefinition media => string.Join(", ", MediaMetricContract.GetEndpointBinding(media.MediaSource)),
+            C.MediaPlayerWidgetDefinition => MediaMetricContract.PlaybackStatus,
+            _ => "Not applicable"
+        };
+        return new CanonicalPropertyDescriptor("Metric", key, "Metric", widget, typeof(string), () => DisplayBinding(), null,
+            editor: MetricEditor, description: widget is C.ImageWidgetDefinition or C.ShortcutWidgetDefinition
+                ? "Not applicable to this widget." : "Binding determined by the widget source.");
     }
 
     private static List<PropertyDescriptor> BuildAppearance(C.WidgetDefinition widget, string? applicationRoot)
     {
         var result = new List<PropertyDescriptor>();
-        var foregroundApplicable = widget is C.ValueWidgetDefinition or C.GaugeWidgetDefinition or C.GraphWidgetDefinition or C.StateVisualWidgetDefinition or C.ShortcutWidgetDefinition ||
-                                   widget is C.BarWidgetDefinition bar && !BarImageContract.IsImageMode(bar.ContentMode) ||
-                                   widget is C.ImageWidgetDefinition image && C.ImageAssetSourceType.IsIcon(image.Asset.SourceType);
-        if (foregroundApplicable)
-        {
-            Func<string?>? disabled = null;
-            if (widget is C.ShortcutWidgetDefinition shortcut)
-                disabled = () => C.ImageAssetSourceType.IsIcon(shortcut.Asset.SourceType) &&
-                    IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, shortcut.Asset.Source, out var caps) && caps.Tintable
-                        ? null : NotApplicable("Source");
-            if (widget is C.ImageWidgetDefinition iconImage)
-            {
-                disabled = () =>
-                {
-                    if (!C.ImageAssetSourceType.IsIcon(iconImage.Asset.SourceType))
-                        return NotApplicable("Type");
-                    if (string.IsNullOrWhiteSpace(iconImage.Asset.Source))
-                        return NotApplicable("Source");
-                    return !IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, iconImage.Asset.Source, out var caps) || !caps.Tintable
-                        ? NotApplicable("Source") : null;
-                };
-            }
-            result.Add(Group("Foreground", [Color(widget, nameof(C.WidgetDefinition.Color), "appearance.foreground.color", "Color", () => widget.Color, v => widget.Color = v, disabled)]));
-        }
+        string? TintDisabled(C.ImageAssetPresentationDefinition asset) =>
+            C.ImageAssetSourceType.IsIcon(asset.SourceType) &&
+            IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, asset.Source, out var caps) && caps.Tintable
+                ? null : NotApplicable("Source");
 
-        result.Add(Group("Background", [Color(widget, nameof(C.WidgetDefinition.BackgroundColor), "appearance.background.color", "Color", () => widget.BackgroundColor, v => widget.BackgroundColor = v)]));
+        string? ForegroundDisabled() => widget switch
+        {
+            C.ShortcutWidgetDefinition shortcut => TintDisabled(shortcut.Asset),
+            C.ImageWidgetDefinition image => TintDisabled(image.Asset),
+            C.BarWidgetDefinition bar when BarImageContract.IsImageMode(bar.ContentMode) => NotApplicable("Mode"),
+            C.StateVisualWidgetDefinition state when !state.Profiles.Values.Any(profile =>
+                C.StateContentType.IsValue(profile.ContentType) || TintDisabled(profile.Asset) is null) => NotApplicable("Source"),
+            _ => null
+        };
+        string? BorderDisabled() => widget.BorderWidth == 0 ? NotApplicable("Width") : null;
+        string? ShadowDisabled() => widget.ShadowEnabled ? null : NotApplicable("Enabled");
+        result.Add(Group("Container", [
+            Color(widget, nameof(widget.Color), "appearance.foreground.color", "Foreground Color", () => widget.Color, v => widget.Color = v, ForegroundDisabled),
+            Color(widget, nameof(widget.BackgroundColor), "appearance.background.color", "Background Color", () => widget.BackgroundColor, v => widget.BackgroundColor = v),
+            Float(widget, nameof(widget.CornerRadius), "appearance.border.corner_radius", "Corner Radius", () => widget.CornerRadius, v => widget.CornerRadius = Math.Max(0f, v))
+        ]));
         result.Add(Group("Border", [
-            Color(widget, nameof(C.WidgetDefinition.BorderColor), "appearance.border.color", "Color", () => widget.BorderColor, v => widget.BorderColor = v),
-            Float(widget, nameof(C.WidgetDefinition.BorderWidth), "appearance.border.width", "Width", () => widget.BorderWidth, v => widget.BorderWidth = Math.Max(0f, v)),
-            Float(widget, nameof(C.WidgetDefinition.CornerRadius), "appearance.border.corner_radius", "Corner Radius", () => widget.CornerRadius, v => widget.CornerRadius = Math.Max(0f, v))
+            Float(widget, nameof(widget.BorderWidth), "appearance.border.width", "Width", () => widget.BorderWidth, v => widget.BorderWidth = Math.Max(0f, v)),
+            Color(widget, nameof(widget.BorderColor), "appearance.border.color", "Color", () => widget.BorderColor, v => widget.BorderColor = v, BorderDisabled),
+            String(widget, nameof(widget.BorderStyle), "appearance.border.style", "Style",
+                () => widget.BorderStyle == C.WidgetBorderStyle.Dotted ? "Dotted" : "Solid",
+                v => widget.BorderStyle = v switch
+                {
+                    "Solid" => C.WidgetBorderStyle.Solid,
+                    "Dotted" => C.WidgetBorderStyle.Dotted,
+                    _ => throw new FormatException("Choose Solid or Dotted.")
+                }, converter: new FixedStringConverter(["Solid", "Dotted"]), disabled: BorderDisabled),
+            Bool(widget, nameof(widget.BorderTop), "appearance.border.top", "Top", () => widget.BorderTop, v => widget.BorderTop = v, BorderDisabled),
+            Bool(widget, nameof(widget.BorderRight), "appearance.border.right", "Right", () => widget.BorderRight, v => widget.BorderRight = v, BorderDisabled),
+            Bool(widget, nameof(widget.BorderBottom), "appearance.border.bottom", "Bottom", () => widget.BorderBottom, v => widget.BorderBottom = v, BorderDisabled),
+            Bool(widget, nameof(widget.BorderLeft), "appearance.border.left", "Left", () => widget.BorderLeft, v => widget.BorderLeft = v, BorderDisabled)
         ]));
         result.Add(Group("Shadow", [
-            Bool(widget, nameof(C.WidgetDefinition.ShadowEnabled), "appearance.shadow.enabled", "Enabled", () => widget.ShadowEnabled, v => widget.ShadowEnabled = v),
-            Float(widget, nameof(C.WidgetDefinition.ShadowOffsetX), "appearance.shadow.offset_x", "Offset X", () => widget.ShadowOffsetX, v => widget.ShadowOffsetX = v, () => widget.ShadowEnabled ? null : NotApplicable("Enabled")),
-            Float(widget, nameof(C.WidgetDefinition.ShadowOffsetY), "appearance.shadow.offset_y", "Offset Y", () => widget.ShadowOffsetY, v => widget.ShadowOffsetY = v, () => widget.ShadowEnabled ? null : NotApplicable("Enabled")),
-            Float(widget, nameof(C.WidgetDefinition.ShadowBlur), "appearance.shadow.blur", "Blur", () => widget.ShadowBlur, v => widget.ShadowBlur = Math.Max(0f, v), () => widget.ShadowEnabled ? null : NotApplicable("Enabled")),
-            Float(widget, nameof(C.WidgetDefinition.ShadowOpacity), "appearance.shadow.opacity", "Opacity", () => widget.ShadowOpacity, v => widget.ShadowOpacity = Math.Clamp(v, 0f, 1f), () => widget.ShadowEnabled ? null : NotApplicable("Enabled")),
-            Color(widget, nameof(C.WidgetDefinition.ShadowColor), "appearance.shadow.color", "Color", () => widget.ShadowColor, v => widget.ShadowColor = v, () => widget.ShadowEnabled ? null : NotApplicable("Enabled"))
+            Bool(widget, nameof(widget.ShadowEnabled), "appearance.shadow.enabled", "Enabled", () => widget.ShadowEnabled, v => widget.ShadowEnabled = v),
+            Color(widget, nameof(widget.ShadowColor), "appearance.shadow.color", "Color", () => widget.ShadowColor, v => widget.ShadowColor = v, ShadowDisabled),
+            Float(widget, nameof(widget.ShadowOpacity), "appearance.shadow.opacity", "Opacity", () => widget.ShadowOpacity, v => widget.ShadowOpacity = Math.Clamp(v, 0f, 1f), ShadowDisabled),
+            Float(widget, nameof(widget.ShadowBlur), "appearance.shadow.blur", "Blur", () => widget.ShadowBlur, v => widget.ShadowBlur = Math.Max(0f, v), ShadowDisabled),
+            Float(widget, nameof(widget.ShadowOffsetX), "appearance.shadow.offset_x", "Offset X", () => widget.ShadowOffsetX, v => widget.ShadowOffsetX = v, ShadowDisabled),
+            Float(widget, nameof(widget.ShadowOffsetY), "appearance.shadow.offset_y", "Offset Y", () => widget.ShadowOffsetY, v => widget.ShadowOffsetY = v, ShadowDisabled)
         ]));
 
         if (widget is C.NumericWidgetDefinition quantitative &&
@@ -742,7 +778,6 @@ internal static class CanonicalPropertyViewBuilder
             !StateVisualProfileContract.SupportsValueSource(widget.Type))
             return [];
 
-        TextOverflowStateContract.EnsureProfiles(stateWidget);
         var result = new List<PropertyDescriptor>();
         foreach (var spec in StateVisualProfileContract.GetSpecs(widget.Type).OrderBy(spec => spec.Order))
         {
@@ -804,10 +839,10 @@ internal static class CanonicalPropertyViewBuilder
 
         if (widget is C.StateVisualWidgetDefinition stateWidget)
         {
-            TextOverflowStateContract.EnsureProfiles(stateWidget);
             foreach (var spec in StateVisualProfileContract.GetSpecs(widget.Type).OrderBy(spec => spec.Order))
             {
-                var profile = stateWidget.Profiles[spec.Key];
+                if (!stateWidget.Profiles.TryGetValue(spec.Key, out var profile))
+                    continue;
                 if (!C.StateContentType.IsImage(profile.ContentType))
                     continue;
                 result.Add(Group(spec.Category, [
@@ -817,7 +852,7 @@ internal static class CanonicalPropertyViewBuilder
                               (!IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, profile.Asset.Source, out var loopCapabilities) || !loopCapabilities.IsAnimated)
                             ? NotApplicable("Source")
                             : null),
-                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"image.state.{spec.Key}.color", "Color", () => profile.Color ?? "#FFFFFFFF", v => profile.Color = v,
+                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"image.state.{spec.Key}.color", "Color", () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color, v => profile.Color = v,
                         () => C.ImageAssetSourceType.IsFile(profile.Asset.SourceType)
                             ? NotApplicable("Source Type")
                             : (!IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, profile.Asset.Source, out var colorCapabilities) || !colorCapabilities.Tintable)
@@ -855,15 +890,15 @@ internal static class CanonicalPropertyViewBuilder
         }
         if (widget is C.StateVisualWidgetDefinition stateWidget)
         {
-            TextOverflowStateContract.EnsureProfiles(stateWidget);
             foreach (var spec in StateVisualProfileContract.GetSpecs(widget.Type).OrderBy(spec => spec.Order))
             {
-                var profile = stateWidget.Profiles[spec.Key];
+                if (!stateWidget.Profiles.TryGetValue(spec.Key, out var profile))
+                    continue;
                 if (!C.StateContentType.IsValue(profile.ContentType))
                     continue;
                 var nested = new List<PropertyDescriptor>();
                 nested.Add(Group("Foreground", [
-                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"text.state.{spec.Key}.color", "Color", () => profile.Color ?? "#FFFFFFFF", v => profile.Color = v),
+                    Color(profile, StateName(spec.Key, StateVisualProfileField.Color), $"text.state.{spec.Key}.color", "Color", () => string.IsNullOrWhiteSpace(profile.Color) ? widget.Color : profile.Color, v => profile.Color = v),
                     Float(profile, StateName(spec.Key, StateVisualProfileField.Opacity), $"text.state.{spec.Key}.opacity", "Opacity", () => profile.Opacity, v => profile.Opacity = Math.Clamp(v, 0f, 1f))
                 ]));
                 AddTextGroups(nested, profile.TextPresentation, $"text.state.{spec.Key}", null, fontConverter, spec.Key);

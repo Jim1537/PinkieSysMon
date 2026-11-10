@@ -16,10 +16,10 @@ internal static class GraphEditorTests
         static PropertyDescriptorCollection Rows(PropertyDescriptorCollection groups, string group) =>
             TypeDescriptor.GetProperties(groups[group]!.GetValue(null)!);
         var general = View(EditorPropertySection.General);
-        GraphWidgetTests.Check(Rows(general, "Source")["Metric"] is not null && !Rows(general, "Geometry")["Height"]!.IsReadOnly,
+        GraphWidgetTests.Check(Rows(general, "Data Source")["Metric"] is not null && !Rows(general, "Geometry")["Height"]!.IsReadOnly,
             "Graph must expose its metric and independent rectangular geometry.");
         var appearance = View(EditorPropertySection.Appearance);
-        foreach (var name in new[] { "Foreground", "Background", "Border", "Shadow", "Threshold 1", "Threshold 2", "Threshold 3" })
+        foreach (var name in new[] { "Container", "Border", "Shadow", "Threshold 1", "Threshold 2", "Threshold 3" })
             GraphWidgetTests.Check(appearance[name] is not null, $"Graph is missing common Appearance/{name}.");
         var range = Rows(View(EditorPropertySection.Data), "Range");
         GraphWidgetTests.Check(range["Min"]!.IsReadOnly && range["Max"]!.IsReadOnly, "Auto bounds must remain visible but disabled.");

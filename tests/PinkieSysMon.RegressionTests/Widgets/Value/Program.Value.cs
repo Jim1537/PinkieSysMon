@@ -90,13 +90,13 @@ internal static partial class Program
         };
         var metricProperties = CurrentPropertyView(metricWidget, section: EditorPropertySection.General).GetProperties();
         var metricSourceType = GetNestedProperty(metricProperties, "Source", nameof(C.ValueWidgetDefinition.SourceKind));
-        var metricSourceMetric = GetNestedProperty(metricProperties, "Source", nameof(WidgetDefinition.Metric));
+        var metricSourceMetric = GetNestedProperty(metricProperties, "Data Source", nameof(WidgetDefinition.Metric));
         var metricSourceText = GetNestedProperty(metricProperties, "Source", nameof(WidgetDefinition.Text));
         Assert(metricSourceType is not null && metricSourceType.DisplayName == "Type" &&
                string.Equals(Convert.ToString(metricSourceType.GetValue(null)), TextValueContract.SourceMetric, StringComparison.Ordinal),
             "Metric-source value must expose Source/Type=Metric.");
         Assert(metricSourceMetric is { IsReadOnly: false },
-            "Metric-source value must expose editable Source/Metric.");
+            "Metric-source value must expose editable Data Source/Metric.");
         Assert(metricSourceText is { IsReadOnly: true } &&
                metricSourceText.Description == "Not applicable for selected Type.",
             "Metric-source value must keep Source/Text visible but disabled.");
@@ -112,7 +112,7 @@ internal static partial class Program
         var textProperties = CurrentPropertyView(textWidget, section: EditorPropertySection.General).GetProperties();
         var textSourceType = GetNestedProperty(textProperties, "Source", nameof(C.ValueWidgetDefinition.SourceKind));
         var textSourceText = GetNestedProperty(textProperties, "Source", nameof(WidgetDefinition.Text));
-        var textSourceMetric = GetNestedProperty(textProperties, "Source", nameof(WidgetDefinition.Metric));
+        var textSourceMetric = GetNestedProperty(textProperties, "Data Source", nameof(WidgetDefinition.Metric));
         Assert(textSourceType is not null && textSourceType.DisplayName == "Type" &&
                string.Equals(Convert.ToString(textSourceType.GetValue(null)), TextValueContract.SourceText, StringComparison.Ordinal),
             "Text-source value must expose Source/Type=Text.");
@@ -120,7 +120,7 @@ internal static partial class Program
             "Text-source value must expose editable Source/Text.");
         Assert(textSourceMetric is { IsReadOnly: true } &&
                textSourceMetric.Description == "Not applicable for selected Type.",
-            "Text-source value must keep Source/Metric visible but disabled.");
+            "Text-source value must keep Data Source/Metric visible but disabled.");
         Assert(textProperties[nameof(WidgetDefinition.SourceUnit)] is null &&
                textProperties[nameof(WidgetDefinition.Prefix)] is null &&
                textProperties[nameof(WidgetDefinition.Suffix)] is null &&

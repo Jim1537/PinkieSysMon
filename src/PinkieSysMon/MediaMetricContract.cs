@@ -95,6 +95,13 @@ internal static class MediaMetricContract
 
     public static readonly string[] MetricNames = Descriptors.Select(x => x.Id).ToArray();
 
+    internal static IEnumerable<string> GetEndpointBinding(string source)
+    {
+        var input = string.Equals(source, InputSource, StringComparison.OrdinalIgnoreCase);
+        yield return input ? InputAvailable : OutputAvailable;
+        yield return input ? InputType : OutputType;
+    }
+
     public static string NormalizePlaybackState(object? value)
     {
         var state = Convert.ToString(value)?.Trim().ToLowerInvariant();

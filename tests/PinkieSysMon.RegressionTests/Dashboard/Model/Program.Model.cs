@@ -118,7 +118,7 @@ internal static partial class Program
         var widgetAppearance = CurrentPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
         Assert(Semantic(GetNestedProperty(widgetGeneral, "Geometry", nameof(C.WidgetDefinition.Width))) == Semantic(width) &&
                Semantic(GetNestedProperty(widgetGeneral, "Geometry", nameof(C.WidgetDefinition.Height))) == Semantic(height) &&
-               Semantic(GetNestedProperty(widgetAppearance, "Background", nameof(C.WidgetDefinition.BackgroundColor))) == Semantic(color),
+               Semantic(GetNestedProperty(widgetAppearance, "Container", nameof(C.WidgetDefinition.BackgroundColor))) == Semantic(color),
             "Canvas and widgets must share semantic identities for common Geometry and Background properties.");
 
         foreach (var section in new[]

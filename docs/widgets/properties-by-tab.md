@@ -14,13 +14,48 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Name
     --8<-- "widgets/properties.md:name"
 
+    #### Type and ID
+    Read-only widget type and instance identity.
+
+    ### Data Source
+
+    #### Metric
+    --8<-- "widgets/properties.md:metric"
+
+    #### Media Player Metric
+    --8<-- "widgets/properties.md:media-player-metric"
+
+    ### Geometry
+
+    #### X
+    --8<-- "widgets/properties.md:x"
+
+    #### Y
+    --8<-- "widgets/properties.md:y"
+
+    #### Width
+    --8<-- "widgets/properties.md:width"
+
+    #### Height
+    --8<-- "widgets/properties.md:height"
+
+    #### Padding
+    See [common widget fields](properties.md#common-inherited-widget-fields).
+
+    #### Rotation
+    --8<-- "widgets/properties.md:rotation"
+
+
+    #### Z-order
+    Read-only layer order.
+
+    #### Orientation (Canvas)
+    --8<-- "widgets/properties.md:orientation"
+
     ### Source
 
     #### Value Source Type
     --8<-- "widgets/properties.md:value-source-type"
-
-    #### Metric
-    --8<-- "widgets/properties.md:metric"
 
     #### Text
     --8<-- "widgets/properties.md:text"
@@ -36,9 +71,6 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     #### Media Source
     --8<-- "widgets/properties.md:media-source"
-
-    #### Media Player Metric
-    --8<-- "widgets/properties.md:media-player-metric"
 
     ### Background Image
 
@@ -67,72 +99,51 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Activation
     --8<-- "widgets/properties.md:shortcut-activation"
 
-    ### Geometry
-
-    #### X
-    --8<-- "widgets/properties.md:x"
-
-    #### Y
-    --8<-- "widgets/properties.md:y"
-
-    #### Width
-    --8<-- "widgets/properties.md:width"
-
-    #### Height
-    --8<-- "widgets/properties.md:height"
-
-    #### Rotation
-    --8<-- "widgets/properties.md:rotation"
-
-
-    #### Orientation
-    --8<-- "widgets/properties.md:orientation"
-
 === "Appearance"
 
     ## Appearance
 
-    ### Foreground
+    ### Container
 
     #### Foreground Color
     --8<-- "widgets/properties.md:foreground-color"
 
-    ### Background
-
     #### Background Color
     --8<-- "widgets/properties.md:background-color"
 
+    #### Corner Radius
+    --8<-- "widgets/properties.md:corner-radius"
 
     ### Border
 
-    #### Border Color
-    --8<-- "widgets/properties.md:border-color"
-
-    #### Border Width
+    #### Width
     --8<-- "widgets/properties.md:border-width"
 
-    #### Corner Radius
-    --8<-- "widgets/properties.md:corner-radius"
+    #### Color
+    --8<-- "widgets/properties.md:border-color"
+
+    #### Style and sides
+    See [common widget fields](properties.md#common-inherited-widget-fields).
 
     ### Shadow
 
     #### Shadow Enabled
     --8<-- "widgets/properties.md:shadow-enabled"
 
+    #### Shadow Color
+    --8<-- "widgets/properties.md:shadow-color"
+
+    #### Shadow Opacity
+    --8<-- "widgets/properties.md:shadow-opacity"
+
+    #### Shadow Blur
+    --8<-- "widgets/properties.md:shadow-blur"
+
     #### Shadow Offset X
     --8<-- "widgets/properties.md:shadow-offset-x"
 
     #### Shadow Offset Y
     --8<-- "widgets/properties.md:shadow-offset-y"
-
-    #### Shadow Blur
-    --8<-- "widgets/properties.md:shadow-blur"
-
-    #### Shadow Opacity
-    --8<-- "widgets/properties.md:shadow-opacity"
-
-    #### Shadow Color
-    --8<-- "widgets/properties.md:shadow-color"
 
     ### Thresholds
 

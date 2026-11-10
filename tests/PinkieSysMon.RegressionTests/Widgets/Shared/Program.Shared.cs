@@ -17,7 +17,7 @@ internal static partial class Program
     private static void WidgetSourcePropertyHierarchy()
     {
         static PropertyDescriptor? SourceProperty(PropertyDescriptorCollection properties, string propertyName) =>
-            GetNestedProperty(properties, "Source", propertyName);
+            GetNestedProperty(properties, propertyName == "Metric" ? "Data Source" : "Source", propertyName);
 
         static PropertyDescriptor RequireSourceType(PropertyDescriptorCollection properties, string expectedValue)
         {
@@ -36,8 +36,8 @@ internal static partial class Program
 
         static void AssertNoSourceType(PropertyDescriptorCollection properties, string widgetKind)
         {
-            var group = properties["Source"]
-                ?? throw new InvalidOperationException($"{widgetKind} Source group is missing.");
+            var group = properties["Source"];
+            if (group is null) return;
             var groupValue = group.GetValue(null)
                 ?? throw new InvalidOperationException($"{widgetKind} Source group value is missing.");
             Assert(TypeDescriptor.GetProperties(groupValue)
@@ -153,7 +153,7 @@ internal static partial class Program
         };
         var mediaPlayerProperties = new EditorPropertyView(mediaPlayer, section: EditorPropertySection.General).GetProperties();
         AssertNoSourceType(mediaPlayerProperties, "Media Player");
-        var playbackMetric = SourceProperty(mediaPlayerProperties, "PlaybackMetric");
+        var playbackMetric = SourceProperty(mediaPlayerProperties, "Metric");
         Assert(playbackMetric is not null && playbackMetric.DisplayName == "Metric" && playbackMetric.IsReadOnly &&
                string.Equals(Convert.ToString(playbackMetric.GetValue(null)), MediaMetricContract.PlaybackStatus, StringComparison.Ordinal),
             "Media Player must expose its fixed playback-status metric only as derived read-only information.");
@@ -191,7 +191,7 @@ internal static partial class Program
             var properties = CurrentPropertyView(
                 widget,
                 section: EditorPropertySection.General).GetProperties();
-            foreach (var group in new[] { "Identity", "Source", "Geometry" })
+            foreach (var group in new[] { "Identity", "Data Source", "Geometry" })
             {
                 var descriptor = properties[group]
                     ?? throw new InvalidOperationException(
@@ -227,18 +227,19 @@ internal static partial class Program
                 $"{type} must not duplicate hidden Widget/Appearance properties at the top level.");
 
             Assert(GetNestedProperty(properties, "Identity", "Name") is not null &&
-                   GetNestedProperty(properties, "Identity", "Type") is null &&
-                   GetNestedProperty(properties, "Identity", "Id") is null,
-                $"{type} Identity group must contain only Name.");
+                   GetNestedProperty(properties, "Identity", "Type") is { IsReadOnly: true } &&
+                   GetNestedProperty(properties, "Identity", "Id") is { IsReadOnly: true },
+                $"{type} Identity group must expose Name, read-only Type and ID.");
             Assert(GetNestedProperty(properties, "Geometry", "X") is not null &&
                    GetNestedProperty(properties, "Geometry", "Y") is not null &&
                    GetNestedProperty(properties, "Geometry", "Width") is not null &&
                    GetNestedProperty(properties, "Geometry", "Height") is not null &&
                    GetNestedProperty(properties, "Geometry", "Rotation") is not null &&
-                   GetNestedProperty(properties, "Geometry", "Z") is null &&
+                   GetNestedProperty(properties, "Geometry", "Padding") is { IsReadOnly: false } &&
+                   GetNestedProperty(properties, "Geometry", "Z") is { IsReadOnly: true } &&
                    GetNestedProperty(properties, "Geometry", "Position") is null &&
                    GetNestedProperty(properties, "Geometry", "Size") is null,
-                $"{type} Geometry group must be a flat X/Y/Width/Height/Rotation list.");
+                $"{type} Geometry group must be a flat layout with Padding and read-only Z-order.");
 
         }
 
@@ -306,7 +307,7 @@ internal static partial class Program
                 widget,
                 section: EditorPropertySection.Appearance).GetProperties();
 
-            foreach (var group in new[] { "Background", "Border", "Shadow" })
+            foreach (var group in new[] { "Container", "Border", "Shadow" })
             {
                 var descriptor = properties[group]
                     ?? throw new InvalidOperationException($"{type} must expose Appearance/{group}.");
@@ -314,11 +315,11 @@ internal static partial class Program
                     $"{type} Appearance/{group} must be a first-level editor group.");
             }
 
-            Assert(GetNestedProperty(properties, "Background", nameof(WidgetDefinition.BackgroundColor)) is { DisplayName: "Color" },
+            Assert(GetNestedProperty(properties, "Container", nameof(WidgetDefinition.BackgroundColor)) is { DisplayName: "Background Color" },
                 $"{type} Background must expose Color.");
             Assert(GetNestedProperty(properties, "Border", nameof(WidgetDefinition.BorderColor)) is { DisplayName: "Color" } &&
                    GetNestedProperty(properties, "Border", nameof(WidgetDefinition.BorderWidth)) is { DisplayName: "Width" } &&
-                   GetNestedProperty(properties, "Border", nameof(WidgetDefinition.CornerRadius)) is { DisplayName: "Corner Radius" },
+                   GetNestedProperty(properties, "Container", nameof(WidgetDefinition.CornerRadius)) is { DisplayName: "Corner Radius" },
                 $"{type} Border group is incomplete.");
             Assert(GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowEnabled)) is { DisplayName: "Enabled" } &&
                    GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowOffsetX)) is { DisplayName: "Offset X" } &&
@@ -328,21 +329,8 @@ internal static partial class Program
                    GetNestedProperty(properties, "Shadow", nameof(WidgetDefinition.ShadowColor)) is { DisplayName: "Color" },
                 $"{type} Shadow group is incomplete.");
 
-            var expectsForeground =
-                WidgetTypeContract.Is(type, WidgetTypeContract.Value) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.Bar) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.Gauge) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.Binary) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.Power) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.MediaSystem) ||
-                WidgetTypeContract.Is(type, WidgetTypeContract.MediaPlayer);
-            Assert((properties["Foreground"] is not null) == expectsForeground,
-                $"{type} Foreground visibility must follow actual universal Color usage.");
-            if (expectsForeground)
-            {
-                Assert(GetNestedProperty(properties, "Foreground", nameof(WidgetDefinition.Color)) is { DisplayName: "Color" },
-                    $"{type} Foreground must expose Color.");
-            }
+            Assert(GetNestedProperty(properties, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
+                $"{type} must expose the shared foreground row even when disabled.");
 
             var expectsThresholds =
                 WidgetTypeContract.Is(type, WidgetTypeContract.Bar) ||
@@ -390,8 +378,8 @@ internal static partial class Program
         var imageIconAppearance = CurrentPropertyView(
             imageIcon,
             section: EditorPropertySection.Appearance).GetProperties();
-        Assert(GetNestedProperty(imageIconAppearance, "Foreground", nameof(WidgetDefinition.Color)) is { DisplayName: "Color" },
-            "Icon Image must expose universal Color as Appearance/Foreground/Color.");
+        Assert(GetNestedProperty(imageIconAppearance, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
+            "Icon Image must expose universal Color as Appearance/Container/Foreground Color.");
 
         var gauge = new WidgetDefinition
         {
@@ -409,7 +397,7 @@ internal static partial class Program
                GetNestedProperty(gaugeAppearance, "Threshold 1", nameof(WidgetDefinition.Threshold1Color)) is { DisplayName: "Color" },
             "Enabled Threshold 1 must expose Enabled, Value, and Color.");
 
-        Assert(GetNestedProperty(gaugeAppearance, "Foreground", nameof(WidgetDefinition.Color)) is { DisplayName: "Color" },
+        Assert(GetNestedProperty(gaugeAppearance, "Container", nameof(WidgetDefinition.Color)) is { DisplayName: "Foreground Color" },
             "Gauge base indicator color must be universal Appearance/Foreground/Color.");
 
         var barImage = new WidgetDefinition
@@ -423,12 +411,12 @@ internal static partial class Program
         var barImageAppearance = CurrentPropertyView(
             barImage,
             section: EditorPropertySection.Appearance).GetProperties();
-        Assert(barImageAppearance["Foreground"] is null &&
+        Assert(GetNestedProperty(barImageAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true } &&
                barImageAppearance[nameof(WidgetDefinition.ThresholdMode)] is null &&
                barImageAppearance["Threshold 1"] is null &&
                barImageAppearance["Threshold 2"] is null &&
                barImageAppearance["Threshold 3"] is null,
-            "Image-mode Bar must hide Foreground and the threshold subsystem on Appearance.");
+            "Image-mode Bar must disable the foreground row and hide the threshold subsystem on Appearance.");
 
         var binary = new WidgetDefinition
         {
@@ -443,7 +431,7 @@ internal static partial class Program
         var binaryAppearance = CurrentPropertyView(
             binary,
             section: EditorPropertySection.Appearance).GetProperties();
-        Assert(binaryAppearance["Foreground"] is not null &&
+        Assert(GetNestedProperty(binaryAppearance, "Container", nameof(C.WidgetDefinition.Color)) is not null &&
                binaryAppearance["Alignment"] is null &&
                binaryAppearance["Font"] is null &&
                binaryAppearance["Outline"] is null &&

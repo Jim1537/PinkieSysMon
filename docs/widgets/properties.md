@@ -10,6 +10,21 @@ Schema 27 adds `padding` (four numeric fields named `top`, `right`, `bottom`, an
 
 Individual widgets retain their own geometry validation, source-specific meaning of foreground color, and Editor property applicability. This shared list does not replace their widget-specific persisted fields.
 
+The Editor shows the same common rows in the same order on every widget. Specialized controls follow these groups. An unsupported setting stays visible with its applicability explanation. Mixed selections allow an edit only when all targets can apply it.
+
+| Card | Group | Rows in display order |
+| --- | --- | --- |
+| General | Identity | Name, Type, ID |
+| General | Data Source | Metric |
+| General | Geometry | X, Y, Width, Height, Padding, Rotation, Z-order |
+| Appearance | Container | Foreground Color, Background Color, Corner Radius |
+| Appearance | Border | Width, Color, Style, Top, Right, Bottom, Left |
+| Appearance | Shadow | Enabled, Color, Opacity, Blur, Offset X, Offset Y |
+
+Type, ID and Z-order are read-only. Use the layer commands to change draw order. Metric shows both endpoint bindings for Media System. Power and Media Player also show their derived binding; Image and Shortcut show Not applicable. Text mode retains its dormant Metric selection.
+
+Enter Padding as one nonnegative number or four separated by `|` in top, right, bottom, left order. For example, `0|0|0|8` reserves eight pixels on the left. The default is `0`. Gauge retains track and needle dimensions in pixels and rejects insets that leave insufficient dial radius. Border Width = 0 disables the other Border controls while retaining their values.
+
 <!-- --8<-- [end:widget-base-fields] -->
 
 
@@ -21,7 +36,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 !!! info ""
 
-    **Editor name:** Color  
+    **Editor name:** Background Color (widget), Color (Canvas)<br>
     **Semantic key:** `appearance.background.color`  
     **Canonical model:** `WidgetDefinition.BackgroundColor / CanvasDefinition.BackgroundColor`  
     **JSON:** `backgroundColor` (widgets); `canvas.backgroundColor` (Canvas)
@@ -521,7 +536,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 
 !!! info ""
 
-    **Editor name:** Color  
+    **Editor name:** Foreground Color<br>
     **Semantic key:** `appearance.foreground.color`  
     **Canonical model:** `WidgetDefinition.Color`  
     **JSON:** `color`
@@ -538,9 +553,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
     **Disabled / read-only when:**
     - Image / [Type](properties.md#image-source-type)=`Icon`: when [Source](properties.md#image-source) is empty or the selected icon does not support tint.
 
-    **Hidden / tab omitted when:**
-    - Bar / [Mode](properties.md#bar-mode)=`Image`.
-    - Image / [Type](properties.md#image-source-type)!=`Icon`.
+    - Bar in Image mode, file-backed images and automatic Shell artwork keep their intrinsic colors. The common foreground row stays visible and disabled.
 
 <!-- --8<-- [end:foreground-color] -->
 
@@ -1010,7 +1023,7 @@ Individual widgets retain their own geometry validation, source-specific meaning
 !!! info ""
 
     **Editor name:** Metric  
-    **Semantic key:** `general.source.media_player.metric`  
+    **Semantic key:** `general.source.metric`<br>
     **Canonical model:** `derived fixed source`  
     **JSON:** `not persisted`
 

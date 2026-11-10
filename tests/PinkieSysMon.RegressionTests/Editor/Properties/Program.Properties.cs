@@ -60,7 +60,7 @@ internal static partial class Program
 
         var sourceMetric = CurrentPropertyView(value, section: EditorPropertySection.General).GetProperties();
         var metricSourceOrder = ChildDisplayNames(sourceMetric, "Source");
-        AssertEnabled(GetNestedProperty(sourceMetric, "Source", nameof(WidgetDefinition.Metric)),
+        AssertEnabled(GetNestedProperty(sourceMetric, "Data Source", nameof(WidgetDefinition.Metric)),
             "Metric-source Value/Metric");
         AssertDisabled(GetNestedProperty(sourceMetric, "Source", nameof(WidgetDefinition.Text)), typeReason,
             "Metric-source Value/Text");
@@ -70,7 +70,7 @@ internal static partial class Program
         var sourceText = CurrentPropertyView(value, section: EditorPropertySection.General).GetProperties();
         Assert(metricSourceOrder.SequenceEqual(ChildDisplayNames(sourceText, "Source")),
             "Value Source row order must remain stable when Type changes.");
-        AssertDisabled(GetNestedProperty(sourceText, "Source", nameof(WidgetDefinition.Metric)), typeReason,
+        AssertDisabled(GetNestedProperty(sourceText, "Data Source", nameof(WidgetDefinition.Metric)), typeReason,
             "Text-source Value/Metric");
         AssertEnabled(GetNestedProperty(sourceText, "Source", nameof(WidgetDefinition.Text)),
             "Text-source Value/Text");
@@ -478,7 +478,7 @@ internal static partial class Program
         ]).GetProperties();
         Assert(GetNestedProperty(heterogeneous, "Geometry", nameof(C.WidgetDefinition.X)) is not null,
             "Different canonical widget types must retain semantically common Geometry properties.");
-        Assert(GetNestedProperty(heterogeneous, "Source", nameof(C.ValueWidgetDefinition.Metric)) is not null,
+        Assert(GetNestedProperty(heterogeneous, "Data Source", nameof(C.ValueWidgetDefinition.Metric)) is not null,
             "Different metric-backed canonical widgets must intersect by the shared metric semantic key.");
         Assert(GetNestedProperty(heterogeneous, "Source", nameof(C.ValueWidgetDefinition.SourceKind)) is null,
             "Value-only SourceKind must not leak into heterogeneous canonical multi-selection.");
@@ -847,7 +847,7 @@ internal static partial class Program
 
             var svgAppearance = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var svgColor = GetNestedProperty(svgAppearance, "Foreground", nameof(C.WidgetDefinition.Color));
+            var svgColor = GetNestedProperty(svgAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var svgImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
             var svgLoop = GetNestedProperty(svgImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
@@ -858,7 +858,7 @@ internal static partial class Program
             image.Asset.Source = "mixed:red.png";
             var pngAppearance = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var pngColor = GetNestedProperty(pngAppearance, "Foreground", nameof(C.WidgetDefinition.Color));
+            var pngColor = GetNestedProperty(pngAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var pngImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
             var pngLoop = GetNestedProperty(pngImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
@@ -869,7 +869,7 @@ internal static partial class Program
             image.Asset.Source = "mixed:animated.gif";
             var gifAppearance = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Appearance).GetProperties();
-            var gifColor = GetNestedProperty(gifAppearance, "Foreground", nameof(C.WidgetDefinition.Color));
+            var gifColor = GetNestedProperty(gifAppearance, "Container", nameof(C.WidgetDefinition.Color));
             var gifImage = new EditorPropertyView(
                 image, tempRoot, dashboardRoot, section: EditorPropertySection.Image).GetProperties();
             var gifLoop = GetNestedProperty(gifImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
@@ -1177,7 +1177,7 @@ internal static partial class Program
 
         var appearance = state.Get(EditorPropertySection.Appearance);
         Assert(!appearance.ContainsKey("Alignment") &&
-               appearance.TryGetValue("Foreground", out var foregroundExpanded) && foregroundExpanded &&
+               appearance.TryGetValue("Container", out var containerExpanded) && containerExpanded &&
                appearance.TryGetValue("Background", out var backgroundExpanded) && backgroundExpanded &&
                appearance.TryGetValue("Border", out var borderExpanded) && borderExpanded &&
                appearance.TryGetValue("Shadow", out var shadowExpanded) && !shadowExpanded &&
@@ -1198,7 +1198,7 @@ internal static partial class Program
 
         appearance = state.Get(EditorPropertySection.Appearance);
         Assert(appearance["Shadow"] && !appearance["Background"] && appearance["Border"] &&
-               appearance["Foreground"] && appearance["Threshold 1"] &&
+               appearance["Container"] && appearance["Threshold 1"] &&
                !appearance["Threshold 2"] && !appearance["Threshold 3"],
             "Remembering one visible Appearance group must preserve the last state of the other groups.");
 

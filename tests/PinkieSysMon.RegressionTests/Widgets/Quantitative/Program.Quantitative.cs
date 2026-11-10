@@ -204,7 +204,7 @@ internal static partial class Program
 
         var fillAppearance = new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
         var fillImage = new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties();
-        Assert(GetNestedProperty(fillAppearance, "Foreground", nameof(C.WidgetDefinition.Color)) is not null,
+        Assert(GetNestedProperty(fillAppearance, "Container", nameof(C.WidgetDefinition.Color)) is not null,
             "Fill-mode Bar must expose universal Color.");
         Assert(fillAppearance["ThresholdMode"] is not null &&
                fillAppearance["Threshold 1"] is not null,
@@ -233,7 +233,7 @@ internal static partial class Program
             "Image-mode Bar must expose Progress Mode.");
         Assert(GetNestedProperty(imageProperties, "Image", "Loop") is not null,
             "Image-mode Bar must expose Loop because animated image playback uses the canonical image Loop setting.");
-        Assert(imageAppearance["Foreground"] is null,
+        Assert(GetNestedProperty(imageAppearance, "Container", nameof(C.WidgetDefinition.Color)) is { IsReadOnly: true },
             "Image-mode Bar must hide universal foreground Color.");
         Assert(imageAppearance["ThresholdMode"] is null &&
                imageAppearance["Threshold 1"] is null &&
@@ -249,7 +249,7 @@ internal static partial class Program
         modeProperty.SetValue(null, BarImageContract.ContentModeFill);
         Assert(new EditorPropertyView(widget, section: EditorPropertySection.Image).GetProperties().Count == 0 &&
                GetNestedProperty(new EditorPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties(),
-                   "Foreground", nameof(C.WidgetDefinition.Color)) is not null,
+                   "Container", nameof(C.WidgetDefinition.Color)) is not null,
             "Issue75: returning to Fill must remove the Image tab and restore Fill-only properties.");
 
         modeProperty.SetValue(null, BarImageContract.ContentModeImage);

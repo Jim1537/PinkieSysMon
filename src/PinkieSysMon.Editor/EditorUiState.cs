@@ -76,13 +76,14 @@ internal sealed class EditorPropertyExpansionState
         {
             ["Identity"] = false,
             ["Source"] = true,
+            ["Data Source"] = true,
             ["Background Image"] = true,
             ["Foreground Image"] = true,
             ["Geometry"] = true
         },
         EditorPropertySection.Appearance => new Dictionary<string, bool>(StringComparer.Ordinal)
         {
-            ["Foreground"] = true,
+            ["Container"] = true,
             ["Background"] = true,
             ["Border"] = true,
             ["Shadow"] = false,

@@ -388,7 +388,12 @@ internal sealed class GaugeWidgetDefinition : QuantitativeWidgetDefinition
             throw new InvalidDataException($"Gauge widget '{Id}' Needle must not be null.");
 
         Track.Validate($"Gauge widget '{Id}' Track");
-        var availableRadius = Padding.GetInscribedRadius(Width, Height);
+        ValidateDialFit(Width, Height, Padding);
+    }
+
+    internal void ValidateDialFit(float width, float height, WidgetPadding padding)
+    {
+        var availableRadius = padding.GetInscribedRadius(width, height);
         if (Track.Enabled)
         {
             var radialDepth = 2f * Track.BorderWidth + 2f * Gap + Track.Thickness;
