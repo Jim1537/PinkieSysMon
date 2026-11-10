@@ -187,7 +187,7 @@ internal sealed partial class EditorForm
             }
         }
 
-        return result;
+        return ApplyBinarySample(result);
     }
 
     private void AddPreviewMetric(IDictionary<string, object?> target, string metric, object? value)

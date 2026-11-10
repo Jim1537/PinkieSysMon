@@ -1076,6 +1076,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _dirty = _loadRequiresSave;
             _selectedWidget = null;
             _selectedWidgets.Clear();
+            ClearBinarySample();
             _selectedTreeKeys.Clear();
             _treeSelectionAnchorKey = null;
             _treePrimaryKey = null;
@@ -1242,6 +1243,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             CommitEdit(undoBefore, "property", widgets?.Select(widget => widget.Id),
                 properties: [propertyName], canvas: widgets is null);
             MarkDirty();
+            UpdateBinarySamplePanel();
             RenderPreview(force: true);
         }
         catch (Exception ex)

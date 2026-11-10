@@ -108,6 +108,14 @@ In `Auto`, a selected DateTime Component uses ordinary numeric truth semantics, 
 
 See [Evaluation Mode](properties.md#evaluation-mode), [True If](properties.md#true-if), and [Setpoint](properties.md#setpoint).
 
+#### Test a text Setpoint in the Editor
+
+For a single selected Binary using a text metric with `Mode = Setpoint`, the **Data** tab shows **Binary preview sample — Editor only**. Enable **Use test value (not live telemetry)** and enter `CONNECTED` to test a `Setpoint = CONNECTED` True state. Try `WAITING` or `Connected` to test False and case-sensitive matching; changing Setpoint with a fixed sample also updates the preview.
+
+Use **Unavailable (no reading)** to test the absence of data, rather than forcing False. Uncheck **Use test value** to return to ordinary Editor preview readings. The test input affects the named metric in the canvas (including other widgets using that metric), and resets on selection, metric/mode change, dashboard reload, or Undo/Redo restore.
+
+These readings are illustrative, **not real device status**. The Editor does not publish them to telemetry or send them to Runtime, and they never change dashboard JSON, dirty state, or Undo history.
+
 ### Step 4. Configure the two visual states
 
 Open the `States` tab. It contains:
