@@ -262,6 +262,7 @@ internal sealed partial class EditorForm
 
         PreserveEditorInputFocus(() =>
         {
+            var previousTab = ReferenceEquals(target, _propertyGridTarget) ? _propertyTabs.SelectedTab : null;
             _propertyGridTarget = target;
 
             _updatingPropertyTabs = true;
@@ -291,13 +292,13 @@ internal sealed partial class EditorForm
                         ? preferredPage
                         : _generalPropertyTab;
                 }
-                else if (target is CanonicalCanvasDefinition)
+                else if (target is CanonicalCanvasDefinition canvas)
                 {
-                    ConfigureCanvasPropertyTabs();
+                    ConfigureCanvasPropertyTabs(CreatePropertyTargetView(canvas, EditorPropertySection.Image).GetProperties().Count > 0);
                     _generalPropertyTab.Enabled = true;
                     _appearancePropertyTab.Enabled = true;
                     _imagePropertyTab.Enabled = true;
-                    _propertyTabs.SelectedTab = _generalPropertyTab;
+                    _propertyTabs.SelectedTab = previousTab is not null && _propertyTabs.TabPages.Contains(previousTab) ? previousTab : _generalPropertyTab;
                 }
                 else
                 {
@@ -353,12 +354,10 @@ internal sealed partial class EditorForm
         ConfigurePropertyTabs(desired);
     }
 
-    private void ConfigureCanvasPropertyTabs() =>
-        ConfigurePropertyTabs([
-            _generalPropertyTab,
-            _appearancePropertyTab,
-            _imagePropertyTab
-        ]);
+    private void ConfigureCanvasPropertyTabs(bool includeImage) =>
+        ConfigurePropertyTabs(includeImage
+            ? [_generalPropertyTab, _appearancePropertyTab, _imagePropertyTab]
+            : [_generalPropertyTab, _appearancePropertyTab]);
 
     private void ConfigureSinglePropertyTab(bool enabled)
     {

@@ -805,7 +805,10 @@ internal static class CanonicalPropertyViewBuilder
                 Float(shortcut, "Opacity", "image.opacity", "Opacity", () => shortcut.Opacity, v => shortcut.Opacity = Math.Clamp(v, 0f, 1f))
             ])];
         if (widget is C.GraphWidgetDefinition graph)
-            return [Group("Background Image", BuildImageLayer("background_image", graph.Image, applicationRoot, dashboardDirectory, sourceOnly: false))];
+        {
+            AddConfiguredLayer(result, "Background Image", "background_image", graph.Image, applicationRoot, dashboardDirectory);
+            return result;
+        }
         if (widget is C.ImageWidgetDefinition image)
         {
             var loopDisabled = () =>
@@ -956,10 +959,10 @@ internal static class CanonicalPropertyViewBuilder
             return [Group("Background", [Color(canvas, nameof(C.CanvasDefinition.BackgroundColor), "appearance.background.color", "Color", () => canvas.BackgroundColor, v => canvas.BackgroundColor = v)])];
         if (section == EditorPropertySection.Image)
         {
-            return [
-                Group("Background Image", BuildImageLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: false)),
-                Group("Foreground Image", BuildImageLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: false))
-            ];
+            var layers = new List<PropertyDescriptor>();
+            AddConfiguredLayer(layers, "Background Image", "background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory);
+            AddConfiguredLayer(layers, "Foreground Image", "foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory);
+            return layers;
         }
         if (section == EditorPropertySection.All)
         {
@@ -969,6 +972,13 @@ internal static class CanonicalPropertyViewBuilder
             return result;
         }
         return [];
+    }
+
+    private static void AddConfiguredLayer(List<PropertyDescriptor> groups, string label, string role,
+        C.CanvasImageLayerDefinition layer, string? applicationRoot, string? dashboardDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(layer.Asset.Source))
+            groups.Add(Group(label, BuildImageLayer(role, layer, applicationRoot, dashboardDirectory, sourceOnly: false)));
     }
 
     private static List<PropertyDescriptor> BuildImageLayer(

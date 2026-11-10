@@ -48,14 +48,15 @@ internal static class GraphEditorTests
             "Graph processing choices must write independent canonical fields with fixed choices.");
         GraphWidgetTests.Check(graphRows["Background Image"] is null, "Graph must not duplicate image controls in its plot tab.");
         var source = Rows(general, "Background Image");
-        var image = Rows(View(EditorPropertySection.Image), "Background Image");
-        GraphWidgetTests.Check(image["Fit"]!.IsReadOnly && image["Opacity"]!.IsReadOnly &&
+        GraphWidgetTests.Check(View(EditorPropertySection.Image).Count == 0 &&
               source["Source"]!.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor,
             "Graph background must reuse the normal asset picker and absent-source applicability.");
         GraphWidgetTests.Check(View(EditorPropertySection.Gauge).Count == 0 &&
               EditorForm.IsPropertyContextSwitch("GraphMode") && EditorForm.IsPropertyContextSwitch("GraphScaleMode") &&
               EditorForm.IsPropertyContextSwitch("Source") && EditorForm.IsPropertyContextSwitch("SourceType"),
             "Graph needs its own tab and normal context refresh, without Bar/Gauge controls.");
+        source["Source"]!.SetValue(null, "missing.png");
+        var image = Rows(View(EditorPropertySection.Image), "Background Image");
         Rows(graphRows, "Timeline")["Reverse"]!.SetValue(null, false);
         GraphWidgetTests.Check(!graph.Reverse &&
               ((IPropertySemanticKeyDescriptor)source["Source"]!).SemanticKey == "general.background_image.asset.source" &&
@@ -80,22 +81,36 @@ internal static class GraphEditorTests
             var graph = GraphWidgetTests.Graph();
             PropertyDescriptorCollection Layer(EditorPropertySection section) => TypeDescriptor.GetProperties(
                 new EditorPropertyView(graph, root, root, section: section).GetProperties()["Background Image"]!.GetValue(null)!);
-            var source = Layer(EditorPropertySection.General); var image = Layer(EditorPropertySection.Image);
-            GraphWidgetTests.Check(source.Count == 2 && image.Count == 4 && image["Color"]!.IsReadOnly,
-                "Graph must split source/presentation through the shared image-layer groups.");
+            var source = Layer(EditorPropertySection.General);
+            bool HasImage() => new EditorPropertyView(graph, root, root, section: EditorPropertySection.Image).GetProperties().Count > 0;
+            GraphWidgetTests.Check(source.Count == 2 && !HasImage(), "An empty optional layer keeps its source picker.");
             source["SourceType"]!.SetValue(null, "Icon"); source["Source"]!.SetValue(null, "test:tintable");
+            var image = Layer(EditorPropertySection.Image);
             GraphWidgetTests.Check(!image["Opacity"]!.IsReadOnly && !image["Color"]!.IsReadOnly && image["Loop"]!.IsReadOnly,
                 "Selecting a static tintable icon must enable opacity/color and keep Loop disabled.");
             image["Opacity"]!.SetValue(null, .4f); image["Color"]!.SetValue(null, "#80123456");
             GraphWidgetTests.Check(graph.Image.Opacity == .4f && graph.Image.Color == "#80123456" && graph.Color != graph.Image.Color,
                 "Image edits must write the graph-local layer rather than the plot foreground or another layer.");
             source["SourceType"]!.SetValue(null, "Image");
-            GraphWidgetTests.Check(graph.Image.Asset.Source is null && image["Opacity"]!.IsReadOnly && image["Color"]!.IsReadOnly,
+            GraphWidgetTests.Check(graph.Image.Asset.Source is null && !HasImage() && graph.Image.Opacity == .4f,
                 "Switching image kind must clear the source and reapply shared applicability.");
-            source["Source"]!.SetValue(null, "background.png"); image["Opacity"]!.SetValue(null, .2f);
+            source["Source"]!.SetValue(null, "background.png");
+            image = Layer(EditorPropertySection.Image);
+            image["Opacity"]!.SetValue(null, .2f);
             GraphWidgetTests.Check(!image["Fit"]!.IsReadOnly && graph.Image.Opacity == .2f && image["Color"]!.IsReadOnly,
                 "A file background must expose fit/opacity without offering unsupported tint.");
             var canvas = new C.CanvasDefinition();
+            PropertyDescriptorCollection CanvasImages() => new EditorPropertyView(canvas, root, root,
+                section: EditorPropertySection.Image).GetProperties();
+            GraphWidgetTests.Check(CanvasImages().Count == 0, "An empty Canvas has no Image tab.");
+            canvas.ForegroundImage.Asset.Source = "missing.png";
+            GraphWidgetTests.Check(CanvasImages().Count == 1 && CanvasImages()["Foreground Image"] is not null,
+                "A missing configured foreground retains its own presentation.");
+            canvas.BackgroundImage.Asset.Source = "background.png";
+            GraphWidgetTests.Check(CanvasImages().Count == 2, "Canvas layers must appear independently.");
+            canvas.ForegroundImage.Asset.Source = null;
+            GraphWidgetTests.Check(CanvasImages().Count == 1 && CanvasImages()["Background Image"] is not null,
+                "Clearing foreground must retain the background.");
             var canvasSource = TypeDescriptor.GetProperties(new EditorPropertyView(canvas, root, root,
                 section: EditorPropertySection.General).GetProperties()["Background Image"]!.GetValue(null)!);
             var canvasImage = TypeDescriptor.GetProperties(new EditorPropertyView(canvas, root, root,

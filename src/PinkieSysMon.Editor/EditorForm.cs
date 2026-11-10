@@ -1277,6 +1277,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     ReconcileTextOverflowContext(widget);
                     refreshPropertyView = true;
                 }
+                else if (stateField == StateVisualProfileField.Source)
+                    refreshPropertyView = true;
                 else if (stateField == StateVisualProfileField.OverflowMode &&
                          widget is CanonicalStateVisualWidgetDefinition)
                 {
@@ -1380,7 +1382,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 return;
             }
 
-            PreserveEditorInputFocus(RefreshPropertyGridView);
+            SetPropertyGridTarget(canvas);
         }));
     }
 

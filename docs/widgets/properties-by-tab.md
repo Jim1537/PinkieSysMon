@@ -373,7 +373,7 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
 
     ## Image
 
-    The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, Graph backgrounds, or Canvas image layers.
+    The Image tab shows only properties applicable to the current graphical context: Image widget, Bar with [Mode](properties.md#bar-mode)=`Image`, graphical state profiles, Shortcut artwork, or configured Graph and Canvas layers. Each optional layer appears when its Source is set. Clearing the last optional layer removes the Image tab. General retains the source pickers.
 
     The `Image` property group changes with widget type: standalone Image exposes Fit, Loop, and Opacity; Bar in Image mode exposes Source, Fit, Progress Mode, and Loop. The repeated Fit/Loop references below are **different Editor contexts**, not duplicate simultaneous controls. State profiles and Canvas layers have their own groups.
 

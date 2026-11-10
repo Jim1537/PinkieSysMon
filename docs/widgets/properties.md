@@ -779,7 +779,7 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
-    - Canvas/Graph layer Fit is read-only when [Source](properties.md#image-source) is empty.
+    - Canvas/Graph layer Fit appears when [Source](properties.md#image-source) is set.
 
 <!-- --8<-- [end:image-fit] -->
 
@@ -1333,7 +1333,7 @@ The border follows the local Top, Right, Bottom and Left switches. On a rounded 
     **Used by:** Graph background image, Image, Shortcut, Value/graphical state profiles, Canvas background/foreground image layers
 
     **Context notes:**
-    - Canvas/Graph layer Opacity is read-only when [Source](properties.md#image-source) is empty.
+    - Canvas/Graph layer Opacity appears when [Source](properties.md#image-source) is set.
 
 <!-- --8<-- [end:opacity] -->
 
