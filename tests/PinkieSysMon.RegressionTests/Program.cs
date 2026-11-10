@@ -27,8 +27,6 @@ internal static partial class Program
             return runtimeCheckExit;
         if (TurzxTransportDiagnostic.TryRun(args, Console.WriteLine) is { } transportExit)
             return transportExit;
-        if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
-            return diagnosticExit;
         if (args.Length == 1 && args[0] == "--issue-106-allocation-probe")
         {
             try
@@ -43,6 +41,8 @@ internal static partial class Program
                 return 1;
             }
         }
+        if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
+            return diagnosticExit;
         var testGroups = new (string Group, (string Name, Action Run)[] Cases)[]
         {
             ("Dashboard / Defaults", [
