@@ -183,8 +183,8 @@ internal static partial class Program
         var fileImage = CurrentPropertyView(image, section: EditorPropertySection.Image).GetProperties();
         Assert(imageOrder.SequenceEqual(ChildDisplayNames(fileImage, "Image")),
             "Image property order must remain stable when Source Type changes.");
-        AssertEnabled(GetNestedProperty(fileImage, "Image", nameof(WidgetDefinition.Loop)),
-            "File image/Loop");
+        AssertDisabled(GetNestedProperty(fileImage, "Image", nameof(WidgetDefinition.Loop)),
+            "Not applicable for selected Source.", "Unresolved file image/Loop");
 
         var binary = new WidgetDefinition
         {
@@ -786,7 +786,17 @@ internal static partial class Program
         var tempRoot = CreateTemporaryApplicationRoot("PinkieSysMon-global-icon-rendering");
         try
         {
-            _ = WriteGlobalIconTestAssets(tempRoot, includeBroken: false);
+            var fixtureDirectory = WriteGlobalIconTestAssets(tempRoot, includeBroken: false);
+            var fileImage = new C.ImageWidgetDefinition();
+            foreach (var (source, animated) in new[] { ("red.gif", false), ("animated.gif", true) })
+            {
+                fileImage.Asset.Source = source;
+                var properties = new EditorPropertyView(fileImage, tempRoot, fixtureDirectory,
+                    section: EditorPropertySection.Image).GetProperties();
+                var loop = GetNestedProperty(properties, "Image", nameof(C.ImageAssetPresentationDefinition.Loop));
+                Assert(loop is not null && loop.IsReadOnly == !animated,
+                    $"File image Loop must follow the decoded frame count for '{source}'.");
+            }
             var dashboardRoot = Path.Combine(tempRoot, "dashboards");
             using var icons = new IconAssetCache(dashboardRoot);
 
@@ -1124,6 +1134,10 @@ internal static partial class Program
         Check(mediaSystem, endpoints, overrides);
 
         var canvas = new C.CanvasDefinition();
+        Assert(new EditorPropertyView(canvas, section: EditorPropertySection.Image).GetProperties().Count == 0,
+            "An unconfigured Canvas must omit image presentation groups.");
+        canvas.BackgroundImage.Asset.Source = "coverage-background.png";
+        canvas.ForegroundImage.Asset.Source = "coverage-foreground.png";
         var canvasProperties = new EditorPropertyView(canvas, section: EditorPropertySection.All).GetProperties();
         var canvasKeys = new HashSet<string>(StringComparer.Ordinal);
         CollectLeafSemanticKeys(canvasProperties, canvasKeys);
