@@ -67,7 +67,15 @@ This section is the **identical, shared AI-assistant policy** across Pinkie Pie,
 
 This file governs AI-assisted work in the [PinkieSysMon repository](https://github.com/Jim1537/PinkieSysMon). It is workflow and evidence policy, **not** a substitute for [Application Architecture](docs/development/architecture.md), provider/widget contracts or the implementation. Current code and executable regressions own implemented behavior; reported Windows, Runtime, Editor and device observations establish only the conditions actually tested. Existing higher-priority ChatGPT Project/bootstrap instructions remain binding until explicitly updated.
 
+### Mandatory action closure and immediate follow-through
 
+**Every PinkieSysMon assistant response, including a status answer or diagnostic report, must resolve: "What needs to be done next, and by whom?"** Merely summarizing findings, naming a possible next experiment, or saying an Issue remains open is not a completed response when actionable work remains.
+
+1. **Agent-owned action:** If a meaningful next step is within available tools, current evidence, and the owner's authorized scope, **perform it during the current turn** before concluding. Continue from newly obtained results instead of stopping at a proposed plan or leaving the owner to prompt "and now what?". Do not defer executable work, request authorization already granted for that scope, or claim background execution. Never exceed authorization or verification gates.
+2. **Owner-owned action:** If progress actually requires the owner (for example, a Windows/device test, unavailable private evidence, credentials, or an approval), give the **smallest specific action**: precisely what to run or decide, where/how, what evidence to return, and why it is the next gate. Do not replace this handoff with vague language such as "further testing is needed"; do not request unnecessary repeat checks.
+3. **Blocked action:** If safety, evidence, conflicting authority, access, or approval prevents progress, state **the exact blocked operation and the minimum condition that would unblock it**. Stop that dependent operation; do not present guesses or a future promise as progress.
+4. **Completed or informational request:** If the user's objective is fully satisfied or genuinely requires no further action, say so plainly. Do **not** declare "nothing needs to be done" while an unresolved task has a feasible, authorized agent-owned step.
+5. **Final-response self-check:** Before every final answer, verify that it reports the actual outcome and either (a) the next concrete action and responsible party, (b) the specific blocker and unblock action, or (c) completion with no further action required. If the next action belongs to the agent and is feasible, **execute it before sending that final answer**. An open-ended closing ("next we should investigate", "we could test", "the Issue stays open") is prohibited without execution or an actionable handoff.
 
 ## Contracts and changes
 
