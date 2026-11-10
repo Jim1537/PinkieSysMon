@@ -301,8 +301,8 @@ For Media System, **all eleven** profiles must be Value-backed for auto-width to
 | Tab | Group | Controls |
 | --- | --- | --- |
 | `General` | `Source` | `Source` = `media.output` or `media.input`. |
-| `General` | `Geometry` | X, Y, Width, Height, Rotation. |
-| `Appearance` | Foreground, Background, Border, Shadow | Shared appearance configuration. |
+| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Appearance` | Container, Border, Shadow | Shared appearance configuration. |
 | `Data` | `Endpoint Overrides` | Available when active endpoints can be enumerated and the override configuration is accessible. |
 | `States` | Eleven type/unavailable groups | State-specific `Source Type` and graphical `Source`. |
 | `Image` | Graphical profiles | Fit, Loop, supported Color/Tint, Opacity. |

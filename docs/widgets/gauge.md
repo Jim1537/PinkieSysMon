@@ -128,7 +128,7 @@ Gauge supports **three configurable threshold slots**. Each slot has an `Enabled
 | `SegmentTransition` | Colors blend along the scale between the base color and enabled threshold colors. |
 | `State` | The entire active portion of the arc uses the color corresponding to the latest crossed threshold. |
 
-The `Appearance → Foreground → Color` property supplies the base color before the first enabled threshold.
+The `Appearance → Container → Foreground Color` property supplies the base color before the first enabled threshold.
 
 For example, with `Min = 0`, `Max = 100`, and thresholds at 60 (yellow) and 85 (red):
 
@@ -316,7 +316,7 @@ The Editor exposes properties through `CanonicalPropertyViewBuilder`:
 - `General → Source → Metric` and geometry;
 - `Data → Value` for read-only Source Unit and selectable numeric Unit;
 - `Data → Range` for Min and Max;
-- `Appearance → Foreground`, common background/border/shadow, and Thresholds;
+- `Appearance → Container`, Border, Shadow, and Thresholds;
 - `Gauge → Horseshoe` for track, angles, reverse, and gap;
 - `Gauge → Needle` for needle and pointer controls.
 

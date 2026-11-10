@@ -100,7 +100,7 @@ Open `Image → Image → Opacity` to adjust the graphic's transparency.
 - `Opacity = 0.5` — approximately half opacity.
 - `Opacity = 0` — the graphic is invisible.
 
-For `Type = Icon`, `Appearance → Foreground → Color` is available **only when the selected icon supports tinting**. SVG icons in the shared library commonly provide this capability; raster icons generally retain their own colors. The icon browser's capability information is authoritative for the selected asset.
+For `Type = Icon`, `Appearance → Container → Foreground Color` is available **only when the selected icon supports tinting**. SVG icons in the shared library commonly provide this capability; raster icons generally retain their own colors. The icon browser's capability information is authoritative for the selected asset.
 
 For `Type = Image`, the original file colors are used. The Foreground Color property is not applicable to file-backed Image widgets. To change a file's colors, edit the image itself rather than relying on an icon-tint control.
 
@@ -131,8 +131,8 @@ See [Image Loop](properties.md#image-loop).
 
 The `Appearance` tab contains the regular widget presentation controls:
 
-- `Background` — optional widget background color.
-- `Border` — color, width, and corner radius.
+- `Container` — foreground tint, background color and corner radius.
+- `Border` — width, color, style and enabled sides.
 - `Shadow` — optional shadow with color, opacity, blur, and offsets.
 
 The Image widget also participates in the dashboard's normal layering, selection, grouping, and Z-order operations.
@@ -272,12 +272,12 @@ The principal Editor properties are:
 | Tab | Group | Settings |
 | --- | --- | --- |
 | `General` | `Source` | `Type` and dynamic `Source` (Image or Icon). |
-| `General` | `Geometry` | X, Y, Width, Height, and Rotation. |
-| `Appearance` | `Foreground` | Color, applicable to tint-capable Icon sources. |
-| `Appearance` | `Background / Border / Shadow` | Common widget presentation. |
+| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Appearance` | `Container` | Foreground Color applies to tint-capable icons. Background Color and Corner Radius control the container. |
+| `Appearance` | `Border / Shadow` | Common widget presentation. |
 | `Image` | `Image` | Fit, Loop, and Opacity. |
 
-The `Image` tab's `Loop` property is read-only for an icon that lacks animated capability. A file-backed Image exposes Loop directly; whether it changes anything depends on the file's actual frame count.
+The Image tab enables [Loop](properties.md#image-loop) for animated files and icons.
 
 The source picker selects existing files and imports external files as dashboard-local assets. The global icon browser instead enumerates the installed icon libraries and records a logical name.
 

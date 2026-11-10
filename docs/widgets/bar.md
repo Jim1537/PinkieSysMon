@@ -82,7 +82,7 @@ See [Bar Mode](properties.md#bar-mode), [Reverse](properties.md#reverse), and [G
 
 Set `Gauge → Bar → Mode = Fill`.
 
-The active part of the bar uses `Appearance → Foreground → Color` as its base color. Use `Appearance → Background → Color` for the widget background, and the `Border` group for an outline and rounded corners.
+The active part of the bar uses `Appearance → Container → Foreground Color` as its base color. Use `Appearance → Container → Background Color` for the widget background, `Container → Corner Radius` for rounded corners, and `Border` for the outline.
 
 The unfilled region is the widget's background, not a separately configured Bar track. With a fully transparent widget background, the unfilled portion may appear transparent.
 
@@ -160,9 +160,9 @@ The `General → Geometry` group controls position, width, height, and rotation.
 
 The `Appearance` tab provides:
 
-- `Foreground → Color` in Fill mode;
-- `Background → Color` for the outer widget background;
-- `Border` color, width, and corner radius;
+- `Container → Foreground Color` in Fill mode;
+- `Container → Background Color` for the outer widget background;
+- `Container → Corner Radius` and the separate `Border` controls;
 - optional `Shadow` settings;
 - threshold controls in Fill mode.
 
@@ -316,7 +316,7 @@ The current canonical Editor model organizes Bar properties as follows:
 - `Appearance` — common background, border, shadow; foreground and thresholds where applicable.
 - `Image → Image` — Source, Fit, Progress Mode, Loop, only when Mode is Image.
 
-In `Fill` mode, the Editor exposes `Appearance → Foreground` and the threshold groups. In `Image` mode, those Fill-specific groups are absent and the Image tab becomes applicable.
+Fill mode enables Foreground Color and shows the threshold groups. Image mode disables Foreground Color, hides the threshold groups and shows the Image tab.
 
 See [Widget Properties — Tabs](properties-by-tab.md) and [Widget Property Dictionary](properties.md) for the authoritative list of property names, supported values, and conditional availability.
 

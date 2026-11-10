@@ -277,8 +277,8 @@ For Power, **all nine** profiles must use Value before auto-width is allowed. It
 | Tab | Group | Configuration |
 | --- | --- | --- |
 | `General` | `Source` | `Source` chooses UPS or Battery. |
-| `General` | `Geometry` | X, Y, Width, Height, Rotation. |
-| `Appearance` | `Foreground / Background / Border / Shadow` | Common widget appearance. |
+| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Appearance` | `Container / Border / Shadow` | Common widget appearance. |
 | `States` | Nine state groups | `Source Type` and graphical `Source` (where applicable). |
 | `Image` | Graphical states | Fit, Loop, applicable Color/Tint, Opacity. |
 | `Text` | Value states | Foreground, Font, Alignment, Outline, Overflow. |

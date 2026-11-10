@@ -266,9 +266,9 @@ For Media Player, **all four** profiles must use Value for auto-width to be elig
 
 | Tab | Group | Media Player controls |
 | --- | --- | --- |
-| `General` | `Source` | Fixed, read-only `Metric = system.media.playback.status`. |
-| `General` | `Geometry` | X, Y, Width, Height, Rotation. |
-| `Appearance` | Foreground, Background, Border, Shadow | Widget-wide appearance settings. |
+| `General` | `Data Source` | Fixed, read-only `Metric = system.media.playback.status`. |
+| `General` | `Geometry` | [Common geometry fields](properties.md#common-inherited-widget-fields). |
+| `Appearance` | Container, Border, Shadow | Widget-wide appearance settings. |
 | `States` | Playing, Paused, Stopped, Unavailable | State-specific Source Type and Source. |
 | `Image` | Graphical state profiles | Fit, Loop, supported Color, Opacity. |
 | `Text` | Value state profiles | Foreground, Font, Alignment, Outline, Overflow. |
