@@ -29,6 +29,20 @@ internal static partial class Program
             return transportExit;
         if (TurzxPassiveDiagnostic.TryRun(args, Console.WriteLine) is { } diagnosticExit)
             return diagnosticExit;
+        if (args.Length == 1 && args[0] == "--issue-106-allocation-probe")
+        {
+            try
+            {
+                GraphHistoryTests.BudgetValidationAndAllocationBounds();
+                Console.WriteLine("Issue #106 allocation probe: PASS");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Issue #106 allocation probe: FAIL: {ex}");
+                return 1;
+            }
+        }
         var testGroups = new (string Group, (string Name, Action Run)[] Cases)[]
         {
             ("Dashboard / Defaults", [
