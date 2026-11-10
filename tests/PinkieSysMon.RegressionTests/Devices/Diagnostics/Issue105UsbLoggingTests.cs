@@ -90,7 +90,14 @@ internal static class Issue105UsbLoggingTests
             observed.ApplyBrightnessPercentIfChanged(80);
             observed.SendJpegWithDiagnostics(Jpeg, default);
 
-            Check(connection.Commands.SequenceEqual(new byte[] { 10, 14, 101, 14, 101 }) &&
+            Check(connection.Packets.Count == 5 &&
+                  connection.Packets[0].SequenceEqual(TurzxWireProtocol.Sync(0)) &&
+                  connection.Packets[1].SequenceEqual(TurzxWireProtocol.Brightness(
+                      EncryptedJpegOutputConfig.ToControllerBrightness(20), 0)) &&
+                  connection.Packets[2].SequenceEqual(TurzxWireProtocol.Image(TurzxImageFormat.Jpeg, Jpeg, 0)) &&
+                  connection.Packets[3].SequenceEqual(TurzxWireProtocol.Brightness(
+                      EncryptedJpegOutputConfig.ToControllerBrightness(80), 0)) &&
+                  connection.Packets[4].SequenceEqual(TurzxWireProtocol.Image(TurzxImageFormat.Jpeg, Jpeg, 0)) &&
                   connection.Writes == 5 && connection.Reads == 10,
                 "The observed wrapper must forward changed hardware brightness on the same USB session without reopening or per-frame replay.");
             var events = Context(Read(log.Path));
@@ -117,7 +124,10 @@ internal static class Issue105UsbLoggingTests
         }, clock, monitor: false)!;
         var failure = Capture(() => observed.ApplyBrightnessPercentIfChanged(20));
         Check(failure is InvalidDataException &&
-              connection.Commands.SequenceEqual(new byte[] { 10, 14 }) &&
+              connection.Packets.Count == 2 &&
+              connection.Packets[0].SequenceEqual(TurzxWireProtocol.Sync(0)) &&
+              connection.Packets[1].SequenceEqual(TurzxWireProtocol.Brightness(
+                  EncryptedJpegOutputConfig.ToControllerBrightness(20), 0)) &&
               connection.Reads == 3,
             "An unacknowledged brightness response must fail before JPEG without an extra read or retry.");
         _ = Capture(() => observed.SendJpegWithDiagnostics(Jpeg, default));
@@ -319,11 +329,11 @@ internal static class Issue105UsbLoggingTests
         public PhysicalIoDiagnostics? Trace;
         public string? FrameFault;
         public int Writes, Reads, Disposals;
-        public List<byte> Commands { get; } = [];
+        public List<byte[]> Packets { get; } = [];
         public int Write(byte[] packet, CancellationToken token)
         {
             Writes++;
-            Commands.Add(packet[0]);
+            Packets.Add(packet.ToArray());
             return FrameFault == "short-write" && Writes > 1 ? packet.Length - 1 : packet.Length;
         }
         public int Read(byte[] buffer, CancellationToken token)
