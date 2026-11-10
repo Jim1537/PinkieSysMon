@@ -77,6 +77,14 @@ This file governs AI-assisted work in the [PinkieSysMon repository](https://gith
 4. **Completed or informational request:** If the user's objective is fully satisfied or genuinely requires no further action, say so plainly. Do **not** declare "nothing needs to be done" while an unresolved task has a feasible, authorized agent-owned step.
 5. **Final-response self-check:** Before every final answer, verify that it reports the actual outcome and either (a) the next concrete action and responsible party, (b) the specific blocker and unblock action, or (c) completion with no further action required. If the next action belongs to the agent and is feasible, **execute it before sending that final answer**. An open-ended closing ("next we should investigate", "we could test", "the Issue stays open") is prohibited without execution or an actionable handoff.
 
+### Project-local logs, diagnostics, and reports
+
+- **Save every assistant-generated or assistant-requested diagnostic log, transcript, test capture, temporary report, and analysis artifact inside the relevant project's working directory by default.** For PinkieSysMon, use `<repository-root>/reports/` for ad hoc investigation output; create it when needed. Never send the owner hunting through `%TEMP%`, `AppData`, system temporary directories, or other unrelated locations.
+- **Preserve existing canonical destinations:** the interactive builder writes `builder.log` in the project root, and the application owns its `logs/` directory. Do not redirect these established producers without a separately authorized change. Do not store reports that must survive builds under `artifacts/`, because the build process deletes that directory.
+- Resolve paths relative to the actual repository root, ensure the destination directory exists, and print the **full output path** so the owner can immediately locate the result. Keep generated reports local and Git-ignored; do not commit machine data, private logs, credentials, or diagnostic dumps. Do not silently remove or overwrite older reports.
+- Use the Windows Desktop **only as an explicit last-resort fallback** when the project directory is inaccessible or cannot be located; explain why and show the exact saved path. A user-approved external location is also allowed when expressly requested. A convenient system temp path is not an acceptable default.
+- Before giving commands that generate files, audit every output path against this rule. The response must tell the owner where each file will be saved and which file to return for review.
+
 ## Contracts and changes
 
 - Preserve the established Runtime/Editor boundaries and canonical dashboard semantics, following [Application Architecture](docs/development/architecture.md); do not opportunistically redesign them during unrelated fixes.
