@@ -7,10 +7,19 @@ internal enum BinaryPreviewSampleMode { Off, Text, Unavailable }
 
 internal static class EditorBinaryPreviewSample
 {
-    public static bool Supports(C.BinaryWidgetDefinition? widget) =>
-        widget is not null &&
-        string.Equals(widget.EvaluationMode, BinarySignalContract.EvaluationModeSetpoint, StringComparison.OrdinalIgnoreCase) &&
-        MetricContract.GetDescriptor(widget.Metric)?.ValueKind == MetricValueKind.Text;
+    public static bool Supports(C.BinaryWidgetDefinition? widget)
+    {
+        if (widget is null ||
+            !string.Equals(widget.EvaluationMode, BinarySignalContract.EvaluationModeSetpoint, StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(widget.Metric))
+            return false;
+
+        // Output status is a known text contract even if its dynamic descriptor is
+        // absent (e.g. an unregistered or provider-disabled Output in the Editor).
+        var descriptor = MetricContract.GetDescriptor(widget.Metric) ??
+                         OutputMetricContract.DescribeKnownId(widget.Metric);
+        return descriptor?.ValueKind == MetricValueKind.Text;
+    }
 
     public static IReadOnlyDictionary<string, object?> Apply(
         IReadOnlyDictionary<string, object?> snapshot,

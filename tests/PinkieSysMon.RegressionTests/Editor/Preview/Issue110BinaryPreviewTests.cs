@@ -61,6 +61,12 @@ internal static class Issue110BinaryPreviewTests
         widget.EvaluationMode = BinarySignalContract.EvaluationModeSetpoint;
         widget.Metric = SystemMetricContract.Uptime;
         Check(!EditorBinaryPreviewSample.Supports(widget), "Numeric metric must not expose text input.");
+        widget.Metric = OutputMetricContract.Id("unregistered-device", OutputMetricContract.Status);
+        Check(EditorBinaryPreviewSample.Supports(widget),
+            "Output status must allow preview without a registered or connected Output.");
+        widget.Metric = OutputMetricContract.Id("unregistered-device", OutputMetricContract.Fps);
+        Check(!EditorBinaryPreviewSample.Supports(widget),
+            "Numeric Output metrics must not allow text test values.");
         var board = new C.DashboardDefinition { Widgets = [widget], BaseDirectory = AppContext.BaseDirectory };
         var before = DashboardJson.SerializeEditorSnapshot(board);
         _ = EditorBinaryPreviewSample.Apply(original, metric, BinaryPreviewSampleMode.Text, "CONNECTED");
