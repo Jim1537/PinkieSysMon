@@ -450,7 +450,6 @@ internal sealed partial class EditorForm
 
         _definition = definition;
         _dashboardMetadata = metadata;
-        ClearBinarySample();
         _widgetTreeNodes.Clear();
         _groupTreeNodes.Clear();
 

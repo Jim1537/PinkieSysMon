@@ -103,7 +103,6 @@ internal static partial class Program
                 ("invalid numeric expressions and unavailable values", Issue89BinarySetpointTests.InvalidPatterns),
                 ("Editor field and schema round-trip", Issue89BinarySetpointTests.EditorAndSerialization),
                 ("numeric units, DateTime and Auto states", Issue89BinarySetpointTests.RenderContextAndLegacyTypes),
-                ("Editor text Setpoint preview test values", Issue110BinaryPreviewTests.EditorOnlyTextSampleEvaluation),
                 ("State image color fidelity", StateImageColorFidelity),
                 ("State image property visibility", StateImagePropertyVisibility),
                 ("Binary value state visual", BinaryValueStateVisual),

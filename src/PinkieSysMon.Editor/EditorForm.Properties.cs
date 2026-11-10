@@ -71,7 +71,6 @@ internal sealed partial class EditorForm
         ConfigureSinglePropertyTab(enabled: false);
         _propertyTabs.SelectedTab = _generalPropertyTab;
         _generalPropertyTab.Controls.Add(_propertyGrid);
-        InitializeBinarySamplePanel();
 
         _propertyTabs.SelectedIndexChanged += (_, _) =>
         {
@@ -314,7 +313,6 @@ internal sealed partial class EditorForm
 
             AttachPropertyGridToActiveTab();
             RefreshPropertyGridView();
-            UpdateBinarySamplePanel();
         });
     }
 
@@ -403,8 +401,6 @@ internal sealed partial class EditorForm
         var page = _propertyTabs.SelectedTab ?? _generalPropertyTab;
         if (!ReferenceEquals(_propertyGrid.Parent, page))
             page.Controls.Add(_propertyGrid);
-        if (ReferenceEquals(page, _dataPropertyTab))
-            _binarySamplePanel.BringToFront();
     }
 
     private void RefreshPropertyGridView()
