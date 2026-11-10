@@ -196,6 +196,8 @@ internal static partial class Program
             ("Widgets / Shortcut", [
                 ("prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
                 ("Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
+                ("common geometry migration and history", CommonWidgetGeometryTests.MigrationAndHistory),
+                ("padded Gauge fit and resize limits", CommonWidgetGeometryTests.GaugeFit),
                 ("Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),
                 ("Shortcut validation and source ownership", ShortcutModelTests.ValidationAndSourceOwnership),
                 ("initial label suggestion and preservation", ShortcutTargetEditingTests.InitialLabelAndPreservation),

@@ -39,6 +39,9 @@ internal abstract class WidgetDefinition
     [JsonPropertyName("height")]
     public float Height { get; set; }
 
+    [JsonPropertyName("padding")]
+    public WidgetPadding Padding { get; set; }
+
     [JsonPropertyName("rotation")]
     public double Rotation { get; set; }
 
@@ -53,6 +56,21 @@ internal abstract class WidgetDefinition
 
     [JsonPropertyName("borderWidth")]
     public float BorderWidth { get; set; }
+
+    [JsonPropertyName("borderStyle")]
+    public string BorderStyle { get; set; } = WidgetBorderStyle.Solid;
+
+    [JsonPropertyName("borderTop")]
+    public bool BorderTop { get; set; } = true;
+
+    [JsonPropertyName("borderRight")]
+    public bool BorderRight { get; set; } = true;
+
+    [JsonPropertyName("borderBottom")]
+    public bool BorderBottom { get; set; } = true;
+
+    [JsonPropertyName("borderLeft")]
+    public bool BorderLeft { get; set; } = true;
 
     [JsonPropertyName("cornerRadius")]
     public float CornerRadius { get; set; }
@@ -82,6 +100,9 @@ internal abstract class WidgetDefinition
         RequireFinite(Width, nameof(Width));
         RequireFinite(Height, nameof(Height));
         RequireFinite(Rotation, nameof(Rotation));
+        Padding.Validate(Id);
+        if (BorderStyle is not (WidgetBorderStyle.Solid or WidgetBorderStyle.Dotted))
+            throw new InvalidDataException($"Widget '{Id}' Border Style must be solid or dotted.");
         RequireFinite(BorderWidth, nameof(BorderWidth));
         RequireFinite(CornerRadius, nameof(CornerRadius));
         RequireFinite(ShadowOffsetX, nameof(ShadowOffsetX));
@@ -367,12 +388,12 @@ internal sealed class GaugeWidgetDefinition : QuantitativeWidgetDefinition
             throw new InvalidDataException($"Gauge widget '{Id}' Needle must not be null.");
 
         Track.Validate($"Gauge widget '{Id}' Track");
-        var availableRadius = Width / 2f;
+        var availableRadius = Padding.GetInscribedRadius(Width, Height);
         if (Track.Enabled)
         {
             var radialDepth = 2f * Track.BorderWidth + 2f * Gap + Track.Thickness;
             if (!float.IsFinite(radialDepth) || radialDepth > availableRadius)
-                throw new InvalidDataException($"Gauge widget '{Id}' track geometry must fit inside Width/2.");
+                throw new InvalidDataException($"Gauge widget '{Id}' track geometry must fit inside the available dial radius ({availableRadius} px).");
         }
         Needle.Validate(availableRadius, $"Gauge widget '{Id}' Needle");
     }

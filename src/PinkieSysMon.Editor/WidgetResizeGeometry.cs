@@ -56,11 +56,18 @@ internal static class WidgetResizeGeometry
     {
         var minimum = MinimumDimension;
 
+        var inset = Math.Max((double)widget.Padding.Left + widget.Padding.Right,
+            (double)widget.Padding.Top + widget.Padding.Bottom);
+
         if (widget.Track.Enabled)
         {
             var radialDepth = 2f * widget.Track.BorderWidth + 2f * widget.Gap + widget.Track.Thickness;
             if (float.IsFinite(radialDepth))
-                minimum = Math.Max(minimum, 2f * radialDepth);
+            {
+                var required = inset + 2d * radialDepth;
+                var width = (float)required;
+                minimum = Math.Max(minimum, width < required ? MathF.BitIncrement(width) : width);
+            }
         }
 
         if (widget.Needle.Enabled)
@@ -70,7 +77,9 @@ internal static class WidgetResizeGeometry
             {
                 // Validation requires offsets < radius, not <= radius. BitIncrement keeps the
                 // clamp mathematically on the valid side without inventing a visible margin.
-                var strictMinimum = MathF.BitIncrement(2f * offsets);
+                var required = inset + 2d * offsets;
+                var width = (float)required;
+                var strictMinimum = width <= required ? MathF.BitIncrement(width) : width;
                 minimum = Math.Max(minimum, strictMinimum);
             }
         }

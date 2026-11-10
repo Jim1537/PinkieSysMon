@@ -80,7 +80,7 @@ internal sealed class GaugeNeedleDefinition
     [JsonPropertyName("pointer")]
     public GaugePointerDefinition Pointer { get; set; } = new();
 
-    internal void Validate(float availableRadius, string context)
+    internal void Validate(double availableRadius, string context)
     {
         if (!float.IsFinite(Thickness) || Thickness < 0f)
             throw new InvalidDataException($"{context} Thickness must be finite and >= 0.");

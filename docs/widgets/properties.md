@@ -6,6 +6,8 @@
 
 Every widget inherits the shared persisted `WidgetDefinition` fields: `id` (the widget's instance identity), optional `name`, `z` (layer order), `x`, `y`, `width`, `height`, `rotation`, `color` (foreground), `backgroundColor`, `borderColor`, `borderWidth`, `cornerRadius`, and `shadowEnabled`, `shadowOffsetX`, `shadowOffsetY`, `shadowBlur`, `shadowOpacity`, `shadowColor`.
 
+Schema 27 adds `padding` (four numeric fields named `top`, `right`, `bottom`, and `left`), `borderStyle` (`solid` or `dotted`), and the booleans `borderTop`, `borderRight`, `borderBottom`, and `borderLeft`. Each inset is a finite, nonnegative distance in dashboard pixels. Omitted fields default to zero padding, a solid border and four enabled sides. Opening an older supported dashboard preserves its geometry. Keep a pre-migration copy to open it with a schema-26 application after saving.
+
 Individual widgets retain their own geometry validation, source-specific meaning of foreground color, and Editor property applicability. This shared list does not replace their widget-specific persisted fields.
 
 <!-- --8<-- [end:widget-base-fields] -->
