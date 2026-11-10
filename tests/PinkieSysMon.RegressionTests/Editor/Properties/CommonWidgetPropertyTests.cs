@@ -77,7 +77,8 @@ internal static class CommonWidgetPropertyTests
     }
 
     private static PropertyDescriptorCollection Children(PropertyDescriptorCollection rows, string group) =>
-        TypeDescriptor.GetProperties(rows[group]!.GetValue(null));
+        TypeDescriptor.GetProperties(rows[group]?.GetValue(null)
+            ?? throw new InvalidOperationException($"Missing property group '{group}'."));
 
     private static void ExpectPrefix(PropertyDescriptorCollection rows, params string[] names) =>
         Check(rows.Cast<PropertyDescriptor>().Take(names.Length).Select(p => p.DisplayName).SequenceEqual(names),
