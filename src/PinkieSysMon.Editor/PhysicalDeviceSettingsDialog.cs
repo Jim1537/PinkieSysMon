@@ -751,7 +751,7 @@ internal sealed class DeviceSettingsPage : TabPage
             };
             var apply = new CheckBox
             {
-                Name = "DeviceBrightnessApply", Text = "Set backlight", AutoSize = true,
+                Name = "DeviceBrightnessApply", Text = "Override device brightness", AutoSize = true,
                 Checked = savedPercent is not null
             };
             var slider = new TrackBar
@@ -783,10 +783,11 @@ internal sealed class DeviceSettingsPage : TabPage
             controls.Controls.Add(slider);
             controls.Controls.Add(percent);
             Row("Hardware brightness", controls,
-                "TURZX backlight 0–100%. Unchecked leaves existing hardware brightness unchanged. " +
-                "Adjustments modify this card's draft only; Save Configuration sends the selected value " +
-                "once on the existing Runtime USB session before its next JPEG frame. " +
-                "This is a hardware command, not pixel dimming; an uncertain reply stops the session.");
+                "TURZX hardware backlight 0–100%. Override device brightness enables the slider. " +
+                "Unchecked saves no brightness override, leaving the current hardware level in place; " +
+                "it does not restore the previous level. Changes are drafts until Save Configuration. " +
+                "Runtime sends a changed value on its existing USB session before the next JPEG frame. " +
+                "This is hardware control, not pixel dimming; an uncertain reply stops the session.");
         }
 
         AddButtons();

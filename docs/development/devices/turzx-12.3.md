@@ -134,11 +134,11 @@ The generic physical Output selects this implementation with `Transport = encryp
 
 | Field / boundary | Implemented contract |
 | --- | --- |
-| `EncryptedJpeg.BrightnessPercent` | Nullable integer. `null` preserves the device's current brightness; `0..100` stores an explicitly selected application percentage. No factory/default brightness is inferred. |
+| **Override device brightness** / `EncryptedJpeg.BrightnessPercent` | In **Device Settings → TURZX**, check **Override device brightness** to enable the 0–100% slider. **Save Configuration** commits the selected percentage; Runtime then sets the hardware backlight through its existing USB session. Unchecked disables the slider and saves `null`, so Runtime sends no brightness command and leaves the current hardware level unchanged. **Unchecking does not restore an earlier brightness** (for example, setting 20% and then unchecking leaves the device at 20% until another change). No factory/default brightness is inferred. |
 | Controller conversion | `floor(percent * 102 / 100)`, with exact endpoints 0 and 102. This pure conversion sends no command. |
 | Settings ownership | Detached target copies retain independent TURZX options through save/clone operations. Discovery does not dirty or save a draft. |
 | Admission | Configured Outputs still require exact binding and explicit enablement consent. A nullable or bounded percent is valid; only an explicitly committed value sends the hardware command. |
-| Other adapter options | Refresh/JPEG/USB values use existing physical normalization. Clearing brightness resets the saved value to null and sends no hardware command; it cannot reverse a previous physical effect. Retired logging preferences follow the [common physical-device policy](../../outputs/physical_devices.md#automatic-device-logging). |
+| Other adapter options | Refresh/JPEG/USB values use existing physical normalization. Retired logging preferences follow the [common physical-device policy](../../outputs/physical_devices.md#automatic-device-logging). |
 
 Hardware-brightness implementation and acceptance are tracked separately in [Issue #74](https://github.com/Jim1537/PinkieSysMon/issues/74).
 
