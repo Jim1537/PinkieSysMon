@@ -223,10 +223,24 @@ internal static class GraphHistoryTests
         object reading = 42d;
         var destination = new MetricHistorySample[3];
         for (var i = 0; i < 1000; i++) { history.Record("a", reading); _ = history.CopyTo("a", 60, now, destination); }
+        long recordAllocated = 0;
+        long copyAllocated = 0;
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10000; i++) { now++; history.Record("a", reading); _ = history.CopyTo("a", 60, now, destination); }
+        for (var i = 0; i < 10000; i++)
+        {
+            now++;
+            var stepBefore = GC.GetAllocatedBytesForCurrentThread();
+            history.Record("a", reading);
+            var afterRecord = GC.GetAllocatedBytesForCurrentThread();
+            _ = history.CopyTo("a", 60, now, destination);
+            var afterCopy = GC.GetAllocatedBytesForCurrentThread();
+            recordAllocated += afterRecord - stepBefore;
+            copyAllocated += afterCopy - afterRecord;
+        }
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Check(allocated == 0, $"Admitting and copying fixed scalar records must allocate zero managed bytes after warmup; observed {allocated}.");
+        Check(allocated == 0,
+            $"Admitting and copying fixed scalar records must allocate zero managed bytes after warmup; observed {allocated} " +
+            $"(Record={recordAllocated}, CopyTo={copyAllocated}, other={allocated - recordAllocated - copyAllocated}).");
         Check(history.ReservedBytes == reserved && Read(history).Query.Count == 3, "Sustained pressure cannot grow storage or gap metadata.");
     }
 
