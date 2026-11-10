@@ -188,9 +188,23 @@ internal static class Issue107HourCycleTests
         var path = Path.Combine(Path.GetTempPath(), "issue107-hour-cycle.json");
         var json = DashboardJson.Serialize(board, indented: false);
         var root = JsonNode.Parse(json)!.AsObject();
-        Check(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion &&
-              DashboardSchemaMigration.CurrentSchemaVersion == DashboardSchemaMigration.ShortcutSchemaVersion,
-            "New component token must not require a dashboard schema version bump.");
+        Check(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "A dashboard with hour12Cycle must serialize using the current schema.");
+
+        // Issue #107 introduced the token in schema 26. Exercise that file format independently
+        // of the current writer so subsequent schema revisions still test the original contract.
+        const string schema26 = """
+            {"schemaVersion":26,"canvas":{"width":200,"height":200},"widgets":[
+              {"type":"gauge","id":"legacy-clock","metric":"system.os.datetime","width":200,"height":200,
+               "min":0,"max":12,"component":"hour12Cycle","componentFormat":"0.00"}]}
+            """;
+        var migrated = C.DashboardDefinition.Parse(schema26, path);
+        Check(migrated.Widgets.Single() is C.GaugeWidgetDefinition
+              { Component: "hour12Cycle", ComponentFormat: "0.00", Min: 0, Max: 12 },
+            "Loading a schema-26 clock must preserve its cyclic hour, precision and range.");
+        var migratedJson = DashboardJson.Serialize(migrated, indented: false);
+        Check(DashboardJson.Serialize(DashboardJson.ParseCurrent(migratedJson, path), indented: false) == migratedJson,
+            "The migrated clock must reopen in the current schema without further changes.");
         var reopened = DashboardJson.ParseCurrent(json, path);
         Check(reopened.Widgets[0] is C.GaugeWidgetDefinition { Component: "hour12Cycle", ComponentFormat: "0.00" } &&
               reopened.Widgets[1] is C.BarWidgetDefinition { Component: "hour12", ComponentFormat: null } &&
