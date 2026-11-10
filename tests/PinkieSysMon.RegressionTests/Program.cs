@@ -93,6 +93,7 @@ internal static partial class Program
                 ("Bar image property visibility", BarImagePropertyVisibility),
                 ("Bar image progress modes", BarImageProgressModes),
                 ("Bar image fit modes", BarImageFitModes),
+                ("Bar track color, migration and insets", BarTrackColorAndInsets),
                 ("Bar foreground color rendering", BarForegroundColorRendering),
             ]),
             ("Widgets / Binary", [

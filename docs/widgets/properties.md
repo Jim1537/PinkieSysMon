@@ -78,6 +78,14 @@ Enter Padding as one nonnegative number or four separated by `|` in top, right, 
 <!-- --8<-- [end:bar-mode] -->
 
 ---
+## Bar Track Color
+
+<!-- --8<-- [start:bar-track-color] -->
+
+**Gauge → Bar → Track Color** sets the background of the Bar track in Fill and Image modes. It remains visible with zero progress or missing telemetry. Schema 28 stores the setting in `track.backgroundColor`. Older dashboards acquire a transparent track (`#00000000`) on migration. To reopen a dashboard in an older application, use its pre-migration copy.
+
+<!-- --8<-- [end:bar-track-color] -->
+
 ## Border Color
 
 

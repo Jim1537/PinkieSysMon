@@ -22,7 +22,8 @@ internal static class DashboardSchemaMigration
     public const int GraphSignalSchemaVersion = 25;
     public const int ShortcutSchemaVersion = 26;
     public const int CommonWidgetGeometrySchemaVersion = 27;
-    public const int CurrentSchemaVersion = CommonWidgetGeometrySchemaVersion;
+    public const int BarTrackSchemaVersion = 28;
+    public const int CurrentSchemaVersion = BarTrackSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -50,7 +51,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -127,6 +128,13 @@ internal static class DashboardSchemaMigration
             // Omitted widget fields use the canonical zero-padding, full solid border defaults.
             root["schemaVersion"] = CommonWidgetGeometrySchemaVersion;
             schemaVersion = CommonWidgetGeometrySchemaVersion;
+        }
+
+        if (schemaVersion == CommonWidgetGeometrySchemaVersion)
+        {
+            // Bars without a track object use the transparent model default.
+            root["schemaVersion"] = BarTrackSchemaVersion;
+            schemaVersion = BarTrackSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

@@ -21,26 +21,26 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
     {
         var bar = widget as CanonicalDashboard.BarWidgetDefinition
             ?? throw new InvalidDataException($"Bar renderer received widget type '{widget.Type}'.");
-        if (string.IsNullOrWhiteSpace(bar.Metric) ||
-            !context.TryGetMetricDouble(bar, out var raw))
-            return;
-
         var compiled = GetCompiled(bar, context.Antialias);
-        var ratio = compiled.GetRatio(raw);
-        if (ratio <= 0.0 || compiled.Inner.Width <= 0f || compiled.Inner.Height <= 0f)
-            return;
-
-        var activeWidth = compiled.Inner.Width * (float)ratio;
-        var fill = compiled.Reverse
-            ? new SKRect(compiled.Inner.Right - activeWidth, compiled.Inner.Top, compiled.Inner.Right, compiled.Inner.Bottom)
-            : new SKRect(compiled.Inner.Left, compiled.Inner.Top, compiled.Inner.Left + activeWidth, compiled.Inner.Bottom);
-        if (fill.Width <= 0f)
-            return;
-
         canvas.Save();
         try
         {
             canvas.Translate(bar.X, bar.Y);
+            if (compiled.TrackPaint is not null && compiled.TrackBounds.Width > 0 && compiled.TrackBounds.Height > 0)
+                DrawFill(canvas, compiled.TrackBounds, compiled.TrackRadius, compiled.TrackPaint);
+
+            if (compiled.Inner.Width <= 0f || compiled.Inner.Height <= 0f ||
+                !context.TryGetMetricDouble(bar, out var raw))
+                return;
+
+            var ratio = compiled.GetRatio(raw);
+            if (ratio <= 0) return;
+            var activeWidth = compiled.Inner.Width * (float)ratio;
+            var fill = compiled.Reverse
+                ? new SKRect(compiled.Inner.Right - activeWidth, compiled.Inner.Top, compiled.Inner.Right, compiled.Inner.Bottom)
+                : new SKRect(compiled.Inner.Left, compiled.Inner.Top, compiled.Inner.Left + activeWidth, compiled.Inner.Bottom);
+            if (fill.Width <= 0f) return;
+
             if (compiled.Indicator is null)
             {
                 if (compiled.Image is not null)
@@ -241,6 +241,9 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
             double inverseRange,
             CompiledQuantitativeIndicator? indicator,
             bool antialias,
+            SKRect trackBounds,
+            float trackRadius,
+            SKPaint? trackPaint,
             SKRect inner,
             float innerRadius,
             bool reverse,
@@ -258,6 +261,9 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
             _inverseRange = inverseRange;
             Indicator = indicator;
             Antialias = antialias;
+            TrackBounds = trackBounds;
+            TrackRadius = trackRadius;
+            TrackPaint = trackPaint;
             Inner = inner;
             InnerRadius = innerRadius;
             Reverse = reverse;
@@ -274,6 +280,9 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
 
         public CompiledQuantitativeIndicator? Indicator { get; }
         public bool Antialias { get; }
+        public SKRect TrackBounds { get; }
+        public float TrackRadius { get; }
+        public SKPaint? TrackPaint { get; }
         public SKRect Inner { get; }
         public float InnerRadius { get; }
         public bool Reverse { get; }
@@ -291,23 +300,23 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
         {
             SKShader? transitionShader = null;
             SKPaint? fillPaint = null;
+            SKPaint? trackPaint = null;
             SKRoundRect? activeClipRoundRect = null;
             SKRoundRect? preparedClipRoundRect = null;
             try
             {
-                var inset = Math.Max(0f, widget.BorderWidth) + widget.Gap;
-                var inner = new SKRect(
-                    inset,
-                    inset,
-                    widget.Width - inset,
-                    widget.Height - inset);
-
-                var outerRadius = Math.Min(
-                    Math.Max(0f, widget.CornerRadius),
-                    Math.Min(widget.Width, widget.Height) / 2f);
-                var innerRadius = inner.Width > 0f && inner.Height > 0f
-                    ? Math.Min(Math.Max(0f, outerRadius - inset), Math.Min(inner.Width, inner.Height) / 2f)
-                    : 0f;
+                var border = widget.BorderWidth;
+                var padding = widget.Padding;
+                var trackBounds = new SKRect(border + padding.Left, border + padding.Top,
+                    widget.Width - border - padding.Right, widget.Height - border - padding.Bottom);
+                var inner = new SKRect(trackBounds.Left + widget.Gap, trackBounds.Top + widget.Gap,
+                    trackBounds.Right - widget.Gap, trackBounds.Bottom - widget.Gap);
+                var outerRadius = Math.Min(widget.CornerRadius, Math.Min(widget.Width, widget.Height) / 2f);
+                var trackRadius = Math.Max(0f, outerRadius - border);
+                var innerRadius = Math.Max(0f, Math.Min(trackRadius - widget.Gap, Math.Min(inner.Width, inner.Height) / 2f));
+                var trackColor = ColorParser.Parse(widget.Track.BackgroundColor);
+                if (trackColor.Alpha > 0)
+                    trackPaint = new SKPaint { Color = trackColor, IsAntialias = antialias };
 
                 var inverseRange = 1.0 / (widget.Max - widget.Min);
                 activeClipRoundRect = new SKRoundRect();
@@ -331,6 +340,9 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
                         inverseRange,
                         null,
                         antialias,
+                        trackBounds,
+                        trackRadius,
+                        trackPaint,
                         inner,
                         innerRadius,
                         widget.Reverse,
@@ -375,6 +387,9 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
                     inverseRange,
                     indicator,
                     antialias,
+                    trackBounds,
+                    trackRadius,
+                    trackPaint,
                     inner,
                     innerRadius,
                     widget.Reverse,
@@ -392,6 +407,7 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
             {
                 preparedClipRoundRect?.Dispose();
                 activeClipRoundRect?.Dispose();
+                trackPaint?.Dispose();
                 fillPaint?.Dispose();
                 transitionShader?.Dispose();
                 throw;
@@ -459,6 +475,7 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
         {
             PreparedClipRoundRect.Dispose();
             ActiveClipRoundRect.Dispose();
+            TrackPaint?.Dispose();
             FillPaint?.Dispose();
             TransitionShader?.Dispose();
         }

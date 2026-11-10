@@ -740,7 +740,8 @@ internal static class CanonicalPropertyViewBuilder
             result.Add(Group("Bar", [
                 String(bar, "BarContentMode", "gauge.bar.content_mode", "Mode", () => bar.ContentMode, v => bar.ContentMode = Convert.ToString(v) ?? BarImageContract.ContentModeFill, converter: BarContentConverter),
                 Bool(bar, nameof(C.QuantitativeWidgetDefinition.Reverse), "gauge.bar.reverse", "Reverse", () => bar.Reverse, v => bar.Reverse = v),
-                Float(bar, nameof(C.QuantitativeWidgetDefinition.Gap), "gauge.bar.gap", "Gap", () => bar.Gap, v => bar.Gap = Math.Max(0f, v))
+                Float(bar, nameof(C.QuantitativeWidgetDefinition.Gap), "gauge.bar.gap", "Gap", () => bar.Gap, v => bar.Gap = Math.Max(0f, v)),
+                Color(bar.Track, "BarTrackBackgroundColor", "gauge.bar.track.color", "Track Color", () => bar.Track.BackgroundColor, v => bar.Track.BackgroundColor = v)
             ]));
             return result;
         }

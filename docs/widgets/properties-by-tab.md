@@ -312,6 +312,9 @@ When multiple widgets are selected, the Editor shows only compatible shared prop
     #### Gap
     --8<-- "widgets/properties.md:gap"
 
+    #### Track Color
+    --8<-- "widgets/properties.md:bar-track-color"
+
 === "Graph"
 
     ## Graph

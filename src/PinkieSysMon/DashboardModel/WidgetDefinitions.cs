@@ -404,10 +404,19 @@ internal sealed class GaugeWidgetDefinition : QuantitativeWidgetDefinition
     }
 }
 
+internal sealed class BarTrackDefinition
+{
+    [JsonPropertyName("backgroundColor")]
+    public string BackgroundColor { get; set; } = "#00000000";
+}
+
 internal sealed class BarWidgetDefinition : QuantitativeWidgetDefinition
 {
     [JsonIgnore]
     public override string Type => global::PinkieSysMon.WidgetTypeContract.Bar;
+
+    [JsonPropertyName("track")]
+    public BarTrackDefinition Track { get; set; } = new();
 
     [JsonPropertyName("contentMode")]
     public string ContentMode { get; set; } = global::PinkieSysMon.BarImageContract.ContentModeFill;
@@ -421,6 +430,9 @@ internal sealed class BarWidgetDefinition : QuantitativeWidgetDefinition
         ValidatePositiveGeometry();
         if (!global::PinkieSysMon.BarImageContract.SupportedContentModes.Contains(ContentMode, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"Bar widget '{Id}' has invalid ContentMode '{ContentMode}'.");
+        if (Track is null)
+            throw new InvalidDataException($"Bar widget '{Id}' Track must not be null.");
+        _ = global::PinkieSysMon.ColorParser.Parse(Track.BackgroundColor);
         if (Image is null)
             throw new InvalidDataException($"Bar widget '{Id}' Image must not be null.");
 

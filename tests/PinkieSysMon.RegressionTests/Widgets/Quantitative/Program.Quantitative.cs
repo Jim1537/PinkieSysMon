@@ -137,6 +137,67 @@ internal static partial class Program
         }
     }
 
+    private static void BarTrackColorAndInsets()
+    {
+        var root = CreateTemporaryApplicationRoot("PinkieSysMon-bar-track");
+        try
+        {
+            const string legacy = """
+                {"schemaVersion":27,"canvas":{"width":40,"height":16},"widgets":[
+                  {"type":"bar","id":"bar","metric":"system.os.uptime","width":40,"height":16}]}
+                """;
+            var path = Path.Combine(root, "dashboard.json");
+            var board = C.DashboardDefinition.Parse(legacy, path);
+            var bar = (C.BarWidgetDefinition)board.Widgets.Single();
+            Assert(bar.Track.BackgroundColor == "#00000000", "Older bars require a transparent track.");
+            var properties = new EditorPropertyView(bar, section: EditorPropertySection.Gauge).GetProperties();
+            var color = GetNestedProperty(properties, "Bar", "BarTrackBackgroundColor")
+                ?? throw new InvalidOperationException("Missing Bar track color.");
+            Assert(color.DisplayName == "Track Color", "Incorrect track color label.");
+            color.SetValue(null, "#FF008000");
+            bar.Metric = FixtureOutputFps;
+            bar.BackgroundColor = "#FF000000";
+            bar.Color = "#FFFFFFFF";
+            bar.Padding = new C.WidgetPadding(0, 0, 0, 8);
+            bar.BorderWidth = 2;
+            bar.Gap = 3;
+            foreach (var mode in new[] { BarImageContract.ContentModeFill, BarImageContract.ContentModeImage })
+            {
+                bar.ContentMode = mode;
+                var saved = DashboardJson.Serialize(board, false);
+                var reopened = C.DashboardDefinition.Parse(saved, path);
+                Assert(((C.BarWidgetDefinition)reopened.Widgets.Single()).Track.BackgroundColor == "#FF008000" &&
+                       DashboardJson.Serialize(reopened, false) == saved, "Track Color did not round-trip.");
+                using var images = new ImageAssetCache(root);
+                using var typefaces = new PinkieSysMon.Widgets.TypefaceCache(root, board.Widgets);
+                using var context = new PinkieSysMon.Widgets.WidgetRenderContext(
+                    new Dictionary<string, object?>(), antialias: false, typefaces);
+                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images);
+                using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 16))
+                    ?? throw new InvalidOperationException("Could not create the Bar test surface.");
+                foreach (var reading in new double?[] { null, 0, 50 })
+                {
+                    var metrics = new Dictionary<string, object?>();
+                    if (reading.HasValue) metrics[bar.Metric!] = reading.Value;
+                    context.UpdateMetrics(metrics);
+                    surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+                    PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, bar, context, renderer);
+                    surface.Canvas.Flush();
+                    using var pixels = surface.PeekPixels()
+                        ?? throw new InvalidOperationException("Could not inspect the Bar test surface.");
+                    var green = new SkiaSharp.SKColor(0, 128, 0);
+                    Assert(pixels.GetPixelColor(9, 8) == SkiaSharp.SKColors.Black &&
+                           pixels.GetPixelColor(10, 8) == green && pixels.GetPixelColor(12, 8) == green &&
+                           pixels.GetPixelColor(36, 8) == green, "Track bounds must follow Padding and surround Gap.");
+                    var active = mode == BarImageContract.ContentModeFill && reading == 50;
+                    Assert(pixels.GetPixelColor(13, 8) == (active ? SkiaSharp.SKColors.White : green),
+                        "The visible track must be independent of the active reading or image.");
+                }
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static void BarForegroundColorRendering()
     {
         const string metric = FixtureOutputFps;

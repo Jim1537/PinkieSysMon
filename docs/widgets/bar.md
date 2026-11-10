@@ -67,11 +67,12 @@ Open `Gauge → Bar`.
 | --- | --- |
 | `Mode` | Selects `Fill` or `Image` rendering. |
 | `Reverse` | Reverses the progression direction. |
-| `Gap` | Insets the active content from the widget's border. |
+| `Gap` | Insets the active content inside the track. |
+| `Track Color` | [Background of the full Bar track](properties.md#bar-track-color). |
 
 With `Reverse` disabled, the bar progresses from left to right. With `Reverse` enabled, it progresses from right to left.
 
-`Gap` adds space between the outer widget boundary and the active content. The common border width also contributes to this inset. Excessive gap or border width can leave no drawable interior.
+The wrapper fills the widget bounds. Padding positions the track inside the border. Gap leaves a strip of track visible around the active indicator.
 
 Bar's underlying layout is horizontal. Rotating the widget rotates the complete rendered element; `Reverse` is the control for changing the progression direction within its local coordinates.
 
@@ -227,7 +228,8 @@ Bar uses the common dashboard rendering pipeline for container background, borde
 | `componentFormat` | `ComponentFormat` | Optional numeric precision, default `0` (schema 22). |
 | `min` / `max` | `Min` / `Max` | Numeric range defining 0% and 100% progress. |
 | `reverse` | `Reverse` | Reverses local progression direction. |
-| `gap` | `Gap` | Inset added inside the common widget border. |
+| `gap` | `Gap` | Space between the track edge and the active content. |
+| `track.backgroundColor` | `Track.BackgroundColor` | Bar track color (schema 28). |
 | `thresholds` | `Thresholds` | Threshold mode and three stored threshold slots. |
 | `contentMode` | `ContentMode` | `Fill` or `Image`. |
 | `image` | `Image` | Image-mode configuration. |
@@ -250,8 +252,7 @@ Bar requires positive `Width` and `Height`. Both can be configured independently
 
 The renderer computes the active content rectangle in local coordinates:
 
-  `inset = max(0, BorderWidth) + Gap`
-  `inner = [inset, inset, Width - inset, Height - inset]`
+For each side, the track starts at `BorderWidth + Padding[side]` from the outer edge. The active Fill or Image starts another `Gap` pixels inward.
 
 The active width is `inner.Width * progress` when the interior has positive width and height.
 
