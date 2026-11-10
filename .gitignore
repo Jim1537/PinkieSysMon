@@ -11,6 +11,7 @@
 
 # Runtime/local state must never enter the public repository
 /logs/
+/reports/
 /config/editor.json
 /config/telemetry.json
 /External/
