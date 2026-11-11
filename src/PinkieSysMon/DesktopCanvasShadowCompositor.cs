@@ -69,8 +69,11 @@ internal sealed class DesktopCanvasShadowCompositor : IDisposable
             throw new InvalidOperationException("Desktop shadow input must be the original premultiplied logical Canvas.");
 
         _canvas.Clear(SKColors.Transparent);
-        _canvas.DrawBitmap(_shadow, 0, 0);
-        _canvas.DrawBitmap(logical, _viewport.CanvasOffset.X, _viewport.CanvasOffset.Y);
+        // No bitmap scaling: use the supported sampling overload without
+        // changing the existing per-pixel composition or alpha contract.
+        _canvas.DrawBitmap(_shadow, 0, 0, SKSamplingOptions.Default);
+        _canvas.DrawBitmap(logical, _viewport.CanvasOffset.X, _viewport.CanvasOffset.Y,
+            SKSamplingOptions.Default);
         _canvas.Flush();
         return _composed; // session borrows this only through synchronous Present()
     }
