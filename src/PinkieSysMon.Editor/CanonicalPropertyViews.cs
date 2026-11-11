@@ -436,7 +436,7 @@ internal static class CanonicalPropertyViewBuilder
                 editor: new WidgetActionTargetEditor(), disabledReason: DisabledWhenNone),
             String(action, "Arguments", "action.arguments", "Arguments",
                 () => action.Arguments, value => action.Arguments = Convert.ToString(value) ?? string.Empty,
-                DisabledWhenNone)
+                disabled: DisabledWhenNone)
         ])];
     }
 
