@@ -992,9 +992,11 @@ internal static partial class Program
                          EditorPropertySection.Appearance,
                          EditorPropertySection.Data,
                          EditorPropertySection.Gauge,
+                         EditorPropertySection.Graph,
                          EditorPropertySection.States,
                          EditorPropertySection.Image,
-                         EditorPropertySection.Text
+                         EditorPropertySection.Text,
+                         EditorPropertySection.Action
                      })
             {
                 var properties = new EditorPropertyView(

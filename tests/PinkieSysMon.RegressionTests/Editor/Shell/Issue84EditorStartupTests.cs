@@ -107,7 +107,7 @@ internal static class Issue84EditorStartupTests
             "group", "ungroup", "zoom-in", "zoom-out", "focus",
             "move-vertical", "grid-3x3", "monitor",
             "settings-2", "palette", "database", "gauge", "chart-no-axes-combined",
-            "list-tree", "image", "type"
+            "list-tree", "image", "type", "mouse-pointer-click"
         })
         {
             File.WriteAllText(Path.Combine(iconDirectory, icon + ".svg"), svg);
