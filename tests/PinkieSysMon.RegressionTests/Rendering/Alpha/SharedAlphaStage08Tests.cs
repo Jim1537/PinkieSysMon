@@ -48,8 +48,8 @@ internal static class SharedAlphaStage08Tests
             WriteImage(root, "green.png", SKColors.Lime);
             WriteImage(root, "blue.png", new SKColor(0, 0, 255, 128));
             var dashboard = Dashboard(root, orientation: 90);
-            dashboard.Canvas.BackgroundImage = Layer("red.png", 1f);
-            dashboard.Canvas.ForegroundImage = Layer("blue.png", 1f);
+            dashboard.Canvas.PanelBackground = Layer("red.png");
+            dashboard.Canvas.PanelForeground = Layer("blue.png");
             dashboard.Widgets[0].X = 8;
             dashboard.Widgets[0].Y = 20;
 
@@ -131,14 +131,14 @@ internal static class SharedAlphaStage08Tests
         ]
     };
 
-    private static C.CanvasImageLayerDefinition Layer(string file, float opacity) => new()
+    private static C.WidgetPanelLayerDefinition Layer(string file) => new()
     {
-        Asset = new C.ImageAssetPresentationDefinition
+        Mode = C.WidgetPanelLayerMode.Image,
+        Image = new C.ImageAssetPresentationDefinition
         {
             SourceType = C.ImageAssetSourceType.File, Source = file,
             Fit = StateVisualProfileContract.FitStretch
-        },
-        Opacity = opacity
+        }
     };
 
     private static void WriteImage(string root, string file, SKColor color)

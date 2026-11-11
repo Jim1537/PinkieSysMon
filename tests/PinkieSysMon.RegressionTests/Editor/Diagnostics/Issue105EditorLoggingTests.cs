@@ -120,8 +120,10 @@ internal static class Issue105EditorLoggingTests
         }
         var board = new C.DashboardDefinition { BaseDirectory = directory };
         board.Canvas.Width = board.Canvas.Height = 48;
-        board.Canvas.BackgroundImage.Asset.Source = "valid.png";
-        board.Canvas.ForegroundImage.Asset.Source = "bad.png";
+        board.Canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Image;
+        board.Canvas.PanelBackground.Image.Source = "valid.png";
+        board.Canvas.PanelForeground.Mode = C.WidgetPanelLayerMode.Image;
+        board.Canvas.PanelForeground.Image.Source = "bad.png";
         board.Widgets.Add(new C.ImageWidgetDefinition
         {
             Id = "photo", Width = 16, Height = 16, Asset = new() { Source = "lost.png" }
@@ -144,10 +146,10 @@ internal static class Issue105EditorLoggingTests
         Invoke(editor, "PushUndo", first);
         Check(!Save() && File.ReadAllText(path) == original, "A corrupt file alone must block Save.");
         var second = Invoke(editor, "CaptureSnapshot")!;
-        Current().Canvas.ForegroundImage.Asset.Source = null;
+        Current().Canvas.PanelForeground.Image.Source = null;
         Invoke(editor, "PushUndo", second);
         Invoke(editor, "Undo");
-        Check(Current().Canvas.ForegroundImage.Asset.Source == "bad.png" && !Save(), "Undo must restore the repairable source.");
+        Check(Current().Canvas.PanelForeground.Image.Source == "bad.png" && !Save(), "Undo must restore the repairable source.");
         Invoke(editor, "Redo");
         Check(Save() && (bool)Invoke(editor, "LoadDashboard", "Artwork")!, "Repair must allow Save and reopen.");
         using var runtime = new DashboardRenderer(C.DashboardDefinition.Load(path));
