@@ -1198,87 +1198,109 @@ internal static partial class Program
     private static void PropertyExpansionStatePersistence()
     {
         var state = new EditorPropertyExpansionState();
-
-        var general = state.Get(EditorPropertySection.General);
-        Assert(general.TryGetValue("Identity", out var identityExpanded) && !identityExpanded &&
-               general.TryGetValue("Source", out var sourceExpanded) && sourceExpanded &&
-               general.TryGetValue("Background Image", out var backgroundImageSourceExpanded) && backgroundImageSourceExpanded &&
-               general.TryGetValue("Foreground Image", out var foregroundImageSourceExpanded) && foregroundImageSourceExpanded &&
-               general.TryGetValue("Geometry", out var geometryExpanded) && geometryExpanded,
-            "General expansion state must initialize widget and Canvas source groups consistently.");
-
-        var appearance = state.Get(EditorPropertySection.Appearance);
-        Assert(!appearance.ContainsKey("Alignment") &&
-               appearance.TryGetValue("Container", out var containerExpanded) && containerExpanded &&
-               appearance.TryGetValue("Background", out var backgroundExpanded) && backgroundExpanded &&
-               appearance.TryGetValue("Border", out var borderExpanded) && borderExpanded &&
-               appearance.TryGetValue("Shadow", out var shadowExpanded) && !shadowExpanded &&
-               appearance.TryGetValue("Threshold 1", out var threshold1Expanded) && !threshold1Expanded &&
-               appearance.TryGetValue("Threshold 2", out var threshold2Expanded) && !threshold2Expanded &&
-               appearance.TryGetValue("Threshold 3", out var threshold3Expanded) && !threshold3Expanded,
-            "Appearance expansion state must start from the UI defaults with contextual groups initialized.");
-
-        state.Remember(EditorPropertySection.Appearance, new Dictionary<string, bool>(StringComparer.Ordinal)
+        foreach (var section in new[]
+                 {
+                     EditorPropertySection.General,
+                     EditorPropertySection.Panel,
+                     EditorPropertySection.Appearance,
+                     EditorPropertySection.Data,
+                     EditorPropertySection.Gauge,
+                     EditorPropertySection.Graph,
+                     EditorPropertySection.States,
+                     EditorPropertySection.Image,
+                     EditorPropertySection.Text
+                 })
         {
-            ["Shadow"] = true,
-            ["Threshold 1"] = true
-        });
-        state.Remember(EditorPropertySection.Appearance, new Dictionary<string, bool>(StringComparer.Ordinal)
+            Assert(state.IsExpanded(section, "Identity") &&
+                   state.IsExpanded(section, "Shadow") &&
+                   state.IsExpanded(section, "Threshold 1") &&
+                   state.IsExpanded(section, "Outline") &&
+                   state.IsExpanded(section, "State: True / Font"),
+                $"Property groups must start expanded on {section}, including new and nested groups.");
+        }
+        Assert(state.Snapshot().Count == 0,
+            "Initial expanded defaults must not create redundant persisted entries.");
+
+        state.Remember(EditorPropertySection.Panel, new Dictionary<string, bool>
         {
+            ["Shadow"] = false,
             ["Background"] = false
         });
-
-        appearance = state.Get(EditorPropertySection.Appearance);
-        Assert(appearance["Shadow"] && !appearance["Background"] && appearance["Border"] &&
-               appearance["Container"] && appearance["Threshold 1"] &&
-               !appearance["Threshold 2"] && !appearance["Threshold 3"],
-            "Remembering one visible Appearance group must preserve the last state of the other groups.");
-
-        var data = state.Get(EditorPropertySection.Data);
-        Assert(data["Value"] && data["Display"] && data["Range"] && data["Evaluation"],
-            "Data expansion state must start with all structural data groups open.");
-
-        var gauge = state.Get(EditorPropertySection.Gauge);
-        Assert(gauge["Horseshoe"] && gauge["Needle"] && gauge["Bar"],
-            "Gauge expansion state must start with all structural groups open.");
-        state.Remember(EditorPropertySection.Gauge, new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Needle"] = false
-        });
-        Assert(state.Get(EditorPropertySection.Gauge)["Horseshoe"] &&
-               !state.Get(EditorPropertySection.Gauge)["Needle"],
-            "Gauge group expansion state must use the centralized persistence model.");
-
-
-        var states = state.Get(EditorPropertySection.States);
-        Assert(states.Count == 0,
-            "States expansion defaults must remain unspecified until a default is explicitly chosen.");
-        state.Remember(EditorPropertySection.States, new Dictionary<string, bool>(StringComparer.Ordinal)
+        state.Remember(EditorPropertySection.States, new Dictionary<string, bool>
         {
             ["State: True"] = true,
+            ["State: True / Font"] = false,
             ["State: False"] = false
         });
-        Assert(state.Get(EditorPropertySection.States)["State: True"] &&
-               !state.Get(EditorPropertySection.States)["State: False"],
-            "States group expansion state must use the centralized persistence model.");
-
-        var image = state.Get(EditorPropertySection.Image);
-        Assert(image.TryGetValue("Image", out var imageExpanded) && imageExpanded &&
-               image.TryGetValue("Background Image", out var backgroundImageExpanded) && backgroundImageExpanded &&
-               image.TryGetValue("Foreground Image", out var foregroundImageExpanded) && foregroundImageExpanded,
-            "Image expansion state must start with widget and Canvas image groups open.");
-
-        var text = state.Get(EditorPropertySection.Text);
-        Assert(text["Font"] && text["Alignment"] && !text["Outline"] && !text["Overflow"],
-            "Text expansion state must start from the UI defaults.");
-        state.Remember(EditorPropertySection.Text, new Dictionary<string, bool>(StringComparer.Ordinal)
+        state.Remember(EditorPropertySection.Text, new Dictionary<string, bool>
         {
-            ["Overflow"] = true
+            ["Outline"] = false
         });
-        Assert(state.Get(EditorPropertySection.Text)["Overflow"],
-            "Overflow expansion state must survive a PropertyGrid rebuild.");
-        Assert(state.Get(EditorPropertySection.Appearance)["Shadow"],
-            "Expansion state must be isolated by property tab.");
+        Assert(!state.IsExpanded(EditorPropertySection.Panel, "Shadow") &&
+               !state.IsExpanded(EditorPropertySection.Panel, "Background") &&
+               state.IsExpanded(EditorPropertySection.Panel, "Geometry") &&
+               state.IsExpanded(EditorPropertySection.Appearance, "Shadow") &&
+               !state.IsExpanded(EditorPropertySection.States, "State: True / Font") &&
+               !state.IsExpanded(EditorPropertySection.States, "State: False") &&
+               !state.IsExpanded(EditorPropertySection.Text, "Outline"),
+            "User-collapsed groups must be retained independently by tab and nested path.");
+
+        state.Remember(EditorPropertySection.Panel, new Dictionary<string, bool>
+        {
+            ["Background"] = true
+        });
+        Assert(!state.IsExpanded(EditorPropertySection.Panel, "Shadow") &&
+               state.IsExpanded(EditorPropertySection.Panel, "Background"),
+            "A partial PropertyGrid refresh must preserve untouched groups and allow reopening one.");
+
+        var snapshot = state.Snapshot();
+        Assert(snapshot["Panel"].Count == 1 &&
+               snapshot["Panel"]["Shadow"] == false &&
+               snapshot["States"]["State: True / Font"] == false &&
+               !snapshot["Text"]["Outline"],
+            "The disk snapshot must contain only explicit collapsed groups.");
+
+        var reconstructed = new EditorPropertyExpansionState(snapshot);
+        Assert(!reconstructed.IsExpanded(EditorPropertySection.Panel, "Shadow") &&
+               reconstructed.IsExpanded(EditorPropertySection.Panel, "Background") &&
+               !reconstructed.IsExpanded(EditorPropertySection.States, "State: True / Font") &&
+               reconstructed.IsExpanded(EditorPropertySection.Image, "Foreground"),
+            "Explicit collapses must survive an in-memory editor recreation; unrecorded groups stay expanded.");
+
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-property-expansion-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var settingsPath = Path.Combine(root, "editor.json");
+            var settings = EditorSettings.Load(settingsPath);
+            settings.PropertyExpansion = snapshot;
+            settings.Save(settingsPath);
+
+            var restoredSettings = EditorSettings.Load(settingsPath);
+            var restored = new EditorPropertyExpansionState(restoredSettings.PropertyExpansion);
+            Assert(!restored.IsExpanded(EditorPropertySection.Panel, "Shadow") &&
+                   restored.IsExpanded(EditorPropertySection.Panel, "Background") &&
+                   !restored.IsExpanded(EditorPropertySection.States, "State: True / Font") &&
+                   restored.IsExpanded(EditorPropertySection.Appearance, "Threshold 1"),
+                "Collapsed property groups must survive saving and loading config/editor.json.");
+
+            var malformed = new Dictionary<string, Dictionary<string, bool>>
+            {
+                ["UnknownFutureTab"] = new() { ["Future Group"] = false },
+                ["All"] = new() { ["Identity"] = false },
+                ["General"] = new() { ["Identity"] = true, ["Geometry"] = false }
+            };
+            var compatible = new EditorPropertyExpansionState(malformed);
+            Assert(compatible.IsExpanded(EditorPropertySection.General, "Identity") &&
+                   !compatible.IsExpanded(EditorPropertySection.General, "Geometry") &&
+                   !compatible.Snapshot().ContainsKey("UnknownFutureTab") &&
+                   !compatible.Snapshot().ContainsKey("All"),
+                "Unknown tabs and explicit expanded defaults must not corrupt persisted UI preferences.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void EditorInputFocusOwnership()

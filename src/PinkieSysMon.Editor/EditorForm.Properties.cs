@@ -50,7 +50,7 @@ internal sealed partial class EditorForm
 
     private object? _propertyGridTarget;
     private EditorPropertySection? _presentedPropertySection;
-    private readonly EditorPropertyExpansionState _propertyExpansionState = new();
+    private readonly EditorPropertyExpansionState _propertyExpansionState;
     private EditorPropertySection _lastWidgetPropertySection = EditorPropertySection.General;
     private bool _updatingPropertyTabs;
     private bool _propertyGridColumnsInitialized;
@@ -518,12 +518,23 @@ internal sealed partial class EditorForm
 
         var expansion = new Dictionary<string, bool>(StringComparer.Ordinal);
         foreach (GridItem item in root.GridItems)
-        {
-            if (item.PropertyDescriptor is PropertyGroupPropertyDescriptor && item.Label is not null)
-                expansion[item.Label] = item.Expanded;
-        }
+            CaptureGroup(item, string.Empty);
 
         return expansion.Count == 0 ? null : expansion;
+
+        void CaptureGroup(GridItem item, string parentPath)
+        {
+            if (item.PropertyDescriptor is not PropertyGroupPropertyDescriptor || item.Label is null)
+                return;
+
+            var path = string.IsNullOrEmpty(parentPath) ? item.Label : parentPath + " / " + item.Label;
+            expansion[path] = item.Expanded;
+            if (!item.Expanded)
+                return;
+
+            foreach (GridItem child in item.GridItems)
+                CaptureGroup(child, path);
+        }
     }
 
     private void RememberPresentedPropertyExpansionState()
@@ -569,10 +580,20 @@ internal sealed partial class EditorForm
             root = root.Parent;
 
         foreach (GridItem item in root.GridItems)
+            ApplyGroup(item, string.Empty);
+
+        void ApplyGroup(GridItem item, string parentPath)
         {
-            var label = item.Label;
-            if (label is not null && expansion.TryGetValue(label, out var expanded))
-                item.Expanded = expanded;
+            if (item.PropertyDescriptor is not PropertyGroupPropertyDescriptor || item.Label is null)
+                return;
+
+            var path = string.IsNullOrEmpty(parentPath) ? item.Label : parentPath + " / " + item.Label;
+            item.Expanded = !expansion.TryGetValue(path, out var expanded) || expanded;
+            if (!item.Expanded)
+                return;
+
+            foreach (GridItem child in item.GridItems)
+                ApplyGroup(child, path);
         }
     }
 

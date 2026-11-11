@@ -44,10 +44,34 @@ internal sealed class EditorInputFocusState
 
 internal sealed class EditorPropertyExpansionState
 {
+    // Persist only user-collapsed groups. A missing entry always means expanded,
+    // including groups added by future widget types or property tabs.
     private readonly Dictionary<EditorPropertySection, Dictionary<string, bool>> _state = new();
+
+    public EditorPropertyExpansionState(IReadOnlyDictionary<string, Dictionary<string, bool>>? saved = null)
+    {
+        if (saved is null)
+            return;
+
+        foreach (var (name, groups) in saved)
+        {
+            if (!Enum.TryParse<EditorPropertySection>(name, ignoreCase: false, out var section) ||
+                section == EditorPropertySection.All || !Enum.IsDefined(section) || groups is null)
+                continue;
+
+            foreach (var (path, expanded) in groups)
+            {
+                if (!string.IsNullOrEmpty(path) && !expanded)
+                    GetMutable(section)[path] = false;
+            }
+        }
+    }
 
     public IReadOnlyDictionary<string, bool> Get(EditorPropertySection section) =>
         GetMutable(section);
+
+    public bool IsExpanded(EditorPropertySection section, string groupPath) =>
+        !GetMutable(section).TryGetValue(groupPath, out var expanded) || expanded;
 
     public void Remember(EditorPropertySection section, IReadOnlyDictionary<string, bool> visibleState)
     {
@@ -55,68 +79,33 @@ internal sealed class EditorPropertyExpansionState
             return;
 
         var sectionState = GetMutable(section);
-        foreach (var pair in visibleState)
-            sectionState[pair.Key] = pair.Value;
+        foreach (var (path, expanded) in visibleState)
+        {
+            if (string.IsNullOrEmpty(path))
+                continue;
+
+            if (expanded)
+                sectionState.Remove(path);
+            else
+                sectionState[path] = false;
+        }
     }
+
+    public Dictionary<string, Dictionary<string, bool>> Snapshot() =>
+        _state.Where(pair => pair.Value.Count > 0)
+            .ToDictionary(
+                pair => pair.Key.ToString(),
+                pair => new Dictionary<string, bool>(pair.Value, StringComparer.Ordinal),
+                StringComparer.Ordinal);
 
     private Dictionary<string, bool> GetMutable(EditorPropertySection section)
     {
         if (!_state.TryGetValue(section, out var sectionState))
         {
-            sectionState = new Dictionary<string, bool>(GetDefaults(section), StringComparer.Ordinal);
+            sectionState = new Dictionary<string, bool>(StringComparer.Ordinal);
             _state[section] = sectionState;
         }
 
         return sectionState;
     }
-
-    private static IReadOnlyDictionary<string, bool> GetDefaults(EditorPropertySection section) => section switch
-    {
-        EditorPropertySection.General => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Identity"] = false,
-            ["Source"] = true,
-            ["Data Source"] = true,
-            ["Background Image"] = true,
-            ["Foreground Image"] = true,
-            ["Geometry"] = true
-        },
-        EditorPropertySection.Appearance => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Container"] = true,
-            ["Background"] = true,
-            ["Border"] = true,
-            ["Shadow"] = false,
-            ["Threshold 1"] = false,
-            ["Threshold 2"] = false,
-            ["Threshold 3"] = false
-        },
-        EditorPropertySection.Data => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Value"] = true,
-            ["Display"] = true,
-            ["Range"] = true,
-            ["Evaluation"] = true
-        },
-        EditorPropertySection.Gauge => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Horseshoe"] = true,
-            ["Needle"] = true,
-            ["Bar"] = true
-        },
-        EditorPropertySection.Image => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Image"] = true,
-            ["Background Image"] = true,
-            ["Foreground Image"] = true
-        },
-        EditorPropertySection.Text => new Dictionary<string, bool>(StringComparer.Ordinal)
-        {
-            ["Font"] = true,
-            ["Alignment"] = true,
-            ["Outline"] = false,
-            ["Overflow"] = false
-        },
-        _ => new Dictionary<string, bool>(StringComparer.Ordinal)
-    };
 }

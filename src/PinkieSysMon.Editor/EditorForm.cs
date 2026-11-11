@@ -210,6 +210,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         _settingsPath = Path.Combine(root, "config", "editor.json");
         _settings = EditorSettings.Load(_settingsPath);
+        _propertyExpansionState = new EditorPropertyExpansionState(_settings.PropertyExpansion);
         _themeMode = EditorThemeContract.Parse(_settings.Theme);
         _settings.Theme = EditorThemeContract.Serialize(_themeMode);
         _gridEnabled = _settings.GridEnabled;
@@ -2541,6 +2542,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
     {
         try
         {
+            RememberPresentedPropertyExpansionState();
+            _settings.PropertyExpansion = _propertyExpansionState.Snapshot();
             SaveCurrentDashboardViewState();
             var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             _settings.WindowX = bounds.X;

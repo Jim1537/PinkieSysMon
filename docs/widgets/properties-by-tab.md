@@ -5,6 +5,8 @@ Select a tab below to browse the same canonical property definitions by their lo
 
 When multiple widgets are selected, the Editor shows only compatible shared properties. Different current values appear as `...`; predefined dropdown options retain their normal labels, and selecting an option applies it to all compatible selected widgets.
 
+Property groups are **expanded by default**, including nested groups. A group you collapse stays collapsed when switching widgets or tabs and after restarting the Editor. These UI-only preferences are saved in `config/editor.json`, independently of dashboard JSON; expanding a group again clears its saved collapsed override.
+
 === "General"
 
     ## General

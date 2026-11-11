@@ -17,6 +17,7 @@ internal sealed class EditorSettings
     public int GridStep { get; set; } = 25;
     public int ToolbarIconSize { get; set; } = 32;
     public string Theme { get; set; } = EditorThemeContract.SystemSetting;
+    public Dictionary<string, Dictionary<string, bool>> PropertyExpansion { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, DashboardViewSettings> Dashboards { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public static EditorSettings Load(string path)
