@@ -16,222 +16,119 @@ internal static partial class Program
 {
     private static void CanvasNormalizedPropertyHierarchy()
     {
-        var canvas = new CanvasDefinition
+        var canvas = new C.CanvasDefinition
         {
-            Width = 1920,
-            Height = 480,
-            Orientation = 90,
-            BackgroundColor = "#112233",
-            BackgroundImage = new CanvasImageLayerDefinition
-            {
-                SourceType = StateVisualProfileContract.SourceFile,
-                Source = @"images\background.png",
-                Fit = StateVisualProfileContract.FitStretch
-            },
-            ForegroundImage = new CanvasImageLayerDefinition
-            {
-                SourceType = StateVisualProfileContract.SourceFile,
-                Source = @"images\foreground.png",
-                Fit = StateVisualProfileContract.FitStretch
-            }
+            Width = 1920, Height = 480, Orientation = 90
         };
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelBackground.Image.Source = @"images\background.png";
+        canvas.PanelForeground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelForeground.Image.Source = @"images\foreground.png";
 
-        static string Semantic(PropertyDescriptor? descriptor) =>
-            (descriptor as IPropertySemanticKeyDescriptor)?.SemanticKey ?? string.Empty;
+        static string Semantic(PropertyDescriptor? value) =>
+            (value as IPropertySemanticKeyDescriptor)?.SemanticKey ?? string.Empty;
 
         var general = CurrentPropertyView(canvas, section: EditorPropertySection.General).GetProperties();
-        Assert(general.Count == 3 &&
-               general["Background Image"] is PropertyGroupPropertyDescriptor &&
-               general["Foreground Image"] is PropertyGroupPropertyDescriptor &&
-               general["Geometry"] is PropertyGroupPropertyDescriptor,
-            "Canvas General must expose Background Image, Foreground Image, and Geometry groups.");
+        Assert(general.Count == 2 && general["Identity"] is PropertyGroupPropertyDescriptor &&
+               general["Canvas"] is PropertyGroupPropertyDescriptor &&
+               GetNestedProperty(general, "Canvas", nameof(C.CanvasDefinition.Orientation)) is { IsReadOnly: false },
+            "Canvas General must expose root Identity and editable Orientation.");
 
-        var width = GetNestedProperty(general, "Geometry", nameof(C.CanvasDefinition.Width));
-        var height = GetNestedProperty(general, "Geometry", nameof(C.CanvasDefinition.Height));
-        var orientation = GetNestedProperty(general, "Geometry", nameof(C.CanvasDefinition.Orientation));
-        Assert(width is not null && height is not null && orientation is not null,
-            "Canvas General -> Geometry must expose Width, Height, and Orientation.");
-        Assert(Semantic(width) == "general.geometry.width" &&
-               Semantic(height) == "general.geometry.height" &&
-               Semantic(orientation) == "general.geometry.orientation",
-            "Canvas geometry must use the canonical General/Geometry semantic identities.");
+        var panel = CurrentPropertyView(canvas, section: EditorPropertySection.Panel).GetProperties();
+        Assert(panel.Count == 5 &&
+               new[] { "Geometry", "Background", "Foreground", "Border", "Shadow" }
+                   .All(name => panel[name] is PropertyGroupPropertyDescriptor),
+            "Canvas Panel must expose the same five ordered groups as widgets.");
+        var width = GetNestedProperty(panel, "Geometry", nameof(C.CanvasDefinition.Width));
+        var height = GetNestedProperty(panel, "Geometry", nameof(C.CanvasDefinition.Height));
+        Assert(width is { IsReadOnly: false } && height is { IsReadOnly: false } &&
+               Semantic(width) == "general.geometry.width" &&
+               Semantic(height) == "general.geometry.height",
+            "Canvas Width/Height must be editable and retain canonical geometry identities.");
+        foreach (var name in new[] { "X", "Y", "Rotation", "Padding", "Z" })
+            Assert(GetNestedProperty(panel, "Geometry", name) is { IsReadOnly: true },
+                $"Canvas {name} must remain visible but inapplicable.");
+        foreach (var (name, role) in new[] { ("Background", "background"), ("Foreground", "foreground") })
+            Assert(Semantic(GetNestedProperty(panel, name, "Mode")) == $"panel.{role}.mode" &&
+                   Semantic(GetNestedProperty(panel, name, "Source")) == $"panel.{role}.source",
+                $"Canvas Panel {name} must own its Mode and Source.");
+        Assert(CurrentPropertyView(canvas, section: EditorPropertySection.Appearance).GetProperties().Count == 0,
+            "Canvas must not duplicate its Panel background in Appearance.");
 
-        foreach (var (group, role) in new[]
-                 {
-                     ("Background Image", "background_image"),
-                     ("Foreground Image", "foreground_image")
-                 })
-        {
-            var sourceType = GetNestedProperty(general, group, nameof(C.ImageAssetPresentationDefinition.SourceType));
-            var source = GetNestedProperty(general, group, nameof(C.ImageAssetPresentationDefinition.Source));
-            Assert(sourceType is { DisplayName: "Type" } && source is { DisplayName: "Source" },
-                $"Canvas General -> {group} must expose canonical Type and Source asset properties.");
-            Assert(Semantic(sourceType) == $"general.{role}.asset.kind" &&
-                   Semantic(source) == $"general.{role}.asset.source",
-                $"Canvas General -> {group} must use canonical nested asset semantic identities.");
-            Assert(GetNestedProperty(general, group, nameof(C.ImageAssetPresentationDefinition.Fit)) is null &&
-                   GetNestedProperty(general, group, nameof(C.CanvasImageLayerDefinition.Opacity)) is null &&
-                   GetNestedProperty(general, group, nameof(C.ImageAssetPresentationDefinition.Loop)) is null &&
-                   GetNestedProperty(general, group, nameof(C.CanvasImageLayerDefinition.Color)) is null,
-                $"Canvas General -> {group} must contain source selection only, not image presentation.");
-        }
+        var images = CurrentPropertyView(canvas, section: EditorPropertySection.Image).GetProperties();
+        Assert(images.Count == 2 &&
+               images["Background"] is PropertyGroupPropertyDescriptor &&
+               images["Foreground"] is PropertyGroupPropertyDescriptor,
+            "Canvas contextual Image must expose only active Panel artwork.");
+        foreach (var (name, role) in new[] { ("Background", "background"), ("Foreground", "foreground") })
+            Assert(Semantic(GetNestedProperty(images, name, nameof(C.ImageAssetPresentationDefinition.Fit))) == $"image.panel.{role}.fit" &&
+                   Semantic(GetNestedProperty(images, name, nameof(C.ImageAssetPresentationDefinition.Loop))) == $"image.panel.{role}.loop" &&
+                   GetNestedProperty(images, name, nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is null,
+                $"Canvas Image {name} must own Fit/Loop without file opacity.");
 
-        var appearance = CurrentPropertyView(canvas, section: EditorPropertySection.Appearance).GetProperties();
-        Assert(appearance.Count == 1 && appearance["Background"] is PropertyGroupPropertyDescriptor,
-            "Canvas Appearance must expose one Background group.");
-        var color = GetNestedProperty(appearance, "Background", nameof(C.CanvasDefinition.BackgroundColor));
-        Assert(color is not null && color.DisplayName == "Color" && Semantic(color) == "appearance.background.color",
-            "Canvas Appearance -> Background must share the canonical Background/Color semantic identity.");
-
-        var image = CurrentPropertyView(canvas, section: EditorPropertySection.Image).GetProperties();
-        Assert(image.Count == 2 &&
-               image["Background Image"] is PropertyGroupPropertyDescriptor &&
-               image["Foreground Image"] is PropertyGroupPropertyDescriptor,
-            "Canvas Image must expose Background Image and Foreground Image groups.");
-
-        foreach (var (group, role) in new[]
-                 {
-                     ("Background Image", "background_image"),
-                     ("Foreground Image", "foreground_image")
-                 })
-        {
-            Assert(GetNestedProperty(image, group, nameof(C.ImageAssetPresentationDefinition.SourceType)) is null &&
-                   GetNestedProperty(image, group, nameof(C.ImageAssetPresentationDefinition.Source)) is null,
-                $"Canvas Image -> {group} must not duplicate Type or Source from General.");
-
-            var fit = GetNestedProperty(image, group, nameof(C.ImageAssetPresentationDefinition.Fit));
-            var loop = GetNestedProperty(image, group, nameof(C.ImageAssetPresentationDefinition.Loop));
-            Assert(fit is { DisplayName: "Fit" } && loop is { DisplayName: "Loop" } &&
-                   GetNestedProperty(image, group, nameof(C.CanvasImageLayerDefinition.IconOpacity)) is null &&
-                   GetNestedProperty(image, group, nameof(C.CanvasImageLayerDefinition.Color)) is null,
-                $"Canvas file-image layers must expose Fit/Loop without redundant Opacity/Color.");
-            Assert(Semantic(fit) == $"image.{role}.asset.fit" &&
-                   Semantic(loop) == $"image.{role}.asset.loop",
-                $"Canvas Image -> {group} must use canonical image-presentation semantic identities.");
-        }
-
-        var widget = new C.ValueWidgetDefinition { Id = "canvas-shared-semantic-parity" };
-        var widgetGeneral = CurrentPropertyView(widget, section: EditorPropertySection.General).GetProperties();
-        var widgetPanel = CurrentPropertyView(widget, section: EditorPropertySection.Panel).GetProperties();
+        var widgetPanel = CurrentPropertyView(new C.ValueWidgetDefinition { Id = "canvas-common-parity" },
+            section: EditorPropertySection.Panel).GetProperties();
         Assert(Semantic(GetNestedProperty(widgetPanel, "Geometry", nameof(C.WidgetDefinition.Width))) == Semantic(width) &&
-               Semantic(GetNestedProperty(widgetPanel, "Geometry", nameof(C.WidgetDefinition.Height))) == Semantic(height) &&
-               GetNestedProperty(widgetPanel, "Background", "Color") is null,
-            "Widget geometry remains canonical and its initially disabled Panel Background has no Color control.");
+               Semantic(GetNestedProperty(widgetPanel, "Geometry", nameof(C.WidgetDefinition.Height))) == Semantic(height),
+            "Canvas and widget geometry must share common semantic identities.");
 
-        foreach (var section in new[]
-        {
-            EditorPropertySection.Data,
-            EditorPropertySection.Gauge,
-            EditorPropertySection.States,
-            EditorPropertySection.Text
-        })
-        {
+        foreach (var section in new[] { EditorPropertySection.Data, EditorPropertySection.Gauge,
+                     EditorPropertySection.States, EditorPropertySection.Text, EditorPropertySection.Graph })
             Assert(CurrentPropertyView(canvas, section: section).GetProperties().Count == 0,
-                $"Canvas must not expose irrelevant {section} properties.");
-        }
-
-        var all = CurrentPropertyView(canvas, section: EditorPropertySection.All).GetProperties();
-        Assert(FindLeafProperty(all, nameof(C.CanvasDefinition.Width)) is not null &&
-               FindLeafProperty(all, nameof(C.CanvasDefinition.Height)) is not null &&
-               FindLeafProperty(all, nameof(C.CanvasDefinition.Orientation)) is not null &&
-               FindLeafProperty(all, nameof(C.CanvasDefinition.BackgroundColor)) is not null &&
-               GetNestedProperty(all, "Background Image", nameof(C.ImageAssetPresentationDefinition.Source)) is not null &&
-               GetNestedProperty(all, "Foreground Image", nameof(C.ImageAssetPresentationDefinition.Source)) is not null,
-            "Canvas All view must expose persisted geometry, appearance, and both image-layer contracts through its canonical groups.");
-        Assert(!all.Cast<PropertyDescriptor>()
-                .SelectMany(FlattenProperties)
-                .Any(property => property.Name.StartsWith("CanvasImage:", StringComparison.Ordinal)),
-            "Canvas property views must not reintroduce synthetic CanvasImage:* descriptor identities.");
+                $"Canvas must not expose unrelated {section} controls.");
     }
 
     private static void CanvasImageSourcePresentationNormalization()
     {
-        var canvas = new CanvasDefinition
+        var canvas = new C.CanvasDefinition();
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Icon;
+        canvas.PanelBackground.Icon.Source = "lucide:cpu";
+        canvas.PanelForeground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelForeground.Image.Source = @"images\foreground.png";
+
+        var root = Path.GetTempPath();
+        var general = CurrentPropertyView(canvas, section: EditorPropertySection.General).GetProperties();
+        var panel = CurrentPropertyView(canvas, section: EditorPropertySection.Panel,
+            applicationRoot: root, dashboardDirectory: root).GetProperties();
+        var images = CurrentPropertyView(canvas, section: EditorPropertySection.Image,
+            applicationRoot: root, dashboardDirectory: root).GetProperties();
+        Assert(general["Background"] is null && general["Foreground"] is null,
+            "Canvas artwork source selection must not leak into General.");
+        foreach (var name in new[] { "Background", "Foreground" })
         {
-            BackgroundImage = new CanvasImageLayerDefinition
-            {
-                SourceType = StateVisualProfileContract.SourceIcon,
-                Source = "lucide:cpu"
-            },
-            ForegroundImage = new CanvasImageLayerDefinition
-            {
-                SourceType = StateVisualProfileContract.SourceFile,
-                Source = @"images\foreground.png"
-            }
-        };
-
-        var sharedEditorRoot = Path.GetTempPath();
-        var canvasGeneral = CurrentPropertyView(
-            canvas,
-            applicationRoot: sharedEditorRoot,
-            dashboardDirectory: sharedEditorRoot,
-            section: EditorPropertySection.General).GetProperties();
-        var canvasImage = CurrentPropertyView(canvas, section: EditorPropertySection.Image).GetProperties();
-
-        foreach (var group in new[] { "Background Image", "Foreground Image" })
-        {
-            foreach (var name in new[]
-                     {
-                         nameof(C.ImageAssetPresentationDefinition.SourceType),
-                         nameof(C.ImageAssetPresentationDefinition.Source)
-                     })
-            {
-                Assert(GetNestedProperty(canvasGeneral, group, name) is not null &&
-                       GetNestedProperty(canvasImage, group, name) is null,
-                    $"Canvas {group} {name} must belong exclusively to General.");
-            }
-
-            foreach (var name in new[]
-                     {
-                         nameof(C.ImageAssetPresentationDefinition.Fit),
-                         nameof(C.ImageAssetPresentationDefinition.Loop)
-                     })
-            {
-                Assert(GetNestedProperty(canvasGeneral, group, name) is null &&
-                       GetNestedProperty(canvasImage, group, name) is not null,
-                    $"Canvas {group} {name} must belong exclusively to Image.");
-            }
+            Assert(GetNestedProperty(panel, name, "Mode") is not null &&
+                   GetNestedProperty(panel, name, "Source") is not null,
+                $"Canvas Panel {name} must own active source selection.");
+            Assert(GetNestedProperty(images, name, "Fit") is not null &&
+                   GetNestedProperty(images, name, "Loop") is not null &&
+                   GetNestedProperty(images, name, "Source") is null,
+                $"Canvas Image {name} must own presentation but not Source.");
         }
 
-        var imageWidget = new WidgetDefinition
-        {
-            Type = WidgetTypeContract.Image,
-            Id = "canvas-source-presentation-parity",
-            SourceType = StateVisualProfileContract.SourceIcon,
-            Source = "lucide:cpu",
-            Width = 100f,
-            Height = 100f
-        };
-        var widgetGeneral = CurrentPropertyView(
-            imageWidget,
-            applicationRoot: sharedEditorRoot,
-            dashboardDirectory: sharedEditorRoot,
-            section: EditorPropertySection.General).GetProperties();
-        var widgetImage = CurrentPropertyView(imageWidget,
-            applicationRoot: sharedEditorRoot, dashboardDirectory: sharedEditorRoot,
-            section: EditorPropertySection.Image).GetProperties();
-
-        var canvasSourceType = GetNestedProperty(canvasGeneral, "Background Image", nameof(C.ImageAssetPresentationDefinition.SourceType));
-        var canvasSource = GetNestedProperty(canvasGeneral, "Background Image", nameof(C.ImageAssetPresentationDefinition.Source));
-        var widgetSourceType = GetNestedProperty(widgetImage, "Image", nameof(C.ImageAssetPresentationDefinition.SourceType));
-        var widgetSource = GetNestedProperty(widgetImage, "Image", nameof(C.ImageAssetPresentationDefinition.Source));
-        Assert(canvasSourceType is not null && canvasSource is not null && widgetSourceType is not null && widgetSource is not null &&
-               canvasSourceType.ComponentType == typeof(C.ImageAssetPresentationDefinition) &&
-               canvasSource.ComponentType == typeof(C.ImageAssetPresentationDefinition) &&
-               widgetSourceType.ComponentType == typeof(C.ImageAssetPresentationDefinition) &&
-               widgetSource.ComponentType == typeof(C.ImageAssetPresentationDefinition),
-            "Canvas and Image widget source selection must be owned by the shared canonical ImageAssetPresentationDefinition.");
-        Assert(canvasSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor &&
+        var widget = new C.ImageWidgetDefinition { Id = "shared-image-picker", Width = 50, Height = 50 };
+        widget.Asset.SourceType = C.ImageAssetSourceType.Icon;
+        widget.Asset.Source = "lucide:cpu";
+        var widgetImage = CurrentPropertyView(widget, section: EditorPropertySection.Image,
+            applicationRoot: root, dashboardDirectory: root).GetProperties();
+        var panelSource = GetNestedProperty(panel, "Background", "Source");
+        var widgetSource = GetNestedProperty(widgetImage, "Image", "Source");
+        Assert(panelSource is not null && widgetSource is not null &&
+               panelSource.ComponentType == typeof(C.WidgetPanelLayerDefinition) &&
+               widgetSource.ComponentType == typeof(C.ImageAssetPresentationDefinition) &&
+               panelSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor &&
                widgetSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor,
-            "Canvas and Image widget file/icon selection must use the shared canonical image-asset source editor.");
+            "Canvas Panel and Image content must share the asset source picker.");
 
-        Assert(widgetSourceType is not null && widgetSource is not null &&
-               GetNestedProperty(widgetGeneral, "Source", nameof(C.ImageAssetPresentationDefinition.SourceType)) is null,
-            "Image widget source selection belongs to Image/Image, not General.");
-        Assert(GetNestedProperty(widgetImage, "Image", nameof(C.ImageAssetPresentationDefinition.Fit)) is not null &&
-               GetNestedProperty(widgetImage, "Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is not null &&
-               GetNestedProperty(widgetImage, "Image", nameof(C.ImageWidgetDefinition.IconOpacity)) is not null,
-            "Icon content keeps Fit/Loop/Icon Opacity in Image/Image.");
+        Assert(GetNestedProperty(images, "Background", nameof(C.WidgetPanelLayerDefinition.IconColor)) is not null &&
+               GetNestedProperty(images, "Background", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is not null &&
+               GetNestedProperty(images, "Foreground", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is null,
+            "Canvas icon-only settings must not be shown for a file image.");
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelBackground.Image.Source = "photo.png";
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Icon;
+        Assert(canvas.PanelBackground.Icon.Source == "lucide:cpu" &&
+               canvas.PanelBackground.Image.Source == "photo.png",
+            "Canvas layer mode changes must preserve dormant image and icon sources.");
     }
 
     private static void CanvasSchema16GeometryMigration()
@@ -263,12 +160,12 @@ internal static partial class Program
                canvas["height"]!.GetValue<int>() == FrameGeometry.DefaultNativeHeight,
             "Schema 16 -> 17 migration must materialize the historical 1920x480 native Canvas geometry.");
         Assert(canvas["orientation"]!.GetValue<int>() == 90 &&
-               canvas["backgroundColor"]!.GetValue<string>() == "#112233" &&
+               canvas["panelBackground"]!["color"]!.GetValue<string>() == "#112233" &&
                !canvas.ContainsKey("background") && !canvas.ContainsKey("foreground"),
             "Canvas migration must preserve orientation/background color and remove obsolete raw image paths.");
 
-        AssertMigratedCanvasImageLayer(canvas, "backgroundImage", @"images\background.png");
-        AssertMigratedCanvasImageLayer(canvas, "foregroundImage", @"images\foreground.png");
+        AssertMigratedCanvasImageLayer(canvas, "panelBackground", @"images\background.png");
+        AssertMigratedCanvasImageLayer(canvas, "panelForeground", @"images\foreground.png");
     }
 
     private static void CanvasSchema17ImageLayerMigration()
@@ -299,10 +196,10 @@ internal static partial class Program
         Assert(canvas["width"]!.GetValue<int>() == 800 &&
                canvas["height"]!.GetValue<int>() == 300 &&
                canvas["orientation"]!.GetValue<int>() == 270 &&
-               canvas["backgroundColor"]!.GetValue<string>() == "#010203",
+               canvas["panelBackground"]!["color"]!.GetValue<string>() == "#010203",
             "Schema 17 -> current migration must preserve configurable geometry and Canvas appearance.");
-        AssertMigratedCanvasImageLayer(canvas, "backgroundImage", @"images\background.png");
-        AssertMigratedCanvasImageLayer(canvas, "foregroundImage", null);
+        AssertMigratedCanvasImageLayer(canvas, "panelBackground", @"images\background.png");
+        AssertMigratedCanvasImageLayer(canvas, "panelForeground", null);
         Assert(!canvas.ContainsKey("background") && !canvas.ContainsKey("foreground"),
             "Schema 17 migration must remove obsolete raw Canvas image-path properties.");
     }
@@ -321,47 +218,39 @@ internal static partial class Program
                 Path.Combine(imagesRoot, "animated.gif"),
                 Convert.FromBase64String("R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQICgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQICgAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7"));
 
-            var canvas = new CanvasDefinition
-            {
-                BackgroundImage = new CanvasImageLayerDefinition
-                {
-                    SourceType = StateVisualProfileContract.SourceFile,
-                    Source = @"images\static.png"
-                }
-            };
+            var canvas = new C.CanvasDefinition();
+            canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Image;
+            canvas.PanelBackground.Image.Source = @"images\static.png";
 
             PropertyDescriptorCollection ImageProperties() => CurrentPropertyView(
-                canvas,
-                applicationRoot: tempRoot,
-                dashboardDirectory: dashboardRoot,
+                canvas, applicationRoot: tempRoot, dashboardDirectory: dashboardRoot,
                 section: EditorPropertySection.Image).GetProperties();
 
-            var fileProperties = ImageProperties();
-            Assert(GetNestedProperty(fileProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Fit)) is { IsReadOnly: false } &&
-                   GetNestedProperty(fileProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.IconOpacity)) is null &&
-                   GetNestedProperty(fileProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is { IsReadOnly: true, Description: "Not applicable for selected Source." } &&
-                   GetNestedProperty(fileProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.Color)) is null,
-                "Static file Canvas layers keep Fit and no Opacity/tint controls.");
+            var file = ImageProperties();
+            Assert(GetNestedProperty(file, "Background", "Fit") is { IsReadOnly: false } &&
+                   GetNestedProperty(file, "Background", "Loop") is { IsReadOnly: true, Description: "Not applicable for selected Source." } &&
+                   GetNestedProperty(file, "Background", nameof(C.WidgetPanelLayerDefinition.IconColor)) is null &&
+                   GetNestedProperty(file, "Background", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is null,
+                "Static Canvas file image has no independent tint/opacity or animation Loop.");
 
-            canvas.BackgroundImage.Source = @"images\animated.gif";
-            var animatedFileProperties = ImageProperties();
-            Assert(GetNestedProperty(animatedFileProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is { IsReadOnly: false },
-                "Animated file Canvas layers must enable Loop by asset capability.");
+            canvas.PanelBackground.Image.Source = @"images\animated.gif";
+            Assert(GetNestedProperty(ImageProperties(), "Background", "Loop") is { IsReadOnly: false },
+                "Animated Canvas file image enables Loop.");
 
-            canvas.BackgroundImage.SourceType = StateVisualProfileContract.SourceIcon;
-            canvas.BackgroundImage.Source = "mixed:vector";
-            var svgProperties = ImageProperties();
-            Assert(GetNestedProperty(svgProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.Color)) is { IsReadOnly: false } &&
-                   GetNestedProperty(svgProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.IconOpacity)) is { IsReadOnly: false } &&
-                   GetNestedProperty(svgProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is { IsReadOnly: true },
-                "Tintable static SVG Canvas layers must enable Color/IconOpacity and disable Loop.");
+            canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Icon;
+            canvas.PanelBackground.Icon.Source = "mixed:vector";
+            var vector = ImageProperties();
+            Assert(GetNestedProperty(vector, "Background", nameof(C.WidgetPanelLayerDefinition.IconColor)) is { IsReadOnly: false } &&
+                   GetNestedProperty(vector, "Background", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is { IsReadOnly: false } &&
+                   GetNestedProperty(vector, "Background", "Loop") is { IsReadOnly: true },
+                "Tintable static Canvas icon enables tint and opacity but not Loop.");
 
-            canvas.BackgroundImage.Source = "mixed:animated.gif";
-            var animatedIconProperties = ImageProperties();
-            Assert(GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.Color)) is { IsReadOnly: true } &&
-                   GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.IconOpacity)) is { IsReadOnly: false } &&
-                   GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is { IsReadOnly: false },
-                "Animated raster icon Canvas layers preserve intrinsic color and enable Loop/Opacity.");
+            canvas.PanelBackground.Icon.Source = "mixed:animated.gif";
+            var animated = ImageProperties();
+            Assert(GetNestedProperty(animated, "Background", nameof(C.WidgetPanelLayerDefinition.IconColor)) is { IsReadOnly: true } &&
+                   GetNestedProperty(animated, "Background", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is { IsReadOnly: false } &&
+                   GetNestedProperty(animated, "Background", "Loop") is { IsReadOnly: false },
+                "Animated raster Canvas icon preserves intrinsic color but enables Loop.");
         }
         finally
         {
@@ -493,9 +382,9 @@ internal static partial class Program
             using var cover = Render(StateVisualProfileContract.FitCover);
             using var stretch = Render(StateVisualProfileContract.FitStretch);
 
-            Assert(contain.GetPixel(2, 10) == SkiaSharp.SKColors.Black &&
+            Assert(contain.GetPixel(2, 10).Alpha == 0 &&
                    contain.GetPixel(20, 10).Green > 220,
-                "Canvas contain fit must preserve aspect ratio and letterbox a mismatched image.");
+                "Canvas contain fit must preserve aspect ratio and leave a transparent letterbox without the retired background-color underlay.");
             Assert(cover.GetPixel(2, 10).Green > 220,
                 "Canvas cover fit must preserve aspect ratio while filling and clipping the Canvas.");
             Assert(stretch.GetPixel(20, 1).Red > 220 && stretch.GetPixel(20, 18).Blue > 220,
@@ -1392,8 +1281,8 @@ internal static partial class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 29,
-            "The executable current dashboard contract must be schema 29.");
+               MetricContract.DashboardSchemaVersion == 30,
+            "The executable current dashboard contract must be schema 30.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition
@@ -1632,7 +1521,8 @@ internal static partial class Program
         AssertBothDirections(image.Asset, "Image widget");
 
         var canvas = new C.CanvasDefinition();
-        AssertBothDirections(canvas.BackgroundImage.Asset, "Canvas image layer");
+        AssertBothDirections(canvas.PanelBackground.Image, "Canvas Panel image asset");
+        AssertBothDirections(canvas.PanelBackground.Icon, "Canvas Panel icon asset");
 
         var profile = new C.StateVisualProfileDefinition { ContentType = C.StateContentType.Image };
         AssertBothDirections(profile.Asset, "State image profile");

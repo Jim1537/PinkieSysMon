@@ -1,4 +1,4 @@
-using PinkieSysMon.DashboardModel;
+using CanonicalCanvasDefinition = PinkieSysMon.DashboardModel.CanvasDefinition;
 using SkiaSharp;
 
 namespace PinkieSysMon.Widgets;
@@ -7,13 +7,13 @@ namespace PinkieSysMon.Widgets;
 // alpha rules. The separate Canvas lifetime never fabricates a WidgetDefinition.
 internal sealed class CanvasPanelGraphics : IDisposable
 {
-    private readonly CanvasDefinition _root;
+    private readonly CanonicalCanvasDefinition _root;
     private readonly WidgetRenderContext.ContainerRenderResources _resources;
     private readonly SKRect _bounds;
     private readonly float _radius;
     private readonly bool _antialias;
 
-    internal CanvasPanelGraphics(CanvasDefinition root, int width, int height,
+    internal CanvasPanelGraphics(CanonicalCanvasDefinition root, int width, int height,
         ImageAssetCache images, IconAssetCache icons, bool antialias)
     {
         _root = root;

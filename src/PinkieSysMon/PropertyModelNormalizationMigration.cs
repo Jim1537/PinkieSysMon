@@ -39,6 +39,19 @@ internal static class PropertyModelNormalizationMigration
         var canonical = MapLegacyDefinition(legacy);
 
         var normalized = DashboardJson.SerializeToObjectUnchecked(canonical);
+        // This is the *historical schema-19 intermediate*, not schema 30.
+        // Keep its original Canvas fields until the dedicated 29→30 migration.
+        // MapLegacyDefinition separately provides the contemporary Canvas Panel
+        // representation for legacy preview consumers.
+        normalized["canvas"] = new JsonObject
+        {
+            ["width"] = canonical.Canvas.Width,
+            ["height"] = canonical.Canvas.Height,
+            ["orientation"] = canonical.Canvas.Orientation,
+            ["backgroundColor"] = legacy.Canvas.BackgroundColor,
+            ["backgroundImage"] = JsonSerializer.SerializeToNode(MapCanvasLayer(legacy.Canvas.BackgroundImage)),
+            ["foregroundImage"] = JsonSerializer.SerializeToNode(MapCanvasLayer(legacy.Canvas.ForegroundImage))
+        };
         root.Clear();
         foreach (var pair in normalized)
             root[pair.Key] = pair.Value?.DeepClone();
@@ -133,10 +146,37 @@ internal static class PropertyModelNormalizationMigration
         Width = legacy.Width,
         Height = legacy.Height,
         Orientation = legacy.Orientation,
-        BackgroundColor = legacy.BackgroundColor,
-        BackgroundImage = MapCanvasLayer(legacy.BackgroundImage),
-        ForegroundImage = MapCanvasLayer(legacy.ForegroundImage)
+        PanelBackground = MapCanvasPanelLayer(legacy.BackgroundImage, legacy.BackgroundColor, background: true),
+        PanelForeground = MapCanvasPanelLayer(legacy.ForegroundImage, "#00000000", background: false)
     };
+
+    private static CanonicalDashboard.WidgetPanelLayerDefinition MapCanvasPanelLayer(
+        CanvasImageLayerDefinition legacy, string color, bool background)
+    {
+        var result = new CanonicalDashboard.WidgetPanelLayerDefinition
+        {
+            Mode = background ? CanonicalDashboard.WidgetPanelLayerMode.Color
+                              : CanonicalDashboard.WidgetPanelLayerMode.None,
+            Color = color
+        };
+        var mapped = MapCanvasLayer(legacy);
+        if (string.IsNullOrWhiteSpace(mapped.Asset.Source))
+            return result;
+
+        if (CanonicalDashboard.ImageAssetSourceType.IsIcon(mapped.Asset.SourceType))
+        {
+            result.Mode = CanonicalDashboard.WidgetPanelLayerMode.Icon;
+            result.Icon = mapped.Asset;
+            result.IconColor = mapped.Color;
+            result.IconOpacity = mapped.IconOpacity;
+        }
+        else
+        {
+            result.Mode = CanonicalDashboard.WidgetPanelLayerMode.Image;
+            result.Image = mapped.Asset;
+        }
+        return result;
+    }
 
     private static CanonicalDashboard.CanvasImageLayerDefinition MapCanvasLayer(CanvasImageLayerDefinition legacy) => new()
     {

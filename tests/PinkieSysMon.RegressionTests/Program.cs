@@ -1060,26 +1060,26 @@ internal static partial class Program
     private static void AssertMigratedCanvasImageLayer(JsonObject canvas, string name, string? expectedSource)
     {
         var layer = canvas[name] as JsonObject
-            ?? throw new InvalidOperationException($"Migrated Canvas layer '{name}' is missing.");
-        var asset = layer["asset"] as JsonObject
-            ?? throw new InvalidOperationException($"Migrated Canvas layer '{name}' canonical Asset is missing.");
-        Assert(asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.File,
-            $"Migrated Canvas layer '{name}' must remain a file-backed image.");
-        Assert((expectedSource is null && asset["source"] is null) ||
-               (expectedSource is not null && asset["source"]?.GetValue<string>() == expectedSource),
-            $"Migrated Canvas layer '{name}' lost its original file source.");
+            ?? throw new InvalidOperationException($"Migrated Canvas Panel layer '{name}' is missing.");
+        if (expectedSource is null)
+        {
+            Assert(layer["mode"]?.GetValue<string>() == C.WidgetPanelLayerMode.None,
+                $"Unconfigured Canvas Panel layer '{name}' must remain None.");
+            return;
+        }
+
+        Assert(layer["mode"]?.GetValue<string>() == C.WidgetPanelLayerMode.Image,
+            $"Migrated Canvas Panel layer '{name}' must use an active file image.");
+        var asset = layer["image"] as JsonObject
+            ?? throw new InvalidOperationException($"Migrated Canvas Panel '{name}' image is missing.");
+        Assert(asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.File &&
+               asset["source"]?.GetValue<string>() == expectedSource,
+            $"Migrated Canvas Panel '{name}' lost its historical file source.");
         Assert(asset["fit"]?.GetValue<string>() == StateVisualProfileContract.FitStretch &&
                asset["loop"]?.GetValue<bool>() == true,
-            $"Migrated Canvas layer '{name}' lost its legacy stretch and loop settings.");
-        Assert(layer["opacity"] is null,
-            $"Migrated Canvas layer '{name}' must not persist legacy file opacity.");
-        // Schema 18->19 normalization stored the default icon opacity in the canonical
-        // Canvas layer, even for a file source. It remains dormant for file rendering.
-        Assert(layer["iconOpacity"] is JsonValue &&
-               Math.Abs(layer["iconOpacity"]!.GetValue<float>() - 1f) < 0.001f,
-            $"Migrated Canvas layer '{name}' must retain its default dormant icon opacity.");
-        Assert(layer["color"]?.GetValue<string>() == "#FFFFFFFF",
-            $"Migrated Canvas layer '{name}' lost its intrinsic-color default.");
+            $"Migrated Canvas Panel '{name}' lost its historical Fit/Loop.");
+        Assert(layer["iconOpacity"] is null,
+            $"Legacy file opacity must not become a Canvas Panel image opacity.");
     }
 
     private static void AssertCanonicalMigratedStateProfile(
