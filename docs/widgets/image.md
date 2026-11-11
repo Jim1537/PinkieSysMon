@@ -33,16 +33,18 @@ The Editor then opens the corresponding file selector or icon browser. Complete 
 
 ### Step 2. Select or change the source
 
-Open `Image → Image` to configure the widget.
+Open **General → Image Source** to select the widget's content. This separate group follows the universal **Data Source → Metric** row, which remains disabled and displays `Not applicable` for Image.
 
 | Property | Meaning |
 | --- | --- |
 | `Type` | `Image` for a dashboard file or `Icon` for a shared library icon. |
-| `Source` | The selected file path or logical icon name. Its editor depends on `Type`. |
+| `Image` / `Icon` | Contextual selector for a dashboard file or global icon. The selected source is still stored in `asset.source`. |
+
+The read-only **General → Identity → Type** identifies the widget as `image`; it is different from this editable content `Type`.
 
 #### Image: dashboard file
 
-For `Type = Image`, use `Source` to select an image file. The Editor opens a file picker, initially focused on the dashboard's `images` directory.
+For `Type = Image`, use the `Image` row to select an image file. The Editor opens a file picker, initially focused on the dashboard's `images` directory.
 
 If you choose a file **outside** the dashboard directory, the Editor copies it into the dashboard's `images` directory and stores a relative path. If a conflicting filename exists with different contents, it generates a distinct destination name instead of silently overwriting the existing file.
 
@@ -52,12 +54,12 @@ The file picker includes filters for PNG, JPEG, WebP, BMP, and GIF. Decoding sti
 
 #### Icon: shared library asset
 
-For `Type = Icon`, `Source` opens the global icon browser. The browser allows selection by library, text search, and visual preview. It also reports the selected icon's relevant capabilities, including whether it is animated and whether it can be tinted.
+For `Type = Icon`, the `Icon` row opens the global icon browser. The browser allows selection by library, text search, and visual preview. It also reports the selected icon's relevant capabilities, including whether it is animated and whether it can be tinted.
 
 An icon source is recorded as a logical name, for example `lucide:cpu`, not as a dashboard-relative filename.
 
 !!! warning
-    Changing `Type` between `Image` and `Icon` clears `Source`. Select a new source after changing the type; an old file path is not interpreted as an icon name, and an old icon name is not interpreted as an image file.
+    Changing `Type` between `Image` and `Icon` clears the previously selected source. Select a new source after changing the type; an old file path is not interpreted as an icon name, and an old icon name is not interpreted as an image file.
 
 
 See [Image Source Type](properties.md#image-source-type) and [Image Source](properties.md#image-source).
@@ -253,9 +255,10 @@ The principal Editor properties are:
 
 | Tab | Group | Settings |
 | --- | --- | --- |
-| General | Identity / Data Source | Read-only Type and ID, editable Name; no metric |
+| General | Identity / Data Source | Read-only widget Type and ID, editable Name; universal Metric disabled (`Not applicable`) |
+| General | Image Source | Editable content Type (Image / Icon), contextual Image / Icon selector |
 | Panel | Geometry / Background / Foreground / Border / Shadow | Common container settings and independent visual layers |
-| Image | Image | Source Type, Source, Fit, Loop; icon-only Color and Opacity |
+| Image | Image | Fit, Loop; icon-only Color and Opacity |
 | Image | Background / Foreground | Fit, Loop and icon-only presentation for active graphical Panel layers |
 
 The Image tab enables [Loop](properties.md#image-loop) for animated files and icons.

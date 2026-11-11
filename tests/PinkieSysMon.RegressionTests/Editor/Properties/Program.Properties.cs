@@ -561,10 +561,10 @@ internal static partial class Program
             Asset = new C.ImageAssetPresentationDefinition { SourceType = C.ImageAssetSourceType.Icon, Source = "activity" }
         };
         var imageView = new EditorMultiPropertyView([
-            new EditorPropertyView(fileImage, "root", "dashboard", section: EditorPropertySection.Image),
-            new EditorPropertyView(iconImage, "root", "dashboard", section: EditorPropertySection.Image)
+            new EditorPropertyView(fileImage, "root", "dashboard", section: EditorPropertySection.General),
+            new EditorPropertyView(iconImage, "root", "dashboard", section: EditorPropertySection.General)
         ]);
-        var imageSource = GetNestedProperty(imageView.GetProperties(), "Image", "Source");
+        var imageSource = GetNestedProperty(imageView.GetProperties(), "Image Source", "Source");
         Assert(imageSource is not null && imageSource.IsReadOnly &&
                string.Equals(imageSource.Description, sourceTypeReason, StringComparison.Ordinal),
             "A canonical image source editor with mixed Source Type context must remain visible but disabled.");

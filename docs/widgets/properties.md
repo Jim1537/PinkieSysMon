@@ -847,7 +847,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 !!! info ""
 
-    **Editor name:** Source; standalone Image displays Image or Icon dynamically
+    **Editor name:** Source; standalone Image displays Image or Icon dynamically in General → Image Source
 
     **Semantic keys:**
     - `image.content.source`
@@ -882,6 +882,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **Used by:** Graph background image, Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 
     **Context notes:**
+    - Standalone Image content selects its source in **General → Image Source**, separately from the Panel layers and the contextual Image presentation tab.
     - State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
     - Shared image assets clear Source when [Image Source Type](properties.md#image-source-type) changes between file and icon.
     - Bar Image mode is file-backed only.
@@ -896,7 +897,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 !!! info ""
 
-    **Editor name:** Type
+    **Editor name:** Type (standalone Image: **General → Image Source**)
 
     **Semantic keys:**
     - `image.content.kind`

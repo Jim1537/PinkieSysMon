@@ -262,6 +262,16 @@ internal static class CanonicalPropertyViewBuilder
         }
         result.Add(Group("Data Source", source));
 
+        if (widget is C.ImageWidgetDefinition image)
+        {
+            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
+                         !string.IsNullOrWhiteSpace(dashboardDirectory)
+                ? new ImageAssetSourceEditor(image.Asset, applicationRoot!, dashboardDirectory!) : null;
+            result.Add(Group("Image Source", ImageAssetSourceProperties(image.Asset,
+                "image.content.kind", "image.content.source", editor,
+                () => C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) ? "Icon" : "Image")));
+        }
+
         return result;
     }
 
@@ -851,12 +861,7 @@ internal static class CanonicalPropertyViewBuilder
 
         if (widget is C.ImageWidgetDefinition image)
         {
-            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
-                         !string.IsNullOrWhiteSpace(dashboardDirectory)
-                ? new ImageAssetSourceEditor(image.Asset, applicationRoot!, dashboardDirectory!) : null;
-            var rows = ImageAssetSourceProperties(image.Asset,
-                "image.content.kind", "image.content.source", editor,
-                () => C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) ? "Icon" : "Image");
+            var rows = new List<PropertyDescriptor>();
             rows.Add(String(image.Asset, "Fit", "image.asset.fit", "Fit",
                 () => image.Asset.Fit, v => image.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitStretch, converter: FitConverter));
             rows.Add(Bool(image.Asset, "Loop", "image.asset.loop", "Loop",

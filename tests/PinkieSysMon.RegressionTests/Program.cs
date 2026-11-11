@@ -175,6 +175,8 @@ internal static partial class Program
             ("Widgets / Shared Properties", [
                 ("Widget source property hierarchy", WidgetSourcePropertyHierarchy),
                 ("common widget property order and bindings", CommonWidgetPropertyTests.OrderAndBindings),
+                ("Issue #117 Image content source placement and switching", Issue117ImageSourcePropertyTests.PlacementAndSwitching),
+                ("Issue #117 Image mixed selection and persisted source", Issue117ImageSourcePropertyTests.MultiSelectionAndSerialization),
                 ("common padding parsing and atomic edits", CommonWidgetPropertyTests.PaddingEdits),
                 ("Issue #112 common panel and contextual image controls", Issue112PanelTests.CommonLayerContractAndContext),
                 ("Issue #112 migration through schema 30 and idempotence", Issue112PanelTests.MigrationAndRoundTrip),

@@ -35,6 +35,16 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Media Player Metric
     --8<-- "widgets/properties.md:media-player-metric"
 
+    ### Image Source (Image widget only)
+
+    This Image-specific group follows the universal Data Source group; it is not nested inside or substituted for Metric.
+
+    #### Type (Image or Icon)
+    --8<-- "widgets/properties.md:image-source-type"
+
+    #### Image / Icon (contextual source selector)
+    --8<-- "widgets/properties.md:image-source"
+
     Canvas is not a widget: General shows root Identity and Orientation. Its Width/Height and other common properties belong to Panel; Canvas has no widget ID or Data Source.
 
 === "Panel"
@@ -297,9 +307,7 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ### Image (widget content)
 
-    #### Source Type / Source
-    --8<-- "widgets/properties.md:image-source-type"
-    --8<-- "widgets/properties.md:image-source"
+    The standalone Image widget chooses its content Type and Image/Icon source on **General → Image Source**. This tab contains its presentation controls only.
 
     #### Fit / Loop
     --8<-- "widgets/properties.md:image-fit"
