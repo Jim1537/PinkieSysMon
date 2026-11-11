@@ -41,7 +41,7 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ## Panel
 
-    The common Panel tab is available on every widget and on the root Canvas. It owns geometry, both graphical layers, border and shadow, independently of widget-content styling. On Canvas, X/Y are fixed at zero, and Padding, Rotation and Z-order are read-only/not applicable; Width/Height, Corner Radius and graphical layers remain editable. Canvas Shadow settings are persisted here, but the Desktop-only contour renderer is still pending [Issue #113 Stage 05](https://github.com/Jim1537/PinkieSysMon/issues/113#issuecomment-6798345356). Physical Outputs ignore this setting.
+    The common Panel tab is available on every widget and on the root Canvas. It owns geometry, both graphical layers, border and shadow, independently of widget-content styling. On Canvas, X/Y are fixed at zero, and Padding, Rotation and Z-order are read-only/not applicable; Width/Height, Corner Radius and graphical layers remain editable. Canvas Shadow controls are persisted here; the Desktop-only rendering and viewport contract is described in the [Desktop guide](../outputs/desktop.md#placement-dpi-and-mouse-routing). [Issue #113 Stage 05](https://github.com/Jim1537/PinkieSysMon/issues/113#issuecomment-6798345356) still requires native Windows acceptance. Physical Outputs ignore this setting.
 
     ### Geometry
 
