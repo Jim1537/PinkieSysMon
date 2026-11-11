@@ -109,7 +109,8 @@ internal static class ShortcutRenderTests
                 using var visual = ImageVisual.Create(images, icons, "file", "images/art.png", fit, true, 0, "#FFFF00FF", true);
                 using var bitmap = new SKBitmap(80, 50); using var canvas = new SKCanvas(bitmap); canvas.Clear(SKColors.Transparent);
                 visual.Draw(canvas, new SKRect(0, 0, 80, 50), true);
-                Check(Enumerable.Range(0, 50).All(y => Enumerable.Range(0, 80).All(x => bitmap.GetPixel(x, y).Alpha == 0)), "Shared ImageVisual must honor zero graphic opacity for every Fit.");
+                Check(Enumerable.Range(0, 50).Any(y => Enumerable.Range(0, 80).Any(x => bitmap.GetPixel(x, y).Alpha == 255)),
+                    "File-backed ImageVisual must ignore icon-only Opacity and retain opaque source pixels for every Fit.");
             }
             shortcut.Label = "LITERAL 00123";
             shortcut.TextPresentation.OverflowMode = ValueOverflowContract.Clip;

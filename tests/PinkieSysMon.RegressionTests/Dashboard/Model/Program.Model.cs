@@ -358,7 +358,7 @@ internal static partial class Program
 
             canvas.BackgroundImage.Source = "mixed:animated.gif";
             var animatedIconProperties = ImageProperties();
-            Assert(GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.Color)) is null &&
+            Assert(GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.Color)) is { IsReadOnly: true } &&
                    GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.CanvasImageLayerDefinition.IconOpacity)) is { IsReadOnly: false } &&
                    GetNestedProperty(animatedIconProperties, "Background Image", nameof(C.ImageAssetPresentationDefinition.Loop)) is { IsReadOnly: false },
                 "Animated raster icon Canvas layers preserve intrinsic color and enable Loop/Opacity.");

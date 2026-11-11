@@ -470,7 +470,7 @@ internal static partial class Program
         Assert(horseshoe.Select(property => property.DisplayName).SequenceEqual(
             new[]
             {
-                "Enabled", "Reverse", "Start Angle", "End Angle", "Thickness",
+                "Indicator Color", "Enabled", "Reverse", "Start Angle", "End Angle", "Thickness",
                 "Background Color", "Border Width", "Border Color", "Corner Radius", "Gap"
             },
             StringComparer.Ordinal),
@@ -478,6 +478,7 @@ internal static partial class Program
         Assert(horseshoe.Select(property => property.Name).SequenceEqual(
             new[]
             {
+                nameof(WidgetDefinition.Color),
                 nameof(WidgetDefinition.TrackEnabled),
                 nameof(WidgetDefinition.Reverse),
                 nameof(WidgetDefinition.StartAngle),

@@ -18,8 +18,11 @@ internal static class GraphSignalTests
             current["widgets"]![0]!["reverse"] = reverse;
             var old = (JsonObject)current.DeepClone(); old["schemaVersion"] = 24;
             old["widgets"]![0]!.AsObject().Remove("interpolation"); old["widgets"]![0]!.AsObject().Remove("filter");
-            Check(DashboardSchemaMigration.UpgradeToCurrent(old) && JsonNode.DeepEquals(old, current),
-                "24-to-25 migration must preserve every field, direction and raw Linear appearance.");
+            Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
+                  JsonNode.DeepEquals(
+                      JsonNode.Parse(DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "graph-signal-migrated.json")), false)),
+                      current),
+                "24-to-current migration must preserve fields and direction after canonical panel defaults are materialized.");
             Check(!DashboardSchemaMigration.UpgradeToCurrent(old), "Signal migration must be idempotent.");
         }
         var omitted = (JsonObject)current.DeepClone(); omitted["widgets"]![0]!.AsObject().Remove("interpolation"); omitted["widgets"]![0]!.AsObject().Remove("filter");
@@ -50,7 +53,10 @@ internal static class GraphSignalTests
         var graphFreeCurrent = JsonNode.Parse(DashboardJson.Serialize(graphFree, false))!.AsObject();
         var graphFreeOld = (JsonObject)graphFreeCurrent.DeepClone(); graphFreeOld["schemaVersion"] = 24;
         DashboardSchemaMigration.UpgradeToCurrent(graphFreeOld);
-        Check(JsonNode.DeepEquals(graphFreeOld, graphFreeCurrent), "Graph-free migration must change only schema version.");
+        Check(JsonNode.DeepEquals(
+                JsonNode.Parse(DashboardJson.Serialize(C.DashboardDefinition.Parse(graphFreeOld.ToJsonString(), Path.Combine(Path.GetTempPath(), "graph-free-signal.json")), false)),
+                graphFreeCurrent),
+            "Graph-free migration must preserve content after canonical panel defaults are materialized.");
     }
 
     private static MetricHistorySample[] Samples(params double?[] values) => values.Select((value, i) =>

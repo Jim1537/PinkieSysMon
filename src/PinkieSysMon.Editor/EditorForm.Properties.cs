@@ -37,7 +37,7 @@ internal sealed partial class EditorForm
     private readonly TabPage _textPropertyTab = new() { Name = "Text", Padding = Padding.Empty, ToolTipText = "Text", AccessibleName = "Text" };
 
     private static readonly string[] PropertyGeneralIcons = ["settings-2", "settings", "sliders-horizontal", "grid-3x3"];
-    private static readonly string[] PropertyPanelIcons = ["layers-2", "layers", "square"];
+    private static readonly string[] PropertyPanelIcons = ["layers-2", "layers", "square", "grid-3x3"];
     private static readonly string[] PropertyAppearanceIcons = ["palette", "paintbrush", "swatch-book", "focus"];
     private static readonly string[] PropertyDataIcons = ["database", "server", "hard-drive", "folder-open"];
     private static readonly string[] PropertyGaugeIcons = ["gauge", "activity", "focus"];

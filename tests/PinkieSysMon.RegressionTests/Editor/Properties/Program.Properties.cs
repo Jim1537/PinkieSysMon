@@ -295,9 +295,8 @@ internal static partial class Program
             stateImage,
             "State: True",
             $"{StateVisualProfilePropertyDescriptor.PropertyPrefix}{BinarySignalContract.TrueKey}:{StateVisualProfileField.Color}");
-        Assert(stateColor is { IsReadOnly: true } &&
-               stateColor.GetEditor(typeof(UITypeEditor)) is null,
-            "Context-disabled state-profile color properties must suppress their custom editor too.");
+        Assert(stateColor is null,
+            "File-backed state assets have no icon-tint color editor.");
     }
 
     private static void DateTimeFormatEditorContract()
@@ -1145,19 +1144,34 @@ internal static partial class Program
         var canvasProperties = new EditorPropertyView(canvas, section: EditorPropertySection.All).GetProperties();
         var canvasKeys = new HashSet<string>(StringComparer.Ordinal);
         CollectLeafSemanticKeys(canvasProperties, canvasKeys);
+
         foreach (var required in new[]
                  {
                      "general.geometry.width", "general.geometry.height", "general.geometry.orientation", "appearance.background.color",
                      "general.background_image.asset.kind", "general.background_image.asset.source",
                      "general.foreground_image.asset.kind", "general.foreground_image.asset.source",
-                     "image.background_image.asset.fit", "image.background_image.opacity",
-                     "image.background_image.asset.loop", "image.background_image.color",
-                     "image.foreground_image.asset.fit", "image.foreground_image.opacity",
-                     "image.foreground_image.asset.loop", "image.foreground_image.color"
+                     "image.background_image.asset.fit", "image.background_image.asset.loop",
+                     "image.foreground_image.asset.fit", "image.foreground_image.asset.loop"
                  })
-        {
-            Assert(canvasKeys.Contains(required), $"Canvas canonical property view is missing semantic key '{required}'.");
-        }
+            Assert(canvasKeys.Contains(required), $"File Canvas canonical view is missing semantic key '{required}'.");
+        Assert(!canvasKeys.Contains("image.background_image.icon_opacity") &&
+               !canvasKeys.Contains("image.background_image.color") &&
+               !canvasKeys.Contains("image.foreground_image.icon_opacity") &&
+               !canvasKeys.Contains("image.foreground_image.color"),
+            "File-backed Canvas layers must not expose independent alpha or icon tint.");
+
+        canvas.BackgroundImage.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon);
+        canvas.BackgroundImage.Asset.Source = "lucide:check";
+        canvas.ForegroundImage.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon);
+        canvas.ForegroundImage.Asset.Source = "lucide:check";
+        var iconKeys = new HashSet<string>(StringComparer.Ordinal);
+        CollectLeafSemanticKeys(new EditorPropertyView(canvas, section: EditorPropertySection.All).GetProperties(), iconKeys);
+        foreach (var required in new[]
+                 {
+                     "image.background_image.icon_opacity", "image.background_image.color",
+                     "image.foreground_image.icon_opacity", "image.foreground_image.color"
+                 })
+            Assert(iconKeys.Contains(required), $"Icon Canvas view is missing semantic key '{required}'.");
 
         static void ConfigureCoverageStateProfiles(C.StateVisualWidgetDefinition widget)
         {

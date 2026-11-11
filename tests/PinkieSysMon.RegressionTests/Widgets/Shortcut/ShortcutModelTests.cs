@@ -58,7 +58,11 @@ internal static class ShortcutModelTests
         var original = JsonNode.Parse(DashboardJson.Serialize(Board(new C.BarWidgetDefinition
             { Id = "bar", Width = 100, Height = 20, Metric = SystemMetricContract.Uptime, Reverse = true }), false))!.AsObject();
         var old = (JsonObject)original.DeepClone(); old["schemaVersion"] = 25;
-        Check(DashboardSchemaMigration.UpgradeToCurrent(old) && JsonNode.DeepEquals(old, original), "25-to-26 must preserve every existing field and change only schemaVersion.");
+        Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
+              JsonNode.DeepEquals(
+                  JsonNode.Parse(DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "shortcut-legacy-migrated.json")), false)),
+                  original),
+            "25-to-current must preserve every content field after materializing new panel defaults.");
         Check(!DashboardSchemaMigration.UpgradeToCurrent(old), "Repeated migration must be idempotent.");
         var serialized = DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "shortcut-migration.json")), false);
         Check(serialized == DashboardJson.Serialize(C.DashboardDefinition.Parse(serialized, Path.Combine(Path.GetTempPath(), "shortcut-migration.json")), false), "Migrate/save/load must remain idempotent.");

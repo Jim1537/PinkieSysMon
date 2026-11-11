@@ -145,7 +145,8 @@ internal static class Issue112PanelTests
 
     public static void ThreeLayerRenderingAndFileAlpha()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "pinkie-issue112-" + Guid.NewGuid().ToString("N"));
+        var applicationRoot = ApplicationRootLocator.Find(AppContext.BaseDirectory);
+        var directory = Path.Combine(applicationRoot, "artifacts", "issue112-panel-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {

@@ -87,8 +87,8 @@ internal static partial class Program
                GetNestedProperty(
                    image,
                    "State: Paused",
-                   StateProperty(MediaMetricContract.StatusPaused, StateVisualProfileField.Opacity)) is { DisplayName: "Opacity" },
-            "File-backed Media Player state must expose standard Fit, Loop, and Opacity image presentation.");
+                   StateProperty(MediaMetricContract.StatusPaused, StateVisualProfileField.Opacity)) is null,
+            "File-backed Media Player states must expose Fit/Loop without independent Opacity.");
         Assert(GetNestedProperty(
                    image,
                    "State: Stopped",
@@ -112,7 +112,7 @@ internal static partial class Program
             section: EditorPropertySection.Text).GetProperties();
         Assert(text.Count == 1 && text["State: Playing"] is PropertyGroupPropertyDescriptor,
             "Media Player Text tab must expose only value-backed state profiles.");
-        foreach (var group in new[] { "Foreground", "Font", "Alignment", "Outline", "Overflow" })
+        foreach (var group in new[] { "Color", "Font", "Alignment", "Outline", "Overflow" })
         {
             Assert(GetNestedProperty(text, "State: Playing", group) is PropertyGroupPropertyDescriptor,
                 $"Media Player value state Text presentation is missing '{group}'.");
@@ -341,7 +341,7 @@ internal static partial class Program
                asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.Icon &&
                asset["source"]?.GetValue<string>() == "lucide:play" &&
                playing["color"]?.GetValue<string>() == "#FF123456" &&
-               Math.Abs(playing["opacity"]!.GetValue<float>() - 0.75f) < 0.001f,
+               Math.Abs(playing["iconOpacity"]!.GetValue<float>() - 0.75f) < 0.001f,
             "Media Player migration must preserve existing state source/color/opacity settings in canonical profile structure.");
     }
 

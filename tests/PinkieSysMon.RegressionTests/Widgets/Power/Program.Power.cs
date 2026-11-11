@@ -88,8 +88,8 @@ internal static partial class Program
                GetNestedProperty(
                    image,
                    "State: Charging",
-                   StateProperty(PowerMetricContract.StateCharging, StateVisualProfileField.Opacity)) is { DisplayName: "Opacity" },
-            "File-backed Power state must expose standard Fit, Loop, and Opacity image presentation.");
+                   StateProperty(PowerMetricContract.StateCharging, StateVisualProfileField.Opacity)) is null,
+            "File-backed Power states must expose Fit/Loop without independent Opacity.");
         Assert(GetNestedProperty(
                    image,
                    "State: Low",
@@ -113,7 +113,7 @@ internal static partial class Program
             section: EditorPropertySection.Text).GetProperties();
         Assert(text.Count == 1 && text["State: Online"] is PropertyGroupPropertyDescriptor,
             "Power Text tab must expose only value-backed state profiles.");
-        foreach (var group in new[] { "Foreground", "Font", "Alignment", "Outline", "Overflow" })
+        foreach (var group in new[] { "Color", "Font", "Alignment", "Outline", "Overflow" })
         {
             Assert(GetNestedProperty(text, "State: Online", group) is PropertyGroupPropertyDescriptor,
                 $"Power value state Text presentation is missing '{group}'.");
@@ -346,7 +346,7 @@ internal static partial class Program
                asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.Icon &&
                asset["source"]?.GetValue<string>() == "lucide:battery-full" &&
                online["color"]?.GetValue<string>() == "#FF123456" &&
-               Math.Abs(online["opacity"]!.GetValue<float>() - 0.75f) < 0.001f,
+               Math.Abs(online["iconOpacity"]!.GetValue<float>() - 0.75f) < 0.001f,
             "Power migration must preserve existing state source/color/opacity settings in canonical profile structure.");
     }
 

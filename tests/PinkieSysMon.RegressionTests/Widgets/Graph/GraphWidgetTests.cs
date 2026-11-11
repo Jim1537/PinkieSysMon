@@ -56,7 +56,8 @@ internal static class GraphWidgetTests
         var current = DashboardJson.Serialize(definition, indented: false);
         var old = JsonNode.Parse(current)!.AsObject(); old["schemaVersion"] = 22;
         Check(DashboardSchemaMigration.UpgradeToCurrent(old), "Schema 22 requires the named Graph introduction migration.");
-        Check(JsonNode.DeepEquals(old, JsonNode.Parse(current)), "Graph-free migration must preserve every content field.");
+        Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "graph-free-migrated.json")), false) == current,
+            "Graph-free migration must preserve every content field after canonical panel defaults are materialized.");
         Check(!DashboardSchemaMigration.UpgradeToCurrent(old), "The introduction migration must be idempotent.");
         Check(DashboardMetricUsage.Collect(Board(graph)).Contains(graph.Metric!) &&
               DashboardMetricUsage.CollectHistory(Board(graph)).Single().WindowSeconds == graph.WindowSeconds,
@@ -210,8 +211,8 @@ internal static class GraphWidgetTests
         imageGraph.Image.Asset.Source = "background.png"; imageGraph.Image.Opacity = .5f;
         using var rendered = fixture.Render();
         Check(rendered.GetPixel(10, 10).Alpha == 0 && NearPixel(rendered, 50, 11, SKColors.Red) &&
-              rendered.GetPixel(50, 60).Blue > 240 && Math.Abs(rendered.GetPixel(50, 60).Alpha - 128) <= 1,
-            "Graph must compose its rounded common container, border and independently faded image.");
+              rendered.GetPixel(50, 60).Blue > 240 && rendered.GetPixel(50, 60).Alpha == 255,
+            "Graph must compose rounded container, border and file artwork with intrinsic alpha only.");
     }
 
     public static void GeometryReuseAndRuntimeEditorParity()
@@ -323,13 +324,13 @@ internal static class GraphWidgetTests
         {
             imageGraph.Reverse = reverse; imageGraph.Image.Opacity = .75f;
             var left = RenderPixel(10); var right = RenderPixel(90);
-            Check(left.Blue > 245 && right.Red > 245 && Math.Abs(left.Alpha - 191) <= 1,
-                "Reverse must not mirror the background, and file opacity must remain independent of icon tint.");
+            Check(left.Blue > 245 && right.Red > 245 && left.Alpha == 255,
+                "Reverse must not mirror the plot background; file alpha must be intrinsic and independent of icon opacity.");
             imageGraph.Padding = new(0, 80, 0, 80);
             Check(RenderPixel(10) == left && RenderPixel(90) == right, "An empty plot must retain the complete background image.");
             imageGraph.Padding = default;
             imageGraph.Image.Opacity = .25f;
-            Check(Math.Abs(RenderPixel(10).Alpha - 64) <= 1, "Rebuilt Graph preview must apply edited file opacity.");
+            Check(RenderPixel(10) == left, "Editing dormant icon opacity must not affect file-backed plot artwork.");
         }
     }
 

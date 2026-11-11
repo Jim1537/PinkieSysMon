@@ -1065,7 +1065,7 @@ internal static partial class Program
                 (expectedSource is not null && asset["source"]?.GetValue<string>() == expectedSource)) &&
                asset["fit"]?.GetValue<string>() == StateVisualProfileContract.FitStretch &&
                asset["loop"]?.GetValue<bool>() == true &&
-               Math.Abs(layer["opacity"]!.GetValue<float>() - 1f) < 0.001f &&
+               layer["opacity"] is null && layer["iconOpacity"] is null &&
                layer["color"]?.GetValue<string>() == "#FFFFFFFF",
             $"Migrated Canvas layer '{name}' did not preserve legacy stretch behavior with canonical image defaults.");
     }
