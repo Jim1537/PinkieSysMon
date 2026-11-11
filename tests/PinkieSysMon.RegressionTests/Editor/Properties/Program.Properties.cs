@@ -1138,40 +1138,44 @@ internal static partial class Program
 
         var canvas = new C.CanvasDefinition();
         Assert(new EditorPropertyView(canvas, section: EditorPropertySection.Image).GetProperties().Count == 0,
-            "An unconfigured Canvas must omit image presentation groups.");
-        canvas.BackgroundImage.Asset.Source = "coverage-background.png";
-        canvas.ForegroundImage.Asset.Source = "coverage-foreground.png";
+            "A default Canvas must omit image presentation groups.");
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelBackground.Image.Source = "coverage-background.png";
+        canvas.PanelForeground.Mode = C.WidgetPanelLayerMode.Image;
+        canvas.PanelForeground.Image.Source = "coverage-foreground.png";
         var canvasProperties = new EditorPropertyView(canvas, section: EditorPropertySection.All).GetProperties();
         var canvasKeys = new HashSet<string>(StringComparer.Ordinal);
         CollectLeafSemanticKeys(canvasProperties, canvasKeys);
 
         foreach (var required in new[]
                  {
-                     "general.geometry.width", "general.geometry.height", "general.geometry.orientation", "appearance.background.color",
-                     "general.background_image.asset.kind", "general.background_image.asset.source",
-                     "general.foreground_image.asset.kind", "general.foreground_image.asset.source",
-                     "image.background_image.asset.fit", "image.background_image.asset.loop",
-                     "image.foreground_image.asset.fit", "image.foreground_image.asset.loop"
+                     "general.geometry.width", "general.geometry.height", "general.geometry.orientation",
+                     "general.geometry.x", "general.geometry.y", "general.geometry.rotation",
+                     "general.geometry.padding", "general.geometry.z",
+                     "panel.background.mode", "panel.foreground.mode",
+                     "panel.background.source", "panel.foreground.source",
+                     "image.panel.background.fit", "image.panel.background.loop",
+                     "image.panel.foreground.fit", "image.panel.foreground.loop"
                  })
-            Assert(canvasKeys.Contains(required), $"File Canvas canonical view is missing semantic key '{required}'.");
-        Assert(!canvasKeys.Contains("image.background_image.icon_opacity") &&
-               !canvasKeys.Contains("image.background_image.color") &&
-               !canvasKeys.Contains("image.foreground_image.icon_opacity") &&
-               !canvasKeys.Contains("image.foreground_image.color"),
-            "File-backed Canvas layers must not expose independent alpha or icon tint.");
+            Assert(canvasKeys.Contains(required), $"Canvas canonical Panel view lacks semantic key '{required}'.");
+        Assert(!canvasKeys.Contains("image.panel.background.icon_opacity") &&
+               !canvasKeys.Contains("image.panel.background.icon_color") &&
+               !canvasKeys.Contains("image.panel.foreground.icon_opacity") &&
+               !canvasKeys.Contains("image.panel.foreground.icon_color"),
+            "File-backed Canvas Panel layers have no independent icon tint or alpha.");
 
-        canvas.BackgroundImage.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon);
-        canvas.BackgroundImage.Asset.Source = "lucide:check";
-        canvas.ForegroundImage.Asset.ChangeSourceType(C.ImageAssetSourceType.Icon);
-        canvas.ForegroundImage.Asset.Source = "lucide:check";
+        canvas.PanelBackground.Mode = C.WidgetPanelLayerMode.Icon;
+        canvas.PanelBackground.Icon.Source = "lucide:check";
+        canvas.PanelForeground.Mode = C.WidgetPanelLayerMode.Icon;
+        canvas.PanelForeground.Icon.Source = "lucide:check";
         var iconKeys = new HashSet<string>(StringComparer.Ordinal);
         CollectLeafSemanticKeys(new EditorPropertyView(canvas, section: EditorPropertySection.All).GetProperties(), iconKeys);
         foreach (var required in new[]
                  {
-                     "image.background_image.icon_opacity", "image.background_image.color",
-                     "image.foreground_image.icon_opacity", "image.foreground_image.color"
+                     "image.panel.background.icon_opacity", "image.panel.background.icon_color",
+                     "image.panel.foreground.icon_opacity", "image.panel.foreground.icon_color"
                  })
-            Assert(iconKeys.Contains(required), $"Icon Canvas view is missing semantic key '{required}'.");
+            Assert(iconKeys.Contains(required), $"Canvas Icon Panel view lacks semantic key '{required}'.");
 
         static void ConfigureCoverageStateProfiles(C.StateVisualWidgetDefinition widget)
         {

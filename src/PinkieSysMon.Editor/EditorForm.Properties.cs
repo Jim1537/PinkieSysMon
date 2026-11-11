@@ -301,7 +301,7 @@ internal sealed partial class EditorForm
                 {
                     ConfigureCanvasPropertyTabs(CreatePropertyTargetView(canvas, EditorPropertySection.Image).GetProperties().Count > 0);
                     _generalPropertyTab.Enabled = true;
-                    _appearancePropertyTab.Enabled = true;
+                    _panelPropertyTab.Enabled = true;
                     _imagePropertyTab.Enabled = true;
                     _propertyTabs.SelectedTab = previousTab is not null && _propertyTabs.TabPages.Contains(previousTab) ? previousTab : _generalPropertyTab;
                 }
@@ -363,8 +363,8 @@ internal sealed partial class EditorForm
 
     private void ConfigureCanvasPropertyTabs(bool includeImage) =>
         ConfigurePropertyTabs(includeImage
-            ? [_generalPropertyTab, _appearancePropertyTab, _imagePropertyTab]
-            : [_generalPropertyTab, _appearancePropertyTab]);
+            ? [_generalPropertyTab, _panelPropertyTab, _imagePropertyTab]
+            : [_generalPropertyTab, _panelPropertyTab]);
 
     private void ConfigureSinglePropertyTab(bool enabled)
     {

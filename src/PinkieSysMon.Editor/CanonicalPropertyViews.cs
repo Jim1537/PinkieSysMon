@@ -1072,28 +1072,99 @@ internal static class CanonicalPropertyViewBuilder
         if (section == EditorPropertySection.General)
         {
             return [
-                Group("Background Image", BuildImageLayer("background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
-                Group("Foreground Image", BuildImageLayer("foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory, sourceOnly: true)),
-                Group("Geometry", [
-                    Int(canvas, nameof(C.CanvasDefinition.Width), "general.geometry.width", "Width", () => canvas.Width, v => canvas.Width = Math.Max(1, v)),
-                    Int(canvas, nameof(C.CanvasDefinition.Height), "general.geometry.height", "Height", () => canvas.Height, v => canvas.Height = Math.Max(1, v)),
-                    Int(canvas, nameof(C.CanvasDefinition.Orientation), "general.geometry.orientation", "Orientation", () => canvas.Orientation, v => canvas.Orientation = v)
+                Group("Identity", [
+                    new CanonicalPropertyDescriptor("CanvasType", "general.identity.type", "Type",
+                        canvas, typeof(string), () => "Canvas", null,
+                        description: "The dashboard root is not an ordinary widget.")
+                ]),
+                Group("Canvas", [
+                    Int(canvas, nameof(C.CanvasDefinition.Orientation), "general.geometry.orientation",
+                        "Orientation", () => canvas.Orientation, v => canvas.Orientation = v)
                 ])
             ];
         }
-        if (section == EditorPropertySection.Appearance)
-            return [Group("Background", [Color(canvas, nameof(C.CanvasDefinition.BackgroundColor), "appearance.background.color", "Color", () => canvas.BackgroundColor, v => canvas.BackgroundColor = v)])];
+        if (section == EditorPropertySection.Panel)
+        {
+            string? BorderDisabled() => canvas.BorderWidth == 0f ? NotApplicable("Width") : null;
+            string? ShadowDisabled() => canvas.ShadowEnabled ? null : NotApplicable("Enabled");
+
+            return [
+                Group("Geometry", [
+                    new CanonicalPropertyDescriptor("X", "general.geometry.x", "X", canvas, typeof(float),
+                        () => 0f, null, description: "Canvas origin is fixed at X = 0."),
+                    new CanonicalPropertyDescriptor("Y", "general.geometry.y", "Y", canvas, typeof(float),
+                        () => 0f, null, description: "Canvas origin is fixed at Y = 0."),
+                    Int(canvas, nameof(C.CanvasDefinition.Width), "general.geometry.width", "Width",
+                        () => canvas.Width, v => canvas.Width = Math.Max(1, v)),
+                    Int(canvas, nameof(C.CanvasDefinition.Height), "general.geometry.height", "Height",
+                        () => canvas.Height, v => canvas.Height = Math.Max(1, v)),
+                    new CanonicalPropertyDescriptor("Padding", "general.geometry.padding", "Padding",
+                        canvas, typeof(string), () => "Not applicable", null,
+                        description: "Canvas has no content Padding."),
+                    new CanonicalPropertyDescriptor("Rotation", "general.geometry.rotation", "Rotation",
+                        canvas, typeof(double), () => 0d, null,
+                        description: "Use Canvas Orientation instead of widget Rotation."),
+                    Float(canvas, nameof(C.CanvasDefinition.CornerRadius), "panel.corner.radius",
+                        "Corner Radius", () => canvas.CornerRadius, v => canvas.CornerRadius = Math.Max(0f, v)),
+                    new CanonicalPropertyDescriptor("Z", "general.geometry.z", "Z-order",
+                        canvas, typeof(string), () => "Root", null,
+                        description: "Canvas is always below its child widgets.")
+                ]),
+                Group("Background", BuildPanelLayerProperties(canvas.PanelBackground, "background",
+                    applicationRoot, dashboardDirectory)),
+                Group("Foreground", BuildPanelLayerProperties(canvas.PanelForeground, "foreground",
+                    applicationRoot, dashboardDirectory)),
+                Group("Border", [
+                    Float(canvas, nameof(canvas.BorderWidth), "appearance.border.width", "Width",
+                        () => canvas.BorderWidth, v => canvas.BorderWidth = Math.Max(0f, v)),
+                    Color(canvas, nameof(canvas.BorderColor), "appearance.border.color", "Color",
+                        () => canvas.BorderColor, v => canvas.BorderColor = v, BorderDisabled),
+                    String(canvas, nameof(canvas.BorderStyle), "appearance.border.style", "Style",
+                        () => canvas.BorderStyle == C.WidgetBorderStyle.Dotted ? "Dotted" : "Solid",
+                        v => canvas.BorderStyle = v switch
+                        {
+                            "Solid" => C.WidgetBorderStyle.Solid,
+                            "Dotted" => C.WidgetBorderStyle.Dotted,
+                            _ => throw new FormatException("Choose Solid or Dotted.")
+                        }, converter: new FixedStringConverter(["Solid", "Dotted"]), disabled: BorderDisabled),
+                    Bool(canvas, nameof(canvas.BorderTop), "appearance.border.top", "Top",
+                        () => canvas.BorderTop, v => canvas.BorderTop = v, BorderDisabled),
+                    Bool(canvas, nameof(canvas.BorderRight), "appearance.border.right", "Right",
+                        () => canvas.BorderRight, v => canvas.BorderRight = v, BorderDisabled),
+                    Bool(canvas, nameof(canvas.BorderBottom), "appearance.border.bottom", "Bottom",
+                        () => canvas.BorderBottom, v => canvas.BorderBottom = v, BorderDisabled),
+                    Bool(canvas, nameof(canvas.BorderLeft), "appearance.border.left", "Left",
+                        () => canvas.BorderLeft, v => canvas.BorderLeft = v, BorderDisabled)
+                ]),
+                Group("Shadow", [
+                    Bool(canvas, nameof(canvas.ShadowEnabled), "appearance.shadow.enabled", "Enabled",
+                        () => canvas.ShadowEnabled, v => canvas.ShadowEnabled = v),
+                    Color(canvas, nameof(canvas.ShadowColor), "appearance.shadow.color", "Color",
+                        () => canvas.ShadowColor, v => canvas.ShadowColor = v, ShadowDisabled),
+                    Float(canvas, nameof(canvas.ShadowOpacity), "appearance.shadow.opacity", "Opacity",
+                        () => canvas.ShadowOpacity, v => canvas.ShadowOpacity = Math.Clamp(v, 0f, 1f), ShadowDisabled),
+                    Float(canvas, nameof(canvas.ShadowBlur), "appearance.shadow.blur", "Blur",
+                        () => canvas.ShadowBlur, v => canvas.ShadowBlur = Math.Max(0f, v), ShadowDisabled),
+                    Float(canvas, nameof(canvas.ShadowOffsetX), "appearance.shadow.offset_x", "Offset X",
+                        () => canvas.ShadowOffsetX, v => canvas.ShadowOffsetX = v, ShadowDisabled),
+                    Float(canvas, nameof(canvas.ShadowOffsetY), "appearance.shadow.offset_y", "Offset Y",
+                        () => canvas.ShadowOffsetY, v => canvas.ShadowOffsetY = v, ShadowDisabled)
+                ])
+            ];
+        }
         if (section == EditorPropertySection.Image)
         {
             var layers = new List<PropertyDescriptor>();
-            AddConfiguredLayer(layers, "Background Image", "background_image", canvas.BackgroundImage, applicationRoot, dashboardDirectory);
-            AddConfiguredLayer(layers, "Foreground Image", "foreground_image", canvas.ForegroundImage, applicationRoot, dashboardDirectory);
+            AddPanelLayerImageGroup(layers, "Background", "background",
+                canvas.PanelBackground, applicationRoot, dashboardDirectory);
+            AddPanelLayerImageGroup(layers, "Foreground", "foreground",
+                canvas.PanelForeground, applicationRoot, dashboardDirectory);
             return layers;
         }
         if (section == EditorPropertySection.All)
         {
             var result = BuildCanvas(canvas, EditorPropertySection.General, applicationRoot, dashboardDirectory);
-            result.AddRange(BuildCanvas(canvas, EditorPropertySection.Appearance, applicationRoot, dashboardDirectory));
+            result.AddRange(BuildCanvas(canvas, EditorPropertySection.Panel, applicationRoot, dashboardDirectory));
             result.AddRange(BuildCanvas(canvas, EditorPropertySection.Image, applicationRoot, dashboardDirectory));
             return result;
         }
@@ -1106,13 +1177,6 @@ internal static class CanonicalPropertyViewBuilder
             ? IconAssetLoader.TryReadCapabilitiesFromRoot(applicationRoot, source, out var icon) && icon.IsAnimated
             : C.ImageAssetSourceType.IsFile(type) && ImageAssetCapabilityProbe.TryReadCapabilities(dashboardDirectory, source, out var image) && image.IsAnimated;
         return animated ? null : NotApplicable("Source");
-    }
-
-    private static void AddConfiguredLayer(List<PropertyDescriptor> groups, string label, string role,
-        C.CanvasImageLayerDefinition layer, string? applicationRoot, string? dashboardDirectory)
-    {
-        if (!string.IsNullOrWhiteSpace(layer.Asset.Source))
-            groups.Add(Group(label, BuildImageLayer(role, layer, applicationRoot, dashboardDirectory, sourceOnly: false)));
     }
 
     private static List<PropertyDescriptor> BuildImageLayer(

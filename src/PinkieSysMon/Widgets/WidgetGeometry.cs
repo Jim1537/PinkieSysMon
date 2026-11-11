@@ -469,7 +469,7 @@ internal static class WidgetEffects
         DrawPanelVisual(canvas, container.ForegroundVisual, bounds, radius, context.Antialias);
     }
 
-    private static void DrawContainerBackground(
+    internal static void DrawContainerBackground(
         SKCanvas canvas,
         WidgetRenderContext.ContainerRenderResources container,
         SKRect bounds,
@@ -488,7 +488,7 @@ internal static class WidgetEffects
         DrawPanelVisual(canvas, container.BackgroundVisual, bounds, radius, antialias);
     }
 
-    private static void DrawPanelVisual(
+    internal static void DrawPanelVisual(
         SKCanvas canvas, ImageVisual? visual, SKRect bounds, float radius, bool antialias)
     {
         if (visual is null)
@@ -518,13 +518,33 @@ internal static class WidgetEffects
         CanonicalWidgetDefinition widget,
         WidgetRenderContext.ContainerRenderResources container,
         SKRect bounds,
-        float radius)
+        float radius) =>
+        DrawContainerBorder(canvas, container, bounds, radius,
+            widget.BorderWidth, widget.BorderStyle,
+            widget.BorderTop, widget.BorderRight, widget.BorderBottom, widget.BorderLeft);
+
+    internal static void DrawContainerBorder(
+        SKCanvas canvas,
+        CanonicalDashboard.CanvasDefinition root,
+        WidgetRenderContext.ContainerRenderResources container,
+        SKRect bounds,
+        float radius) =>
+        DrawContainerBorder(canvas, container, bounds, radius,
+            root.BorderWidth, root.BorderStyle,
+            root.BorderTop, root.BorderRight, root.BorderBottom, root.BorderLeft);
+
+    private static void DrawContainerBorder(
+        SKCanvas canvas,
+        WidgetRenderContext.ContainerRenderResources container,
+        SKRect bounds,
+        float radius,
+        float width, string style, bool top, bool right, bool bottom, bool left)
     {
         var paint = container.BorderPaint;
         if (paint is null)
             return;
 
-        var inset = Math.Min(widget.BorderWidth / 2f, Math.Min(bounds.Width, bounds.Height) / 2f);
+        var inset = Math.Min(width / 2f, Math.Min(bounds.Width, bounds.Height) / 2f);
         var borderBounds = new SKRect(
             bounds.Left + inset, bounds.Top + inset,
             bounds.Right - inset, bounds.Bottom - inset);
@@ -535,14 +555,14 @@ internal static class WidgetEffects
             Math.Max(0f, radius - inset),
             Math.Min(borderBounds.Width, borderBounds.Height) / 2f);
 
-        var sides = (widget.BorderTop ? 1 : 0) | (widget.BorderRight ? 2 : 0) |
-                    (widget.BorderBottom ? 4 : 0) | (widget.BorderLeft ? 8 : 0);
-        var dotted = widget.BorderStyle == CanonicalDashboard.WidgetBorderStyle.Dotted;
+        var sides = (top ? 1 : 0) | (right ? 2 : 0) |
+                    (bottom ? 4 : 0) | (left ? 8 : 0);
+        var dotted = style == CanonicalDashboard.WidgetBorderStyle.Dotted;
         if (sides != 15 || dotted)
         {
             if (sides == 0) return;
             var key = new WidgetBorderPath.Geometry(borderBounds.Width, borderBounds.Height, borderRadius,
-                widget.BorderWidth, sides, dotted);
+                width, sides, dotted);
             var path = container.GetBorderPath(key);
             canvas.Save();
             try

@@ -99,7 +99,7 @@ internal static class Issue112PanelTests
         };
 
         Check(DashboardSchemaMigration.UpgradeToCurrent(root), "Schema 28 must be upgraded.");
-        Check(root["schemaVersion"]!.GetValue<int>() == 29, "Schema 29 not selected.");
+        Check(root["schemaVersion"]!.GetValue<int>() == 30, "Schema 30 not selected.");
         var w = root["widgets"]!.AsArray();
         Check(w[0]!["color"]!.GetValue<string>() == "#EECCBB00" &&
               w[0]!["panelBackground"]!["color"]!.GetValue<string>() == "#99010203" &&
@@ -140,7 +140,7 @@ internal static class Issue112PanelTests
         var json = DashboardJson.Serialize(dashboard, indented: false);
         var parsed = DashboardJson.ParseCurrent(json, Path.Combine(Path.GetTempPath(), "panel.json"));
         Check(DashboardJson.Serialize(parsed, indented: false) == json,
-            "Schema 29 save/parse/save must be deterministic.");
+            "Schema 30 save/parse/save must be deterministic.");
     }
 
     public static void ThreeLayerRenderingAndFileAlpha()

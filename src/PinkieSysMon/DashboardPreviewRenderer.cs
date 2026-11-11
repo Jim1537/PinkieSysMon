@@ -14,15 +14,12 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     private readonly ImageAssetCache _images;
     private readonly IconAssetCache _icons;
     private readonly RenderEntry[] _renderEntries;
-    private readonly SKColor _backgroundColor;
-    private readonly ImageVisual? _backgroundImage;
-    private readonly ImageVisual? _foregroundImage;
+    private readonly CanvasPanelGraphics _canvasPanel;
 
     public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null, FileLogger? log = null, EditorArtworkRecovery? recovery = null)
     {
         ArgumentNullException.ThrowIfNull(definition);
         _definition = definition;
-        _backgroundColor = ColorParser.Parse(_definition.Canvas.BackgroundColor);
 
         var logical = FrameGeometry.GetLogicalSize(
             _definition.Canvas.Width,
@@ -37,8 +34,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
         WidgetRenderContext? renderContext = null;
         ImageAssetCache? images = null;
         IconAssetCache? icons = null;
-        ImageVisual? backgroundImage = null;
-        ImageVisual? foregroundImage = null;
+        CanvasPanelGraphics? canvasPanel = null;
         Dictionary<string, IWidgetRenderer>? renderers = null;
 
         var phase = "surface";
@@ -59,8 +55,9 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             phase = "icons.preload";
             icons.Preload(_definition.Widgets);
 
-            backgroundImage = CreateCanvasImageVisual(images, icons, _definition.Canvas.BackgroundImage);
-            foregroundImage = CreateCanvasImageVisual(images, icons, _definition.Canvas.ForegroundImage);
+            renderContext.InitializePanelAssets(images, icons, _definition.Widgets);
+            canvasPanel = new CanvasPanelGraphics(_definition.Canvas, Width, Height,
+                images, icons, RenderQuality.Antialias);
 
             phase = "widgets.prepare";
             renderers = WidgetRendererRegistry.Create(images, icons, log);
@@ -81,8 +78,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             _renderContext = renderContext;
             _images = images;
             _icons = icons;
-            _backgroundImage = backgroundImage;
-            _foregroundImage = foregroundImage;
+            _canvasPanel = canvasPanel;
             _renderEntries = renderEntries;
 
             surface = null;
@@ -90,8 +86,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
             renderContext = null;
             images = null;
             icons = null;
-            backgroundImage = null;
-            foregroundImage = null;
+            canvasPanel = null;
             renderers = null;
         }
         catch (Exception error)
@@ -102,8 +97,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
                 foreach (var disposable in renderers.Values.OfType<IDisposable>().Distinct())
                     disposable.Dispose();
             }
-            foregroundImage?.Dispose();
-            backgroundImage?.Dispose();
+            canvasPanel?.Dispose();
             icons?.Dispose();
             images?.Dispose();
             renderContext?.Dispose();
@@ -131,34 +125,6 @@ internal sealed class DashboardPreviewRenderer : IDisposable
                   stateWidget.Profiles.Values.Any(profile =>
                       profile.UsesValueContent &&
                       ValueOverflowContract.IsAnimated(profile.TextPresentation.OverflowMode))));
-
-    private static ImageVisual? CreateCanvasImageVisual(
-        ImageAssetCache images,
-        IconAssetCache icons,
-        CanonicalDashboard.CanvasImageLayerDefinition layer)
-    {
-        if (string.IsNullOrWhiteSpace(layer.Asset.Source))
-            return null;
-
-        return ImageVisual.Create(
-            images,
-            icons,
-            layer.Asset.SourceType,
-            layer.Asset.Source,
-            layer.Asset.Fit,
-            layer.Asset.Loop,
-            layer.Opacity,
-            layer.Color,
-            RenderQuality.Antialias);
-    }
-
-    private void DrawCanvasImage(SKCanvas canvas, ImageVisual? image)
-    {
-        image?.Draw(
-            canvas,
-            new SKRect(0, 0, Width, Height),
-            RenderQuality.Antialias);
-    }
 
     public void RenderToBgra(
         IReadOnlyDictionary<string, object?> metrics,
@@ -191,17 +157,23 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     private void RenderFrame(IReadOnlyDictionary<string, object?> metrics)
     {
         var canvas = _surface.Canvas;
-        canvas.Clear(_backgroundColor);
-        DrawCanvasImage(canvas, _backgroundImage);
+        canvas.Clear(SKColors.Transparent);
+        _canvasPanel.DrawBackground(canvas);
 
         _renderContext.BeginFrame(metrics);
-        foreach (var entry in _renderEntries)
+        canvas.Save();
+        try
         {
-            try { WidgetTransform.Render(canvas, entry.Widget, _renderContext, entry.Renderer); }
-            catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+            _canvasPanel.ClipChildren(canvas);
+            foreach (var entry in _renderEntries)
+            {
+                try { WidgetTransform.Render(canvas, entry.Widget, _renderContext, entry.Renderer); }
+                catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+            }
         }
+        finally { canvas.Restore(); }
 
-        DrawCanvasImage(canvas, _foregroundImage);
+        _canvasPanel.DrawOverlay(canvas);
         canvas.Flush();
     }
 
@@ -242,8 +214,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     {
         foreach (var disposable in _renderEntries.Select(x => x.Renderer).OfType<IDisposable>().Distinct())
             disposable.Dispose();
-        _foregroundImage?.Dispose();
-        _backgroundImage?.Dispose();
+        _canvasPanel.Dispose();
         _icons.Dispose();
         _images.Dispose();
         _renderContext.Dispose();

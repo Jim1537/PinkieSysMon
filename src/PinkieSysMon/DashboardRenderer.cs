@@ -3,7 +3,6 @@ using SkiaSharp;
 using System.Diagnostics;
 using CanonicalDashboardDefinition = global::PinkieSysMon.DashboardModel.DashboardDefinition;
 using CanonicalWidgetDefinition = global::PinkieSysMon.DashboardModel.WidgetDefinition;
-using CanonicalCanvasImageLayerDefinition = global::PinkieSysMon.DashboardModel.CanvasImageLayerDefinition;
 
 namespace PinkieSysMon;
 
@@ -25,9 +24,7 @@ internal sealed class DashboardRenderer : IDisposable
     private readonly RenderEntry[] _renderEntries;
     private readonly int _logicalWidth;
     private readonly int _logicalHeight;
-    private readonly SKColor _backgroundColor;
-    private readonly ImageVisual? _backgroundImage;
-    private readonly ImageVisual? _foregroundImage;
+    private readonly CanvasPanelGraphics _canvasPanel;
     // Retained rollback plans share decoded assets with the still-live renderer.
     private int _owners = 1;
 
@@ -40,7 +37,6 @@ internal sealed class DashboardRenderer : IDisposable
         _nativeHeight = definition.Canvas.Height;
         _orientation = definition.Canvas.Orientation;
         FrameGeometry.ValidateRasterSize(_nativeWidth, _nativeHeight);
-        _backgroundColor = ColorParser.Parse(definition.Canvas.BackgroundColor);
 
         var widgets = definition.Widgets
             .Select((widget, index) => new { widget, index })
@@ -59,8 +55,7 @@ internal sealed class DashboardRenderer : IDisposable
         SKSurface? wireSurface = null;
         ImageAssetCache? imageAssets = null;
         IconAssetCache? iconAssets = null;
-        ImageVisual? backgroundImage = null;
-        ImageVisual? foregroundImage = null;
+        CanvasPanelGraphics? canvasPanel = null;
         Dictionary<string, IWidgetRenderer>? renderers = null;
 
         var phase = "fonts";
@@ -85,10 +80,8 @@ internal sealed class DashboardRenderer : IDisposable
             iconAssets.Preload(widgets);
             phase = "panels.prepare";
             renderContext.InitializePanelAssets(imageAssets, iconAssets, widgets);
-            backgroundImage = CreateCanvasImageVisual(
-                imageAssets, iconAssets, definition.Canvas.BackgroundImage);
-            foregroundImage = CreateCanvasImageVisual(
-                imageAssets, iconAssets, definition.Canvas.ForegroundImage);
+            canvasPanel = new CanvasPanelGraphics(definition.Canvas, _logicalWidth, _logicalHeight,
+                imageAssets, iconAssets, RenderQuality.Antialias);
 
             phase = "widgets.prepare";
             renderers = WidgetRendererRegistry.Create(imageAssets, iconAssets, log);
@@ -107,8 +100,7 @@ internal sealed class DashboardRenderer : IDisposable
             _wireHeight = _nativeHeight;
             _imageAssets = imageAssets;
             _iconAssets = iconAssets;
-            _backgroundImage = backgroundImage;
-            _foregroundImage = foregroundImage;
+            _canvasPanel = canvasPanel;
             _renderEntries = renderEntries;
 
             typefaceCache = null;
@@ -117,8 +109,7 @@ internal sealed class DashboardRenderer : IDisposable
             wireSurface = null;
             imageAssets = null;
             iconAssets = null;
-            backgroundImage = null;
-            foregroundImage = null;
+            canvasPanel = null;
             renderers = null;
         }
         catch (Exception error)
@@ -129,8 +120,7 @@ internal sealed class DashboardRenderer : IDisposable
                 foreach (var disposable in renderers.Values.OfType<IDisposable>().Distinct())
                     disposable.Dispose();
             }
-            foregroundImage?.Dispose();
-            backgroundImage?.Dispose();
+            canvasPanel?.Dispose();
             iconAssets?.Dispose();
             imageAssets?.Dispose();
             wireSurface?.Dispose();
@@ -142,34 +132,6 @@ internal sealed class DashboardRenderer : IDisposable
     }
 
     internal string ResourceSummary => $"images={_imageAssets.ResourceCount}; imageBytes={_imageAssets.DecodedBytes}; icons={_iconAssets.ResourceCount}; iconBytes={_iconAssets.DecodedBytes}; fonts={_typefaceCache.LoadedFaces}";
-
-    private static ImageVisual? CreateCanvasImageVisual(
-        ImageAssetCache images,
-        IconAssetCache icons,
-        CanonicalCanvasImageLayerDefinition layer)
-    {
-        if (string.IsNullOrWhiteSpace(layer.Asset.Source))
-            return null;
-
-        return ImageVisual.Create(
-            images,
-            icons,
-            layer.Asset.SourceType,
-            layer.Asset.Source,
-            layer.Asset.Fit,
-            layer.Asset.Loop,
-            layer.Opacity,
-            layer.Color,
-            RenderQuality.Antialias);
-    }
-
-    private void DrawCanvasImage(SKCanvas canvas, ImageVisual? image)
-    {
-        image?.Draw(
-            canvas,
-            new SKRect(0, 0, _logicalWidth, _logicalHeight),
-            RenderQuality.Antialias);
-    }
 
     // Return an independent premultiplied BGRA frame before opaque wire compositing.
     public RenderedBgra RenderBgra(IReadOnlyDictionary<string, object?> metrics)
@@ -195,17 +157,23 @@ internal sealed class DashboardRenderer : IDisposable
     private void RenderLogicalFrame(IReadOnlyDictionary<string, object?> metrics)
     {
         var logicalCanvas = _logicalSurface.Canvas;
-        logicalCanvas.Clear(_backgroundColor);
-        DrawCanvasImage(logicalCanvas, _backgroundImage);
+        logicalCanvas.Clear(SKColors.Transparent);
+        _canvasPanel.DrawBackground(logicalCanvas);
 
         _renderContext.BeginFrame(metrics, _frameClockNow);
-        foreach (var entry in _renderEntries)
+        logicalCanvas.Save();
+        try
         {
-            try { WidgetTransform.Render(logicalCanvas, entry.Widget, _renderContext, entry.Renderer); }
-            catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+            _canvasPanel.ClipChildren(logicalCanvas);
+            foreach (var entry in _renderEntries)
+            {
+                try { WidgetTransform.Render(logicalCanvas, entry.Widget, _renderContext, entry.Renderer); }
+                catch (Exception error) { RenderFailureContext.Add(error, "widget.render", entry.Widget.Id); throw; }
+            }
         }
+        finally { logicalCanvas.Restore(); }
 
-        DrawCanvasImage(logicalCanvas, _foregroundImage);
+        _canvasPanel.DrawOverlay(logicalCanvas);
         logicalCanvas.Flush();
     }
 
@@ -334,8 +302,7 @@ internal sealed class DashboardRenderer : IDisposable
 
         foreach (var disposable in _renderEntries.Select(x => x.Renderer).OfType<IDisposable>().Distinct())
             disposable.Dispose();
-        _foregroundImage?.Dispose();
-        _backgroundImage?.Dispose();
+        _canvasPanel.Dispose();
         _iconAssets.Dispose();
         _imageAssets.Dispose();
         _renderContext.Dispose();

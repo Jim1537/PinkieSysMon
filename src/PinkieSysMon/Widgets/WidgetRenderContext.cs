@@ -465,7 +465,23 @@ internal sealed class WidgetRenderContext : IDisposable
 
         public static ContainerRenderResources Create(
             CanonicalWidgetDefinition widget, bool antialias,
-            ImageAssetCache? images, IconAssetCache? icons)
+            ImageAssetCache? images, IconAssetCache? icons) =>
+            Create(widget.PanelBackground, widget.PanelForeground, widget.BorderWidth,
+                widget.BorderTop || widget.BorderRight || widget.BorderBottom || widget.BorderLeft,
+                widget.BorderColor, antialias, images, icons);
+
+        public static ContainerRenderResources Create(
+            CanonicalDashboard.CanvasDefinition root, bool antialias,
+            ImageAssetCache? images, IconAssetCache? icons) =>
+            Create(root.PanelBackground, root.PanelForeground, root.BorderWidth,
+                root.BorderTop || root.BorderRight || root.BorderBottom || root.BorderLeft,
+                root.BorderColor, antialias, images, icons);
+
+        private static ContainerRenderResources Create(
+            CanonicalDashboard.WidgetPanelLayerDefinition backgroundLayer,
+            CanonicalDashboard.WidgetPanelLayerDefinition foregroundLayer,
+            float borderWidth, bool hasBorderSide, string borderColor,
+            bool antialias, ImageAssetCache? images, IconAssetCache? icons)
         {
             SKPaint? background = null;
             SKPaint? border = null;
@@ -475,8 +491,8 @@ internal sealed class WidgetRenderContext : IDisposable
             ImageVisual? foregroundVisual = null;
             try
             {
-                var backgroundColor = widget.PanelBackground.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color
-                    ? ColorParser.Parse(widget.PanelBackground.Color) : SKColors.Transparent;
+                var backgroundColor = backgroundLayer.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color
+                    ? ColorParser.Parse(backgroundLayer.Color) : SKColors.Transparent;
                 if (backgroundColor.Alpha > 0)
                 {
                     background = new SKPaint
@@ -487,27 +503,27 @@ internal sealed class WidgetRenderContext : IDisposable
                     };
                 }
 
-                if (widget.BorderWidth > 0f && (widget.BorderTop || widget.BorderRight || widget.BorderBottom || widget.BorderLeft))
+                if (borderWidth > 0f && hasBorderSide)
                 {
-                    var borderColor = ColorParser.Parse(widget.BorderColor);
-                    if (borderColor.Alpha > 0)
+                    var parsedBorderColor = ColorParser.Parse(borderColor);
+                    if (parsedBorderColor.Alpha > 0)
                     {
                         border = new SKPaint
                         {
                             IsAntialias = antialias,
-                            Color = borderColor,
+                            Color = parsedBorderColor,
                             Style = SKPaintStyle.Stroke,
-                            StrokeWidth = widget.BorderWidth,
+                            StrokeWidth = borderWidth,
                             StrokeJoin = SKStrokeJoin.Round
                         };
                     }
                 }
 
-                backgroundVisual = CreatePanelVisual(widget.PanelBackground, images, icons, antialias);
-                foregroundVisual = CreatePanelVisual(widget.PanelForeground, images, icons, antialias);
-                if (widget.PanelForeground.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color)
+                backgroundVisual = CreatePanelVisual(backgroundLayer, images, icons, antialias);
+                foregroundVisual = CreatePanelVisual(foregroundLayer, images, icons, antialias);
+                if (foregroundLayer.Mode == CanonicalDashboard.WidgetPanelLayerMode.Color)
                 {
-                    var foregroundColor = ColorParser.Parse(widget.PanelForeground.Color);
+                    var foregroundColor = ColorParser.Parse(foregroundLayer.Color);
                     if (foregroundColor.Alpha > 0)
                         foreground = new SKPaint
                         {

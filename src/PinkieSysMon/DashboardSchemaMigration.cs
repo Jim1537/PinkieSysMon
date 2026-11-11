@@ -24,7 +24,8 @@ internal static class DashboardSchemaMigration
     public const int CommonWidgetGeometrySchemaVersion = 27;
     public const int BarTrackSchemaVersion = 28;
     public const int WidgetPanelLayersSchemaVersion = 29;
-    public const int CurrentSchemaVersion = WidgetPanelLayersSchemaVersion;
+    public const int CanvasPanelSchemaVersion = 30;
+    public const int CurrentSchemaVersion = CanvasPanelSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -52,7 +53,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -145,12 +146,75 @@ internal static class DashboardSchemaMigration
             schemaVersion = WidgetPanelLayersSchemaVersion;
         }
 
+        if (schemaVersion == WidgetPanelLayersSchemaVersion)
+        {
+            UpgradeSchema29To30(root);
+            root["schemaVersion"] = CanvasPanelSchemaVersion;
+            schemaVersion = CanvasPanelSchemaVersion;
+        }
+
         if (schemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
         return true;
     }
 
+
+    // Canvas's former color-under-image composition is intentionally retired.
+    // All schema-29 images are selected by explicit source, not by container presence.
+    private static void UpgradeSchema29To30(JsonObject root)
+    {
+        if (root["canvas"] is not JsonObject canvas)
+            return;
+
+        if ((canvas["backgroundImage"] is not null && canvas["backgroundImage"] is not JsonObject) ||
+            (canvas["foregroundImage"] is not null && canvas["foregroundImage"] is not JsonObject))
+            throw new InvalidDataException("Schema-29 Canvas image layer must be an object.");
+
+        var backgroundColor = canvas["backgroundColor"]?.GetValue<string>() ?? "#000000";
+        var background = UpgradeCanvasLayer(canvas["backgroundImage"] as JsonObject, backgroundColor, isBackground: true);
+        var foreground = UpgradeCanvasLayer(canvas["foregroundImage"] as JsonObject, "#00000000", isBackground: false);
+
+        canvas["panelBackground"] = background;
+        canvas["panelForeground"] = foreground;
+        canvas.Remove("backgroundColor");
+        canvas.Remove("backgroundImage");
+        canvas.Remove("foregroundImage");
+    }
+
+    private static JsonObject UpgradeCanvasLayer(JsonObject? legacy, string color, bool isBackground)
+    {
+        var panel = new JsonObject
+        {
+            ["mode"] = isBackground
+                ? DashboardModel.WidgetPanelLayerMode.Color
+                : DashboardModel.WidgetPanelLayerMode.None,
+            ["color"] = color
+        };
+        if (legacy?["asset"] is not null && legacy["asset"] is not JsonObject)
+            throw new InvalidDataException("Schema-29 Canvas image asset must be an object.");
+        var asset = legacy?["asset"] as JsonObject;
+        var kind = asset?["sourceType"]?.GetValue<string>() ?? DashboardModel.ImageAssetSourceType.File;
+        if (!DashboardModel.ImageAssetSourceType.IsSupported(kind))
+            throw new InvalidDataException("Schema-29 Canvas image layer has an unsupported source type.");
+        var source = asset?["source"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(source))
+            return panel;
+
+        var isIcon = DashboardModel.ImageAssetSourceType.IsIcon(kind);
+        panel["mode"] = isIcon
+            ? DashboardModel.WidgetPanelLayerMode.Icon
+            : DashboardModel.WidgetPanelLayerMode.Image;
+        panel[isIcon ? "icon" : "image"] = asset!.DeepClone();
+        if (isIcon)
+        {
+            if (legacy?["color"] is JsonNode tint)
+                panel["iconColor"] = tint.DeepClone();
+            if (legacy?["iconOpacity"] is JsonNode opacity)
+                panel["iconOpacity"] = opacity.DeepClone();
+        }
+        return panel;
+    }
 
     private static void UpgradeSchema28To29(JsonObject root)
     {

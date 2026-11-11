@@ -10,7 +10,7 @@ An **Output** is the configured destination; a **dashboard** is the saved Canvas
 
 Open the Dashboard Editor and open any saved dashboard, or create and save one. No stock dashboard is bundled with a clean installation. Use the [widget guides](../README.md#available-widgets) to build its content.
 
-Select **Canvas** in the Editor to configure [Width](../widgets/properties.md#width), [Height](../widgets/properties.md#height), [Orientation](../widgets/properties.md#orientation) and [Background Color](../widgets/properties.md#background-color). These properties determine the panel's size and appearance; the panel has no resize border. A 90° or 270° orientation exchanges the displayed width and height.
+Select **Canvas** in the Editor: Orientation is on **General**, while [Width](../widgets/properties.md#width), [Height](../widgets/properties.md#height), [Background](../widgets/properties.md#background-color), Foreground, Border, Corner Radius and Shadow are on the common **Panel** tab. The panel has no resize border. A 90° or 270° Orientation exchanges the displayed width and height. Canvas Shadow is a Desktop-only effect and never enters a physical-output frame.
 
 Transparent Canvas, image and widget pixels remain transparent on the Windows desktop. An opaque Canvas remains opaque. Use the [image-layer properties](../widgets/properties-by-tab.md#image) for artwork and opacity; **Lock** changes mouse behavior, not transparency. See the [native alpha implementation](#session-and-native-alpha-presentation).
 

@@ -4,7 +4,7 @@
 
 <!-- --8<-- [start:widget-base-fields] -->
 
-Schema 29 gives **every widget** a common Panel. The Panel owns widget geometry, corner radius, border, shadow and two independent graphical layers. Widget content styling is separate.
+Schema 29 gives **every widget** a common Panel; schema 30 extends those same graphical properties to the **root Canvas**, which remains a separate document root, not a widget. Panel owns geometry, corner radius, border, shadow and two independent graphical layers. Widget content styling is separate.
 
 | Editor | Group | Fields |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ Each Panel layer independently chooses **None**, **Color**, **Image**, or **Icon
 
 **Draw order:** Panel Background → widget content → Border → Panel Foreground. Both layers cover the **full panel bounds**, including the Padding area. Padding insets only the content. An opaque Foreground may hide the Border. An Image widget can therefore display three independent images: Background, own padded content image, and Foreground.
 
-Common persisted widget properties include id, name, z, x, y, width, height, padding, rotation, color (content), panelBackground, panelForeground, borderColor, borderWidth, borderStyle, borderTop/Right/Bottom/Left, cornerRadius, shadowEnabled, shadowOffsetX/Y, shadowBlur, shadowOpacity, and shadowColor. Schema 29 replaces legacy widget backgroundColor with the panelBackground layer and introduces panelForeground = None. The existing content color remains independent.
+Common persisted widget properties include id, name, z, x, y, width, height, padding, rotation, color (content), panelBackground, panelForeground, borderColor, borderWidth, borderStyle, borderTop/Right/Bottom/Left, cornerRadius, shadowEnabled, shadowOffsetX/Y, shadowBlur, shadowOpacity, and shadowColor. Schema 29 replaces legacy widget backgroundColor with the panelBackground layer and introduces panelForeground = None. Schema 30 gives Canvas the same layer, border/radius and shadow fields, but **no widget ID, X/Y, rotation, Z-order or padding**; its Width/Height/Orientation remain the root raster geometry. The existing widget content color remains independent.
 
 Padding accepts one nonnegative value or four numbers in top|right|bottom|left order, such as 0|0|0|8. Border Width 0 disables remaining border controls without deleting their values. Corner Radius clips rounded content and graphical panel layers. Legacy documents are upgraded once on loading; retain a pre-migration copy for older applications.
 
@@ -32,7 +32,7 @@ Padding accepts one nonnegative value or four numbers in top|right|bottom|left o
 
 <!-- --8<-- [start:background-color] -->
 
-The Canvas uses **Appearance → Background → Color** (JSON: canvas.backgroundColor).
+The Canvas uses **Panel → Background → Mode = Color → Color** (JSON: `canvas.panelBackground.mode` / `canvas.panelBackground.color`). Schema 30 removes the legacy `canvas.backgroundColor` and the former color-under-image composition. Canvas Background and Foreground independently choose None, Color, Image or Icon.
 
 Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA alpha and persisted fields panelBackground.mode/panelBackground.color. In Image/Icon mode the same panel layer uses Source instead. Legacy widget backgroundColor is converted automatically when moving from schema 28 to 29.
 
@@ -725,10 +725,9 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **Semantic keys:**
     - `image.asset.fit`
     - `image.state.{state}.fit`
-    - `image.background_image.asset.fit`
+    - `image.background_image.asset.fit` (legacy Graph plot)
     - `image.panel.background.fit`
     - `image.panel.foreground.fit`
-    - `image.foreground_image.asset.fit`
     - `bar.image.fit`
 
     **Canonical model:**
@@ -738,8 +737,8 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **JSON:**
     - Image: `asset.fit`
     - State profile: `profiles.{state}.asset.fit`
-    - Canvas background: `canvas.backgroundImage.asset.fit`
-    - Canvas foreground: `canvas.foregroundImage.asset.fit`
+    - Canvas background: `canvas.panelBackground.image.fit` or `canvas.panelBackground.icon.fit`
+    - Canvas foreground: `canvas.panelForeground.image.fit` or `canvas.panelForeground.icon.fit`
     - Bar Image: `image.fit`
     - Graph background: `image.asset.fit`
 
@@ -754,7 +753,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
-    - Canvas/Graph layer Fit appears when [Source](properties.md#image-source) is set.
+    - Canvas Panel image/icon Fit appears in the contextual Image tab when the corresponding Panel Mode selects Image or Icon. Graph legacy layers follow their own source applicability.
 
 <!-- --8<-- [end:image-fit] -->
 
@@ -769,14 +768,15 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **Editor name:** Color
 
     **Semantic keys:**
-    - `image.background_image.color`
-    - `image.foreground_image.color`
+    - `image.background_image.color` (legacy Graph plot)
+    - `image.panel.background.icon_color`
+    - `image.panel.foreground.icon_color`
 
-    **Canonical model:** `CanvasImageLayerDefinition.Color`
+    **Canonical model:** `WidgetPanelLayerDefinition.IconColor` (Canvas and widgets); legacy Graph background retains `CanvasImageLayerDefinition.Color`
 
     **JSON:**
-    - `canvas.backgroundImage.color`
-    - `canvas.foregroundImage.color`
+    - `canvas.panelBackground.iconColor`
+    - `canvas.panelForeground.iconColor`
     - Graph background: `image.color`
 
 
@@ -784,9 +784,9 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     - Color.
 
 
-    Tint color of a tintable Canvas, Graph, or Panel icon layer. File images retain their original pixel colors and alpha.
+    Tint color of a tintable Panel icon layer or legacy Graph plot icon. File images retain their original pixel colors and alpha.
 
-    **Used by:** Graph background image, Canvas background image layer, Canvas foreground image layer
+    **Used by:** Graph legacy plot image and Canvas/widget Panel icon layers
 
     **Disabled / read-only when:**
     - [Source](properties.md#image-source) is empty.
@@ -808,10 +808,9 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **Semantic keys:**
     - `image.asset.loop`
     - `image.state.{state}.loop`
-    - `image.background_image.asset.loop`
+    - `image.background_image.asset.loop` (legacy Graph plot)
     - `image.panel.background.loop`
     - `image.panel.foreground.loop`
-    - `image.foreground_image.asset.loop`
     - `bar.image.loop`
 
     **Canonical model:**
@@ -821,8 +820,8 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     **JSON:**
     - Image: `asset.loop`
     - State profile: `profiles.{state}.asset.loop`
-    - Canvas background: `canvas.backgroundImage.asset.loop`
-    - Canvas foreground: `canvas.foregroundImage.asset.loop`
+    - Canvas background: `canvas.panelBackground.image.loop` or `canvas.panelBackground.icon.loop`
+    - Canvas foreground: `canvas.panelForeground.image.loop` or `canvas.panelForeground.icon.loop`
     - Bar Image: `image.loop`
     - Graph background: `image.asset.loop`
 
@@ -852,8 +851,6 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     **Semantic keys:**
     - `image.content.source`
-    - `general.background_image.asset.source`
-    - `general.foreground_image.asset.source`
     - `panel.background.source`
     - `panel.foreground.source`
     - `states.{state}.asset.source`
@@ -865,8 +862,8 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     **JSON:**
     - Image: `asset.source`
-    - Canvas background: `canvas.backgroundImage.asset.source`
-    - Canvas foreground: `canvas.foregroundImage.asset.source`
+    - Canvas background: `canvas.panelBackground.image.source` or `canvas.panelBackground.icon.source`
+    - Canvas foreground: `canvas.panelForeground.image.source` or `canvas.panelForeground.icon.source`
     - State profile: `profiles.{state}.asset.source`
     - Bar Image: `image.source`
     - Graph background: `image.asset.source`
@@ -903,16 +900,14 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     **Semantic keys:**
     - `image.content.kind`
-    - `general.background_image.asset.kind`
-    - `general.foreground_image.asset.kind`
-    - `image.content.kind`
+    - `panel.background.mode`
+    - `panel.foreground.mode`
 
     **Canonical model:** `ImageAssetPresentationDefinition.SourceType`
 
     **JSON:**
     - Image: `asset.sourceType`
-    - Canvas background: `canvas.backgroundImage.asset.sourceType`
-    - Canvas foreground: `canvas.foregroundImage.asset.sourceType`
+    - Canvas Background/Foreground: select `panelBackground.mode` / `panelForeground.mode`; their Image and Icon assets have fixed `sourceType` (`file` / `icon`)
     - Graph background: `image.asset.sourceType`
     - Shortcut: `asset.sourceType`
 
@@ -1278,7 +1273,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 <!-- --8<-- [start:opacity] -->
 
-**Editor label:** Opacity. Canonical properties: ImageWidgetDefinition.IconOpacity, ShortcutWidgetDefinition.IconOpacity, StateVisualProfileDefinition.IconOpacity, CanvasImageLayerDefinition.IconOpacity, and WidgetPanelLayerDefinition.IconOpacity. Persisted name: **iconOpacity**.
+**Editor label:** Opacity. Canonical properties: ImageWidgetDefinition.IconOpacity, ShortcutWidgetDefinition.IconOpacity, StateVisualProfileDefinition.IconOpacity, and WidgetPanelLayerDefinition.IconOpacity (including root Canvas). Persisted name: **iconOpacity**.
 
 Allowed values: finite 0..1. This property applies **only to icons**, including automatic Shortcut Shell artwork. It multiplies icon transparency while keeping the asset's intrinsic color/tint behavior. Icon-only Opacity belongs to the relevant Image-tab group.
 

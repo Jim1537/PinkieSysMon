@@ -35,13 +35,13 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Media Player Metric
     --8<-- "widgets/properties.md:media-player-metric"
 
-    Canvas is not a widget: its General tab retains Canvas geometry and its own image-source pickers.
+    Canvas is not a widget: General shows root Identity and Orientation. Its Width/Height and other common properties belong to Panel; Canvas has no widget ID or Data Source.
 
 === "Panel"
 
     ## Panel
 
-    The same Panel tab is available on every widget. It owns geometry, both graphical layers, border and shadow, independently of widget-content styling.
+    The common Panel tab is available on every widget and on the root Canvas. It owns geometry, both graphical layers, border and shadow, independently of widget-content styling. On Canvas, X/Y are fixed at zero, and Padding, Rotation and Z-order are read-only/not applicable; Width/Height, Corner Radius and graphical layers remain editable. Canvas Shadow is configured here but drawn only by Desktop Outputs.
 
     ### Geometry
 
@@ -300,7 +300,7 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ## Image
 
-    Image is a contextual tab. The widget’s own graphical content and active graphical Panel Background / Foreground each have a **separate named group**. A None/Color Panel layer contributes no Image group. The tab is hidden when no group applies.
+    Image is a contextual tab. A widget’s own graphical content and active graphical Panel Background / Foreground each have a **separate named group**; Canvas uses the same Panel groups without widget content. A None/Color Panel layer contributes no Image group. The tab is hidden when no group applies.
 
     ### Image (widget content)
 
@@ -334,10 +334,6 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Icon Color / Opacity
     --8<-- "widgets/properties.md:image-layer-color"
     --8<-- "widgets/properties.md:opacity"
-
-    ### Canvas Background Image / Foreground Image
-
-    Canvas has separate graphical layers. Its image presentation follows the same file-alpha / icon-opacity rules; Canvas layer sources remain on the Canvas General tab.
 
 === "Text"
 

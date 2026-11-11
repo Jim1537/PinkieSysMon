@@ -58,10 +58,10 @@ internal sealed partial class EditorForm
         {
             images.Preload(definition.Widgets);
             icons.Preload(definition.Widgets);
-            foreach (var layer in new[] { definition.Canvas.BackgroundImage, definition.Canvas.ForegroundImage })
+            foreach (var layer in new[] { definition.Canvas.PanelBackground, definition.Canvas.PanelForeground })
             {
-                var asset = layer.Asset;
-                if (string.IsNullOrWhiteSpace(asset.Source)) continue;
+                var asset = layer.ActiveAsset;
+                if (string.IsNullOrWhiteSpace(asset?.Source)) continue;
                 if (DashboardModel.ImageAssetSourceType.IsIcon(asset.SourceType)) icons.Get(asset.Source);
                 else images.Get(asset.Source);
             }
