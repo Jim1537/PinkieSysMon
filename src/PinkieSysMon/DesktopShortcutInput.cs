@@ -15,6 +15,7 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
 
     private readonly ShortcutInteractionMap _map;
     private readonly Form _visual;
+    private readonly DesktopCanvasViewport _viewport;
     private readonly bool _locked;
     private readonly Action<Point> _drag;
     private readonly ShortcutShellDispatcher _shell;
@@ -26,9 +27,13 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     private long _generation;
 
     internal DesktopShortcutInput(ShortcutInteractionMap map, Form visual, bool locked,
-        Action<Point> drag, Action<int> reportFailure, FileLogger? log = null)
+        Action<Point> drag, Action<int> reportFailure, FileLogger? log = null,
+        DesktopCanvasViewport? viewport = null)
     {
         _map = map; _visual = visual; _locked = locked; _drag = drag;
+        _viewport = viewport ?? DesktopCanvasViewport.ForCanvas(map.Canvas);
+        if (_viewport.Canvas != map.Canvas)
+            throw new InvalidOperationException("Desktop input and Canvas geometry disagree.");
         var rectangles = map.Rasterize();
         _empty = rectangles.Count == 0;
         _shell = new ShortcutShellDispatcher(log is null ? reportFailure : _ => { }, log: log);
@@ -38,9 +43,11 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
             {
                 Caption = "PinkieSysMon Shortcut input", ClassStyle = 0x0008,
                 Style = unchecked((int)0x80000000), ExStyle = 0x00200000 | 0x08000000 | 0x00000080,
-                X = visual.Left, Y = visual.Top, Width = map.Canvas.Width, Height = map.Canvas.Height
+                X = _viewport.CanvasOriginForSurface(visual.Location).X,
+                Y = _viewport.CanvasOriginForSurface(visual.Location).Y,
+                Width = map.Canvas.Width, Height = map.Canvas.Height
             });
-            ValidateClientSize(Handle);
+            ValidateClientSize(Handle, _map.Canvas);
             ApplyRegion(rectangles);
         }
         catch { Dispose(); throw; }
@@ -83,16 +90,17 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     {
         if (_empty || !_visual.Visible) return;
         MoveWithVisual();
-        ValidateClientSize(_visual.Handle); ValidateClientSize(Handle);
+        ValidateClientSize(_visual.Handle, _viewport.Surface);
+        ValidateClientSize(Handle, _map.Canvas);
         ShowWindow(Handle, 8); _visible = true; PlaceAboveVisual();
     }
 
-    private void ValidateClientSize(IntPtr window)
+    private static void ValidateClientSize(IntPtr window, Size expected)
     {
         if (!GetClientRect(window, out var client))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot read Desktop input coordinate mapping.");
-        if (client.Right - client.Left != _map.Canvas.Width || client.Bottom - client.Top != _map.Canvas.Height)
-            throw new InvalidOperationException("Desktop client pixels do not match the Shortcut Canvas; input remains hidden.");
+        if (client.Right - client.Left != expected.Width || client.Bottom - client.Top != expected.Height)
+            throw new InvalidOperationException("Desktop visual/input client pixels disagree with the Canvas viewport; input remains hidden.");
     }
 
     internal void Hide()
@@ -103,7 +111,8 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
     internal void MoveWithVisual()
     {
         Cancel();
-        if (Handle != IntPtr.Zero && !SetWindowPos(Handle, IntPtr.Zero, _visual.Left, _visual.Top,
+        var canvasOrigin = _viewport.CanvasOriginForSurface(_visual.Location);
+        if (Handle != IntPtr.Zero && !SetWindowPos(Handle, IntPtr.Zero, canvasOrigin.X, canvasOrigin.Y,
             _map.Canvas.Width, _map.Canvas.Height, 0x0014))
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot move Shortcut companion.");
     }
@@ -146,7 +155,8 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
                 if (_gesture.Move(point) && !_locked)
                 {
                     ReleaseOwnCapture();
-                    _drag(new Point(_visual.Left + point.X, _visual.Top + point.Y));
+                    var canvasOrigin = _viewport.CanvasOriginForSurface(_visual.Location);
+                    _drag(new Point(checked(canvasOrigin.X + point.X), checked(canvasOrigin.Y + point.Y)));
                 }
                 return;
             case 0x0202:

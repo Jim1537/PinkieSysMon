@@ -19,6 +19,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     private readonly OutputDiagnosticEvents? _diagnostics;
     private readonly IDesktopOutputWindow _window;
     private DashboardRenderer _renderer;
+    private DesktopCanvasShadowCompositor? _shadowCompositor;
     private ShortcutInteractionMap _interactions;
     private AppConfig _config;
     private OutputTargetConfig _target;
@@ -56,24 +57,30 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _log = log ?? throw new ArgumentNullException(nameof(log));
 
         _interactions = new ShortcutInteractionMap(dashboard);
+        var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
         _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log);
         IDesktopOutputWindow? window = null;
+        DesktopCanvasShadowCompositor? shadow = null;
         try
         {
+            if (viewport.HasShadow)
+                shadow = new DesktopCanvasShadowCompositor(viewport, dashboard.Canvas);
             window = (windowFactory ?? (render => new DesktopOutputWindow(render,
                 point => PersistPosition(dashboard.BaseDirectory, point),
                 () => _restoreStack?.Invoke(), error => _log.Error($"Desktop Shortcut input failed; observedErrorCode={error}."),
                 _log, (phase, detail) => _diagnostics?.Record(phase, _id, detail))))(DrawFrame)
                 ?? throw new InvalidOperationException("Desktop window factory returned null.");
-            var size = FrameGeometry.GetLogicalSize(
-                dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-            window.Configure(target.Name, size, LocationFor(target), IntervalFor(config, target),
+            window.ConfigureViewport(viewport);
+            window.Configure(target.Name, viewport.Canvas, LocationFor(target), IntervalFor(config, target),
                 target.Desktop?.Lock ?? true);
             window.ConfigureInteractions(_interactions);
             _window = window;
+            _shadowCompositor = shadow;
+            shadow = null;
         }
         catch
         {
+            shadow?.Dispose();
             window?.Dispose();
             _renderer.Dispose();
             throw;
@@ -161,9 +168,19 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             target.Desktop?.BoardEnabled != true)
             throw new InvalidOperationException($"Desktop session '{_id}' cannot be rebound to '{target.Id}'.");
 
-        var size = FrameGeometry.GetLogicalSize(
-            dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, new ShortcutInteractionMap(dashboard), new DashboardRenderer(dashboard, history: _metrics.History, log: _log));
+        var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
+        var interactions = new ShortcutInteractionMap(dashboard);
+        var renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log);
+        try
+        {
+            var shadow = viewport.HasShadow ? new DesktopCanvasShadowCompositor(viewport, dashboard.Canvas) : null;
+            return new PreparedReconfiguration(config, target, viewport, interactions, renderer, shadow);
+        }
+        catch
+        {
+            renderer.Dispose();
+            throw;
+        }
     }
 
     public IOutputSessionReconfiguration PrepareRollbackReconfiguration(
@@ -178,9 +195,9 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             target.Desktop?.BoardEnabled != true)
             throw new InvalidOperationException("Rollback target does not match the active Desktop Output.");
 
-        var size = FrameGeometry.GetLogicalSize(
-            dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
-        return new PreparedReconfiguration(config, target, size, _interactions, _renderer.Retain());
+        var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
+        var shadow = viewport.HasShadow ? new DesktopCanvasShadowCompositor(viewport, dashboard.Canvas) : null;
+        return new PreparedReconfiguration(config, target, viewport, _interactions, _renderer.Retain(), shadow);
     }
 
     public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration)
@@ -192,13 +209,16 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         // Apply fallible native window configuration before transferring the prepared renderer.
         // On a window error the prepared plan still owns its raster resources for rollback.
-        _window.Configure(prepared.Target.Name, prepared.Size,
+        _window.ConfigureViewport(prepared.Viewport);
+        _window.Configure(prepared.Target.Name, prepared.Viewport.Canvas,
             LocationFor(prepared.Target), IntervalFor(prepared.Config, prepared.Target),
             prepared.Target.Desktop?.Lock ?? true);
         _window.ConfigureInteractions(prepared.Interactions);
         var previous = _renderer;
+        var previousShadow = _shadowCompositor;
         var wasPublishing = Publishing;
         _renderer = prepared.TakeRenderer();
+        _shadowCompositor = prepared.TakeShadow();
         _interactions = prepared.Interactions;
         _config = prepared.Config;
         _target = prepared.Target;
@@ -212,8 +232,11 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         _window.RequestFrame();
         try { previous.Dispose(); }
         catch (Exception ex) { _log.Warn($"Desktop output '{_id}' former renderer cleanup failed.", ex); }
-        _diagnostics?.Record("desktop.renderer.replaced", _id, $"width={prepared.Size.Width}; height={prepared.Size.Height}; locked={_target.Desktop?.Lock}");
-        _log.Info($"Desktop output '{_id}' reconfigured: canvas={prepared.Size.Width}x{prepared.Size.Height} physical pixels.");
+        try { previousShadow?.Dispose(); }
+        catch (Exception ex) { _log.Warn($"Desktop output '{_id}' former shadow compositor cleanup failed.", ex); }
+        _diagnostics?.Record("desktop.renderer.replaced", _id,
+            $"width={prepared.Viewport.Canvas.Width}; height={prepared.Viewport.Canvas.Height}; locked={_target.Desktop?.Lock}; shadow={prepared.Viewport.HasShadow}");
+        _log.Info($"Desktop output '{_id}' reconfigured: canvas={prepared.Viewport.Canvas.Width}x{prepared.Viewport.Canvas.Height} physical pixels.");
     }
 
     public void SetRuntimeMetricsPublisher(bool enabled)
@@ -287,7 +310,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             // Borrow the exact premultiplied BGRA pixels only until native presentation ends.
             // The window does not retain the frame or fall back to opaque GDI+ painting.
             using var frame = _renderer.RenderBgra(_metrics.Snapshot());
-            _window.Present(frame.Bitmap);
+            _window.Present(_shadowCompositor is null ? frame.Bitmap : _shadowCompositor.Compose(frame.Bitmap));
 
             var now = Stopwatch.GetTimestamp();
             Volatile.Write(ref _lastFrameMs, Stopwatch.GetElapsedTime(startedAt, now).TotalMilliseconds);
@@ -356,6 +379,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
         finally
         {
             cleanup.Step("renderer.dispose", _renderer.Dispose);
+            if (_shadowCompositor is not null)
+                cleanup.Step("desktop.shadow.dispose", _shadowCompositor.Dispose);
             cleanup.Step("metrics.unavailable", () => _metrics.Publish(OutputMetricContract.Unavailable(_target)));
         }
         cleanup.Complete();
@@ -363,13 +388,16 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
     }
 
     private sealed class PreparedReconfiguration(
-        AppConfig config, OutputTargetConfig target, Size size, ShortcutInteractionMap interactions, DashboardRenderer renderer)
+        AppConfig config, OutputTargetConfig target, DesktopCanvasViewport viewport,
+        ShortcutInteractionMap interactions, DashboardRenderer renderer,
+        DesktopCanvasShadowCompositor? shadow)
         : IOutputSessionReconfiguration
     {
         private DashboardRenderer? _renderer = renderer;
+        private DesktopCanvasShadowCompositor? _shadow = shadow;
         public AppConfig Config { get; } = config;
         public OutputTargetConfig Target { get; } = target;
-        public Size Size { get; } = size;
+        public DesktopCanvasViewport Viewport { get; } = viewport;
         public ShortcutInteractionMap Interactions { get; } = interactions;
         public DashboardRenderer TakeRenderer()
         {
@@ -377,10 +405,18 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             _renderer = null;
             return owned;
         }
+        public DesktopCanvasShadowCompositor? TakeShadow()
+        {
+            var owned = _shadow;
+            _shadow = null;
+            return owned;
+        }
         public void Dispose()
         {
             _renderer?.Dispose();
+            _shadow?.Dispose();
             _renderer = null;
+            _shadow = null;
         }
     }
 }
@@ -433,6 +469,8 @@ internal interface IDesktopOutputWindow : IDisposable
 {
     bool IsVisible { get; }
     void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked);
+    // Default interface implementation keeps existing test windows and non-native consumers compatible.
+    void ConfigureViewport(DesktopCanvasViewport viewport) { }
     void ConfigureInteractions(ShortcutInteractionMap interactions) { }
     void ShowWindow();
     void HideWindow();
@@ -457,6 +495,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private DesktopShortcutInput? _input;
     private readonly Action<int> _reportShortcutFailure;
     private Size _canvas;
+    private DesktopCanvasViewport? _viewport;
     private Point _lastPosition;
     private bool _locked = true;
     private bool _configuring;
@@ -501,10 +540,13 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         _moveDebounce.Tick += (_, _) =>
         {
             _moveDebounce.Stop();
-            if (_locked || !Visible || Location == _lastPosition)
+            if (_locked || !Visible || _viewport is null)
                 return;
-            _savePosition(Location);
-            _lastPosition = Location;
+            var canvasPosition = _viewport.CanvasOriginForSurface(Location);
+            if (canvasPosition == _lastPosition)
+                return;
+            _savePosition(canvasPosition);
+            _lastPosition = canvasPosition;
         };
         SystemEvents.DisplaySettingsChanged += OnDisplaysChanged;
     }
@@ -513,6 +555,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         DesktopPlacement.Recover(requested, _canvas,
             Screen.AllScreens.Select(s => s.WorkingArea).ToArray(),
             Screen.PrimaryScreen?.WorkingArea ?? SystemInformation.WorkingArea);
+
+    public void ConfigureViewport(DesktopCanvasViewport viewport) =>
+        _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
 
     public void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked)
     {
@@ -523,10 +568,14 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _moveDebounce.Stop();
             Text = title;
             _canvas = clientPixels;
+            _viewport ??= DesktopCanvasViewport.ForCanvas(clientPixels);
+            if (_viewport.Canvas != clientPixels)
+                throw new InvalidOperationException("Desktop viewport does not match the logical Canvas.");
             _locked = locked;
-            ClientSize = clientPixels;
-            Location = Resolve(location);
-            _lastPosition = Location;
+            ClientSize = _viewport.Surface;
+            var recovered = Resolve(location);
+            Location = _viewport.SurfaceOriginForCanvas(recovered);
+            _lastPosition = recovered;
             _refresh.Interval = refreshMs;
             ApplyLockStyle();
             _observe?.Invoke("desktop.window.configured", $"locked={locked}; width={clientPixels.Width}; height={clientPixels.Height}; refreshMs={refreshMs}");
@@ -540,7 +589,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         try
         {
             if (!interactions.IsEmpty)
-                candidate = new DesktopShortcutInput(interactions, this, _locked, BeginShortcutDrag, _reportShortcutFailure, _log);
+                candidate = new DesktopShortcutInput(interactions, this, _locked, BeginShortcutDrag,
+                    _reportShortcutFailure, _log, _viewport);
             var previous = _input; _input = candidate; candidate = null;
             previous?.Dispose();
             if (Visible) _input?.ShowRestricted();
@@ -633,6 +683,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     {
         if (!Visible || !IsHandleCreated)
             return;
+        if (_viewport is not null && (frame.Width != _viewport.Surface.Width ||
+            frame.Height != _viewport.Surface.Height || ClientSize != _viewport.Surface))
+            throw new InvalidOperationException("Desktop frame and padded native surface dimensions disagree.");
         if (_surface is null || _surface.Width != frame.Width || _surface.Height != frame.Height)
         {
             var newSurface = new DesktopLayeredSurface(frame.Width, frame.Height);
@@ -665,6 +718,19 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         // this layered window entirely for mouse targeting (WS_EX_TRANSPARENT).
         if (m.Msg == WmNcHitTest && !_locked)
         {
+            // The shadow is visible outside the logical Canvas but never
+            // belongs to the native dragging/activation region.
+            if (_viewport is { HasShadow: true } viewport)
+            {
+                var raw = m.LParam.ToInt64();
+                var screen = new Point(unchecked((short)raw), unchecked((short)(raw >> 16)));
+                if (!viewport.ContainsCanvasPixel(PointToClient(screen)))
+                {
+                    m.Result = IntPtr.Zero; // HTNOWHERE: no caption drag on shadow margins
+                    return;
+                }
+            }
+
             base.WndProc(ref m);
             if (m.Result == (IntPtr)1) // HTCLIENT
                 m.Result = (IntPtr)2; // HTCAPTION
@@ -693,8 +759,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             try
             {
                 base.WndProc(ref m);
-                if (_canvas.Width > 0 && _canvas.Height > 0 && ClientSize != _canvas)
-                    ClientSize = _canvas; // preserve canonical physical pixel size
+                if (_viewport is not null && ClientSize != _viewport.Surface)
+                    ClientSize = _viewport.Surface; // preserve native padded physical pixel size
                 RecoverVisible();
             }
             finally { _configuring = false; }
@@ -728,16 +794,19 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             _recoverAfterDrag = true;
             return;
         }
-        var recovered = Resolve(Location);
-        if (recovered == Location)
+        if (_viewport is null)
+            return;
+        var canvasPosition = _viewport.CanvasOriginForSurface(Location);
+        var recovered = Resolve(canvasPosition);
+        if (recovered == canvasPosition)
             return;
         _configuring = true;
         try
         {
             _moveDebounce.Stop();
-            Location = recovered;
+            Location = _viewport.SurfaceOriginForCanvas(recovered);
             _observe?.Invoke("desktop.placement.recovered", "visibleAreaRecoveryApplied=true; savedPositionUnchanged=true");
-            _lastPosition = Location; // do not overwrite location of detached monitor
+            _lastPosition = recovered; // do not overwrite location of detached monitor
         }
         finally { _configuring = false; }
         if (Visible)

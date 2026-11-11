@@ -462,6 +462,9 @@ internal static partial class Program
                 ("physical root placement and consent callback", RuntimeTrayMenuTests.PhysicalPlacementAndConsentBridge),
             ]),
             ("Outputs / Desktop", [
+                ("Desktop Canvas shadow viewport geometry and hit region", DesktopCanvasShadowStage05Tests.ViewportGeometryAndInputMapping),
+                ("Desktop Canvas contour shadow BGRA composition", DesktopCanvasShadowStage05Tests.ContourAlphaAndCachedComposition),
+                ("Desktop Canvas shadow session reload and renderer rollback", DesktopCanvasShadowStage05Tests.SessionShadowReloadAndRollback),
                 ("Desktop buffered transitions and native ownership", Issue105DesktopLoggingTests.BufferedTransitionsAndOwnership),
                 ("Shell failure cancellation and payload privacy", Issue105DesktopLoggingTests.ShellFailureCancellationAndPrivacy),
                 ("unavailable native Desktop window isolation and recovery", DesktopSessionStage09Tests.UnavailableExplorerHost),
