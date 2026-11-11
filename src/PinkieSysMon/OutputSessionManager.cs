@@ -779,10 +779,12 @@ internal sealed class OutputSessionManager : IDisposable
             var state = _suspended && session is not null ? "SUSPENDED" :
                 _idlePaused && session is not null ? "IDLE_PAUSED" :
                 session?.UsbState ?? InactiveStateLocked(target);
-            if (!target.ProviderEnabled)
+            // A selected physical Remove reserves the identity before its saved
+            // descriptor is withdrawn; do not resurrect passive metrics in that gap.
+            if (!target.ProviderEnabled || _pendingRemoval.Contains(target.Id))
                 ClearOutputMetricsLocked(target);
             else
-                _metrics.Publish(OutputProviderContract.PassiveStatus(target, state));
+                _metrics.Publish(OutputProviderContract.PassiveStatus(target, state, hasSession: session is not null));
         }
     }
 

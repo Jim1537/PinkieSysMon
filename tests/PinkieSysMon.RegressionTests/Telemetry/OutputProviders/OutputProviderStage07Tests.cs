@@ -151,6 +151,109 @@ internal static class OutputProviderStage07Tests
         });
     }
 
+    public static void PhysicalUsbFallbackLifecycle()
+    {
+        InSandbox((store, log) =>
+        {
+            var first = Physical("screen-a", "A", true, true);
+            var second = Physical("screen-b", "B", true, true);
+            var desktop = Desktop("panel", "Panel", true, false);
+            var config = Config(first, second, desktop);
+            config.MetricProviders[MetricProviderContract.System] = false;
+            var sessions = new Dictionary<string, TestSession>(StringComparer.OrdinalIgnoreCase);
+            using var manager = new OutputSessionManager(config, new C.DashboardDefinition(), store, log,
+                (app, target, board, metrics, logger) =>
+                {
+                    Check(OutputTargetContract.IsPhysicalKind(target.Kind),
+                        "A disabled Desktop board must not open a session.");
+                    var session = new TestSession(target.Id, metrics);
+                    sessions[target.Id] = session;
+                    return session;
+                });
+
+            string Key(string id, string field) => OutputMetricContract.Id(id, field);
+            object? Value(string id, string field) =>
+                store.Snapshot().TryGetValue(Key(id, field), out var value) ? value : null;
+            void CheckState(string id, string status, string usb, string reason) =>
+                Check(Equals(Value(id, OutputMetricContract.Status), status) &&
+                      Equals(Value(id, OutputMetricContract.UsbState), usb), reason);
+            void CheckUnavailable(string id, string status, string reason) =>
+                Check(Equals(Value(id, OutputMetricContract.Status), status) &&
+                      Equals(Value(id, OutputMetricContract.UsbState), OutputProviderContract.InactiveUsbState) &&
+                      Value(id, OutputMetricContract.Fps) is null, reason);
+
+            manager.Start();
+            sessions[first.Id].PublishConnection("CONNECTED");
+            sessions[second.Id].PublishConnection("AMBIGUOUS");
+            CheckState(first.Id, "CONNECTED", "CONNECTED", "A live session must own CONNECTED.");
+            CheckState(second.Id, "AMBIGUOUS", "AMBIGUOUS", "A sibling must retain its own transport state.");
+            Check(!store.Snapshot().ContainsKey(Key(desktop.Id, OutputMetricContract.UsbState)) &&
+                  Equals(Value(desktop.Id, OutputMetricContract.Status), "DISABLED"),
+                "Desktop must publish passive status but no USB metric.");
+
+            manager.StopAll();
+            CheckUnavailable(first.Id, "STOPPED", "Stop All must expose inactive physical USB state.");
+            CheckUnavailable(second.Id, "STOPPED", "Stop All must affect each independent physical Output.");
+            Check(Equals(Value(desktop.Id, OutputMetricContract.Status), "DISABLED"),
+                "Stop All must preserve disabled Desktop lifecycle status.");
+
+            manager.Start();
+            CheckState(first.Id, "WAITING", "WAITING",
+                "Restart must replace UNAVAILABLE with the new session's actual state.");
+            sessions[first.Id].PublishConnection("ERROR");
+            sessions[second.Id].PublishConnection("CONNECTED");
+            CheckState(first.Id, "ERROR", "ERROR", "Session errors must not be converted to UNAVAILABLE.");
+
+            var disabled = Config(Physical("screen-a", "A", true, false),
+                Physical("screen-b", "B", true, true), desktop);
+            disabled.MetricProviders[MetricProviderContract.System] = false;
+            manager.Reconfigure(disabled, new C.DashboardDefinition());
+            CheckUnavailable(first.Id, "DISABLED", "Disabling a device must publish passive USB inactivity.");
+            CheckState(second.Id, "CONNECTED", "CONNECTED", "Disabling A must preserve connected B.");
+
+            var providerOff = Config(Physical("screen-a", "A", false, false),
+                Physical("screen-b", "B", true, true), desktop);
+            providerOff.MetricProviders[MetricProviderContract.System] = false;
+            manager.Reconfigure(providerOff, new C.DashboardDefinition());
+            Check(Value(first.Id, OutputMetricContract.UsbState) is null &&
+                  Value(first.Id, OutputMetricContract.Status) is null,
+                "Provider OFF must invalidate both USB and passive status.");
+            CheckState(second.Id, "CONNECTED", "CONNECTED", "Provider OFF on A must not clear B.");
+
+            var reenabled = Config(Physical("screen-a", "A", true, true),
+                Physical("screen-b", "B", true, true), desktop);
+            reenabled.MetricProviders[MetricProviderContract.System] = false;
+            manager.Reconfigure(reenabled, new C.DashboardDefinition());
+            CheckState(first.Id, "WAITING", "WAITING",
+                "Enabling the Output must replace the old null with actual session state.");
+            sessions[first.Id].PublishConnection("CONNECTED");
+            CheckState(first.Id, "CONNECTED", "CONNECTED", "Reconnected session must publish CONNECTED.");
+
+            manager.PreparePhysicalRemoval(first.Id);
+            Check(Value(first.Id, OutputMetricContract.UsbState) is null &&
+                  Value(first.Id, OutputMetricContract.Status) is null &&
+                  Value(first.Id, OutputMetricContract.Fps) is null,
+                "Pending physical Remove must not republish an inactive USB value.");
+            CheckState(second.Id, "CONNECTED", "CONNECTED", "Selected Remove must preserve sibling metrics.");
+
+            var removed = Config(Physical("screen-b", "B", true, true), desktop);
+            removed.MetricProviders[MetricProviderContract.System] = false;
+            manager.Reconfigure(removed, new C.DashboardDefinition());
+            Check(Value(first.Id, OutputMetricContract.UsbState) is null &&
+                  Value(first.Id, OutputMetricContract.Status) is null,
+                "Removed Output must leave no stale USB or lifecycle values.");
+            CheckState(second.Id, "CONNECTED", "CONNECTED", "Descriptor removal must not disturb B.");
+
+            Check(BinarySignalContract.TryResolve("CONNECTED", "Setpoint", "CONNECTED", "=", out var connected) &&
+                  connected &&
+                  BinarySignalContract.TryResolve(OutputProviderContract.InactiveUsbState,
+                      "Setpoint", "CONNECTED", "=", out var inactive) && !inactive &&
+                  !BinarySignalContract.TryResolve(null, "Setpoint", "CONNECTED", "=", out _) &&
+                  !BinarySignalContract.TryResolve("undefined", "Setpoint", "CONNECTED", "=", out _),
+                "Binary must select True for CONNECTED, False for UNAVAILABLE and no state for null/reserved text.");
+        });
+    }
+
     private static AppConfig Config(params OutputTargetConfig[] outputs) => new()
     {
         Outputs = new OutputConfig { Targets = outputs.ToList() }
@@ -202,13 +305,29 @@ internal static class OutputProviderStage07Tests
         public long SentFrames => 0;
         public double LastFrameMs => 0;
         public int LastJpegBytes => 0;
-        public string UsbState => "WAITING";
+        public string UsbState { get; private set; } = "WAITING";
         public void Start() { }
+        public void PublishConnection(string state)
+        {
+            UsbState = state;
+            if (Enabled)
+                store.Publish(new Dictionary<string, object?>
+                {
+                    [OutputMetricContract.Id(id, OutputMetricContract.UsbState)] = state,
+                    [OutputMetricContract.Id(id, OutputMetricContract.Status)] = state
+                });
+        }
         public void SetRuntimeMetricsPublisher(bool enabled)
         {
             Enabled = enabled;
             if (enabled)
-                store.Publish(OutputMetricContract.Id(id, OutputMetricContract.Fps), id == "screen-a" ? 51 : 52);
+            {
+                store.Publish(new Dictionary<string, object?>
+                {
+                    [OutputMetricContract.Id(id, OutputMetricContract.Fps)] = id == "screen-a" ? 51 : 52,
+                    [OutputMetricContract.Id(id, OutputMetricContract.UsbState)] = UsbState
+                });
+            }
             else
                 store.Publish(OutputMetricContract.Unavailable(id, true));
         }

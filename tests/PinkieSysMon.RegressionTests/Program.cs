@@ -375,6 +375,7 @@ internal static partial class Program
                 ("Dynamic output provider registration", OutputProviderStage07Tests.ProviderCatalog),
                 ("Dynamic output selector branches and switches", OutputProviderStage07Tests.Selector),
                 ("Output provider passive status and removal", OutputProviderStage07Tests.PassiveLifecycle),
+                ("Physical USB inactive-session fallback and Binary", OutputProviderStage07Tests.PhysicalUsbFallbackLifecycle),
                 ("Output provider active isolation without System", OutputProviderStage07Tests.LiveIsolation),
             ]),
             ("Telemetry / Providers", [
