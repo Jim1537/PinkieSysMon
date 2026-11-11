@@ -26,7 +26,8 @@ internal static class DashboardSchemaMigration
     public const int WidgetPanelLayersSchemaVersion = 29;
     public const int CanvasPanelSchemaVersion = 30;
     public const int WidgetActionSchemaVersion = 31;
-    public const int CurrentSchemaVersion = WidgetActionSchemaVersion;
+    public const int ShadowColorAlphaSchemaVersion = 32;
+    public const int CurrentSchemaVersion = ShadowColorAlphaSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -50,7 +51,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -157,6 +158,13 @@ internal static class DashboardSchemaMigration
             schemaVersion = WidgetActionSchemaVersion;
         }
 
+        if (schemaVersion == WidgetActionSchemaVersion)
+        {
+            UpgradeSchema31To32(root);
+            root["schemaVersion"] = ShadowColorAlphaSchemaVersion;
+            schemaVersion = ShadowColorAlphaSchemaVersion;
+        }
+
         if (schemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
@@ -169,7 +177,31 @@ internal static class DashboardSchemaMigration
         if (root["widgets"] is JsonArray widgets && widgets.OfType<JsonObject>().Any(widget =>
             widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
             string.Equals(type, "shortcut", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidDataException("Legacy Shortcut widgets are unsupported by schema 31. Remove or replace them using an older application, then reopen the unchanged source dashboard.");
+            throw new InvalidDataException("Legacy Shortcut widgets are unsupported by the current dashboard schema. Remove or replace them using an older application, then reopen the unchanged source dashboard.");
+    }
+
+    // Schema 31 stores two shadow alpha factors; schema 32 folds them into Color.
+    // Migrate disabled settings too, so re-enabling the shadow preserves its appearance.
+    private static void UpgradeSchema31To32(JsonObject root)
+    {
+        if (root["canvas"] is JsonObject canvas)
+            FoldShadowAlpha(canvas);
+        if (root["widgets"] is JsonArray widgets)
+            foreach (var widget in widgets.OfType<JsonObject>())
+                FoldShadowAlpha(widget);
+    }
+
+    private static void FoldShadowAlpha(JsonObject owner)
+    {
+        var opacity = owner["shadowOpacity"] is JsonNode value
+            ? JsonSerializer.Deserialize<float>(value.ToJsonString())
+            : 0.5f;
+        if (!float.IsFinite(opacity) || opacity is < 0f or > 1f)
+            throw new InvalidDataException("Legacy shadowOpacity must be finite and between 0 and 1.");
+
+        var color = owner["shadowColor"]?.GetValue<string>() ?? "#FF000000";
+        owner["shadowColor"] = FoldAlpha(color, opacity);
+        owner.Remove("shadowOpacity");
     }
 
     // Canvas's former color-under-image composition is intentionally retired.
@@ -333,7 +365,7 @@ internal static class DashboardSchemaMigration
         owner.Remove(legacyProperty);
     }
 
-    private static string FoldAlpha(string color, float opacity)
+    internal static string FoldAlpha(string color, float opacity)
     {
         var parsed = ColorParser.Parse(color);
         var alpha = (byte)Math.Clamp((int)Math.Round(parsed.Alpha * opacity), 0, 255);

@@ -14,15 +14,15 @@ Schema 29 gives **every widget** a common Panel; schema 30 extends those same gr
 | Panel | Background | Mode and contextual Color or Source |
 | Panel | Foreground | Mode and contextual Color or Source |
 | Panel | Border | Width, Color, Style, Top, Right, Bottom, Left |
-| Panel | Shadow | Enabled, Color, Opacity, Blur, Offset X, Offset Y |
+| Panel | Shadow | Enabled, Color, Blur, Offset X, Offset Y |
 
 Each Panel layer independently chooses **None**, **Color**, **Image**, or **Icon**. None draws nothing. Color uses its RGBA alpha. File-backed Image uses only its embedded alpha. Icon supports tint if the asset is tintable, and an additional Opacity. Panel source pickers appear only for Image/Icon; their Fit/Loop and icon-only Opacity/Color appear on the contextual Image tab. Switching modes retains dormant settings, and inactive file references are not resolved.
 
 **Draw order:** Panel Background → widget content → Border → Panel Foreground. Both layers cover the **full panel bounds**, including the Padding area. Padding insets only the content. An opaque Foreground may hide the Border. An Image widget can therefore display three independent images: Background, own padded content image, and Foreground.
 
-Common persisted widget properties include id, name, z, x, y, width, height, padding, rotation, color (content), panelBackground, panelForeground, borderColor, borderWidth, borderStyle, borderTop/Right/Bottom/Left, cornerRadius, shadowEnabled, shadowOffsetX/Y, shadowBlur, shadowOpacity, and shadowColor. Schema 29 replaces legacy widget backgroundColor with the panelBackground layer and introduces panelForeground = None. Schema 30 gives Canvas the same layer, border/radius and shadow fields, but **no widget ID, X/Y, rotation, Z-order or padding**; its Width/Height/Orientation remain the root raster geometry. Canvas Shadow is implemented for Desktop-only presentation (see the [Desktop guide](../outputs/desktop.md#session-and-native-alpha-presentation)); physical output ignores it. The existing widget content color remains independent.
+Common persisted widget properties include id, name, z, x, y, width, height, padding, rotation, color (content), panelBackground, panelForeground, borderColor, borderWidth, borderStyle, borderTop/Right/Bottom/Left, cornerRadius, shadowEnabled, shadowOffsetX/Y, shadowBlur, and shadowColor. Schema 29 replaces legacy widget backgroundColor with the panelBackground layer and introduces panelForeground = None. Schema 30 gives Canvas the same layer, border/radius and shadow fields, but **no widget ID, X/Y, rotation, Z-order or padding**; its Width/Height/Orientation remain the root raster geometry. Canvas Shadow is implemented for Desktop-only presentation (see the [Desktop guide](../outputs/desktop.md#session-and-native-alpha-presentation)); physical output ignores it. The existing widget content color remains independent.
 
-Padding accepts one nonnegative value or four numbers in top|right|bottom|left order, such as 0|0|0|8. Border Width 0 disables remaining border controls without deleting their values. Corner Radius clips rounded content and graphical panel layers. Legacy documents are upgraded once on loading; retain a pre-migration copy for older applications.
+Padding accepts one nonnegative value or four numbers in top|right|bottom|left order, such as 0|0|0|8. Border Width 0 disables remaining border controls without deleting their values. Corner Radius clips rounded content and graphical panel layers. Schema 32 replaces separate Shadow Opacity with the alpha channel of Shadow Color for both widgets and Canvas. Migration folds the previous color alpha × opacity into one 8-bit alpha, including disabled shadows. New shadow colors default to `#80000000` (the former opaque black at 0.5 opacity). Legacy documents are upgraded once on loading; retain a pre-migration copy for older applications.
 
 <!-- --8<-- [end:widget-base-fields] -->
 
@@ -1276,7 +1276,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 Allowed values: finite 0..1. This property applies **only to icons**. It multiplies icon transparency while keeping the asset's intrinsic color/tint behavior. Icon-only Opacity belongs to the relevant Image-tab group.
 
-File-backed images use their **embedded alpha only**; no independent Opacity or Color control exists. Text also has no standalone Opacity; text and outline RGBA colors have independent alpha. The unrelated Shadow Opacity and Graph Fill Opacity properties remain in place.
+File-backed images use their **embedded alpha only**; no independent Opacity or Color control exists. Text also has no standalone Opacity; text and outline RGBA colors have independent alpha. The unrelated Graph Fill Opacity remains independent; Shadow uses its RGBA Color alpha instead.
 
 Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text opacity fields. See the migration discussion in Issue #112 for edge cases.
 
@@ -1726,10 +1726,10 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
 
     **Values:**
-    - Color.
+    - `#RRGGBB` or `#AARRGGBB` (8-bit alpha).
 
 
-    Shadow color.
+    Shadow color; its RGBA alpha is the only shadow transparency control. Applies equally to widget shadows and Desktop-only Canvas contour shadows.
 
     **Used by:** All widgets
 
@@ -1815,33 +1815,6 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
     - [Enabled](properties.md#shadow-enabled)=`false`.
 
 <!-- --8<-- [end:shadow-offset-y] -->
-
----
-## Shadow Opacity
-
-
-<!-- --8<-- [start:shadow-opacity] -->
-
-!!! info ""
-
-    **Editor name:** Opacity  
-    **Semantic key:** `appearance.shadow.opacity`  
-    **Canonical model:** `WidgetDefinition.ShadowOpacity`  
-    **JSON:** `shadowOpacity`
-
-
-    **Values:**
-    - Number `0..1`.
-
-
-    Shadow opacity.
-
-    **Used by:** All widgets
-
-    **Disabled / read-only when:**
-    - [Enabled](properties.md#shadow-enabled)=`false`.
-
-<!-- --8<-- [end:shadow-opacity] -->
 
 ---
 ## Source Unit

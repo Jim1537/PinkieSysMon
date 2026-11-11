@@ -603,24 +603,19 @@ internal sealed class WidgetRenderContext : IDisposable
             CanonicalWidgetDefinition widget,
             bool antialias)
         {
-            if (!widget.ShadowEnabled || widget.ShadowOpacity <= 0f)
+            if (!widget.ShadowEnabled)
                 return null;
 
             var source = ColorParser.Parse(widget.ShadowColor);
             if (source.Alpha == 0)
                 return null;
 
-            var alpha = (byte)Math.Clamp(
-                (int)Math.Round(source.Alpha * widget.ShadowOpacity),
-                0,
-                255);
-            var effectiveColor = new SKColor(source.Red, source.Green, source.Blue, alpha);
             var filter = SKImageFilter.CreateDropShadow(
                 widget.ShadowOffsetX,
                 widget.ShadowOffsetY,
                 widget.ShadowBlur,
                 widget.ShadowBlur,
-                effectiveColor)
+                source)
                 ?? throw new InvalidOperationException("Skia could not create the widget shadow filter.");
             SKPaint? paint = null;
             try

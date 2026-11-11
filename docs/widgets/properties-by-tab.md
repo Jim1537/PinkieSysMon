@@ -84,10 +84,9 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ### Shadow
 
-    #### Enabled / Color / Opacity / Blur / Offsets
+    #### Enabled / Color / Blur / Offsets
     --8<-- "widgets/properties.md:shadow-enabled"
     --8<-- "widgets/properties.md:shadow-color"
-    --8<-- "widgets/properties.md:shadow-opacity"
     --8<-- "widgets/properties.md:shadow-blur"
     --8<-- "widgets/properties.md:shadow-offset-x"
     --8<-- "widgets/properties.md:shadow-offset-y"

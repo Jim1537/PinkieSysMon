@@ -373,7 +373,6 @@ internal static class CanonicalPropertyViewBuilder
         result.Add(Group("Shadow", [
             Bool(widget, nameof(widget.ShadowEnabled), "appearance.shadow.enabled", "Enabled", () => widget.ShadowEnabled, v => widget.ShadowEnabled = v),
             Color(widget, nameof(widget.ShadowColor), "appearance.shadow.color", "Color", () => widget.ShadowColor, v => widget.ShadowColor = v, ShadowDisabled),
-            Float(widget, nameof(widget.ShadowOpacity), "appearance.shadow.opacity", "Opacity", () => widget.ShadowOpacity, v => widget.ShadowOpacity = Math.Clamp(v, 0f, 1f), ShadowDisabled),
             Float(widget, nameof(widget.ShadowBlur), "appearance.shadow.blur", "Blur", () => widget.ShadowBlur, v => widget.ShadowBlur = Math.Max(0f, v), ShadowDisabled),
             Float(widget, nameof(widget.ShadowOffsetX), "appearance.shadow.offset_x", "Offset X", () => widget.ShadowOffsetX, v => widget.ShadowOffsetX = v, ShadowDisabled),
             Float(widget, nameof(widget.ShadowOffsetY), "appearance.shadow.offset_y", "Offset Y", () => widget.ShadowOffsetY, v => widget.ShadowOffsetY = v, ShadowDisabled)
@@ -1137,8 +1136,6 @@ internal static class CanonicalPropertyViewBuilder
                         () => canvas.ShadowEnabled, v => canvas.ShadowEnabled = v),
                     Color(canvas, nameof(canvas.ShadowColor), "appearance.shadow.color", "Color",
                         () => canvas.ShadowColor, v => canvas.ShadowColor = v, ShadowDisabled),
-                    Float(canvas, nameof(canvas.ShadowOpacity), "appearance.shadow.opacity", "Opacity",
-                        () => canvas.ShadowOpacity, v => canvas.ShadowOpacity = Math.Clamp(v, 0f, 1f), ShadowDisabled),
                     Float(canvas, nameof(canvas.ShadowBlur), "appearance.shadow.blur", "Blur",
                         () => canvas.ShadowBlur, v => canvas.ShadowBlur = Math.Max(0f, v), ShadowDisabled),
                     Float(canvas, nameof(canvas.ShadowOffsetX), "appearance.shadow.offset_x", "Offset X",

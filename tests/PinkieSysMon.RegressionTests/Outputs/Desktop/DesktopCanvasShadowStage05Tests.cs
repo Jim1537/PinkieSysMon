@@ -34,12 +34,12 @@ internal static class DesktopCanvasShadowStage05Tests
               !viewport.ContainsCanvasPixel(new Point(38, 41)),
             "Native surface placement and input clipping must preserve saved Canvas origin and pixel edges.");
 
-        canvas.ShadowOpacity = 0f;
+        canvas.ShadowColor = "#00000000";
         var invisible = DesktopCanvasViewport.Create(canvas);
         Check(!invisible.HasShadow && invisible.Surface == invisible.Canvas,
             "Invisible shadows must allocate no extra native pixels.");
 
-        canvas.ShadowOpacity = 1f;
+        canvas.ShadowColor = "#FF000000";
         canvas.ShadowBlur = 100_000f;
         Check(Throws<InvalidDataException>(() => DesktopCanvasViewport.Create(canvas)),
             "Unbounded shadow blur must be rejected before any native allocation.");
@@ -51,7 +51,7 @@ internal static class DesktopCanvasShadowStage05Tests
         {
             Width = 40, Height = 24, ShadowEnabled = true,
             ShadowBlur = 0, ShadowOffsetX = 8, ShadowOffsetY = 3,
-            ShadowOpacity = .75f, ShadowColor = "#FF000000", CornerRadius = 6
+            ShadowColor = "#BF000000", CornerRadius = 6
         };
         var viewport = DesktopCanvasViewport.Create(root);
         Check(viewport.Surface == new Size(49, 28),
@@ -122,7 +122,7 @@ internal static class DesktopCanvasShadowStage05Tests
                 {
                     Width = 40, Height = 24, ShadowEnabled = true,
                     ShadowBlur = 0, ShadowOffsetX = 8, ShadowOffsetY = 3,
-                    ShadowOpacity = 1f, PanelBackground = new C.WidgetPanelLayerDefinition
+                    ShadowColor = "#FF000000", PanelBackground = new C.WidgetPanelLayerDefinition
                     {
                         Mode = C.WidgetPanelLayerMode.Color, Color = "#FFFF0000"
                     }

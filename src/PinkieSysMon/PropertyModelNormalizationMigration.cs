@@ -39,6 +39,19 @@ internal static class PropertyModelNormalizationMigration
         var canonical = MapLegacyDefinition(legacy);
 
         var normalized = DashboardJson.SerializeToObjectUnchecked(canonical);
+        // The schema-18 mapper uses the new one-alpha render model for previews.
+        // Restore the original two factors in this historical schema-19 JSON
+        // intermediate so the dedicated 31→32 migration folds them exactly once.
+        if (normalized["widgets"] is not JsonArray normalizedWidgets ||
+            normalizedWidgets.Count != legacy.Widgets.Count)
+            throw new InvalidDataException("Schema-18 widget migration lost widget correspondence.");
+        for (var i = 0; i < legacy.Widgets.Count; i++)
+        {
+            var mapped = normalizedWidgets[i] as JsonObject
+                ?? throw new InvalidDataException("Schema-18 widget migration produced an invalid widget.");
+            mapped["shadowColor"] = legacy.Widgets[i].ShadowColor;
+            mapped["shadowOpacity"] = legacy.Widgets[i].ShadowOpacity;
+        }
         // This is the *historical schema-19 intermediate*, not schema 30.
         // Keep its original Canvas fields until the dedicated 29→30 migration.
         // MapLegacyDefinition separately provides the contemporary Canvas Panel
@@ -342,8 +355,7 @@ internal static class PropertyModelNormalizationMigration
         target.ShadowOffsetX = source.ShadowOffsetX;
         target.ShadowOffsetY = source.ShadowOffsetY;
         target.ShadowBlur = source.ShadowBlur;
-        target.ShadowOpacity = source.ShadowOpacity;
-        target.ShadowColor = source.ShadowColor;
+        target.ShadowColor = DashboardSchemaMigration.FoldAlpha(source.ShadowColor, source.ShadowOpacity);
     }
 
     private static CanonicalDashboard.ThresholdSetDefinition MapThresholds(WidgetDefinition legacy) => new()

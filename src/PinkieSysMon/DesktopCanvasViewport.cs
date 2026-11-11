@@ -28,13 +28,12 @@ internal sealed class DesktopCanvasViewport
         FrameGeometry.ValidateRasterSize(canvas.Width, canvas.Height);
 
         var color = ColorParser.Parse(root.ShadowColor);
-        var active = root.ShadowEnabled && root.ShadowOpacity > 0f && color.Alpha > 0;
+        var active = root.ShadowEnabled && color.Alpha > 0;
         if (!active)
             return ForCanvas(canvas);
 
         if (!float.IsFinite(root.ShadowBlur) || root.ShadowBlur < 0f ||
-            !float.IsFinite(root.ShadowOffsetX) || !float.IsFinite(root.ShadowOffsetY) ||
-            !float.IsFinite(root.ShadowOpacity) || root.ShadowOpacity is < 0f or > 1f)
+            !float.IsFinite(root.ShadowOffsetX) || !float.IsFinite(root.ShadowOffsetY))
             throw new InvalidDataException("Invalid Desktop Canvas shadow geometry.");
 
         // Skia Gaussian blur coverage approaches zero at 3 sigma. Keep one

@@ -59,6 +59,8 @@ internal static partial class Program
                 ("Dashboard universal size schema", DashboardUniversalSizeSchema),
             ]),
             ("Dashboard / Model & Canvas", [
+                ("Shadow 31→32 migration, defaults and idempotence", Issue116ShadowMigrationTests.SchemaMigrationAndRoundTrip),
+                ("Shadow Panel properties and Desktop RGBA alpha", Issue116ShadowMigrationTests.PropertyContractAndDesktopAlpha),
                 ("Canvas normalized property hierarchy", CanvasNormalizedPropertyHierarchy),
                 ("Canvas image source/presentation normalization", CanvasImageSourcePresentationNormalization),
                 ("Canvas schema 16 geometry migration", CanvasSchema16GeometryMigration),

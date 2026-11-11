@@ -74,11 +74,8 @@ internal sealed class CanvasDefinition
     [JsonPropertyName("shadowBlur")]
     public float ShadowBlur { get; set; } = 4f;
 
-    [JsonPropertyName("shadowOpacity")]
-    public float ShadowOpacity { get; set; } = 0.5f;
-
     [JsonPropertyName("shadowColor")]
-    public string ShadowColor { get; set; } = "#FF000000";
+    public string ShadowColor { get; set; } = "#80000000";
 
     internal void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
@@ -95,8 +92,7 @@ internal sealed class CanvasDefinition
         if (!float.IsFinite(CornerRadius) || CornerRadius < 0f)
             throw new InvalidDataException("Canvas Corner Radius must be finite and nonnegative.");
         if (!float.IsFinite(ShadowBlur) || ShadowBlur < 0f ||
-            !float.IsFinite(ShadowOffsetX) || !float.IsFinite(ShadowOffsetY) ||
-            !float.IsFinite(ShadowOpacity) || ShadowOpacity is < 0f or > 1f)
+            !float.IsFinite(ShadowOffsetX) || !float.IsFinite(ShadowOffsetY))
             throw new InvalidDataException("Canvas Shadow configuration is invalid.");
         _ = global::PinkieSysMon.ColorParser.Parse(BorderColor);
         _ = global::PinkieSysMon.ColorParser.Parse(ShadowColor);

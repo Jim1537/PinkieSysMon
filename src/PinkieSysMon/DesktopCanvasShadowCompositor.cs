@@ -35,13 +35,12 @@ internal sealed class DesktopCanvasShadowCompositor : IDisposable
                 viewport.CanvasOffset.Y + root.ShadowOffsetY);
 
             var tint = ColorParser.Parse(root.ShadowColor);
-            var alpha = (byte)Math.Clamp((int)Math.Round(tint.Alpha * root.ShadowOpacity), 0, 255);
             using var filter = root.ShadowBlur > 0f
                 ? SKImageFilter.CreateBlur(root.ShadowBlur, root.ShadowBlur)
                 : null;
             using var paint = new SKPaint
             {
-                Color = new SKColor(tint.Red, tint.Green, tint.Blue, alpha),
+                Color = tint,
                 IsAntialias = true,
                 ImageFilter = filter
             };

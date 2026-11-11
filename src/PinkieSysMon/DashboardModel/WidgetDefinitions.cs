@@ -104,11 +104,8 @@ internal abstract class WidgetDefinition
     [JsonPropertyName("shadowBlur")]
     public float ShadowBlur { get; set; } = 4f;
 
-    [JsonPropertyName("shadowOpacity")]
-    public float ShadowOpacity { get; set; } = 0.5f;
-
     [JsonPropertyName("shadowColor")]
-    public string ShadowColor { get; set; } = "#FF000000";
+    public string ShadowColor { get; set; } = "#80000000";
 
     internal virtual void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
     {
@@ -125,7 +122,6 @@ internal abstract class WidgetDefinition
         RequireFinite(ShadowOffsetX, nameof(ShadowOffsetX));
         RequireFinite(ShadowOffsetY, nameof(ShadowOffsetY));
         RequireFinite(ShadowBlur, nameof(ShadowBlur));
-        RequireFinite(ShadowOpacity, nameof(ShadowOpacity));
 
         if (string.IsNullOrWhiteSpace(Id))
             throw new InvalidDataException($"Dashboard widget of type '{Type}' requires a non-empty Id.");
@@ -135,8 +131,6 @@ internal abstract class WidgetDefinition
             throw new InvalidDataException($"Widget '{Id}' CornerRadius cannot be negative.");
         if (ShadowBlur < 0f)
             throw new InvalidDataException($"Widget '{Id}' ShadowBlur cannot be negative.");
-        if (ShadowOpacity is < 0f or > 1f)
-            throw new InvalidDataException($"Widget '{Id}' ShadowOpacity must be in the range 0..1.");
 
         _ = global::PinkieSysMon.ColorParser.Parse(Color);
         if (PanelBackground is null || PanelForeground is null)
