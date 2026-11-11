@@ -101,8 +101,9 @@ internal static partial class Program
                 Source = "example.png"
             }
         };
-        var imageProperties = new EditorPropertyView(image, section: EditorPropertySection.Image).GetProperties();
-        var imageType = TypeDescriptor.GetProperties(imageProperties["Image"]!.GetValue(null)!)["SourceType"]!
+        // Issue #117 moved content source selection to General, leaving Image for presentation.
+        var imageProperties = new EditorPropertyView(image, section: EditorPropertySection.General).GetProperties();
+        var imageType = TypeDescriptor.GetProperties(imageProperties["Image Source"]!.GetValue(null)!)["SourceType"]!
             ?? throw new InvalidOperationException("Image content source type is missing.");
         var imageTypeOptions = imageType.Converter.GetStandardValues()
             ?.Cast<object>()
@@ -111,14 +112,14 @@ internal static partial class Program
             .ToArray() ?? [];
         Assert(imageTypeOptions.SequenceEqual(new[] { "Image", "Icon" }),
             "Image Source/Type must offer Image and Icon.");
-        var imageSource = GetNestedProperty(imageProperties, "Image", "Source");
+        var imageSource = GetNestedProperty(imageProperties, "Image Source", "Source");
         Assert(imageSource is not null && imageSource.DisplayName == "Image",
             "File-backed Image widget must label its source row as Image.");
         imageType.SetValue(null, "Icon");
         Assert(C.ImageAssetSourceType.IsIcon(image.Asset.SourceType) && image.Asset.Source is null,
             "Image Source/Type transition to Icon must update canonical Asset.SourceType and clear Source atomically.");
-        imageProperties = new EditorPropertyView(image, section: EditorPropertySection.Image).GetProperties();
-        imageSource = GetNestedProperty(imageProperties, "Image", "Source");
+        imageProperties = new EditorPropertyView(image, section: EditorPropertySection.General).GetProperties();
+        imageSource = GetNestedProperty(imageProperties, "Image Source", "Source");
         Assert(imageSource is not null && imageSource.DisplayName == "Icon",
             "Icon-backed Image widget must label its source row as Icon.");
 

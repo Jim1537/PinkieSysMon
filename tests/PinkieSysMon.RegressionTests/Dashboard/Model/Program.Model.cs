@@ -108,16 +108,20 @@ internal static partial class Program
         var widget = new C.ImageWidgetDefinition { Id = "shared-image-picker", Width = 50, Height = 50 };
         widget.Asset.SourceType = C.ImageAssetSourceType.Icon;
         widget.Asset.Source = "lucide:cpu";
+        var widgetGeneral = CurrentPropertyView(widget, section: EditorPropertySection.General,
+            applicationRoot: root, dashboardDirectory: root).GetProperties();
         var widgetImage = CurrentPropertyView(widget, section: EditorPropertySection.Image,
             applicationRoot: root, dashboardDirectory: root).GetProperties();
         var panelSource = GetNestedProperty(panel, "Background", "Source");
-        var widgetSource = GetNestedProperty(widgetImage, "Image", "Source");
+        // Issue #117 moved the content source to General without changing its picker.
+        var widgetSource = GetNestedProperty(widgetGeneral, "Image Source", "Source");
         Assert(panelSource is not null && widgetSource is not null &&
                panelSource.ComponentType == typeof(C.WidgetPanelLayerDefinition) &&
                widgetSource.ComponentType == typeof(C.ImageAssetPresentationDefinition) &&
                panelSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor &&
-               widgetSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor,
-            "Canvas Panel and Image content must share the asset source picker.");
+               widgetSource.GetEditor(typeof(UITypeEditor)) is ImageAssetSourceEditor &&
+               GetNestedProperty(widgetImage, "Image", "Source") is null,
+            "Canvas Panel and Image content must share the asset picker without duplicating Source in presentation.");
 
         Assert(GetNestedProperty(images, "Background", nameof(C.WidgetPanelLayerDefinition.IconColor)) is not null &&
                GetNestedProperty(images, "Background", nameof(C.WidgetPanelLayerDefinition.IconOpacity)) is not null &&
