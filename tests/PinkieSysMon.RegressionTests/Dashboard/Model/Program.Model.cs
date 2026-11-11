@@ -1281,8 +1281,8 @@ internal static partial class Program
     private static void CanonicalCurrentModelOwnership()
     {
         Assert(MetricContract.DashboardSchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion &&
-               MetricContract.DashboardSchemaVersion == 30,
-            "The executable current dashboard contract must be schema 30.");
+               MetricContract.DashboardSchemaVersion == 31,
+            "The executable current dashboard contract must be schema 31.");
 
         AssertThrows<ArgumentException>(
             () => _ = new EditorPropertyView(new WidgetDefinition

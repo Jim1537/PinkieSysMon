@@ -93,13 +93,6 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Default Color (state-driven widgets)
     --8<-- "widgets/properties.md:foreground-color"
 
-    ### Activation (Shortcut)
-
-    #### Target / Arguments / Activation
-    --8<-- "widgets/properties.md:shortcut-target"
-    --8<-- "widgets/properties.md:shortcut-arguments"
-    --8<-- "widgets/properties.md:shortcut-activation"
-
     ### Thresholds (Bar / Gauge / Graph)
 
     #### Threshold Mode
@@ -339,21 +332,7 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ## Text
 
-    For **Text / Value** and **Shortcut labels**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; state Color uses its RGBA alpha; only Icon has an independent iconOpacity.
-
-    ### Label
-
-    #### Label
-    --8<-- "widgets/properties.md:shortcut-label"
-
-    #### Label Position
-    --8<-- "widgets/properties.md:shortcut-label-position"
-
-    #### Label Gap
-    --8<-- "widgets/properties.md:shortcut-label-gap"
-
-    #### Label Color
-    --8<-- "widgets/properties.md:shortcut-label-color"
+    For **Text / Value**, the Font, Alignment, Outline, and Overflow groups belong to `textPresentation`. For state-driven widgets, the same canonical `TextPresentationDefinition` is used inside each Value state profile; state Color uses its RGBA alpha; only Icon has an independent iconOpacity.
 
     ### Color
 
@@ -401,3 +380,18 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Bump Pause
     --8<-- "widgets/properties.md:bump-pause"
 
+
+=== "Action"
+
+    ## Action
+
+    Always the last tab for all ordinary widgets. Canvas has no Action, and physical Outputs remain display-only. Actions do not modify visual content.
+
+    ### Activation
+    --8<-- "widgets/properties.md:action-activation"
+
+    ### Target
+    --8<-- "widgets/properties.md:action-target"
+
+    ### Arguments
+    --8<-- "widgets/properties.md:action-arguments"

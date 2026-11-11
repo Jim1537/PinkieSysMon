@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace PinkieSysMon;
 
 // Only Runtime's accepted user gesture calls TryDispatch. No renderer or Editor owns this service.
-internal sealed class ShortcutShellDispatcher : IDisposable
+internal sealed class WidgetActionShellDispatcher : IDisposable
 {
     private readonly BlockingCollection<(long Generation, string Target, string Arguments, string Widget, string Id, long Queued)> _queue = new(16);
     private readonly Action<int> _reportFailure;
@@ -18,22 +18,22 @@ internal sealed class ShortcutShellDispatcher : IDisposable
     private bool _started;
     private bool _disposed;
 
-    public ShortcutShellDispatcher(Action<int> reportFailure, Func<string, string, int>? invoke = null, FileLogger? log = null)
+    public WidgetActionShellDispatcher(Action<int> reportFailure, Func<string, string, int>? invoke = null, FileLogger? log = null)
     { _reportFailure = reportFailure; _invoke = invoke ?? InvokeShell; _log = log; _events = log is null ? null : new(log); }
 
     public void CancelPending() { Interlocked.Increment(ref _generation); }
 
-    public bool TryDispatch(ShortcutInteraction shortcut)
+    public bool TryDispatch(WidgetActionInteraction action)
     {
         var id = Guid.NewGuid().ToString("N");
-        var rawWidget = shortcut.Id ?? "unknown";
+        var rawWidget = action.Id ?? "unknown";
         var widget = rawWidget.Length <= 128 ? rawWidget : rawWidget[..128] + " [TRUNCATED]";
         void Refuse(string reason)
         {
-            _events?.Record("desktop.shortcut.refused", widget, $"operationId={id}; reason={reason}");
+            _events?.Record("desktop.action.refused", widget, $"operationId={id}; reason={reason}");
             _events?.RequestFlush();
         }
-        if (string.IsNullOrWhiteSpace(shortcut.Target))
+        if (string.IsNullOrWhiteSpace(action.Target))
         { Refuse("empty-target"); return false; }
         var refused = false;
         var full = false;
@@ -44,11 +44,11 @@ internal sealed class ShortcutShellDispatcher : IDisposable
             {
                 if (!_started)
                 {
-                    var thread = new Thread(Run) { IsBackground = true, Name = "PinkieSysMon Shortcut Shell" };
+                    var thread = new Thread(Run) { IsBackground = true, Name = "PinkieSysMon WidgetAction Shell" };
                     if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
                     thread.Start(); _started = true;
                 }
-                full = !_queue.TryAdd((Interlocked.Read(ref _generation), shortcut.Target, shortcut.Arguments, widget, id, System.Diagnostics.Stopwatch.GetTimestamp()));
+                full = !_queue.TryAdd((Interlocked.Read(ref _generation), action.Target, action.Arguments, widget, id, System.Diagnostics.Stopwatch.GetTimestamp()));
             }
         }
         // Logging and callbacks never hold the dispatch queue gate.
@@ -69,7 +69,7 @@ internal sealed class ShortcutShellDispatcher : IDisposable
         {
             foreach (var request in _queue.GetConsumingEnumerable())
             {
-                using var operation = _log is null ? null : new LogOperation(_log, "desktop.shortcut", request.Widget, id: request.Id);
+                using var operation = _log is null ? null : new LogOperation(_log, "desktop.action", request.Widget, id: request.Id);
                 if (request.Generation != Interlocked.Read(ref _generation))
                 { operation?.Cancel("superseded-before-shell"); continue; }
                 try

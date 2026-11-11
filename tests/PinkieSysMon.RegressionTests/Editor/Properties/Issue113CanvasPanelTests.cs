@@ -32,8 +32,8 @@ internal static class Issue113CanvasPanelTests
             }
             """)!.AsObject();
 
-        Check(DashboardSchemaMigration.UpgradeToCurrent(legacy), "Schema 29 must migrate to 30.");
-        Check(legacy["schemaVersion"]!.GetValue<int>() == 30, "Canvas migration must select schema 30.");
+        Check(DashboardSchemaMigration.UpgradeToCurrent(legacy), "Schema 29 must migrate through schema 30 to current.");
+        Check(legacy["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion, "Canvas migration must reach current schema.");
         var canvas = legacy["canvas"]!.AsObject();
         Check(canvas["width"]!.GetValue<int>() == 64 &&
               canvas["height"]!.GetValue<int>() == 36 &&

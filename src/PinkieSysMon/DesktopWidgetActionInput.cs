@@ -4,29 +4,29 @@ using System.Runtime.InteropServices;
 namespace PinkieSysMon;
 
 // UI-thread owned, input-only HWND. The layered visual retains its normal Lock style.
-internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
+internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
 {
     private const int WmSetCursor = 0x0020;
     private const ushort HtClient = 1;
 
-    // Only the native Shortcut hit region owns the link-select cursor.
+    // Only an active widget Action region owns the link-select cursor.
     internal static bool ShouldUseHandCursor(int message, IntPtr details) =>
         message == WmSetCursor && unchecked((ushort)details.ToInt64()) == HtClient;
 
-    private readonly ShortcutInteractionMap _map;
+    private WidgetActionInteractionMap _map;
     private readonly Form _visual;
     private readonly DesktopCanvasViewport _viewport;
     private readonly bool _locked;
     private readonly Action<Point> _drag;
-    private readonly ShortcutShellDispatcher _shell;
-    private readonly ShortcutGesture _gesture = new((uint)SystemInformation.DoubleClickTime,
+    private readonly WidgetActionShellDispatcher _shell;
+    private readonly WidgetActionGesture _gesture = new((uint)SystemInformation.DoubleClickTime,
         SystemInformation.DoubleClickSize, SystemInformation.DragSize);
-    private readonly bool _empty;
+    private bool _empty;
     private bool _visible;
     private bool _releasing;
     private long _generation;
 
-    internal DesktopShortcutInput(ShortcutInteractionMap map, Form visual, bool locked,
+    internal DesktopWidgetActionInput(WidgetActionInteractionMap map, Form visual, bool locked,
         Action<Point> drag, Action<int> reportFailure, FileLogger? log = null,
         DesktopCanvasViewport? viewport = null)
     {
@@ -36,12 +36,12 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
             throw new InvalidOperationException("Desktop input and Canvas geometry disagree.");
         var rectangles = map.Rasterize();
         _empty = rectangles.Count == 0;
-        _shell = new ShortcutShellDispatcher(log is null ? reportFailure : _ => { }, log: log);
+        _shell = new WidgetActionShellDispatcher(log is null ? reportFailure : _ => { }, log: log);
         try
         {
             CreateHandle(new CreateParams
             {
-                Caption = "PinkieSysMon Shortcut input", ClassStyle = 0x0008,
+                Caption = "PinkieSysMon WidgetAction input", ClassStyle = 0x0008,
                 Style = unchecked((int)0x80000000), ExStyle = 0x00200000 | 0x08000000 | 0x00000080,
                 X = _viewport.CanvasOriginForSurface(visual.Location).X,
                 Y = _viewport.CanvasOriginForSurface(visual.Location).Y,
@@ -51,6 +51,28 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
             ApplyRegion(rectangles);
         }
         catch { Dispose(); throw; }
+    }
+
+    internal void UpdateMap(WidgetActionInteractionMap updated)
+    {
+        if (updated.Canvas != _map.Canvas)
+            throw new InvalidOperationException("Changing Canvas geometry requires a new Desktop Action input surface.");
+        var rectangles = updated.Rasterize();
+        ApplyRegion(rectangles);
+        // A visual reflow invalidates an in-progress gesture, but must not cancel
+        // already accepted Shell requests belonging to the same Output generation.
+        _gesture.Cancel();
+        _generation++;
+        ReleaseOwnCapture();
+        _map = updated;
+        _empty = rectangles.Count == 0;
+        if (_empty && _visible)
+        {
+            ShowWindow(Handle, 0);
+            _visible = false;
+        }
+        else if (!_empty && !_visible && _visual.Visible)
+            ShowRestricted();
     }
 
     private void ApplyRegion(IReadOnlyList<Rectangle> rectangles)
@@ -76,8 +98,8 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
                 try { Marshal.Copy(data, 0, buffer, data.Length); region = ExtCreateRegion(IntPtr.Zero, (uint)bytes, buffer); }
                 finally { Marshal.FreeHGlobal(buffer); }
             }
-            if (region == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot create Shortcut region.");
-            if (SetWindowRgn(Handle, region, false) == 0) throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot restrict Shortcut input.");
+            if (region == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot create WidgetAction region.");
+            if (SetWindowRgn(Handle, region, false) == 0) throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot restrict WidgetAction input.");
             region = IntPtr.Zero; // successful SetWindowRgn transfers HRGN ownership to Windows
         }
         finally { if (region != IntPtr.Zero) DeleteObject(region); }
@@ -114,7 +136,7 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
         var canvasOrigin = _viewport.CanvasOriginForSurface(_visual.Location);
         if (Handle != IntPtr.Zero && !SetWindowPos(Handle, IntPtr.Zero, canvasOrigin.X, canvasOrigin.Y,
             _map.Canvas.Width, _map.Canvas.Height, 0x0014))
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot move Shortcut companion.");
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot move WidgetAction companion.");
     }
 
     internal void PlaceAboveVisual()
@@ -123,7 +145,7 @@ internal sealed class DesktopShortcutInput : NativeWindow, IDisposable
         if (!IsWindowVisible(Handle)) ShowWindow(Handle, 8);
         var previous = GetWindow(_visual.Handle, 3);
         if (previous != Handle && !SetWindowPos(Handle, previous, 0, 0, 0, 0, DesktopBottomPlacement.Flags))
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot pair Shortcut input with its visual.");
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Cannot pair WidgetAction input with its visual.");
     }
 
     private void Cancel()

@@ -13,7 +13,7 @@ internal static class Issue112PanelTests
         C.WidgetDefinition[] widgets =
         [
             new C.ValueWidgetDefinition(), new C.BarWidgetDefinition(), new C.GaugeWidgetDefinition(),
-            new C.GraphWidgetDefinition(), new C.ImageWidgetDefinition(), new C.ShortcutWidgetDefinition(),
+            new C.GraphWidgetDefinition(), new C.ImageWidgetDefinition(),
             new C.BinaryWidgetDefinition(), new C.PowerWidgetDefinition(),
             new C.MediaSystemWidgetDefinition(), new C.MediaPlayerWidgetDefinition()
         ];
@@ -77,12 +77,6 @@ internal static class Issue112PanelTests
                 },
                 new JsonObject
                 {
-                    ["type"] = "shortcut", ["id"] = "old-shell", ["color"] = "#FFFFFFFF",
-                    ["backgroundColor"] = "#00000000", ["opacity"] = .3,
-                    ["asset"] = new JsonObject { ["sourceType"] = "auto" }
-                },
-                new JsonObject
-                {
                     ["type"] = "binary", ["id"] = "old-binary", ["color"] = "#FF123456",
                     ["backgroundColor"] = "#11000000",
                     ["profiles"] = new JsonObject
@@ -99,7 +93,7 @@ internal static class Issue112PanelTests
         };
 
         Check(DashboardSchemaMigration.UpgradeToCurrent(root), "Schema 28 must be upgraded.");
-        Check(root["schemaVersion"]!.GetValue<int>() == 30, "Schema 30 not selected.");
+        Check(root["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion, "Current schema not selected.");
         var w = root["widgets"]!.AsArray();
         Check(w[0]!["color"]!.GetValue<string>() == "#EECCBB00" &&
               w[0]!["panelBackground"]!["color"]!.GetValue<string>() == "#99010203" &&
@@ -108,10 +102,7 @@ internal static class Issue112PanelTests
         Check(w[1]!["panelBackground"]!["mode"]!.GetValue<string>() == "None" &&
               w[1]!["opacity"] is null && w[1]!["iconOpacity"] is null,
             "File-image Opacity must be removed, not persisted under another name.");
-        Check(w[2]!["opacity"] is null &&
-              Math.Abs(w[2]!["iconOpacity"]!.GetValue<double>() - .3) < .0001,
-            "Shortcut Auto Shell artwork must preserve its icon opacity.");
-        var profiles = w[3]!["profiles"]!.AsObject();
+        var profiles = w[2]!["profiles"]!.AsObject();
         Check(profiles["true"]!["color"] is null && profiles["true"]!["opacity"] is null,
             "Default state text color inheritance must survive migration.");
         Check(profiles["false"]!["color"] is null &&
@@ -140,7 +131,7 @@ internal static class Issue112PanelTests
         var json = DashboardJson.Serialize(dashboard, indented: false);
         var parsed = DashboardJson.ParseCurrent(json, Path.Combine(Path.GetTempPath(), "panel.json"));
         Check(DashboardJson.Serialize(parsed, indented: false) == json,
-            "Schema 30 save/parse/save must be deterministic.");
+            "Current-schema save/parse/save must be deterministic.");
     }
 
     public static void ThreeLayerRenderingAndFileAlpha()

@@ -55,13 +55,13 @@ internal static class Issue105DesktopLoggingTests
             using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
             using var failureReported = new ManualResetEventSlim(); using var done = new ManualResetEventSlim();
             var nativeCalls = 0;
-            var dispatcher = new ShortcutShellDispatcher(code => { if (code == 5) failureReported.Set(); }, (target, args) =>
+            var dispatcher = new WidgetActionShellDispatcher(code => { if (code == 5) failureReported.Set(); }, (target, args) =>
             {
                 Interlocked.Increment(ref nativeCalls);
                 if (target == "PRIVATE-FIRST") { entered.Set(); Check(release.Wait(TimeSpan.FromSeconds(10)), "Shell fixture release."); return 5; }
                 done.Set(); return 0;
             }, log);
-            ShortcutInteraction Payload(string target) => new("logical-widget", new(0, 0, 20, 20), 0, 0, 0, target, "PRIVATE-ARGS", true);
+            WidgetActionInteraction Payload(string target) => new("logical-widget", new(0, 0, 20, 20), 0, 0, 0, target, "PRIVATE-ARGS", true);
             try
             {
                 Check(!dispatcher.TryDispatch(Payload("")), "Empty target is refused.");
@@ -73,11 +73,11 @@ internal static class Issue105DesktopLoggingTests
                 Check(failureReported.Wait(TimeSpan.FromSeconds(10)) && done.Wait(TimeSpan.FromSeconds(10)), "Shell must report failure and continue.");
                 dispatcher.Dispose();
                 Check(dispatcher.Completion.Wait(TimeSpan.FromSeconds(10)), "Terminal dispatch/logging fence.");
-                Check(Events(log.Path, "desktop.shortcut.succeeded").Length == 1 && nativeCalls == 2,
+                Check(Events(log.Path, "desktop.action.succeeded").Length == 1 && nativeCalls == 2,
                     "Superseded request never invokes Shell; success is only acceptance.");
-                Check(Events(log.Path, "desktop.shortcut.cancelled").Length == 1 &&
-                    Events(log.Path, "runtime.output.observed").Count(e => e.GetProperty("phase").GetString() == "desktop.shortcut.refused") == 1 &&
-                    Events(log.ErrorsPath, "desktop.shortcut.failed").Length == 1 && Text(log.ErrorsPath).Contains("\"nativeCode\":5"),
+                Check(Events(log.Path, "desktop.action.cancelled").Length == 1 &&
+                    Events(log.Path, "runtime.output.observed").Count(e => e.GetProperty("phase").GetString() == "desktop.action.refused") == 1 &&
+                    Events(log.ErrorsPath, "desktop.action.failed").Length == 1 && Text(log.ErrorsPath).Contains("\"nativeCode\":5"),
                     "Refusal, cancellation and native failure have separate truthful outcomes.");
                 Check(!Text(log.Path).Contains("PRIVATE-") && !Text(log.ErrorsPath).Contains("PRIVATE-"), "No target or argument payload is logged.");
             }

@@ -1,6 +1,7 @@
 using PinkieSysMon.Widgets;
 using SkiaSharp;
 using System.Diagnostics;
+using System.Drawing;
 using CanonicalDashboardDefinition = global::PinkieSysMon.DashboardModel.DashboardDefinition;
 using CanonicalWidgetDefinition = global::PinkieSysMon.DashboardModel.WidgetDefinition;
 
@@ -132,6 +133,14 @@ internal sealed class DashboardRenderer : IDisposable
     }
 
     internal string ResourceSummary => $"images={_imageAssets.ResourceCount}; imageBytes={_imageAssets.DecodedBytes}; icons={_iconAssets.ResourceCount}; iconBytes={_iconAssets.DecodedBytes}; fonts={_typefaceCache.LoadedFaces}";
+
+    // Resolve the same logical Panel bounds used by the current visual frame.
+    // Only Desktop Outputs with an active derived-size Action call this after RenderBgra.
+    internal WidgetActionInteractionMap CreateWidgetActionMap() => new(_definition, widget =>
+    {
+        var bounds = WidgetGeometry.GetContainerBounds(widget, _renderContext);
+        return new RectangleF(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+    });
 
     // Return an independent premultiplied BGRA frame before opaque wire compositing.
     public RenderedBgra RenderBgra(IReadOnlyDictionary<string, object?> metrics)

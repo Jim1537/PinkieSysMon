@@ -37,11 +37,6 @@ internal sealed class ImageAssetCache : IDisposable
 
                 switch (widget)
                 {
-                    case CanonicalDashboard.ShortcutWidgetDefinition shortcut
-                        when CanonicalDashboard.ImageAssetSourceType.IsFile(shortcut.Asset.SourceType) &&
-                             !string.IsNullOrWhiteSpace(shortcut.Asset.Source):
-                        _ = Get(shortcut.Asset.Source!);
-                        break;
                     case CanonicalDashboard.ImageWidgetDefinition image
                         when CanonicalDashboard.ImageAssetSourceType.IsFile(image.Asset.SourceType) &&
                              !string.IsNullOrWhiteSpace(image.Asset.Source):

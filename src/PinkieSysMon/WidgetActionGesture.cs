@@ -3,7 +3,7 @@ using System.Drawing;
 namespace PinkieSysMon;
 
 // Mouse and Windows-promoted touch mouse messages share one recognizer.
-internal sealed class ShortcutGesture(uint doubleClickMs, Size doubleClickSize, Size dragSize)
+internal sealed class WidgetActionGesture(uint doubleClickMs, Size doubleClickSize, Size dragSize)
 {
     private record Press(string Id, long Generation, Point Point, uint Time, bool IsSecond);
     private Press? _press;

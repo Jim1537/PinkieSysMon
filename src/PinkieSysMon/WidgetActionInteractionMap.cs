@@ -3,7 +3,7 @@ using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon;
 
-internal sealed record ShortcutInteraction(string Id, RectangleF Bounds, double Rotation, int Z, int Order,
+internal sealed record WidgetActionInteraction(string Id, RectangleF Bounds, double Rotation, int Z, int Order,
     string Target, string Arguments, bool SingleClick)
 {
     public bool Contains(double x, double y)
@@ -42,29 +42,38 @@ internal sealed record ShortcutInteraction(string Id, RectangleF Bounds, double 
 }
 
 // Immutable payload + geometry. Effects, label, source alpha and physical wire rotation never enter it.
-internal sealed class ShortcutInteractionMap
+internal sealed class WidgetActionInteractionMap
 {
     internal const int MaximumRegionRectangles = 262144; // 4 MiB native RECT payload, separate from rasters/assets.
-    private readonly ShortcutInteraction[] _frontToBack;
+    private readonly WidgetActionInteraction[] _frontToBack;
     public Size Canvas { get; }
     public bool IsEmpty => _frontToBack.Length == 0;
+    public bool HasDerivedGeometry { get; }
 
-    public ShortcutInteractionMap(C.DashboardDefinition dashboard)
+    public bool IsEquivalent(WidgetActionInteractionMap other) =>
+        Canvas == other.Canvas && _frontToBack.SequenceEqual(other._frontToBack);
+
+    public WidgetActionInteractionMap(C.DashboardDefinition dashboard, Func<C.WidgetDefinition, RectangleF>? panelBounds = null)
     {
         Canvas = FrameGeometry.GetLogicalSize(dashboard.Canvas.Width, dashboard.Canvas.Height, dashboard.Canvas.Orientation);
         FrameGeometry.ValidateRasterSize(Canvas.Width, Canvas.Height);
+        // Value text and state-driven Value profiles can change their Panel size per frame.
+        // Static Gauge geometry does not require this refresh.
+        HasDerivedGeometry = dashboard.Widgets.Any(w => w.Action.IsActive &&
+            w is C.ValueWidgetDefinition or C.StateVisualWidgetDefinition);
         _frontToBack = dashboard.Widgets.Select((widget, index) => (widget, index))
-            .Where(entry => entry.widget is C.ShortcutWidgetDefinition)
+            .Where(entry => entry.widget.Action.IsActive)
             .Select(entry =>
             {
-                var s = (C.ShortcutWidgetDefinition)entry.widget;
-                return new ShortcutInteraction(s.Id!, new RectangleF(s.X, s.Y, s.Width, s.Height), s.Rotation,
-                    s.Z, entry.index, s.Target, s.Arguments,
-                    string.Equals(s.Activation, ShortcutContract.SingleClick, StringComparison.OrdinalIgnoreCase));
+                var widget = entry.widget;
+                var action = widget.Action;
+                return new WidgetActionInteraction(widget.Id!, panelBounds?.Invoke(widget) ?? new RectangleF(widget.X, widget.Y, widget.Width, widget.Height), widget.Rotation,
+                    widget.Z, entry.index, action.Target, action.Arguments,
+                    action.Activation == C.WidgetActionDefinition.SingleClick);
             }).OrderByDescending(s => s.Z).ThenByDescending(s => s.Order).ToArray();
     }
 
-    public ShortcutInteraction? Hit(Point pixel)
+    public WidgetActionInteraction? Hit(Point pixel)
     {
         if (pixel.X < 0 || pixel.Y < 0 || pixel.X >= Canvas.Width || pixel.Y >= Canvas.Height) return null;
         foreach (var graphic in _frontToBack)
@@ -89,7 +98,7 @@ internal sealed class ShortcutInteractionMap
                 while (i + 1 < spans.Count && spans[i + 1].Left <= span.Right)
                     span.Right = Math.Max(span.Right, spans[++i].Right);
                 if (result.Count >= MaximumRegionRectangles)
-                    throw new InvalidDataException("Shortcut native regions exceed the 4 MiB rectangle budget.");
+                    throw new InvalidDataException("WidgetAction native regions exceed the 4 MiB rectangle budget.");
                 result.Add(new Rectangle(span.Left, y, span.Right - span.Left, 1));
             }
         }

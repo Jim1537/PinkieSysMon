@@ -109,15 +109,6 @@ internal static class WidgetGeometry
         if (context.GetContainerResources(widget).BorderPaint is not null)
             rect = Inflate(rect, widget.BorderWidth / 2f + 1f);
 
-        if (widget is CanonicalDashboard.ShortcutWidgetDefinition shortcut &&
-            ShortcutLabelLayout.GetBounds(shortcut, context) is { } label)
-        {
-            // The label shares the graphic pivot, but never enlarges its container.
-            var outline = shortcut.TextPresentation.OutlineWidth / 2f + 1f;
-            label = new SKRect(label.Left, label.Top - outline, label.Right, label.Bottom + outline);
-            rect = Union(rect, label);
-        }
-
         return Normalize(rect);
     }
 

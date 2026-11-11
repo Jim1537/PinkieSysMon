@@ -198,6 +198,7 @@ internal static class CanonicalPropertyViewBuilder
             EditorPropertySection.States => BuildStates(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Image => BuildImage(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Text => BuildText(widget, applicationRoot),
+            EditorPropertySection.Action => BuildAction(widget),
             EditorPropertySection.All => BuildAll(widget, applicationRoot, dashboardDirectory, mediaEndpoints, endpointTypeOverrides, effectiveSizeAccessor),
             _ => []
         };
@@ -216,7 +217,7 @@ internal static class CanonicalPropertyViewBuilder
                  {
                      EditorPropertySection.General, EditorPropertySection.Panel, EditorPropertySection.Appearance, EditorPropertySection.Data,
                      EditorPropertySection.Gauge, EditorPropertySection.Graph, EditorPropertySection.States, EditorPropertySection.Image,
-                     EditorPropertySection.Text
+                     EditorPropertySection.Text, EditorPropertySection.Action
                  })
         {
             result.AddRange(BuildWidget(widget, section, applicationRoot, dashboardDirectory, mediaEndpoints, endpointTypeOverrides, effectiveSizeAccessor));
@@ -286,7 +287,7 @@ internal static class CanonicalPropertyViewBuilder
             _ => "Not applicable"
         };
         return new CanonicalPropertyDescriptor("Metric", key, "Metric", widget, typeof(string), () => DisplayBinding(), null,
-            editor: MetricEditor, description: widget is C.ImageWidgetDefinition or C.ShortcutWidgetDefinition
+            editor: MetricEditor, description: widget is C.ImageWidgetDefinition
                 ? "Not applicable to this widget." : "Binding determined by the widget source.");
     }
 
@@ -409,6 +410,36 @@ internal static class CanonicalPropertyViewBuilder
         return rows;
     }
 
+    private static List<PropertyDescriptor> BuildAction(C.WidgetDefinition widget)
+    {
+        var action = widget.Action;
+        string? DisabledWhenNone() =>
+            action.Activation == C.WidgetActionDefinition.None ? NotApplicable("Activation") : null;
+
+        return [Group("Action", [
+            new CanonicalPropertyDescriptor("Activation", "action.activation", "Activation", action, typeof(string),
+                () => action.Activation switch
+                {
+                    C.WidgetActionDefinition.SingleClick => "Single click",
+                    C.WidgetActionDefinition.DoubleClick => "Double click",
+                    _ => "None"
+                },
+                value => action.Activation = Convert.ToString(value) switch
+                {
+                    "Single click" => C.WidgetActionDefinition.SingleClick,
+                    "Double click" => C.WidgetActionDefinition.DoubleClick,
+                    _ => C.WidgetActionDefinition.None
+                },
+                converter: new FixedStringConverter(["None", "Double click", "Single click"])),
+            new CanonicalPropertyDescriptor("Target", "action.target", "Target", action, typeof(string),
+                () => action.Target, value => action.Target = Convert.ToString(value) ?? string.Empty,
+                editor: new WidgetActionTargetEditor(), disabledReason: DisabledWhenNone),
+            String(action, "Arguments", "action.arguments", "Arguments",
+                () => action.Arguments, value => action.Arguments = Convert.ToString(value) ?? string.Empty,
+                DisabledWhenNone)
+        ])];
+    }
+
     private static List<PropertyDescriptor> BuildAppearance(C.WidgetDefinition widget, string? applicationRoot)
     {
         var result = new List<PropertyDescriptor>();
@@ -418,16 +449,6 @@ internal static class CanonicalPropertyViewBuilder
                     () => widget.Color, value => widget.Color = value)
             ]));
 
-        if (widget is C.ShortcutWidgetDefinition shortcutActivation)
-            result.Add(Group("Activation", [
-                new CanonicalPropertyDescriptor("Target", "shortcut.target", "Target", shortcutActivation, typeof(string),
-                    () => shortcutActivation.Target, v => ShortcutTargetEditing.SetTarget(shortcutActivation, Convert.ToString(v) ?? string.Empty), editor: new ShortcutTargetEditor()),
-                String(shortcutActivation, "Arguments", "shortcut.arguments", "Arguments", () => shortcutActivation.Arguments, v => shortcutActivation.Arguments = Convert.ToString(v) ?? string.Empty),
-                new CanonicalPropertyDescriptor("Activation", "shortcut.activation", "Activation", shortcutActivation, typeof(string),
-                    () => string.Equals(shortcutActivation.Activation, ShortcutContract.SingleClick, StringComparison.OrdinalIgnoreCase) ? "Single click" : "Double click",
-                    v => shortcutActivation.Activation = string.Equals(Convert.ToString(v), "Single click", StringComparison.OrdinalIgnoreCase) ? ShortcutContract.SingleClick : ShortcutContract.DoubleClick,
-                    converter: new FixedStringConverter(["Single click", "Double click"]))
-            ]));
         if (widget is C.NumericWidgetDefinition quantitative &&
             (widget is not C.BarWidgetDefinition thresholdBar || !BarImageContract.IsImageMode(thresholdBar.ContentMode)))
         {
@@ -828,23 +849,7 @@ internal static class CanonicalPropertyViewBuilder
         AddPanelLayerImageGroup(result, "Foreground", "foreground", widget.PanelForeground,
             applicationRoot, dashboardDirectory);
 
-        if (widget is C.ShortcutWidgetDefinition shortcut)
-        {
-            var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
-                         !string.IsNullOrWhiteSpace(dashboardDirectory)
-                ? new ImageAssetSourceEditor(shortcut.Asset, applicationRoot!, dashboardDirectory!) : null;
-            var rows = ImageAssetSourceProperties(shortcut.Asset,
-                "image.content.kind", "image.content.source", editor, allowShellIcon: true);
-            rows.Add(String(shortcut.Asset, "Fit", "image.asset.fit", "Fit",
-                () => shortcut.Asset.Fit, v => shortcut.Asset.Fit = Convert.ToString(v) ?? StateVisualProfileContract.FitContain, converter: FitConverter));
-            rows.Add(Bool(shortcut.Asset, "Loop", "image.asset.loop", "Loop",
-                () => shortcut.Asset.Loop, v => shortcut.Asset.Loop = v,
-                () => LoopDisabled(shortcut.Asset.SourceType, shortcut.Asset.Source, applicationRoot, dashboardDirectory)));
-            AddContentIconColorAndOpacity(rows, shortcut, shortcut.Asset, () => shortcut.IconOpacity,
-                opacity => shortcut.IconOpacity = opacity, applicationRoot);
-            result.Add(Group("Image", rows));
-        }
-        else if (widget is C.ImageWidgetDefinition image)
+        if (widget is C.ImageWidgetDefinition image)
         {
             var editor = !string.IsNullOrWhiteSpace(applicationRoot) &&
                          !string.IsNullOrWhiteSpace(dashboardDirectory)
@@ -943,8 +948,7 @@ internal static class CanonicalPropertyViewBuilder
         Func<float> opacityGetter, Action<float> opacitySetter,
         string? applicationRoot)
     {
-        if (!C.ImageAssetSourceType.IsIcon(asset.SourceType) &&
-            !(widget is C.ShortcutWidgetDefinition && ShortcutContract.IsAuto(asset.SourceType)))
+        if (!C.ImageAssetSourceType.IsIcon(asset.SourceType))
             return;
         rows.Add(Color(widget, nameof(widget.Color), "image.content.icon_color", "Color",
             () => widget.Color, color => widget.Color = color,
@@ -991,18 +995,6 @@ internal static class CanonicalPropertyViewBuilder
         var fontConverter = string.IsNullOrWhiteSpace(applicationRoot)
             ? null
             : BundledFontFamilyConverter.Create(applicationRoot);
-        if (widget is C.ShortcutWidgetDefinition shortcut)
-        {
-            result.Add(Group("Label", [
-                String(shortcut, "Label", "shortcut.label", "Label", () => shortcut.Label, v => shortcut.Label = Convert.ToString(v) ?? string.Empty),
-                String(shortcut, "LabelPosition", "shortcut.label_position", "Position", () => shortcut.LabelPosition, v => shortcut.LabelPosition = Convert.ToString(v) ?? ShortcutContract.Bottom, converter: new FixedStringConverter(ShortcutContract.LabelPositions)),
-                Float(shortcut, "Gap", "shortcut.gap", "Gap", () => shortcut.Gap, v => shortcut.Gap = v,
-                    () => string.Equals(shortcut.LabelPosition, ShortcutContract.Middle, StringComparison.OrdinalIgnoreCase) ? NotApplicable("Position") : null),
-                Color(shortcut, "LabelColor", "shortcut.label_color", "Color", () => shortcut.LabelColor, v => shortcut.LabelColor = v)
-            ]));
-            AddTextGroups(result, shortcut.TextPresentation, "text.shortcut", null, fontConverter, constrainedOverflow: true);
-            return result;
-        }
         if (widget is C.ValueWidgetDefinition value)
         {
             result.Add(Group("Color", [
@@ -1038,7 +1030,7 @@ internal static class CanonicalPropertyViewBuilder
         return result;
     }
 
-    private static void AddTextGroups(List<PropertyDescriptor> result, C.TextPresentationDefinition text, string semanticPrefix, Func<string?>? disabled, TypeConverter? fontConverter, string? stateKey = null, bool constrainedOverflow = false)
+    private static void AddTextGroups(List<PropertyDescriptor> result, C.TextPresentationDefinition text, string semanticPrefix, Func<string?>? disabled, TypeConverter? fontConverter, string? stateKey = null)
     {
         string Name(StateVisualProfileField field, string plain) => stateKey is null ? plain : StateName(stateKey, field);
         result.Add(Group("Font", [
@@ -1059,9 +1051,8 @@ internal static class CanonicalPropertyViewBuilder
             String(text, Name(StateVisualProfileField.OverflowMode, "OverflowMode"), $"{semanticPrefix}.overflow.mode", "Mode", () => text.OverflowMode, v =>
             {
                 var mode = ValueOverflowContract.Normalize(Convert.ToString(v));
-                if (constrainedOverflow && mode == ValueOverflowContract.None) throw new InvalidDataException("Shortcut label requires constrained overflow.");
                 text.OverflowMode = mode;
-            }, converter: constrainedOverflow ? new FixedStringConverter(ValueOverflowContract.ConstrainedModes) : OverflowConverter, disabled: disabled),
+            }, converter: OverflowConverter, disabled: disabled),
             Float(text, Name(StateVisualProfileField.ScrollSpeed, "ScrollSpeed"), $"{semanticPrefix}.overflow.scroll_speed", "Scroll Speed", () => text.ScrollSpeed, v => text.ScrollSpeed = Math.Max(0f, v), () => disabled?.Invoke() ?? (ValueOverflowContract.Normalize(text.OverflowMode) is ValueOverflowContract.Scroll or ValueOverflowContract.Bump ? null : NotApplicable("Overflow Mode"))),
             Int(text, Name(StateVisualProfileField.BumpPauseMs, "BumpPauseMs"), $"{semanticPrefix}.overflow.bump_pause", "Bump Pause", () => text.BumpPauseMs, v => text.BumpPauseMs = Math.Max(0, v), () => disabled?.Invoke() ?? (ValueOverflowContract.Normalize(text.OverflowMode) == ValueOverflowContract.Bump ? null : NotApplicable("Overflow Mode")))
         ]));
@@ -1240,23 +1231,20 @@ internal static class CanonicalPropertyViewBuilder
         string kindSemantic,
         string sourceSemantic,
         UITypeEditor? editor,
-        Func<string>? sourceDisplayName = null,
-        bool allowShellIcon = false)
+        Func<string>? sourceDisplayName = null)
     {
         return [
             new CanonicalPropertyDescriptor(
                 nameof(C.ImageAssetPresentationDefinition.SourceType), kindSemantic, "Type", asset, typeof(string),
-                () => allowShellIcon && ShortcutContract.IsAuto(asset.SourceType) ? "Auto" : C.ImageAssetSourceType.IsIcon(asset.SourceType) ? "Icon" : "Image",
+                () => C.ImageAssetSourceType.IsIcon(asset.SourceType) ? "Icon" : "Image",
                 v => asset.ChangeSourceType(string.Equals(Convert.ToString(v), "Icon", StringComparison.OrdinalIgnoreCase)
-                    ? C.ImageAssetSourceType.Icon
-                    : allowShellIcon && string.Equals(Convert.ToString(v), "Auto", StringComparison.OrdinalIgnoreCase) ? ShortcutContract.AutoSource : C.ImageAssetSourceType.File, allowShellIcon),
-                converter: allowShellIcon ? new FixedStringConverter(["Auto", "Image", "Icon"]) : ImageKindConverter),
+                    ? C.ImageAssetSourceType.Icon : C.ImageAssetSourceType.File),
+                converter: ImageKindConverter),
             new CanonicalPropertyDescriptor(
                 nameof(C.ImageAssetPresentationDefinition.Source), sourceSemantic, "Source", asset, typeof(string),
                 () => asset.Source ?? string.Empty,
                 v => asset.Source = EmptyToNull(v),
                 editor: editor,
-                disabledReason: () => allowShellIcon && ShortcutContract.IsAuto(asset.SourceType) ? NotApplicable("Type") : null,
                 multiEditContextKey: asset.SourceType,
                 multiEditContextController: "Type",
                 displayNameAccessor: sourceDisplayName)

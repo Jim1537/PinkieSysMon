@@ -6,14 +6,14 @@ using SkiaSharp;
 
 namespace PinkieSysMon.Editor;
 
-internal sealed class ShortcutTargetEditor : UITypeEditor
+internal sealed class WidgetActionTargetEditor : UITypeEditor
 {
     public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext? context) => UITypeEditorEditStyle.Modal;
     public override object? EditValue(ITypeDescriptorContext? context, IServiceProvider provider, object? value)
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Select Shortcut target", Filter = "All files (*.*)|*.*",
+            Title = "Select Action target", Filter = "All files (*.*)|*.*",
             CheckFileExists = false, DereferenceLinks = false, FileName = Convert.ToString(value) ?? string.Empty
         };
         return dialog.ShowDialog(Form.ActiveForm) == DialogResult.OK ? dialog.FileName : value;

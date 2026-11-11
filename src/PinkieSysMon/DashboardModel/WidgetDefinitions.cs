@@ -9,7 +9,6 @@ namespace PinkieSysMon.DashboardModel;
 [JsonDerivedType(typeof(BarWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Bar)]
 [JsonDerivedType(typeof(GraphWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Graph)]
 [JsonDerivedType(typeof(ImageWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Image)]
-[JsonDerivedType(typeof(ShortcutWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Shortcut)]
 [JsonDerivedType(typeof(PowerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Power)]
 [JsonDerivedType(typeof(MediaSystemWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaSystem)]
 [JsonDerivedType(typeof(MediaPlayerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaPlayer)]
@@ -53,6 +52,9 @@ internal abstract class WidgetDefinition
 
     [JsonPropertyName("panelForeground")]
     public WidgetPanelLayerDefinition PanelForeground { get; set; } = new();
+
+    [JsonPropertyName("action")]
+    public WidgetActionDefinition Action { get; set; } = new();
 
     // Source-level compatibility alias. The single persisted background owner is Panel.
     [JsonIgnore]
@@ -143,6 +145,9 @@ internal abstract class WidgetDefinition
         PanelForeground.Validate(dashboardBaseDirectory, $"Widget '{Id}' Panel Foreground", allowUnavailableArtwork);
         _ = global::PinkieSysMon.ColorParser.Parse(BorderColor);
         _ = global::PinkieSysMon.ColorParser.Parse(ShadowColor);
+        if (Action is null)
+            throw new InvalidDataException($"Widget '{Id}' Action must not be null.");
+        Action.Validate(Id);
     }
 
     protected void RequireMetric(string? metric)

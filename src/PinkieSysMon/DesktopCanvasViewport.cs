@@ -3,7 +3,7 @@ using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon;
 
-// Widget-neutral mapping: saved Desktop X/Y and Shortcut geometry are always
+// Widget-neutral mapping: saved Desktop X/Y and widget Action geometry are always
 // Canvas coordinates; shadow margins exist only in the native visual surface.
 internal sealed class DesktopCanvasViewport
 {

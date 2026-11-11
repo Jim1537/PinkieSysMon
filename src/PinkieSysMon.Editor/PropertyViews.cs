@@ -16,7 +16,8 @@ internal enum EditorPropertySection
     Graph,
     States,
     Image,
-    Text
+    Text,
+    Action
 }
 
 internal sealed class EditorPropertyView : CustomTypeDescriptor

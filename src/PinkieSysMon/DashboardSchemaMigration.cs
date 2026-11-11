@@ -25,7 +25,8 @@ internal static class DashboardSchemaMigration
     public const int BarTrackSchemaVersion = 28;
     public const int WidgetPanelLayersSchemaVersion = 29;
     public const int CanvasPanelSchemaVersion = 30;
-    public const int CurrentSchemaVersion = CanvasPanelSchemaVersion;
+    public const int WidgetActionSchemaVersion = 31;
+    public const int CurrentSchemaVersion = WidgetActionSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -33,11 +34,7 @@ internal static class DashboardSchemaMigration
         ArgumentNullException.ThrowIfNull(root);
 
         var schemaVersion = ReadSchemaVersion(root);
-        if (schemaVersion < ShortcutSchemaVersion && root["widgets"] is JsonArray shortcutWidgets &&
-            shortcutWidgets.OfType<JsonObject>().Any(widget =>
-                widget["type"] is JsonValue shortcutType && shortcutType.TryGetValue<string>(out var type) &&
-                WidgetTypeContract.Is(type, WidgetTypeContract.Shortcut)))
-            throw new InvalidDataException("Pre-26 documents cannot contain Shortcut widgets.");
+        RejectLegacyShortcut(root);
         if (schemaVersion < GraphSchemaVersion && root["widgets"] is JsonArray inputWidgets &&
             inputWidgets.OfType<JsonObject>().Any(widget =>
                 widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
@@ -53,7 +50,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -153,12 +150,27 @@ internal static class DashboardSchemaMigration
             schemaVersion = CanvasPanelSchemaVersion;
         }
 
+        if (schemaVersion == CanvasPanelSchemaVersion)
+        {
+            // Ordinary widgets acquire an inactive default without changing their visual meaning.
+            root["schemaVersion"] = WidgetActionSchemaVersion;
+            schemaVersion = WidgetActionSchemaVersion;
+        }
+
         if (schemaVersion != CurrentSchemaVersion)
             throw new InvalidDataException(
                 $"No dashboard migration path from schemaVersion {schemaVersion} to {CurrentSchemaVersion}.");
         return true;
     }
 
+
+    internal static void RejectLegacyShortcut(JsonObject root)
+    {
+        if (root["widgets"] is JsonArray widgets && widgets.OfType<JsonObject>().Any(widget =>
+            widget["type"] is JsonValue typeNode && typeNode.TryGetValue<string>(out var type) &&
+            string.Equals(type, "shortcut", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("Legacy Shortcut widgets are unsupported by schema 31. Remove or replace them using an older application, then reopen the unchanged source dashboard.");
+    }
 
     // Canvas's former color-under-image composition is intentionally retired.
     // All schema-29 images are selected by explicit source, not by container presence.
@@ -239,7 +251,7 @@ internal static class DashboardSchemaMigration
 
                 var type = widget["type"]?.GetValue<string>();
                 if (WidgetTypeContract.Is(type, WidgetTypeContract.Image) ||
-                    WidgetTypeContract.Is(type, WidgetTypeContract.Shortcut))
+                    string.Equals(type, "shortcut", StringComparison.OrdinalIgnoreCase))
                 {
                     MigrateIconOpacity(widget, widget["asset"] as JsonObject, "opacity");
                 }
@@ -313,7 +325,7 @@ internal static class DashboardSchemaMigration
         if (owner is null)
             return;
         if (DashboardModel.ImageAssetSourceType.IsIcon(asset?["sourceType"]?.GetValue<string>()) ||
-            ShortcutContract.IsAuto(asset?["sourceType"]?.GetValue<string>()))
+            string.Equals(asset?["sourceType"]?.GetValue<string>(), "auto", StringComparison.OrdinalIgnoreCase))
         {
             if (owner[legacyProperty] is JsonNode old)
                 owner["iconOpacity"] = old.DeepClone();

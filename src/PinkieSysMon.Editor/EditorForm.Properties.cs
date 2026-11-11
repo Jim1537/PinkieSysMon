@@ -35,6 +35,7 @@ internal sealed partial class EditorForm
     private readonly TabPage _statesPropertyTab = new() { Name = "States", Padding = Padding.Empty, ToolTipText = "States", AccessibleName = "States" };
     private readonly TabPage _imagePropertyTab = new() { Name = "Image", Padding = Padding.Empty, ToolTipText = "Image", AccessibleName = "Image" };
     private readonly TabPage _textPropertyTab = new() { Name = "Text", Padding = Padding.Empty, ToolTipText = "Text", AccessibleName = "Text" };
+    private readonly TabPage _actionPropertyTab = new() { Name = "Action", Padding = Padding.Empty, ToolTipText = "Action", AccessibleName = "Action" };
 
     private static readonly string[] PropertyGeneralIcons = ["settings-2", "settings", "sliders-horizontal", "grid-3x3"];
     private static readonly string[] PropertyPanelIcons = ["layers-2", "layers", "square", "grid-3x3"];
@@ -207,6 +208,7 @@ internal sealed partial class EditorForm
             replacements.Add((_statesPropertyTab, CreateLucideToolbarImage(size, PropertyStatesIcons)));
             replacements.Add((_imagePropertyTab, CreateLucideToolbarImage(size, PropertyImageIcons)));
             replacements.Add((_textPropertyTab, CreateLucideToolbarImage(size, PropertyTextIcons)));
+            replacements.Add((_actionPropertyTab, CreateLucideToolbarImage(size, ["mouse-pointer-click", "mouse-pointer", "play"])));
             return replacements;
         }
         catch
@@ -291,6 +293,7 @@ internal sealed partial class EditorForm
                     _statesPropertyTab.Enabled = true;
                     _imagePropertyTab.Enabled = true;
                     _textPropertyTab.Enabled = true;
+                    _actionPropertyTab.Enabled = true;
 
                     var preferredPage = GetPropertyTab(_lastWidgetPropertySection);
                     _propertyTabs.SelectedTab = preferredPage is not null && _propertyTabs.TabPages.Contains(preferredPage)
@@ -357,6 +360,7 @@ internal sealed partial class EditorForm
             desired.Add(_imagePropertyTab);
         if (includeText)
             desired.Add(_textPropertyTab);
+        desired.Add(_actionPropertyTab);
 
         ConfigurePropertyTabs(desired);
     }
@@ -433,7 +437,7 @@ internal sealed partial class EditorForm
             EditorPropertySection.Graph or
             EditorPropertySection.States or
             EditorPropertySection.Image or
-            EditorPropertySection.Text
+            EditorPropertySection.Text or EditorPropertySection.Action
                 ? PropertySort.NoSort
                 : PropertySort.Categorized;
         SetPropertyGridSelectedObject(CreatePropertyTargetView(target, section));
@@ -488,6 +492,11 @@ internal sealed partial class EditorForm
             section = EditorPropertySection.Text;
             return true;
         }
+        if (ReferenceEquals(page, _actionPropertyTab))
+        {
+            section = EditorPropertySection.Action;
+            return true;
+        }
         section = EditorPropertySection.All;
         return false;
     }
@@ -503,6 +512,7 @@ internal sealed partial class EditorForm
         EditorPropertySection.States => _statesPropertyTab,
         EditorPropertySection.Image => _imagePropertyTab,
         EditorPropertySection.Text => _textPropertyTab,
+        EditorPropertySection.Action => _actionPropertyTab,
         _ => null
     };
 

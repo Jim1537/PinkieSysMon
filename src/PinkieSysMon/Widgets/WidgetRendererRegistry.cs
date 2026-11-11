@@ -13,7 +13,6 @@ internal static class WidgetRendererRegistry
             new GaugeWidgetRenderer(),
             new GraphWidgetRenderer(imageAssets, iconAssets),
             new ImageWidgetRenderer(imageAssets, iconAssets),
-            new ShortcutWidgetRenderer(imageAssets, iconAssets, log),
             new BinaryWidgetRenderer(imageAssets, iconAssets),
             new PowerWidgetRenderer(imageAssets, iconAssets),
             new MediaSystemWidgetRenderer(imageAssets, iconAssets),

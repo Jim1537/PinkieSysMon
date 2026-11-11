@@ -10,7 +10,7 @@ internal static class CommonWidgetPropertyTests
     {
         C.WidgetDefinition[] widgets = [
             new C.ValueWidgetDefinition(), new C.BinaryWidgetDefinition(), new C.GraphWidgetDefinition(),
-            new C.GaugeWidgetDefinition(), new C.BarWidgetDefinition(), new C.ShortcutWidgetDefinition(),
+            new C.GaugeWidgetDefinition(), new C.BarWidgetDefinition(),
             new C.ImageWidgetDefinition(), new C.PowerWidgetDefinition(), new C.MediaSystemWidgetDefinition(),
             new C.MediaPlayerWidgetDefinition()
         ];
@@ -41,7 +41,7 @@ internal static class CommonWidgetPropertyTests
             new EditorPropertyView(w, section: EditorPropertySection.General)).ToArray()).GetProperties();
         var metric = Children(mixed, "Data Source")["Metric"]!;
         Check(metric.IsReadOnly, "A selection including derived and absent metrics cannot be rebound.");
-        var media = (C.MediaSystemWidgetDefinition)widgets[8];
+        var media = (C.MediaSystemWidgetDefinition)widgets[7];
         var binding = Children(new EditorPropertyView(media, section: EditorPropertySection.General).GetProperties(), "Data Source")["Metric"]!;
         media.MediaSource = MediaMetricContract.InputSource;
         Check(binding.IsReadOnly && Equals(binding.GetValue(null), $"{MediaMetricContract.InputAvailable}, {MediaMetricContract.InputType}"),

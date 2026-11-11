@@ -16,13 +16,12 @@ internal sealed class ImageAssetPresentationDefinition
     [JsonPropertyName("loop")]
     public bool Loop { get; set; } = true;
 
-    internal bool ChangeSourceType(string sourceType, bool allowShellIcon = false)
+    internal bool ChangeSourceType(string sourceType)
     {
-        if (!ImageAssetSourceType.IsSupported(sourceType) && !(allowShellIcon && ShortcutContract.IsAuto(sourceType)))
+        if (!ImageAssetSourceType.IsSupported(sourceType))
             throw new ArgumentOutOfRangeException(nameof(sourceType), sourceType, "Image source type must be file or icon.");
 
-        var normalized = allowShellIcon && ShortcutContract.IsAuto(sourceType)
-            ? ShortcutContract.AutoSource : ImageAssetSourceType.Normalize(sourceType);
+        var normalized = ImageAssetSourceType.Normalize(sourceType);
         if (string.Equals(SourceType, normalized, StringComparison.OrdinalIgnoreCase))
         {
             SourceType = normalized;
@@ -34,23 +33,17 @@ internal sealed class ImageAssetPresentationDefinition
         return true;
     }
 
-    internal void ValidateStructure(string context, bool allowShellIcon = false)
+    internal void ValidateStructure(string context)
     {
-        if (!ImageAssetSourceType.IsSupported(SourceType) && !(allowShellIcon && ShortcutContract.IsAuto(SourceType)))
+        if (!ImageAssetSourceType.IsSupported(SourceType))
             throw new InvalidDataException($"{context} SourceType must be file or icon.");
         if (!global::PinkieSysMon.StateVisualProfileContract.SupportedFits.Contains(Fit, StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException($"{context} Fit must be contain, cover, or stretch.");
     }
 
-    internal void ValidateActiveSource(string dashboardBaseDirectory, string context, bool allowShellIcon = false, bool allowUnavailableArtwork = false)
+    internal void ValidateActiveSource(string dashboardBaseDirectory, string context, bool allowUnavailableArtwork = false)
     {
-        ValidateStructure(context, allowShellIcon);
-        if (allowShellIcon && ShortcutContract.IsAuto(SourceType))
-        {
-            if (!string.IsNullOrEmpty(Source))
-                throw new InvalidDataException($"{context} Auto uses the Shell target, not a custom Source.");
-            return;
-        }
+        ValidateStructure(context);
         if (string.IsNullOrWhiteSpace(Source))
             return;
 

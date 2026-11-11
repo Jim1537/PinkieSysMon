@@ -25,6 +25,7 @@ internal static class DashboardJson
     {
         ArgumentNullException.ThrowIfNull(root);
         EnsureCurrentSchema(root);
+        DashboardSchemaMigration.RejectLegacyShortcut(root);
 
         CanonicalDashboard.DashboardDefinition definition;
         try
@@ -77,6 +78,7 @@ internal static class DashboardJson
             AllowTrailingCommas = true
         }) as JsonObject ?? throw new InvalidDataException("Dashboard snapshot is empty.");
         EnsureCurrentSchema(root);
+        DashboardSchemaMigration.RejectLegacyShortcut(root);
 
         CanonicalDashboard.DashboardDefinition definition;
         try

@@ -128,7 +128,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 !!! info ""
 
     **Editor name:** Bump Pause  
-    **Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state); `text.shortcut.overflow.bump_pause` (Shortcut label)
+    **Semantic key:** `text.value.overflow.bump_pause` (Text / Value); `text.state.{state}.overflow.bump_pause` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.BumpPauseMs`  
     **JSON:** `textPresentation.bumpPauseMs` (Text / Value); `profiles.{state}.textPresentation.bumpPauseMs` (Value state)
@@ -140,7 +140,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 
     Pause at the edges during Bump.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
     **Disabled / read-only when:**
     - [Overflow Mode](properties.md#overflow-mode)!=`Bump`.
@@ -456,7 +456,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 !!! info ""
 
     **Editor name:** Family  
-    **Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state); `text.shortcut.font.family` (Shortcut label)
+    **Semantic key:** `text.value.font.family` (Text / Value); `text.state.{state}.font.family` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.FontFamily`  
     **JSON:** `textPresentation.fontFamily` (Text / Value); `profiles.{state}.textPresentation.fontFamily` (Value state)
@@ -468,7 +468,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 
     The Editor provides an editable drop-down listing families discovered under the application's `assets/fonts` directory. You may type a family name, but Runtime rendering requires that font to be bundled; system-installed fonts are not used.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-family] -->
 
@@ -481,7 +481,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 !!! info ""
 
     **Editor name:** Size  
-    **Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state); `text.shortcut.font.size` (Shortcut label)
+    **Semantic key:** `text.value.font.size` (Text / Value); `text.state.{state}.font.size` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.FontSize`  
     **JSON:** `textPresentation.fontSize` (Text / Value); `profiles.{state}.textPresentation.fontSize` (Value state)
@@ -493,7 +493,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 
     Font size.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-size] -->
 
@@ -506,7 +506,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 !!! info ""
 
     **Editor name:** Weight  
-    **Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state); `text.shortcut.font.weight` (Shortcut label)
+    **Semantic key:** `text.value.font.weight` (Text / Value); `text.state.{state}.font.weight` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.FontWeight`  
     **JSON:** `textPresentation.fontWeight` (Text / Value); `profiles.{state}.textPresentation.fontWeight` (Value state)
@@ -518,7 +518,7 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 
     Font weight.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:font-weight] -->
 
@@ -535,7 +535,7 @@ WidgetDefinition.Color (JSON: color) is the color of the **widget's content**, n
 | Bar | Gauge → Bar → Indicator Color: fill/threshold base, disabled in Image mode |
 | Gauge | Gauge → Horseshoe → Indicator Color: active arc/threshold base |
 | Graph | Graph → Plot → Color: plotted line/columns/threshold base |
-| Image and Shortcut | Image → Image → Color: icon tint where supported; no tint for image files |
+| Image | Image → Image → Color: icon tint where supported; no tint for image files |
 | Binary, Power, Media System, Media Player | Appearance → Content → Default Color: inherited by each state unless overridden |
 
 A non-tintable icon retains a disabled Color row, and file-backed images have no Color row. Text transparency is the alpha channel of its RGBA color.
@@ -648,7 +648,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 
     **Values:**
-    - **Bar / Image / Graph / Shortcut:** `> 0`.
+    - **Bar / Image / Graph:** `> 0`.
     - **Gauge:** derived and equal to [Width](properties.md#width).
     - **Text / Value:** derived from the active text layout.
     - **State-driven:** derived only when all states use `Value`; otherwise a persisted positive dimension.
@@ -694,7 +694,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 !!! info ""
 
     **Editor name:** Horizontal  
-    **Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state); `text.shortcut.align.horizontal` (Shortcut label)
+    **Semantic key:** `text.value.align.horizontal` (Text / Value); `text.state.{state}.align.horizontal` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.Align`  
     **JSON:** `textPresentation.align` (Text / Value); `profiles.{state}.textPresentation.align` (Value state)
@@ -708,7 +708,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     Horizontal alignment.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:horizontal-alignment] -->
 
@@ -750,7 +750,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     Controls how an image source is fitted inside the target bounds.
 
-    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
     - Canvas Panel image/icon Fit appears in the contextual Image tab when the corresponding Panel Mode selects Image or Icon. Graph legacy layers follow their own source applicability.
@@ -832,7 +832,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     Controls looping of an animated graphical source.
 
-    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
+    **Used by:** Graph background image, Image, graphical state profiles, Canvas background/foreground image layers, Bar / [Mode](properties.md#bar-mode)=`Image`
 
     **Context notes:**
     - Loop is editable when the configured file or icon reports multiple frames. Static, unresolved and automatic Shell artwork keeps the stored Loop value.
@@ -879,7 +879,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     If artwork is missing or damaged, Editor opens the dashboard and lists the affected sources. Hover over **Repair artwork** in the status bar to see the remaining references. Replace each source or clear it. Other layers remain visible while you edit. Save checks the files again before writing the dashboard.
 
-    **Used by:** Graph background image, Image, Shortcut, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
+    **Used by:** Graph background image, Image, graphical state profiles, Bar / [Mode](properties.md#bar-mode)=`Image`, Canvas background/foreground image layers
 
     **Context notes:**
     - State profiles disable Source when [Source Type](properties.md#state-source-type)=`Value`.
@@ -909,21 +909,19 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
     - Image: `asset.sourceType`
     - Canvas Background/Foreground: select `panelBackground.mode` / `panelForeground.mode`; their Image and Icon assets have fixed `sourceType` (`file` / `icon`)
     - Graph background: `image.asset.sourceType`
-    - Shortcut: `asset.sourceType`
 
 
     **Values:**
     - Editor `Image` → canonical/JSON `file`.
     - Editor `Icon` → canonical/JSON `icon`.
-    - Shortcut only: Editor `Auto` → `auto` (default); obtain the Windows Shell icon from Target.
 
 
     Selects whether a shared image asset uses a dashboard-relative file or a global icon.
 
-    **Used by:** Graph background image, Image, Shortcut, Canvas background image layer, Canvas foreground image layer
+    **Used by:** Graph background image, Image, Canvas background image layer, Canvas foreground image layer
 
     **Notes:**
-    - Changing the source type clears the current [Source](properties.md#image-source). Auto is admitted only by Shortcut; it stores no custom Source. An empty custom Source also displays the Shell icon.
+    - Changing the source type clears the current [Source](properties.md#image-source).
 
 <!-- --8<-- [end:image-source-type] -->
 
@@ -958,7 +956,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 !!! info ""
 
     **Editor name:** Italic  
-    **Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state); `text.shortcut.font.italic` (Shortcut label)
+    **Semantic key:** `text.value.font.italic` (Text / Value); `text.state.{state}.font.italic` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.Italic`  
     **JSON:** `textPresentation.italic` (Text / Value); `profiles.{state}.textPresentation.italic` (Value state)
@@ -970,7 +968,7 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
     Italic.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:italic] -->
 
@@ -1273,9 +1271,9 @@ A non-tintable icon retains a disabled Color row, and file-backed images have no
 
 <!-- --8<-- [start:opacity] -->
 
-**Editor label:** Opacity. Canonical properties: ImageWidgetDefinition.IconOpacity, ShortcutWidgetDefinition.IconOpacity, StateVisualProfileDefinition.IconOpacity, and WidgetPanelLayerDefinition.IconOpacity (including root Canvas). Persisted name: **iconOpacity**.
+**Editor label:** Opacity. Canonical properties: ImageWidgetDefinition.IconOpacity, StateVisualProfileDefinition.IconOpacity, and WidgetPanelLayerDefinition.IconOpacity (including root Canvas). Persisted name: **iconOpacity**.
 
-Allowed values: finite 0..1. This property applies **only to icons**, including automatic Shortcut Shell artwork. It multiplies icon transparency while keeping the asset's intrinsic color/tint behavior. Icon-only Opacity belongs to the relevant Image-tab group.
+Allowed values: finite 0..1. This property applies **only to icons**. It multiplies icon transparency while keeping the asset's intrinsic color/tint behavior. Icon-only Opacity belongs to the relevant Image-tab group.
 
 File-backed images use their **embedded alpha only**; no independent Opacity or Color control exists. Text also has no standalone Opacity; text and outline RGBA colors have independent alpha. The unrelated Shadow Opacity and Graph Fill Opacity properties remain in place.
 
@@ -1319,7 +1317,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 !!! info ""
 
     **Editor name:** Color  
-    **Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state); `text.shortcut.outline.color` (Shortcut label)
+    **Semantic key:** `text.value.outline.color` (Text / Value); `text.state.{state}.outline.color` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.OutlineColor`  
     **JSON:** `textPresentation.outlineColor` (Text / Value); `profiles.{state}.textPresentation.outlineColor` (Value state)
@@ -1331,7 +1329,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
     Text outline color.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:outline-color] -->
 
@@ -1344,7 +1342,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 !!! info ""
 
     **Editor name:** Width  
-    **Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state); `text.shortcut.outline.width` (Shortcut label)
+    **Semantic key:** `text.value.outline.width` (Text / Value); `text.state.{state}.outline.width` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.OutlineWidth`  
     **JSON:** `textPresentation.outlineWidth` (Text / Value); `profiles.{state}.textPresentation.outlineWidth` (Value state)
@@ -1356,7 +1354,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
     Text outline width.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:outline-width] -->
 
@@ -1369,7 +1367,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 !!! info ""
 
     **Editor name:** Mode  
-    **Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state); `text.shortcut.overflow.mode` (Shortcut label)
+    **Semantic key:** `text.value.overflow.mode` (Text / Value); `text.state.{state}.overflow.mode` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.OverflowMode`  
     **JSON:** `textPresentation.overflowMode` (Text / Value); `profiles.{state}.textPresentation.overflowMode` (Value state)
@@ -1387,13 +1385,12 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
     Controls text behavior when the available width is constrained.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
     **Notes:**
     - `None` is the auto-width mode.
     - Text / Value allows `None` only when [Width](properties.md#width)=0; fixed Width normalizes `None` to `Clip`.
     - A state-driven widget allows `None` only when **all** states have [Source Type](properties.md#state-source-type)=`Value` and [Width](properties.md#width)=0. Mixed Value/Image/Icon state widgets use constrained modes.
-    - Shortcut labels always use the graphic Width and one of the constrained modes; default `Clip`. `None` is rejected. Shared text properties use the `text.shortcut.*` semantic prefix and `textPresentation` JSON owner.
 
 <!-- --8<-- [end:overflow-mode] -->
 
@@ -1639,7 +1636,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 !!! info ""
 
     **Editor name:** Scroll Speed  
-    **Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state); `text.shortcut.overflow.scroll_speed` (Shortcut label)
+    **Semantic key:** `text.value.overflow.scroll_speed` (Text / Value); `text.state.{state}.overflow.scroll_speed` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.ScrollSpeed`  
     **JSON:** `textPresentation.scrollSpeed` (Text / Value); `profiles.{state}.textPresentation.scrollSpeed` (Value state)
@@ -1651,7 +1648,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
     Scroll/Bump speed.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
     **Disabled / read-only when:**
     - [Overflow Mode](properties.md#overflow-mode) is neither `Scroll` nor `Bump`.
@@ -2431,7 +2428,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 !!! info ""
 
     **Editor name:** Vertical  
-    **Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state); `text.shortcut.align.vertical` (Shortcut label)
+    **Semantic key:** `text.value.align.vertical` (Text / Value); `text.state.{state}.align.vertical` (Value state)
 
     **Canonical model:** `TextPresentationDefinition.VerticalAlign`  
     **JSON:** `textPresentation.verticalAlign` (Text / Value); `profiles.{state}.textPresentation.verticalAlign` (Value state)
@@ -2446,7 +2443,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 
     Vertical alignment.
 
-    **Used by:** Text / Value, Shortcut label and Value state profiles
+    **Used by:** Text / Value and Value state profiles
 
 <!-- --8<-- [end:vertical-alignment] -->
 
@@ -2467,7 +2464,7 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
     **Values:**
     - **Text / Value:** `>= 0`; `0` enables auto width.
     - **Gauge:** `> 0`; [Height](properties.md#height) is derived and equal to Width.
-    - **Bar / Image / Graph / Shortcut:** `> 0`.
+    - **Bar / Image / Graph:** `> 0`.
     - **Binary / Power / Media System / Media Player:** `>= 0` only when all states use [Source Type](properties.md#state-source-type) = `Value`; otherwise `> 0`.
     - **Canvas:** positive integer.
 
@@ -2534,155 +2531,55 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
 ---
 
 ---
+## Action Activation
 
-## Shortcut Target
-
-<!-- --8<-- [start:shortcut-target] -->
+<!-- --8<-- [start:action-activation] -->
 
 !!! info ""
 
-    **Editor name:** Target
+    **Editor name:** Activation  
+    **Semantic key:** `action.activation`  
+    **Canonical model:** `WidgetDefinition.Action.Activation`  
+    **JSON:** `action.activation`
 
-    **Semantic key:** `shortcut.target`
+    `None` (default), `Double` (Double click), `Single` (Single click). Native Desktop interaction only. `None` disables hit regions without clearing stored Target/Arguments. A blank Target is functionally inactive without changing Activation.
 
-    **Canonical model:** `ShortcutWidgetDefinition.Target`
+    **Used by:** All widgets; Canvas excluded. Physical Outputs are display-only.
 
-    **JSON:** `target`
-
-    Editable string; default empty. Any Windows Shell target is allowed, including unavailable targets. The file picker selects without importing or rewriting the target.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-target] -->
+<!-- --8<-- [end:action-activation] -->
 
 ---
+## Action Target
 
-## Shortcut Arguments
-
-<!-- --8<-- [start:shortcut-arguments] -->
+<!-- --8<-- [start:action-target] -->
 
 !!! info ""
 
-    **Editor name:** Arguments
+    **Editor name:** Target  
+    **Semantic key:** `action.target`  
+    **Canonical model:** `WidgetDefinition.Action.Target`  
+    **JSON:** `action.target`
 
-    **Semantic key:** `shortcut.arguments`
+    Literal Windows Shell path, URL, folder, file or parsing name. Default empty. A blank or whitespace Target creates no native hotspot, hand cursor, click interception or Shell launch regardless of Activation. The file picker does not import or rewrite the target. Read-only when Activation is `None`.
 
-    **Canonical model:** `ShortcutWidgetDefinition.Arguments`
+    **Used by:** All widgets; Canvas excluded. Physical Outputs are display-only.
 
-    **JSON:** `arguments`
-
-    Editable string; default empty. Passed to Windows separately from Target, unchanged. No command-line splitting or file-type filtering occurs.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-arguments] -->
+<!-- --8<-- [end:action-target] -->
 
 ---
+## Action Arguments
 
-## Shortcut Activation
-
-<!-- --8<-- [start:shortcut-activation] -->
-
-!!! info ""
-
-    **Editor name:** Activation
-
-    **Semantic key:** `shortcut.activation`
-
-    **Canonical model:** `ShortcutWidgetDefinition.Activation`
-
-    **JSON:** `activation`
-
-    Editor Single click / Double click; JSON Single / Double. Default Double. Determines the explicit Runtime gesture; editing and rendering never invoke it.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-activation] -->
-
----
-
-## Shortcut Label
-
-<!-- --8<-- [start:shortcut-label] -->
+<!-- --8<-- [start:action-arguments] -->
 
 !!! info ""
 
-    **Editor name:** Label
+    **Editor name:** Arguments  
+    **Semantic key:** `action.arguments`  
+    **Canonical model:** `WidgetDefinition.Action.Arguments`  
+    **JSON:** `action.arguments`
 
-    **Semantic key:** `shortcut.label`
+    Literal arguments passed separately and unchanged to Windows Shell; no parsing or extension filtering. Default empty. Read-only when Activation is `None`; dormant value is preserved.
 
-    **Canonical model:** `ShortcutWidgetDefinition.Label`
+    **Used by:** All widgets; Canvas excluded. Physical Outputs are display-only.
 
-    **JSON:** `label`
-
-    Literal text; default empty. An explicit change to Target in Editor fills an empty Label from the selected file/shortcut name without its last extension. Any nonempty Label is preserved, including a previous suggestion or whitespace. The suggestion remains editable and can be cleared; reassigning the same Target does not refill it. Loading, cloning, Undo/Redo and rendering never infer a label or rewrite old dashboards. Empty draws nothing and reserves no text height; Editor Name, metrics and numeric formatting do not supply fallback text.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-label] -->
-
----
-
-## Shortcut Label Position
-
-<!-- --8<-- [start:shortcut-label-position] -->
-
-!!! info ""
-
-    **Editor name:** Position
-
-    **Semantic key:** `shortcut.label_position`
-
-    **Canonical model:** `ShortcutWidgetDefinition.LabelPosition`
-
-    **JSON:** `labelPosition`
-
-    Top, Middle, Bottom; default Bottom. For graphic (X,Y,W,H) and measured text-block height T: Top starts at Y−Gap−T; Bottom at Y+H+Gap; Middle at Y+(H−T)/2 and ignores Gap. Text width is W.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-label-position] -->
-
----
-
-## Shortcut Label Gap
-
-<!-- --8<-- [start:shortcut-label-gap] -->
-
-!!! info ""
-
-    **Editor name:** Gap
-
-    **Semantic key:** `shortcut.gap`
-
-    **Canonical model:** `ShortcutWidgetDefinition.Gap`
-
-    **JSON:** `gap`
-
-    Any finite signed number; default 4 logical pixels. Positive separates the label from the graphic, zero touches it, negative overlaps. Read-only for Middle. Does not change graphic geometry, border, pivot or activation bounds.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-label-gap] -->
-
----
-
-## Shortcut Label Color
-
-<!-- --8<-- [start:shortcut-label-color] -->
-
-!!! info ""
-
-    **Editor name:** Color
-
-    **Semantic key:** `shortcut.label_color`
-
-    **Canonical model:** `ShortcutWidgetDefinition.LabelColor`
-
-    **JSON:** `labelColor`
-
-    Label foreground color; default #FFFFFFFF. Independent of graphic tint. Font, alignment, outline and overflow belong to the shared TextPresentationDefinition.
-
-    **Used by:** Shortcut
-
-<!-- --8<-- [end:shortcut-label-color] -->
+<!-- --8<-- [end:action-arguments] -->

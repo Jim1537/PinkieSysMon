@@ -21,8 +21,6 @@ internal static partial class Program
     {
         if (Issue105LoggingTests.TryRunChild(args) is { } loggingChildExit)
             return loggingChildExit;
-        if (ShortcutNativeDiagnostic.TryRun(args, Console.WriteLine) is { } shortcutNativeExit)
-            return shortcutNativeExit;
         if (TurzxRuntimeDiagnostic.TryRun(args, Console.WriteLine) is { } runtimeCheckExit)
             return runtimeCheckExit;
         if (TurzxTransportDiagnostic.TryRun(args, Console.WriteLine) is { } transportExit)
@@ -203,29 +201,17 @@ internal static partial class Program
                 ("Removed legacy widget types", RemovedLegacyWidgetTypes),
                 ("Text property hierarchy", TextPropertyHierarchy),
             ]),
-            ("Widgets / Shortcut", [
-                ("prototype raster region and dispatch parity", ShortcutInputPrototypeTests.RegionAndDispatchAgree),
-                ("Shortcut model round-trip and defaults", ShortcutModelTests.RoundTripAndDefaults),
+            ("Widgets / Action", [
+                ("universal model, migration and strict legacy rejection", WidgetActionTests.ModelMigrationAndLegacyRejection),
+                ("Action tab descriptors and cross-widget multi-edit", WidgetActionTests.EditorPropertiesAndMultiEdit),
+                ("inactive, overlapping and rotated Action hotspot geometry", WidgetActionTests.InactiveHotspotsAndGeometry),
+                ("derived Text/Value native hotspot refresh", WidgetActionTests.DerivedValueGeometryAndRefresh),
+                ("region rasterization, clipping and immutable snapshots", WidgetActionInteractionTests.RasterAndSnapshot),
+                ("native gesture rules and Shell boundary", WidgetActionInteractionTests.GesturesAndShellBoundary),
+                ("native hand cursor only inside Action regions", WidgetActionInteractionTests.DesktopHoverCursorRouting),
                 ("common geometry migration and history", CommonWidgetGeometryTests.MigrationAndHistory),
                 ("common border masks and padded text baseline", CommonWidgetGeometryTests.RenderBordersAndPadding),
                 ("padded Gauge fit and resize limits", CommonWidgetGeometryTests.GaugeFit),
-                ("Shortcut migration and strictness", ShortcutModelTests.MigrationAndStrictness),
-                ("Shortcut validation and source ownership", ShortcutModelTests.ValidationAndSourceOwnership),
-                ("initial label suggestion and preservation", ShortcutTargetEditingTests.InitialLabelAndPreservation),
-                ("empty label persistence without suggestions", ShortcutTargetEditingTests.PersistenceNeverSuggestsLabel),
-                ("Target property label and snapshot integration", ShortcutEditorTests.TargetEditingAndSnapshots),
-                ("production input raster and snapshot", ShortcutInteractionTests.RasterAndSnapshot),
-                ("production gesture and Shell boundary", ShortcutInteractionTests.GesturesAndShellBoundary),
-                ("Desktop Shortcut link-select cursor routing", ShortcutInteractionTests.DesktopHoverCursorRouting),
-                ("label composition effects and shared artwork", ShortcutRenderTests.LabelsEffectsAndSharedArtwork),
-                ("Shell artwork cache and retirement", ShortcutRenderTests.ShellArtworkCacheLifetime),
-                ("Editor properties and applicability", ShortcutEditorTests.PropertiesAndApplicability),
-                ("clipboard imports artwork without targets", ShortcutEditorTests.ClipboardCopiesOnlyArtwork),
-                ("prototype separated union and overlap order", ShortcutInputPrototypeTests.UnionAndOverlap),
-                ("prototype click modes and cancellation", ShortcutInputPrototypeTests.ClickModesAndCancellation),
-                ("prototype timing distance and generation", ShortcutInputPrototypeTests.TimeDistanceAndIdentity),
-                ("native experiment explicit admission", ShortcutInputPrototypeTests.DiagnosticAdmission),
-                ("underlay stdin preserves message-loop responsiveness", ShortcutInputPrototypeTests.LifetimeReadDoesNotBlockCaller),
             ]),
             ("Widgets / Value", [
                 ("Text/value source semantics", TextValueSourceSemantics),
@@ -769,7 +755,6 @@ internal static partial class Program
             ]),
             ("Logging / Resources", [
                 ("resource failure context without inner diagnostic I/O", Issue105ResourceLoggingTests.ResourceContextWithoutInnerIo),
-                ("Shell resource failure cached per generation", Issue105ResourceLoggingTests.ShellCacheFailureIsOncePerGeneration),
             ]),
             ("Integration / DateTime", [
                 ("DateTime fractional projection and boundaries", Issue96DateTimePrecisionTests.ProjectionAndBoundaries),
