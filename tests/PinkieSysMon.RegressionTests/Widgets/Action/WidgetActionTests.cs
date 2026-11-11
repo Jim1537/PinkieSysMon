@@ -22,10 +22,22 @@ internal static class WidgetActionTests
         var legacy = JsonNode.Parse(original)!.AsObject();
         legacy["schemaVersion"] = DashboardSchemaMigration.CanvasPanelSchemaVersion;
         legacy["widgets"]!.AsArray()[0]!.AsObject().Remove("action");
+        // Recreate the actual two-factor shadow persistence from schema 30.
+        // Merely relabeling a schema-32 fixture would fold its alpha twice.
+        var canvas = legacy["canvas"]!.AsObject();
+        canvas["shadowColor"] = "#FF000000";
+        canvas["shadowOpacity"] = 0.5f;
+        var legacyWidget = legacy["widgets"]!.AsArray()[0]!.AsObject();
+        legacyWidget["shadowColor"] = "#FF000000";
+        legacyWidget["shadowOpacity"] = 0.5f;
 
-        Check(DashboardSchemaMigration.UpgradeToCurrent(legacy), "Schema 30 must migrate to Action schema 31.");
-        Check(legacy["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.WidgetActionSchemaVersion,
-            "The action migration must select schema 31.");
+        Check(DashboardSchemaMigration.UpgradeToCurrent(legacy),
+            "Schema 30 must migrate through Action schema 31 and Shadow schema 32.");
+        Check(legacy["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Action migration must reach the current canonical schema.");
+        Check(legacy["canvas"]!["shadowColor"]!.GetValue<string>() == "#80000000" &&
+              legacy["widgets"]![0]!["shadowColor"]!.GetValue<string>() == "#80000000",
+            "The historical shadow representation must retain its effective alpha.");
         var unchanged = legacy.ToJsonString();
         Check(!DashboardSchemaMigration.UpgradeToCurrent(legacy) && legacy.ToJsonString() == unchanged,
             "Repeated migration must not mutate a current-schema document.");
@@ -37,7 +49,7 @@ internal static class WidgetActionTests
             "Omitted actions must acquire the canonical inactive defaults.");
         var saved = DashboardJson.Serialize(parsed, indented: false);
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(saved, path), indented: false) == saved,
-            "Schema 31 parse/save and repeated migration must be deterministic.");
+            "Current-schema parse/save and repeated migration must be deterministic.");
         var clone = DashboardJson.CloneWidget(parsed.Widgets[0]);
         Check(DashboardJson.Serialize(Board(clone), indented: false) == saved,
             "Clipboard/clone must preserve base Action values.");

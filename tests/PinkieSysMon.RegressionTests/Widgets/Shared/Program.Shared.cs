@@ -302,7 +302,8 @@ internal static partial class Program
                    GetNestedProperty(panel, "Background", "Mode") is { DisplayName: "Mode" } &&
                    GetNestedProperty(panel, "Foreground", "Mode") is { DisplayName: "Mode" } &&
                    GetNestedProperty(panel, "Border", nameof(C.WidgetDefinition.BorderColor)) is { DisplayName: "Color" } &&
-                   GetNestedProperty(panel, "Shadow", nameof(C.WidgetDefinition.ShadowOpacity)) is { DisplayName: "Opacity" },
+                   GetNestedProperty(panel, "Shadow", nameof(C.WidgetDefinition.ShadowColor)) is { DisplayName: "Color" } &&
+                    GetNestedProperty(panel, "Shadow", "ShadowOpacity") is null,
                 $"{type} Panel geometry and effects are incomplete.");
 
             var appearance = CurrentPropertyView(widget, section: EditorPropertySection.Appearance).GetProperties();
