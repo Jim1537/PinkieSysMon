@@ -1060,14 +1060,23 @@ internal static partial class Program
             ?? throw new InvalidOperationException($"Migrated Canvas layer '{name}' is missing.");
         var asset = layer["asset"] as JsonObject
             ?? throw new InvalidOperationException($"Migrated Canvas layer '{name}' canonical Asset is missing.");
-        Assert(asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.File &&
-               ((expectedSource is null && asset["source"] is null) ||
-                (expectedSource is not null && asset["source"]?.GetValue<string>() == expectedSource)) &&
-               asset["fit"]?.GetValue<string>() == StateVisualProfileContract.FitStretch &&
-               asset["loop"]?.GetValue<bool>() == true &&
-               layer["opacity"] is null && layer["iconOpacity"] is null &&
-               layer["color"]?.GetValue<string>() == "#FFFFFFFF",
-            $"Migrated Canvas layer '{name}' did not preserve legacy stretch behavior with canonical image defaults.");
+        Assert(asset["sourceType"]?.GetValue<string>() == C.ImageAssetSourceType.File,
+            $"Migrated Canvas layer '{name}' must remain a file-backed image.");
+        Assert((expectedSource is null && asset["source"] is null) ||
+               (expectedSource is not null && asset["source"]?.GetValue<string>() == expectedSource),
+            $"Migrated Canvas layer '{name}' lost its original file source.");
+        Assert(asset["fit"]?.GetValue<string>() == StateVisualProfileContract.FitStretch &&
+               asset["loop"]?.GetValue<bool>() == true,
+            $"Migrated Canvas layer '{name}' lost its legacy stretch and loop settings.");
+        Assert(layer["opacity"] is null,
+            $"Migrated Canvas layer '{name}' must not persist legacy file opacity.");
+        // Schema 18->19 normalization stored the default icon opacity in the canonical
+        // Canvas layer, even for a file source. It remains dormant for file rendering.
+        Assert(layer["iconOpacity"] is JsonValue &&
+               Math.Abs(layer["iconOpacity"]!.GetValue<float>() - 1f) < 0.001f,
+            $"Migrated Canvas layer '{name}' must retain its default dormant icon opacity.");
+        Assert(layer["color"]?.GetValue<string>() == "#FFFFFFFF",
+            $"Migrated Canvas layer '{name}' lost its intrinsic-color default.");
     }
 
     private static void AssertCanonicalMigratedStateProfile(
