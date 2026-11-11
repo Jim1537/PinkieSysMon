@@ -29,7 +29,7 @@ internal static class Issue80PropertyUndoTests
         int? canvasBefore = null;
         var canvasView = new EditorPropertyView(
             canvas,
-            section: EditorPropertySection.General,
+            section: EditorPropertySection.Panel,
             beforeValueChange: () => canvasBefore ??= canvas.Width);
         var width = FindNestedProperty(canvasView.GetProperties(), "Geometry", nameof(C.CanvasDefinition.Width));
         width.SetValue(null, 640);

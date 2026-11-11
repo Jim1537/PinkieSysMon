@@ -39,7 +39,7 @@ internal static class GraphWidgetTests
             "Explicit false must preserve left-to-right direction across current-schema parse/save.");
         Check(!new C.GraphWidgetDefinition().Reverse && !new C.BarWidgetDefinition().Reverse && !new C.GaugeWidgetDefinition().Reverse,
             "New numeric widgets must default Reverse to false.");
-        var schema23 = JsonNode.Parse(json)!.AsObject(); schema23["schemaVersion"] = 23;
+        var schema23 = LegacyPanelMigrationFixture.FromCurrent(JsonNode.Parse(json)!.AsObject(), 23);
         schema23["widgets"]![0]!.AsObject().Remove("reverse");
         schema23["widgets"]![0]!.AsObject().Remove("interpolation");
         schema23["widgets"]![0]!.AsObject().Remove("filter");
@@ -54,7 +54,7 @@ internal static class GraphWidgetTests
         Throws<InvalidDataException>(() => DashboardSchemaMigration.UpgradeToCurrent(schema23));
         definition.Widgets = [new C.BarWidgetDefinition { Id = "bar", Metric = SystemMetricContract.Uptime, Width = 50, Height = 10 }];
         var current = DashboardJson.Serialize(definition, indented: false);
-        var old = JsonNode.Parse(current)!.AsObject(); old["schemaVersion"] = 22;
+        var old = LegacyPanelMigrationFixture.FromCurrent(JsonNode.Parse(current)!.AsObject(), 22);
         Check(DashboardSchemaMigration.UpgradeToCurrent(old), "Schema 22 requires the named Graph introduction migration.");
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "graph-free-migrated.json")), false) == current,
             "Graph-free migration must preserve every content field after canonical panel defaults are materialized.");

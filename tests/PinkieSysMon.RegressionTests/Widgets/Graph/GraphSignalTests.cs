@@ -16,7 +16,7 @@ internal static class GraphSignalTests
         foreach (var reverse in new[] { false, true })
         {
             current["widgets"]![0]!["reverse"] = reverse;
-            var old = (JsonObject)current.DeepClone(); old["schemaVersion"] = 24;
+            var old = LegacyPanelMigrationFixture.FromCurrent(current, 24);
             old["widgets"]![0]!.AsObject().Remove("interpolation"); old["widgets"]![0]!.AsObject().Remove("filter");
             Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
                   JsonNode.DeepEquals(
@@ -51,7 +51,7 @@ internal static class GraphSignalTests
         Throws<InvalidDataException>(() => graph.Validate(Path.GetTempPath()));
         var graphFree = Board(new C.BarWidgetDefinition { Id = "bar", Metric = SystemMetricContract.Uptime, Width = 20, Height = 20 });
         var graphFreeCurrent = JsonNode.Parse(DashboardJson.Serialize(graphFree, false))!.AsObject();
-        var graphFreeOld = (JsonObject)graphFreeCurrent.DeepClone(); graphFreeOld["schemaVersion"] = 24;
+        var graphFreeOld = LegacyPanelMigrationFixture.FromCurrent(graphFreeCurrent, 24);
         DashboardSchemaMigration.UpgradeToCurrent(graphFreeOld);
         Check(JsonNode.DeepEquals(
                 JsonNode.Parse(DashboardJson.Serialize(C.DashboardDefinition.Parse(graphFreeOld.ToJsonString(), Path.Combine(Path.GetTempPath(), "graph-free-signal.json")), false)),

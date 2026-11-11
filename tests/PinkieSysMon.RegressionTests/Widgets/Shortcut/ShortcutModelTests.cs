@@ -57,7 +57,7 @@ internal static class ShortcutModelTests
     {
         var original = JsonNode.Parse(DashboardJson.Serialize(Board(new C.BarWidgetDefinition
             { Id = "bar", Width = 100, Height = 20, Metric = SystemMetricContract.Uptime, Reverse = true }), false))!.AsObject();
-        var old = (JsonObject)original.DeepClone(); old["schemaVersion"] = 25;
+        var old = LegacyPanelMigrationFixture.FromCurrent(original, 25);
         Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
               JsonNode.DeepEquals(
                   JsonNode.Parse(DashboardJson.Serialize(C.DashboardDefinition.Parse(old.ToJsonString(), Path.Combine(Path.GetTempPath(), "shortcut-legacy-migrated.json")), false)),

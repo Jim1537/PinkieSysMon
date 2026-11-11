@@ -107,55 +107,71 @@ internal static class Issue113CanvasPanelTests
 
     public static void DrawOrderAlphaAndPhysicalIsolation()
     {
-        var root = new C.CanvasDefinition { Width = 32, Height = 24 };
-        root.PanelBackground = new C.WidgetPanelLayerDefinition
+        // Renderers resolve fonts/icons through the owning application root even
+        // when this fixture contains no text widgets. Keep the test self-contained.
+        var applicationRoot = Path.Combine(Path.GetTempPath(),
+            "pinkiesysmon-issue113-" + Guid.NewGuid().ToString("N"));
+        var dashboardDirectory = Path.Combine(applicationRoot, "dashboards", "issue113");
+        try
         {
-            Mode = C.WidgetPanelLayerMode.Color, Color = "#FFFF0000"
-        };
-        root.PanelForeground = new C.WidgetPanelLayerDefinition
-        {
-            Mode = C.WidgetPanelLayerMode.Color, Color = "#800000FF"
-        };
-        root.BorderColor = "#FF00FF00";
-        root.BorderWidth = 4f;
-
-        var definition = new C.DashboardDefinition
-        {
-            BaseDirectory = Path.GetTempPath(),
-            Canvas = root
-        };
-        using (var renderer = new DashboardRenderer(definition))
-        using (var frame = renderer.RenderBgra(new Dictionary<string, object?>()))
-        {
-            var inside = frame.Bitmap.GetPixel(16, 12);
-            var edge = frame.Bitmap.GetPixel(16, 1);
-            Check(inside.Red > 70 && inside.Blue > 70 && inside.Green < 35,
-                "Canvas Foreground must blend over Background in the interior.");
-            Check(edge.Blue > 65 && edge.Green > 70 && edge.Red < 60,
-                "Canvas Border must render over Background, then under Foreground.");
+            Directory.CreateDirectory(Path.Combine(applicationRoot, "config"));
+            Directory.CreateDirectory(dashboardDirectory);
+            File.WriteAllText(Path.Combine(applicationRoot, "config", "app.json"), "{}");
+            var root = new C.CanvasDefinition { Width = 32, Height = 24 };
+            root.PanelBackground = new C.WidgetPanelLayerDefinition
+            {
+                Mode = C.WidgetPanelLayerMode.Color, Color = "#FFFF0000"
+            };
+            root.PanelForeground = new C.WidgetPanelLayerDefinition
+            {
+                Mode = C.WidgetPanelLayerMode.Color, Color = "#800000FF"
+            };
+            root.BorderColor = "#FF00FF00";
+            root.BorderWidth = 4f;
+    
+            var definition = new C.DashboardDefinition
+            {
+                BaseDirectory = dashboardDirectory,
+                Canvas = root
+            };
+            using (var renderer = new DashboardRenderer(definition))
+            using (var frame = renderer.RenderBgra(new Dictionary<string, object?>()))
+            {
+                var inside = frame.Bitmap.GetPixel(16, 12);
+                var edge = frame.Bitmap.GetPixel(16, 1);
+                Check(inside.Red > 70 && inside.Blue > 70 && inside.Green < 35,
+                    "Canvas Foreground must blend over Background in the interior.");
+                Check(edge.Blue > 65 && edge.Green > 70 && edge.Red < 60,
+                    "Canvas Border must render over Background, then under Foreground.");
+            }
+    
+            root.CornerRadius = 12f;
+            using (var renderer = new DashboardRenderer(definition))
+            using (var frame = renderer.RenderBgra(new Dictionary<string, object?>()))
+            {
+                var corner = frame.Bitmap.GetPixel(0, 0);
+                Check(corner.Alpha == 0, "Rounded Canvas corners must be transparent.");
+            }
+    
+            root.ShadowEnabled = false;
+            byte[] withoutShadow;
+            using (var renderer = new DashboardRenderer(definition))
+            using (var jpeg = renderer.RenderJpeg(new Dictionary<string, object?>(), 0, 90))
+                withoutShadow = jpeg.Bytes.ToArray();
+    
+            root.ShadowEnabled = true;
+            byte[] withShadow;
+            using (var renderer = new DashboardRenderer(definition))
+            using (var jpeg = renderer.RenderJpeg(new Dictionary<string, object?>(), 0, 90))
+                withShadow = jpeg.Bytes.ToArray();
+            Check(withoutShadow.SequenceEqual(withShadow),
+                "Canvas Shadow must not affect the physical JPEG wire frame.");
         }
-
-        root.CornerRadius = 12f;
-        using (var renderer = new DashboardRenderer(definition))
-        using (var frame = renderer.RenderBgra(new Dictionary<string, object?>()))
+        finally
         {
-            var corner = frame.Bitmap.GetPixel(0, 0);
-            Check(corner.Alpha == 0, "Rounded Canvas corners must be transparent.");
+            if (Directory.Exists(applicationRoot))
+                Directory.Delete(applicationRoot, recursive: true);
         }
-
-        root.ShadowEnabled = false;
-        byte[] withoutShadow;
-        using (var renderer = new DashboardRenderer(definition))
-        using (var jpeg = renderer.RenderJpeg(new Dictionary<string, object?>(), 0, 90))
-            withoutShadow = jpeg.Bytes.ToArray();
-
-        root.ShadowEnabled = true;
-        byte[] withShadow;
-        using (var renderer = new DashboardRenderer(definition))
-        using (var jpeg = renderer.RenderJpeg(new Dictionary<string, object?>(), 0, 90))
-            withShadow = jpeg.Bytes.ToArray();
-        Check(withoutShadow.SequenceEqual(withShadow),
-            "Canvas Shadow must not affect the physical JPEG wire frame.");
     }
 
     private static void Check(bool condition, string message)
