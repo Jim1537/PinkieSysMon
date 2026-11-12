@@ -161,10 +161,10 @@ internal static class DesktopZOrderStage14Tests
                       manager.GetStatuses().Single(s => s.TargetId == "usb-off").IsActive,
                     "Native Desktop placement denial must not abort Runtime or an unrelated physical Output.");
                 manager.RestoreDesktopAfterShellChange();
-                Check(degraded.PendingPlacement && physical.Started,
+                Check(degraded is { PendingPlacement: true } && physical is { Started: true },
                     "A failed shell reconciliation must leave other active Outputs untouched.");
                 manager.RestoreDesktopAfterShellChange();
-                Check(!degraded.PendingPlacement && physical.Started &&
+                Check(degraded is { PendingPlacement: false } && physical is { Started: true } &&
                       manager.GetStatuses().Single(s => s.TargetId == "d1").IsConnected,
                     "A later valid placement must recover within the existing session lifetime.");
             }
