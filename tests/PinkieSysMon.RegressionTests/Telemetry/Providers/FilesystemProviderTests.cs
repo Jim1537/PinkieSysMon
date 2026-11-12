@@ -150,6 +150,27 @@ internal static class FilesystemProviderTests
     {
         WithFixture((root, _) =>
         {
+            // An empty directory is a real complete result containing numeric zero,
+            // not a missing reading, root entry, or a fallback.
+            var emptyPath = Path.Combine(root, "empty");
+            Directory.CreateDirectory(emptyPath);
+            var emptySource = Source(emptyPath, FilesystemSourceContract.DirectoryKind, "Empty");
+            var emptyResult = FilesystemScanner.Scan(emptySource);
+            Check(emptyResult.Complete && emptyResult.Entries == 0 &&
+                  emptyResult.Files == 0 && emptyResult.Directories == 0 &&
+                  emptyResult.SizeBytes == 0,
+                "An empty directory must produce zero files, directories, and size.");
+            var fileCountDescriptor = FilesystemSourceContract.DescriptorsFor([emptySource])
+                .Single(d => d.Id == FilesystemSourceContract.MetricId(emptySource.Id, FilesystemSourceContract.Files));
+            Check(MetricValueFormatter.Format(emptyResult.Files, fileCountDescriptor, null, null,
+                      System.Globalization.CultureInfo.InvariantCulture) == "0",
+                "A valid zero file count must format as 0, not a fallback or another value.");
+            Directory.CreateDirectory(Path.Combine(emptyPath, "child"));
+            var emptyChildResult = FilesystemScanner.Scan(emptySource);
+            Check(emptyChildResult.Complete && emptyChildResult.Files == 0 &&
+                  emptyChildResult.Directories == 1 && emptyChildResult.SizeBytes == 0,
+                "A directory containing only an empty child folder must count zero files.");
+            
             var folder = Path.Combine(root, "scan");
             var nested = Path.Combine(folder, "nested");
             Directory.CreateDirectory(nested);
@@ -319,6 +340,17 @@ internal static class FilesystemProviderTests
                     IsCount(store, files, 4) && IsCount(store, directories, 3) &&
                     IsSize(store, size, 7), TimeSpan.FromSeconds(8)),
                     "Folder count metrics must recover after source reappearance.");
+
+                // Removing every file must transition the existing demanded source from
+                // a positive count to a real zero while empty child folders remain.
+                File.Delete(Path.Combine(folder, "first.bin"));
+                File.Delete(Path.Combine(nested, "second.bin"));
+                File.Delete(Path.Combine(deepest, "third.bin"));
+                File.Delete(Path.Combine(folder, "empty", "fourth.bin"));
+                Check(SpinWait.SpinUntil(() =>
+                    IsCount(store, files, 0) && IsCount(store, directories, 3) &&
+                    IsSize(store, size, 0), TimeSpan.FromSeconds(8)),
+                    "Runtime must publish zero, not the earlier file count or fallback, after a complete empty-file scan.");
 
                 engine.Reconfigure(polling, [], [files, directories, size]);
                 Check(SpinWait.SpinUntil(() =>
