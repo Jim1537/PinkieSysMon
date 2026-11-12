@@ -722,6 +722,9 @@ internal static partial class Program
                 ("raster checkerboards downscale without aliasing", Issue122RasterSamplingTests.CheckerboardDownscaling),
                 ("native pixels, enlargement and transformed scaling", Issue122RasterSamplingTests.NativePixelsAndTransformedScaling),
                 ("raster icon/file alpha, cache lifetime and bounds", Issue122RasterSamplingTests.IconFileAlphaAndCacheLifecycle),
+                ("raster sharpness control and native-size safety", Issue122RasterSamplingTests.RasterSharpnessChangesEdges),
+                ("raster sharpness application configuration", Issue122RasterSamplingTests.RasterSharpnessConfiguration),
+                ("Binary image state shares filtered raster path", Issue122RasterSamplingTests.BinaryRasterSamplingParity),
             ]),
             ("Rendering / Cache & Geometry", [
                 ("Runtime JPEG zero-copy transport contract", RuntimeJpegZeroCopyTransportContract),

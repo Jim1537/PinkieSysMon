@@ -58,7 +58,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         _interactions = new WidgetActionInteractionMap(dashboard);
         var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
-        _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log, interactiveCalculators: true);
+        _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log,
+            interactiveCalculators: true, rasterSharpness: config.Renderer.RasterSharpness);
         IDesktopOutputWindow? window = null;
         DesktopCanvasShadowCompositor? shadow = null;
         try
@@ -184,7 +185,8 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
         var interactions = new WidgetActionInteractionMap(dashboard);
-        var renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log, interactiveCalculators: true);
+        var renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log,
+            interactiveCalculators: true, rasterSharpness: config.Renderer.RasterSharpness);
         try
         {
             var shadow = viewport.HasShadow ? new DesktopCanvasShadowCompositor(viewport, dashboard.Canvas) : null;

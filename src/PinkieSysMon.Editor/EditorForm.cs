@@ -746,7 +746,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
             dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
         var idleChanged = dialog.RuntimeIdleTimeoutMinutes != runtimeConfig.Runtime.IdleTimeoutMinutes;
         var retentionChanged = dialog.LogRetentionDays != runtimeConfig.Runtime.LogRetentionDays;
-        var runtimeChanged = providersChanged || idleChanged || retentionChanged;
+        var sharpnessChanged = dialog.RasterSharpness != runtimeConfig.Renderer.RasterSharpness;
+        var runtimeChanged = providersChanged || idleChanged || retentionChanged || sharpnessChanged;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -758,6 +759,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             providersChanged ? "MetricProviders" : null, idleChanged ? "Runtime.IdleTimeoutMinutes" : null,
             retentionChanged ? "Runtime.LogRetentionDays" : null,
+            sharpnessChanged ? "Renderer.RasterSharpness" : null,
             startupChanged ? "StartupTask" : null, interfaceChanged ? "ToolbarIconSize" : null,
             themeChanged ? "Theme" : null
         }.Where(name => name is not null)));
@@ -768,6 +770,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             {
                 runtimeConfig.Runtime.IdleTimeoutMinutes = dialog.RuntimeIdleTimeoutMinutes;
                 runtimeConfig.Runtime.LogRetentionDays = dialog.LogRetentionDays;
+                runtimeConfig.Renderer.RasterSharpness = dialog.RasterSharpness;
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
@@ -775,6 +778,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     appConfigPath, runtimeConfig, originalConfigBytes, operation.Id);
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
                 _appConfig.Runtime = runtimeConfig.Runtime;
+                _appConfig.Renderer = runtimeConfig.Renderer;
             }
 
             if (startupChanged)
@@ -802,11 +806,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
             if (runtimeChanged || startupChanged || themeChanged)
                 SaveEditorSettings();
 
+            if (sharpnessChanged)
+                RebuildPreviewRenderer();
             if (providersChanged)
-            {
                 RefreshPreviewTelemetry();
+            if (sharpnessChanged || providersChanged)
                 RenderPreview(force: true);
-            }
 
             if (themeChanged)
             {

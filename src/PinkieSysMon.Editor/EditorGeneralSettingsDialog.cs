@@ -20,6 +20,16 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         Maximum = LogRetentionPolicy.MaximumDays,
         Width = 130
     };
+    private readonly TrackBar _rasterSharpness = new()
+    {
+        Minimum = 0, Maximum = RenderQuality.MaximumRasterSharpness,
+        TickFrequency = 10, SmallChange = 5, LargeChange = 10,
+        Width = 260, AutoSize = false, Height = 42
+    };
+    private readonly Label _rasterSharpnessValue = new()
+    {
+        Width = 50, TextAlign = ContentAlignment.MiddleLeft
+    };
     private readonly CheckBox _systemProvider = new() { Text = "System", AutoSize = true };
     private readonly CheckBox _libreHardwareMonitorProvider = new()
     {
@@ -61,6 +71,10 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         _startRuntime.Checked = startRuntimeWithWindows;
         _runtimeIdleMinutes.Value = config.Runtime.IdleTimeoutMinutes;
         _logRetentionDays.Value = config.Runtime.LogRetentionDays;
+        _rasterSharpness.Value = config.Renderer.RasterSharpness;
+        _rasterSharpnessValue.Text = $"{_rasterSharpness.Value}%";
+        _rasterSharpness.ValueChanged += (_, _) =>
+            _rasterSharpnessValue.Text = $"{_rasterSharpness.Value}%";
         _systemProvider.Checked = systemProviderEnabled;
         _libreHardwareMonitorProvider.Checked = libreHardwareMonitorProviderEnabled;
         _icueProvider.Checked = icueProviderEnabled;
@@ -141,6 +155,37 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
             EditorSettingsHelp.LogRetentionDays), 2, 0);
         loggingGroup.Controls.Add(loggingLayout);
 
+        var renderingGroup = new GroupBox
+        {
+            Text = "Rendering",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = new Padding(12)
+        };
+        var renderingLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 4, RowCount = 1,
+            Padding = new Padding(4, 6, 4, 4)
+        };
+        renderingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        renderingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        renderingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        renderingLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        renderingLayout.Controls.Add(new Label
+        {
+            Text = "Raster image sharpness (0 = current filtering)",
+            AutoSize = true, Anchor = AnchorStyles.Left
+        }, 0, 0);
+        renderingLayout.Controls.Add(_rasterSharpness, 1, 0);
+        renderingLayout.Controls.Add(_rasterSharpnessValue, 2, 0);
+        renderingLayout.Controls.Add(_help.Marker("Raster image sharpness", _rasterSharpness,
+            EditorSettingsHelp.RasterSharpness), 3, 0);
+        renderingGroup.Controls.Add(renderingLayout);
+
         var providersGroup = new GroupBox
         {
             Text = "Metric providers",
@@ -194,6 +239,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         var content = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
         content.Controls.Add(interfaceGroup);
         content.Controls.Add(providersGroup);
+        content.Controls.Add(renderingGroup);
         content.Controls.Add(loggingGroup);
         content.Controls.Add(idleGroup);
         content.Controls.Add(generalGroup);
@@ -223,6 +269,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
     public bool StartRuntimeWithWindows => _startRuntime.Checked;
     public int RuntimeIdleTimeoutMinutes => Decimal.ToInt32(_runtimeIdleMinutes.Value);
     public int LogRetentionDays => Decimal.ToInt32(_logRetentionDays.Value);
+    public int RasterSharpness => _rasterSharpness.Value;
     public bool SystemProviderEnabled => _systemProvider.Checked;
     public bool LibreHardwareMonitorProviderEnabled => _libreHardwareMonitorProvider.Checked;
     public bool IcueProviderEnabled => _icueProvider.Checked;
@@ -231,7 +278,7 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
 
     internal const string ApplyTimingNotice =
         "Changes in Settings take effect after OK (Cancel discards them). " +
-        "Runtime and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
+        "Runtime, rendering and provider settings reload a responsive Runtime; otherwise they take effect at its next start. " +
         "Log retention updates within one minute in running processes. " +
         "Editor toolbar size updates after OK; a theme change requires restarting the Editor.";
 

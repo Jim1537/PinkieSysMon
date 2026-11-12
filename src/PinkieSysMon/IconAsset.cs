@@ -37,14 +37,16 @@ internal static class IconAssetLoader
     private static readonly Dictionary<string, CapabilityCacheEntry> CapabilityCache =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public static IIconAsset Load(string path)
+    public static IIconAsset Load(string path) => Load(path, 0);
+
+    public static IIconAsset Load(string path, int rasterSharpness)
     {
         if (!GlobalAssetResolver.IsSupportedIconPath(path))
             throw new InvalidDataException($"Unsupported global icon format '{Path.GetExtension(path)}' for '{path}'.");
 
         return Path.GetExtension(path).Equals(".svg", StringComparison.OrdinalIgnoreCase)
             ? SvgIconAsset.Load(path)
-            : RasterIconAsset.Load(path);
+            : RasterIconAsset.Load(path, rasterSharpness);
     }
 
     public static IconAssetCapabilities ReadCapabilities(string path)
@@ -184,10 +186,12 @@ internal sealed class RasterIconAsset : IIconAsset
     internal static RasterIconAsset CreateTransparent() =>
         new(ImageAsset.CreateTransparent(), new IconAssetCapabilities("Unavailable", false, true, false, true, false));
 
-    public static RasterIconAsset Load(string path)
+    public static RasterIconAsset Load(string path) => Load(path, 0);
+
+    public static RasterIconAsset Load(string path, int rasterSharpness)
     {
         var capabilities = IconAssetLoader.ReadCapabilities(path);
-        var image = ImageAsset.Load(path);
+        var image = ImageAsset.Load(path, rasterSharpness);
         return new RasterIconAsset(image, capabilities);
     }
 

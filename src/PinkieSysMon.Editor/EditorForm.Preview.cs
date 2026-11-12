@@ -39,7 +39,8 @@ internal sealed partial class EditorForm
         try
         {
             var recovery = new EditorArtworkRecovery();
-            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History, _log, recovery);
+            replacement = new DashboardPreviewRenderer(definition, _previewTelemetry.History, _log, recovery,
+                rasterSharpness: _appConfig.Renderer.RasterSharpness);
 
             // Prepare everything that can fail before replacing the currently usable preview.
             // This keeps reload/property edits transactional from the editor's point of view.

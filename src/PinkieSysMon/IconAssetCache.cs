@@ -15,12 +15,15 @@ internal sealed class IconAssetCache : IDisposable
     private long _aggregateDecodedBytes;
 
     private readonly EditorArtworkRecovery? _recovery;
+    private readonly int _rasterSharpness;
     private IIconAsset? _unavailable;
 
-    public IconAssetCache(string dashboardBaseDirectory, EditorArtworkRecovery? recovery = null)
+    public IconAssetCache(string dashboardBaseDirectory, EditorArtworkRecovery? recovery = null, int rasterSharpness = 0)
     {
+        RenderQuality.ValidateRasterSharpness(rasterSharpness);
         _dashboardBaseDirectory = dashboardBaseDirectory;
         _recovery = recovery;
+        _rasterSharpness = rasterSharpness;
     }
 
 
@@ -92,7 +95,8 @@ internal sealed class IconAssetCache : IDisposable
         if (path is null) return CacheUnavailable(logicalKey);
         if (!_assetsByPath.TryGetValue(path, out var asset))
         {
-            asset = _recovery is null ? IconAssetLoader.Load(path) : _recovery.Decode(path, IconAssetLoader.Load);
+            asset = _recovery is null ? IconAssetLoader.Load(path, _rasterSharpness) :
+                _recovery.Decode(path, source => IconAssetLoader.Load(source, _rasterSharpness));
             if (asset is null) return CacheUnavailable(logicalKey);
             if (asset.DecodedByteCount > MaximumAggregateDecodedBytes - _aggregateDecodedBytes)
             {

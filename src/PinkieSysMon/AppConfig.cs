@@ -89,6 +89,8 @@ internal sealed class AppConfig
 
         if (Renderer.JpegQuality is < 10 or > 100)
             throw new InvalidDataException("Renderer.JpegQuality must be in the range 10..100.");
+        if (Renderer.RasterSharpness is < 0 or > RenderQuality.MaximumRasterSharpness)
+            throw new InvalidDataException("Renderer.RasterSharpness must be in the range 0..100.");
 
         if (Usb.RetryIntervalMs < 500)
             throw new InvalidDataException("Usb.RetryIntervalMs must be at least 500 ms.");
@@ -328,6 +330,7 @@ internal static class OutputTargetContract
 internal sealed class RendererConfig
 {
     public int JpegQuality { get; set; } = 92;
+    public int RasterSharpness { get; set; } = 0;
 }
 
 internal sealed class UsbConfig

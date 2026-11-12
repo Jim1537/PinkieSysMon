@@ -1,5 +1,7 @@
 using PinkieSysMon;
+using PinkieSysMon.Widgets;
 using SkiaSharp;
+using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon.RegressionTests;
 
@@ -145,6 +147,153 @@ internal static class Issue122RasterSamplingTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    public static void RasterSharpnessChangesEdges()
+    {
+        static SKBitmap SlantedEdge()
+        {
+            var bitmap = new SKBitmap(new SKImageInfo(256, 256, SKColorType.Bgra8888, SKAlphaType.Premul));
+            for (var y = 0; y < 256; y++)
+            for (var x = 0; x < 256; x++)
+                bitmap.SetPixel(x, y, x < 111 + y / 7 ? SKColors.Black : SKColors.White);
+            return bitmap;
+        }
+
+        using var original = ImageAsset.FromBitmap(SlantedEdge());
+        using var sharpened = ImageAsset.FromBitmap(SlantedEdge(), rasterSharpness: 75);
+        using var defaultPixels = Render(32, 32, canvas =>
+            original.Draw(canvas, new SKRect(0, 0, 32, 32), loop: true));
+        using var sharpenedPixels = Render(32, 32, canvas =>
+            sharpened.Draw(canvas, new SKRect(0, 0, 32, 32), loop: true));
+
+        var changed = 0;
+        for (var y = 2; y < 30; y++)
+        for (var x = 2; x < 30; x++)
+        {
+            var baseline = defaultPixels.GetPixel(x, y);
+            var tuned = sharpenedPixels.GetPixel(x, y);
+            if (Math.Abs(baseline.Red - tuned.Red) > 2)
+                changed++;
+            Check(tuned.Alpha == 255 && tuned.Red == tuned.Green && tuned.Red == tuned.Blue,
+                "Sharpened opaque images must retain alpha and neutral color.");
+        }
+        Check(changed > 0, "A nonzero sharpness setting must change scaled edge pixels.");
+        Check(sharpened.ScaledFrameCount > 0 &&
+              sharpened.ScaledFrameBytes <= sharpened.ScaledFrameBudget,
+            "Sharpened reductions must reuse the same bounded scaled-frame cache.");
+        using var native = Render(256, 256, canvas =>
+            sharpened.Draw(canvas, new SKRect(0, 0, 256, 256), loop: true));
+        Check(native.GetPixel(0, 0) == SKColors.Black &&
+              native.GetPixel(255, 255) == SKColors.White,
+            "Sharpness must not modify aligned native-resolution copies.");
+    }
+
+    public static void RasterSharpnessConfiguration()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-raster-settings-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var config = new AppConfig();
+            Check(config.Renderer.RasterSharpness == 0, "Existing configurations must default to original raster quality.");
+            var path = Path.Combine(root, "app.json");
+            config.Renderer.RasterSharpness = 65;
+            config.Save(path);
+            var restored = AppConfig.Load(path, new FileLogger(Path.Combine(root, "regression.log")));
+            Check(restored.Renderer.RasterSharpness == 65,
+                "Raster sharpness must survive application configuration save/reload.");
+            foreach (var invalid in new[] { -1, 101 })
+            {
+                config.Renderer.RasterSharpness = invalid;
+                var rejected = false;
+                try { config.Save(path); }
+                catch (InvalidDataException) { rejected = true; }
+                Check(rejected, "Invalid raster sharpness must be rejected before persistence.");
+            }
+            Check(AppConfig.Load(path, new FileLogger(Path.Combine(root, "regression.log")))
+                  .Renderer.RasterSharpness == 65,
+                "Rejected settings must not change the last saved raster quality.");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    public static void BinaryRasterSamplingParity()
+    {
+        const string metric = "test.binary.raster";
+        var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-binary-raster-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            const string fileName = "synthetic.png";
+            using (var pixels = new SKBitmap(new SKImageInfo(256, 256, SKColorType.Bgra8888, SKAlphaType.Premul)))
+            {
+                for (var y = 0; y < 256; y++)
+                for (var x = 0; x < 256; x++)
+                    pixels.SetPixel(x, y, x < 111 + y / 7 ? SKColors.Red : SKColors.Transparent);
+                using var image = SKImage.FromBitmap(pixels);
+                using var encoded = image.Encode(SKEncodedImageFormat.Png, 100)
+                    ?? throw new InvalidOperationException("Could not encode binary sampling fixture.");
+                File.WriteAllBytes(Path.Combine(root, fileName), encoded.ToArray());
+            }
+
+            C.ImageAssetPresentationDefinition presentation = new()
+            {
+                SourceType = C.ImageAssetSourceType.File, Source = fileName,
+                Fit = "stretch", Loop = true
+            };
+            var binary = new C.BinaryWidgetDefinition
+            {
+                Id = "binary-raster-test", Metric = metric, Width = 32, Height = 32,
+                Profiles = new(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BinarySignalContract.TrueKey] = new C.StateVisualProfileDefinition
+                    {
+                        ContentType = C.StateContentType.Image,
+                        Asset = presentation
+                    },
+                    [BinarySignalContract.FalseKey] = new C.StateVisualProfileDefinition
+                    {
+                        ContentType = C.StateContentType.Image,
+                        Asset = presentation
+                    }
+                }
+            };
+            var imageWidget = new C.ImageWidgetDefinition
+            {
+                Id = "image-raster-test", Width = 32, Height = 32,
+                Asset = presentation
+            };
+            C.WidgetDefinition[] widgets = [binary, imageWidget];
+            using var images = new ImageAssetCache(root, rasterSharpness: 65);
+            using var icons = new IconAssetCache(root, rasterSharpness: 65);
+            using var typefaces = new TypefaceCache(root, widgets);
+            using var binaryRenderer = new BinaryWidgetRenderer(images, icons);
+            using var imageRenderer = new ImageWidgetRenderer(images, icons);
+            using var context = new WidgetRenderContext(
+                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase) { [metric] = true },
+                antialias: true, typefaces);
+            using var binaryPixels = Render(32, 32, canvas =>
+                WidgetTransform.Render(canvas, binary, context, binaryRenderer));
+            using var imagePixels = Render(32, 32, canvas =>
+                WidgetTransform.Render(canvas, imageWidget, context, imageRenderer));
+            using var rasterIcon = RasterIconAsset.Load(Path.Combine(root, fileName), rasterSharpness: 65);
+            using var iconPixels = Render(32, 32, canvas =>
+                rasterIcon.Draw(canvas, new SKRect(0, 0, 32, 32), SKColors.White,
+                    opacity: 1f, fit: "stretch", loop: true, antialias: true));
+            for (var y = 0; y < 32; y++)
+            for (var x = 0; x < 32; x++)
+            {
+                var expected = imagePixels.GetPixel(x, y);
+                Check(binaryPixels.GetPixel(x, y) == expected,
+                    "Binary image state and Image widget must use identical scaled raster sampling.");
+                Check(iconPixels.GetPixel(x, y) == expected,
+                    "PNG icons and Binary image states must share the configured raster sampling.");
+            }
+            Check(images.Get(fileName).ScaledFrameCount > 0,
+                "Binary and Image must reuse their configured source-owned downscale cache.");
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     private static SKBitmap Checkerboard(int size)

@@ -32,7 +32,7 @@ internal sealed class DashboardRenderer : IDisposable
 
 
     public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null, FileLogger? log = null,
-        bool interactiveCalculators = false)
+        bool interactiveCalculators = false, int rasterSharpness = 0)
     {
         _definition = definition;
         _frameClockNow = frameClockNow;
@@ -81,8 +81,8 @@ internal sealed class DashboardRenderer : IDisposable
             wireSurface = SKSurface.Create(new SKImageInfo(_nativeWidth, _nativeHeight, SKColorType.Bgra8888, SKAlphaType.Premul))
                 ?? throw new InvalidOperationException("Failed to create wire Skia surface.");
 
-            imageAssets = new ImageAssetCache(definition.BaseDirectory);
-            iconAssets = new IconAssetCache(definition.BaseDirectory);
+            imageAssets = new ImageAssetCache(definition.BaseDirectory, rasterSharpness: rasterSharpness);
+            iconAssets = new IconAssetCache(definition.BaseDirectory, rasterSharpness: rasterSharpness);
             phase = "images.preload";
             imageAssets.Preload(widgets);
             phase = "icons.preload";

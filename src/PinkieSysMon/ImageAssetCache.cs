@@ -13,12 +13,15 @@ internal sealed class ImageAssetCache : IDisposable
     private long _aggregateDecodedBytes;
 
     private readonly EditorArtworkRecovery? _recovery;
+    private readonly int _rasterSharpness;
     private ImageAsset? _unavailable;
 
-    public ImageAssetCache(string baseDirectory, EditorArtworkRecovery? recovery = null)
+    public ImageAssetCache(string baseDirectory, EditorArtworkRecovery? recovery = null, int rasterSharpness = 0)
     {
+        RenderQuality.ValidateRasterSharpness(rasterSharpness);
         _baseDirectory = baseDirectory;
         _recovery = recovery;
+        _rasterSharpness = rasterSharpness;
     }
 
 
@@ -93,7 +96,8 @@ internal sealed class ImageAssetCache : IDisposable
         if (fullPath is null) return CacheUnavailable(sourceKey);
         if (!_assetsByPath.TryGetValue(fullPath, out var asset))
         {
-            asset = _recovery is null ? ImageAsset.Load(fullPath) : _recovery.Decode(fullPath, ImageAsset.Load);
+            asset = _recovery is null ? ImageAsset.Load(fullPath, _rasterSharpness) :
+                _recovery.Decode(fullPath, path => ImageAsset.Load(path, _rasterSharpness));
             if (asset is null) return CacheUnavailable(sourceKey);
             if (asset.DecodedByteCount > MaximumAggregateDecodedBytes - _aggregateDecodedBytes)
             {
@@ -260,13 +264,17 @@ internal sealed class ImageAsset : IDisposable
     private readonly int _totalDurationMs;
     private readonly long _decodedByteCount;
     private readonly long _loadedAtMs;
+    private readonly int _rasterSharpness;
+    private readonly SKSamplingOptions _rasterSampling;
 
-    private ImageAsset(SKBitmap[] frames, int[] frameEndMs, int totalDurationMs, long decodedByteCount)
+    private ImageAsset(SKBitmap[] frames, int[] frameEndMs, int totalDurationMs, long decodedByteCount, int rasterSharpness)
     {
         _frames = frames;
         _frameEndMs = frameEndMs;
         _totalDurationMs = totalDurationMs;
         _decodedByteCount = decodedByteCount;
+        _rasterSharpness = rasterSharpness;
+        _rasterSampling = RenderQuality.RasterSampling(rasterSharpness);
         _loadedAtMs = Environment.TickCount64;
     }
 
@@ -288,13 +296,16 @@ internal sealed class ImageAsset : IDisposable
     }
 
     // Takes ownership only after validating the same per-image decoded-memory contract.
-    internal static ImageAsset FromBitmap(SKBitmap bitmap)
+    internal static ImageAsset FromBitmap(SKBitmap bitmap) => FromBitmap(bitmap, 0);
+
+    internal static ImageAsset FromBitmap(SKBitmap bitmap, int rasterSharpness)
     {
         ArgumentNullException.ThrowIfNull(bitmap);
+        RenderQuality.ValidateRasterSharpness(rasterSharpness);
         var bytes = checked((long)bitmap.RowBytes * bitmap.Height);
         if (bitmap.Width <= 0 || bitmap.Height <= 0 || bytes > MaximumDecodedBytes)
             throw new InvalidDataException("Extracted image exceeds the supported image dimensions or memory budget.");
-        return new ImageAsset([bitmap], [0], 0, bytes);
+        return new ImageAsset([bitmap], [0], 0, bytes, rasterSharpness);
     }
 
     internal static ImageAsset CreateTransparent()
@@ -304,8 +315,11 @@ internal sealed class ImageAsset : IDisposable
         return FromBitmap(pixel);
     }
 
-    public static ImageAsset Load(string path)
+    public static ImageAsset Load(string path) => Load(path, 0);
+
+    public static ImageAsset Load(string path, int rasterSharpness)
     {
+        RenderQuality.ValidateRasterSharpness(rasterSharpness);
         using var stream = File.OpenRead(path);
         using var codec = SKCodec.Create(stream)
             ?? throw new InvalidDataException($"Skia could not decode image '{path}'.");
@@ -380,7 +394,7 @@ internal sealed class ImageAsset : IDisposable
                 frameEnds[i] = (int)totalDuration;
             }
 
-            return new ImageAsset(frames, frameEnds, (int)totalDuration, decodedBytes);
+            return new ImageAsset(frames, frameEnds, (int)totalDuration, decodedBytes, rasterSharpness);
         }
         catch
         {
@@ -517,7 +531,7 @@ internal sealed class ImageAsset : IDisposable
                 var sampling = ReferenceEquals(bitmap, original) &&
                     IsAlignedNativeCopy(matrix, destination, original.Width, original.Height)
                     ? SKSamplingOptions.Default
-                    : LinearSampling;
+                    : _rasterSampling;
                 canvas.DrawBitmap(bitmap, destination, sampling, paint);
             }
             finally
@@ -528,7 +542,7 @@ internal sealed class ImageAsset : IDisposable
         }
     }
 
-    private static int PrefilterDimension(int sourcePixels, float devicePixels)
+    private int PrefilterDimension(int sourcePixels, float devicePixels)
     {
         if (!float.IsFinite(devicePixels) || devicePixels <= 0f)
             return sourcePixels;
@@ -536,11 +550,15 @@ internal sealed class ImageAsset : IDisposable
         // A final bilinear draw is sufficient for mild reductions. Explicit
         // multi-stage low-pass filtering is reserved for strong reductions,
         // where a prepared frame can be reused at a bounded memory cost.
-        if (sourcePixels < 4f * devicePixels)
+        // Preserve the original Issue 122 behavior at zero. With sharpening,
+        // retain an additional intermediate level so 256 -> 32 retains detail
+        // for the final cubic sampler instead of stopping at an exact 32 px copy.
+        if (sourcePixels < (_rasterSharpness == 0 ? 4f : 3f) * devicePixels)
             return sourcePixels;
 
         var width = sourcePixels;
-        while (width > 1 && width > 1.5f * devicePixels)
+        var stopFactor = _rasterSharpness == 0 ? 1.5f : 2.25f;
+        while (width > 1 && width > stopFactor * devicePixels)
             width = Math.Max(1, width / 2);
         return width;
     }

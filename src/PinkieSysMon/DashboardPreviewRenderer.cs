@@ -16,7 +16,7 @@ internal sealed class DashboardPreviewRenderer : IDisposable
     private readonly RenderEntry[] _renderEntries;
     private readonly CanvasPanelGraphics _canvasPanel;
 
-    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null, FileLogger? log = null, EditorArtworkRecovery? recovery = null)
+    public DashboardPreviewRenderer(CanonicalDashboard.DashboardDefinition definition, MetricHistoryStore? history = null, FileLogger? log = null, EditorArtworkRecovery? recovery = null, int rasterSharpness = 0)
     {
         ArgumentNullException.ThrowIfNull(definition);
         _definition = definition;
@@ -48,8 +48,8 @@ internal sealed class DashboardPreviewRenderer : IDisposable
                 new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
                 RenderQuality.Antialias,
                 typefaces, history);
-            images = new ImageAssetCache(_definition.BaseDirectory, recovery);
-            icons = new IconAssetCache(_definition.BaseDirectory, recovery);
+            images = new ImageAssetCache(_definition.BaseDirectory, recovery, rasterSharpness);
+            icons = new IconAssetCache(_definition.BaseDirectory, recovery, rasterSharpness);
             phase = "images.preload";
             images.Preload(_definition.Widgets);
             phase = "icons.preload";

@@ -153,6 +153,7 @@ internal sealed class EditorSettingsHelp : IDisposable
     public const string IcueProvider = "Read iCUE Sensor Logging CSV files from this application's logs folder.\nKeep iCUE running with Sensor Logging enabled.";
     public const string Theme = "Choose the Editor's interface colors. System follows Windows;\nLight and Dark override the Windows preference.";
     public const string ToolbarSize = "Set the Editor toolbar icon size in pixels.\nThis does not resize dashboard widgets.";
+    public const string RasterSharpness = "Adjust the edge definition of scaled raster images and PNG icons across Editor, Desktop and physical Outputs.\n0 preserves the original filtered rendering; higher values retain more detail but may increase edge ringing. SVG icons and native-resolution pixel copies are unchanged.";
     public const string DisplayName = "Name shown in Settings and Output menus.\nThis does not rename the dashboard or change the stable Output ID.";
     public const string Dashboard = "Select this Output's saved dashboard.\nOther Outputs keep their own assignments; changes apply after OK.";
     public const string OutputEnabledCaption = "Enabled";
