@@ -23,6 +23,10 @@ internal static class EditorAddWidgetMenuContract
         new(WidgetTypeContract.Power, "Power Status", Group.Specialized)
     ];
 
+    // The menu catalog is the sole source of Editor addability.
+    internal static bool IsAddable(string? type) =>
+        Entries.Any(entry => WidgetTypeContract.Is(type, entry.Type));
+
     internal static void Populate(ToolStripItemCollection target, Action<string> onAddWidget)
     {
         ArgumentNullException.ThrowIfNull(target);

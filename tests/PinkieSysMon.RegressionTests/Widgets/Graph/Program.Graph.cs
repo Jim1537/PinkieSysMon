@@ -18,7 +18,7 @@ internal static partial class Program
     {
         Assert(WidgetTypeContract.KnownTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
             "Schema-23 Graph must be registered in the runtime type contract.");
-        Assert(WidgetTypeContract.EditorAddableTypes.Contains("graph", StringComparer.OrdinalIgnoreCase),
+        Assert(EditorAddWidgetMenuContract.IsAddable("graph"),
             "Schema-23 Graph must be addable in the Editor.");
 
         var widgetProperties = TypeDescriptor.GetProperties(typeof(WidgetDefinition));

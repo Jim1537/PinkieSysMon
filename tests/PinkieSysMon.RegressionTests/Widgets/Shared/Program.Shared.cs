@@ -793,8 +793,8 @@ internal static partial class Program
         Assert(!WidgetTypeContract.KnownTypes.Contains("grid", StringComparer.OrdinalIgnoreCase) &&
                !WidgetTypeContract.KnownTypes.Contains("rect", StringComparer.OrdinalIgnoreCase),
             "Removed Grid/Rect widget types must not remain in the runtime type contract.");
-        Assert(!WidgetTypeContract.EditorAddableTypes.Contains("grid", StringComparer.OrdinalIgnoreCase) &&
-               !WidgetTypeContract.EditorAddableTypes.Contains("rect", StringComparer.OrdinalIgnoreCase),
+        Assert(!EditorAddWidgetMenuContract.IsAddable("grid") &&
+               !EditorAddWidgetMenuContract.IsAddable("rect"),
             "Removed Grid/Rect widget types must not remain addable in the editor.");
 
         var widgetProperties = TypeDescriptor.GetProperties(typeof(C.WidgetDefinition));
