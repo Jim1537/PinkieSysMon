@@ -225,6 +225,12 @@ internal static class Issue122RasterSamplingTests
         Directory.CreateDirectory(root);
         try
         {
+            // GlobalAssetResolver requires an application root when TypefaceCache
+            // resolves its font directory, even for image-only state profiles.
+            var configDirectory = Path.Combine(root, "config");
+            Directory.CreateDirectory(configDirectory);
+            File.WriteAllText(Path.Combine(configDirectory, "app.json"), "{}");
+
             const string fileName = "synthetic.png";
             using (var pixels = new SKBitmap(new SKImageInfo(256, 256, SKColorType.Bgra8888, SKAlphaType.Premul)))
             {

@@ -227,6 +227,7 @@ internal static partial class Program
         var config = new AppConfig();
         config.Runtime.IdleTimeoutMinutes = 17;
         config.Runtime.LogRetentionDays = 7;
+        config.Renderer.RasterSharpness = 34;
         using var dialog = new EditorGeneralSettingsDialog(
             startRuntimeWithWindows: true,
             systemProviderEnabled: true,
@@ -245,8 +246,19 @@ internal static partial class Program
             "General Settings must preserve startup/provider/theme/icon values passed by their existing owners.");
         var groups = dialog.Controls.OfType<Panel>().Single(panel => panel.Controls.OfType<GroupBox>().Any()).Controls.OfType<GroupBox>().ToArray();
         Assert(groups.Select(group => group.Text).ToHashSet()
-                .SetEquals(["Startup", "Runtime activity", "Logging", "Metric providers", "Interface"]),
-            "General tab must expose the Runtime idle setting but no legacy device binding or per-output settings.");
+                .SetEquals(["Startup", "Runtime activity", "Logging", "Rendering", "Metric providers", "Interface"]),
+            "General Settings must show app-wide rendering alongside startup, runtime, logging, providers and interface, without per-Output settings.");
+        var renderingLayout = groups.Single(group => group.Text == "Rendering")
+            .Controls.OfType<TableLayoutPanel>().Single();
+        var sharpness = renderingLayout.Controls.OfType<TrackBar>().Single();
+        Assert(dialog.RasterSharpness == 34 && sharpness.Value == 34 &&
+               sharpness.Minimum == 0 && sharpness.Maximum == RenderQuality.MaximumRasterSharpness &&
+               renderingLayout.Controls.OfType<Label>().Any(label => label.Text.StartsWith("Raster image sharpness", StringComparison.Ordinal)),
+            "General Settings must expose the configured app-wide raster sharpness with 0..100 bounds.");
+        sharpness.Value = 61;
+        Assert(dialog.RasterSharpness == 61 &&
+               renderingLayout.Controls.OfType<Label>().Any(label => label.Text == "61%"),
+            "Changing raster sharpness must update the selected value and visible percent without affecting Output controls.");
         var idleLayout = groups.Single(group => group.Text == "Runtime activity")
             .Controls.OfType<TableLayoutPanel>().Single();
         var idleTimeout = idleLayout.Controls.OfType<NumericUpDown>().Single();
