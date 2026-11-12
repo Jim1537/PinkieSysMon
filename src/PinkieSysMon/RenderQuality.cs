@@ -9,15 +9,13 @@ internal static class RenderQuality
     public const bool Antialias = true;
     public const int MaximumRasterSharpness = 100;
 
-    // The zero setting reproduces the original linear sampling path exactly.
-    // Higher settings add bounded cubic reconstruction after low-pass filtering.
+    // Scaling always retains linear reconstruction. Positive sharpness values
+    // now use a true post-downscale unsharp mask in the shared raster cache.
+    // The zero setting preserves the original linear sampling exactly.
     internal static SKSamplingOptions RasterSampling(int sharpness)
     {
         ValidateRasterSharpness(sharpness);
-        return sharpness == 0
-            ? new SKSamplingOptions(SKFilterMode.Linear)
-            : new SKSamplingOptions(new SKCubicResampler(
-                0f, 0.10f + 0.35f * (sharpness / (float)MaximumRasterSharpness)));
+        return new SKSamplingOptions(SKFilterMode.Linear);
     }
 
     internal static void ValidateRasterSharpness(int sharpness)

@@ -723,6 +723,8 @@ internal static partial class Program
                 ("native pixels, enlargement and transformed scaling", Issue122RasterSamplingTests.NativePixelsAndTransformedScaling),
                 ("raster icon/file alpha, cache lifetime and bounds", Issue122RasterSamplingTests.IconFileAlphaAndCacheLifecycle),
                 ("raster sharpness control and native-size safety", Issue122RasterSamplingTests.RasterSharpnessChangesEdges),
+                ("unsharp mask strength and transparent edge preservation", Issue122RasterSamplingTests.UnsharpMaskStrengthAndAlpha),
+                ("unsharp mask preserves low-pass reduction and cached output", Issue122RasterSamplingTests.UnsharpMaskRetainsLowPass),
                 ("raster sharpness application configuration", Issue122RasterSamplingTests.RasterSharpnessConfiguration),
                 ("Binary image state shares filtered raster path", Issue122RasterSamplingTests.BinaryRasterSamplingParity),
             ]),

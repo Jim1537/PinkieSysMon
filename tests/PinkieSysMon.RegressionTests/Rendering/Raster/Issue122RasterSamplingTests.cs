@@ -189,6 +189,67 @@ internal static class Issue122RasterSamplingTests
             "Sharpness must not modify aligned native-resolution copies.");
     }
 
+    public static void UnsharpMaskStrengthAndAlpha()
+    {
+        static SKBitmap TransparentRedPoint()
+        {
+            var bitmap = new SKBitmap(new SKImageInfo(7, 7, SKColorType.Bgra8888, SKAlphaType.Premul));
+            bitmap.Erase(SKColors.Transparent);
+            bitmap.SetPixel(3, 3, new SKColor(255, 0, 0, 80));
+            return bitmap;
+        }
+
+        using var zero = TransparentRedPoint();
+        using var mild = TransparentRedPoint();
+        using var strong = TransparentRedPoint();
+        RasterSharpening.Apply(zero, 0);
+        RasterSharpening.Apply(mild, 25);
+        RasterSharpening.Apply(strong, 100);
+
+        var unchanged = zero.GetPixel(3, 3);
+        var moderate = mild.GetPixel(3, 3);
+        var maximum = strong.GetPixel(3, 3);
+        Check(unchanged.Alpha == 80 && unchanged.Red == 255 &&
+              moderate.Alpha > unchanged.Alpha && maximum.Alpha > moderate.Alpha &&
+              maximum.Alpha < 255,
+            "Unsharp strength must visibly and progressively increase translucent edge contrast.");
+        foreach (var pixels in new[] { mild, strong })
+        {
+            Check(pixels.GetPixel(0, 0).Alpha == 0 &&
+                  pixels.GetPixel(3, 2).Alpha == 0 &&
+                  pixels.GetPixel(3, 3).Red == 255 &&
+                  pixels.GetPixel(3, 3).Green == 0 &&
+                  pixels.GetPixel(3, 3).Blue == 0,
+                "Premultiplied unsharp masking must not create color/alpha halos in transparent pixels.");
+
+        }
+    }
+
+    public static void UnsharpMaskRetainsLowPass()
+    {
+        using var source = ImageAsset.FromBitmap(Checkerboard(256), rasterSharpness: 100);
+        using var pixels = Render(32, 32, canvas =>
+            source.Draw(canvas, new SKRect(0, 0, 32, 32), loop: true));
+        for (var y = 2; y < 30; y++)
+        for (var x = 2; x < 30; x++)
+        {
+            var pixel = pixels.GetPixel(x, y);
+            Check(pixel.Alpha == 255 &&
+                  Math.Abs(pixel.Red - 128) <= 18 &&
+                  Math.Abs(pixel.Green - 128) <= 18 &&
+                  Math.Abs(pixel.Blue - 128) <= 18,
+                "Strong sharpening must not restore alternating-pixel aliasing after reduction.");
+        }
+        Check(source.ScaledFrameCount == 1 &&
+              source.ScaledFrameBytes <= source.ScaledFrameBudget,
+            "Unsharp masking must retain a single bounded derived frame for repeated reductions.");
+        using var repeated = Render(32, 32, canvas =>
+            source.Draw(canvas, new SKRect(0, 0, 32, 32), loop: true));
+        Check(source.ScaledFrameCount == 1 &&
+              repeated.GetPixel(15, 15) == pixels.GetPixel(15, 15),
+            "Repeated drawing must reuse the cached sharpened pixels without changing output.");
+    }
+
     public static void RasterSharpnessConfiguration()
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-raster-settings-" + Guid.NewGuid().ToString("N"));

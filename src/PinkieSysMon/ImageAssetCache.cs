@@ -499,6 +499,11 @@ internal sealed class ImageAsset : IDisposable
                 else
                 {
                     bitmap = PrepareScaledFrame(original, width, height);
+                    if (_rasterSharpness > 0)
+                    {
+                        try { RasterSharpening.Apply(bitmap, _rasterSharpness); }
+                        catch { bitmap.Dispose(); throw; }
+                    }
                     var bytes = checked((long)bitmap.RowBytes * bitmap.Height);
                     var budget = ScaledFrameBudget;
                     if (bytes > budget)
@@ -547,20 +552,24 @@ internal sealed class ImageAsset : IDisposable
         if (!float.IsFinite(devicePixels) || devicePixels <= 0f)
             return sourcePixels;
 
-        // Final interpolation handles mild reductions; at zero sharpness it
-        // remains bilinear. Explicit multi-stage low-pass filtering is used for strong reductions,
-        // where a prepared frame can be reused at a bounded memory cost.
-        // Preserve the original Issue 122 behavior at zero. With sharpening,
-        // retain an additional intermediate level so 256 -> 32 retains detail
-        // for the final cubic sampler instead of stopping at an exact 32 px copy.
-        if (sourcePixels < (_rasterSharpness == 0 ? 4f : 3f) * devicePixels)
-            return sourcePixels;
+        // Zero is the accepted original path, including its prefilter cutoffs.
+        if (_rasterSharpness == 0)
+        {
+            if (sourcePixels < 4f * devicePixels)
+                return sourcePixels;
 
-        var width = sourcePixels;
-        var stopFactor = _rasterSharpness == 0 ? 1.5f : 2.25f;
-        while (width > 1 && width > stopFactor * devicePixels)
-            width = Math.Max(1, width / 2);
-        return width;
+            var width = sourcePixels;
+            while (width > 1 && width > 1.5f * devicePixels)
+                width = Math.Max(1, width / 2);
+            return width;
+        }
+
+        // Sharpen at approximately the final device-pixel resolution, after
+        // the anti-aliasing reduction. Sharpening larger intermediates would be
+        // blurred again by the final draw. Skip native copies and enlargement.
+        if (sourcePixels <= devicePixels)
+            return sourcePixels;
+        return Math.Clamp((int)MathF.Round(devicePixels), 1, sourcePixels);
     }
 
     private static SKBitmap PrepareScaledFrame(SKBitmap source, int width, int height)
