@@ -535,8 +535,11 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private bool _disposed;
 
     public bool IsVisible => Visible;
+    // An unresolved placement also merits a later event-driven shell reconciliation,
+    // even if Windows currently reports the visual HWND above Progman.
     internal bool IsBelowDesktop => !_disposed && Visible && IsHandleCreated &&
-        (DesktopBottomPlacement.IsBelowDesktop(Handle) || _input?.IsPairBroken == true);
+        (_placementRecovery.Pending || DesktopBottomPlacement.IsBelowDesktop(Handle) ||
+         _input?.IsPairBroken == true);
 
     protected override CreateParams CreateParams
     {
