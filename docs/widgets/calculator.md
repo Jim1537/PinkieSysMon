@@ -43,4 +43,4 @@ The shared Skia renderer draws the same static keypad for Editor and physical Ou
 
 Native Desktop mouse routing uses the existing [restricted input companion](../outputs/desktop.md#placement-dpi-and-mouse-routing), with the same key geometry shared by drawing and hit-testing; keys are resolved ahead of their Panel Action in the same Z layer. No separate native calculator control, additional process, USB touch handling, global mouse/keyboard hook, or Shell activation from a key click is involved.
 
-Older application releases do not recognize the new schema/widget type. Retain an older dashboard copy if rollback to a pre-34 build is required.
+A schema-35 dashboard cannot be reopened by a release that only understands schema 34 or earlier, even if it already supports Calculator. Retain a pre-migration dashboard copy when rollback to an older release might be necessary.
