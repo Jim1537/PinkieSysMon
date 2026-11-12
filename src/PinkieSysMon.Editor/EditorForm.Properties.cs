@@ -209,7 +209,7 @@ internal sealed partial class EditorForm
             replacements.Add((_statesPropertyTab, CreateLucideToolbarImage(size, PropertyStatesIcons)));
             replacements.Add((_imagePropertyTab, CreateLucideToolbarImage(size, PropertyImageIcons)));
             replacements.Add((_textPropertyTab, CreateLucideToolbarImage(size, PropertyTextIcons)));
-            replacements.Add((_calculatorPropertyTab, CreateLucideToolbarImage(size, ["calculator", "hash"])));
+            replacements.Add((_calculatorPropertyTab, CreateLucideToolbarImage(size, ["calculator", "grid-3x3"])));
             replacements.Add((_actionPropertyTab, CreateLucideToolbarImage(size, ["mouse-pointer-click", "mouse-pointer", "play"])));
             return replacements;
         }

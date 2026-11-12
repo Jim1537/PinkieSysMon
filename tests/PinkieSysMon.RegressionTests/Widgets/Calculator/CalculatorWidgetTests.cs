@@ -36,7 +36,9 @@ internal static class CalculatorWidgetTests
         Keys(state, "C", "9", "÷", "3", "=");
         Check(state.Readout == "3", "Division must evaluate correctly.");
         Keys(state, "+", "−", "2", "=");
-        Check(state.Readout == "5", "Repeated operators replace the pending operator.");
+        Check(state.Readout == "1", "The second operator must replace the pending addition with subtraction.");
+        Keys(state, "C", "3", "−", "+", "2", "=");
+        Check(state.Readout == "5", "The second operator must also replace pending subtraction with addition.");
         Keys(state, "C", "8", "−", "2", "=");
         Check(state.Readout == "6", "Subtraction must evaluate correctly.");
 

@@ -65,8 +65,8 @@ internal static class WidgetActionTests
         schema32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;
         schema32["widgets"]![0]!["action"]!.AsObject().Remove("runAs");
         Check(DashboardSchemaMigration.UpgradeToCurrent(schema32) &&
-              schema32["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.WidgetActionRunAsSchemaVersion,
-            "Schema 32 must migrate to 33 without inventing an elevated Action.");
+              schema32["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Schema 32 must migrate through 33 to current schema 34 without inventing an elevated Action.");
         var legacyAction = DashboardJson.DeserializeCurrent(schema32, "legacy-action.json").Widgets[0].Action;
         Check(legacyAction.RunAs == C.WidgetActionDefinition.User,
             "Legacy Action must retain the default non-elevating Shell verb.");
