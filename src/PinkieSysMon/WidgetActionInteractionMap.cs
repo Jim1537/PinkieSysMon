@@ -4,7 +4,7 @@ using C = PinkieSysMon.DashboardModel;
 namespace PinkieSysMon;
 
 internal sealed record WidgetActionInteraction(string Id, RectangleF Bounds, double Rotation, int Z, int Order,
-    string Target, string Arguments, bool SingleClick)
+    string Target, string Arguments, bool SingleClick, string RunAs = C.WidgetActionDefinition.User)
 {
     public bool Contains(double x, double y)
     {
@@ -69,7 +69,7 @@ internal sealed class WidgetActionInteractionMap
                 var action = widget.Action;
                 return new WidgetActionInteraction(widget.Id!, panelBounds?.Invoke(widget) ?? new RectangleF(widget.X, widget.Y, widget.Width, widget.Height), widget.Rotation,
                     widget.Z, entry.index, action.Target, action.Arguments,
-                    action.Activation == C.WidgetActionDefinition.SingleClick);
+                    action.Activation == C.WidgetActionDefinition.SingleClick, action.RunAs);
             }).OrderByDescending(s => s.Z).ThenByDescending(s => s.Order).ToArray();
     }
 

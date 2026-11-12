@@ -52,25 +52,34 @@ internal static class WidgetActionInteractionTests
         gesture.Down("s", 3, p, 1100); Check(!gesture.Up("s", 4, p, true), "A superseded generation must not invoke.");
 
         using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim(); using var finished = new ManualResetEventSlim();
-        var calls = new List<(string Target, string Arguments)>(); var errors = new List<int>();
-        using var dispatcher = new WidgetActionShellDispatcher(code => { lock (errors) errors.Add(code); }, (target, arguments) =>
+        var calls = new List<(string Target, string Arguments, string? Verb)>(); var errors = new List<int>();
+        using var dispatcher = new WidgetActionShellDispatcher(code => { lock (errors) errors.Add(code); }, (target, arguments, verb) =>
         {
-            lock (calls) calls.Add((target, arguments));
+            lock (calls) calls.Add((target, arguments, verb));
             if (target == "first") { entered.Set(); if (!release.Wait(TimeSpan.FromSeconds(5))) throw new InvalidOperationException("Test did not release dispatcher."); }
             else finished.Set();
-            return target == "first" ? 5 : 0;
+            return target == "first" ? 5 : verb == "runas" ? 1223 : 0;
         });
-        WidgetActionInteraction Payload(string target, string arguments = "") => new("s", new(0, 0, 20, 10), 0, 0, 0, target, arguments, true);
+        WidgetActionInteraction Payload(string target, string arguments = "", string runAs = C.WidgetActionDefinition.User) =>
+            new("s", new(0, 0, 20, 10), 0, 0, 0, target, arguments, true, runAs);
+        Check(WidgetActionShellDispatcher.ResolveVerb(C.WidgetActionDefinition.User) is null &&
+              WidgetActionShellDispatcher.ResolveVerb(C.WidgetActionDefinition.Administrator) == "runas",
+            "Shell must map User to its existing default verb and Administrator to runas.");
         try
         {
             Check(!dispatcher.TryDispatch(Payload("")), "A blank Target must not enter Shell dispatch.");
             Check(dispatcher.TryDispatch(Payload("first")) && entered.Wait(TimeSpan.FromSeconds(5)), "Explicit activation must reach the injected OS boundary off the caller thread.");
             Check(dispatcher.TryDispatch(Payload("cancelled")), "Pending test request must enqueue.");
             dispatcher.CancelPending();
-            Check(dispatcher.TryDispatch(Payload("C:\\missing path\\Юникод.dll", "--literal \"two words\" $unchanged")), "Shell payload must accept any extension and literal arguments.");
+            Check(dispatcher.TryDispatch(Payload("C:\\missing path\\Юникод.dll", "--literal \"two words\" $unchanged", C.WidgetActionDefinition.Administrator)), "Shell payload must accept any extension and literal arguments.");
             release.Set(); Check(finished.Wait(TimeSpan.FromSeconds(5)), "Dispatcher must continue after an OS failure and skip cancelled work.");
-            lock (calls) Check(calls.SequenceEqual(new[] { ("first", ""), ("C:\\missing path\\Юникод.dll", "--literal \"two words\" $unchanged") }), "Target and Arguments must remain separate, unchanged, with no invocation after cancellation.");
-            lock (errors) Check(errors.SequenceEqual(new[] { 5 }), "An OS failure must remain a technical result without a Action popup.");
+            lock (calls) Check(calls.SequenceEqual(new[]
+            {
+                ("first", "", (string?)null),
+                ("C:\\missing path\\Юникод.dll", "--literal \"two words\" $unchanged", "runas")
+            }), "Target, Arguments and elevation verb must reach Shell unchanged; pending cancellation must skip dispatch.");
+            lock (errors) Check(errors.SequenceEqual(new[] { 5 }),
+                "Ordinary OS errors must propagate; declined UAC must not generate an error popup.");
         }
         finally { release.Set(); }
     }

@@ -27,7 +27,8 @@ internal static class DashboardSchemaMigration
     public const int CanvasPanelSchemaVersion = 30;
     public const int WidgetActionSchemaVersion = 31;
     public const int ShadowColorAlphaSchemaVersion = 32;
-    public const int CurrentSchemaVersion = ShadowColorAlphaSchemaVersion;
+    public const int WidgetActionRunAsSchemaVersion = 33;
+    public const int CurrentSchemaVersion = WidgetActionRunAsSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -51,7 +52,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion or ShadowColorAlphaSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -163,6 +164,16 @@ internal static class DashboardSchemaMigration
             UpgradeSchema31To32(root);
             root["schemaVersion"] = ShadowColorAlphaSchemaVersion;
             schemaVersion = ShadowColorAlphaSchemaVersion;
+        }
+
+        if (schemaVersion == ShadowColorAlphaSchemaVersion)
+        {
+            // Schema 32 has no elevation setting; preserve the original Shell default verb.
+            if (root["widgets"] is JsonArray actionWidgets && actionWidgets.OfType<JsonObject>().Any(widget =>
+                widget["action"] is JsonObject action && action.ContainsKey("runAs")))
+                throw new InvalidDataException("Schema-32 Action cannot contain a Run as field.");
+            root["schemaVersion"] = WidgetActionRunAsSchemaVersion;
+            schemaVersion = WidgetActionRunAsSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

@@ -445,7 +445,17 @@ internal static class CanonicalPropertyViewBuilder
                 editor: new WidgetActionTargetEditor(), disabledReason: DisabledWhenNone),
             String(action, "Arguments", "action.arguments", "Arguments",
                 () => action.Arguments, value => action.Arguments = Convert.ToString(value) ?? string.Empty,
-                disabled: DisabledWhenNone)
+                disabled: DisabledWhenNone),
+            new CanonicalPropertyDescriptor("RunAs", "action.runAs", "Run as", action, typeof(string),
+                () => action.RunAs,
+                value => action.RunAs = Convert.ToString(value) switch
+                {
+                    C.WidgetActionDefinition.User => C.WidgetActionDefinition.User,
+                    C.WidgetActionDefinition.Administrator => C.WidgetActionDefinition.Administrator,
+                    _ => throw new ArgumentException("Invalid Run as option.", nameof(value))
+                },
+                converter: new FixedStringConverter([C.WidgetActionDefinition.User, C.WidgetActionDefinition.Administrator]),
+                disabledReason: DisabledWhenNone)
         ])];
     }
 

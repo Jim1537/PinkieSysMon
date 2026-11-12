@@ -6,19 +6,19 @@ namespace PinkieSysMon;
 // Only Runtime's accepted user gesture calls TryDispatch. No renderer or Editor owns this service.
 internal sealed class WidgetActionShellDispatcher : IDisposable
 {
-    private readonly BlockingCollection<(long Generation, string Target, string Arguments, string Widget, string Id, long Queued)> _queue = new(16);
+    private readonly BlockingCollection<(long Generation, string Target, string Arguments, string RunAs, string Widget, string Id, long Queued)> _queue = new(16);
     private readonly Action<int> _reportFailure;
     private readonly FileLogger? _log;
     private readonly OutputDiagnosticEvents? _events;
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal Task Completion => _completion.Task;
-    private readonly Func<string, string, int> _invoke;
+    private readonly Func<string, string, string?, int> _invoke;
     private readonly object _gate = new();
     private long _generation;
     private bool _started;
     private bool _disposed;
 
-    public WidgetActionShellDispatcher(Action<int> reportFailure, Func<string, string, int>? invoke = null, FileLogger? log = null)
+    public WidgetActionShellDispatcher(Action<int> reportFailure, Func<string, string, string?, int>? invoke = null, FileLogger? log = null)
     { _reportFailure = reportFailure; _invoke = invoke ?? InvokeShell; _log = log; _events = log is null ? null : new(log); }
 
     public void CancelPending() { Interlocked.Increment(ref _generation); }
@@ -35,6 +35,8 @@ internal sealed class WidgetActionShellDispatcher : IDisposable
         }
         if (string.IsNullOrWhiteSpace(action.Target))
         { Refuse("empty-target"); return false; }
+        if (action.RunAs is not (DashboardModel.WidgetActionDefinition.User or DashboardModel.WidgetActionDefinition.Administrator))
+        { Refuse("invalid-run-as"); return false; }
         var refused = false;
         var full = false;
         lock (_gate)
@@ -48,7 +50,7 @@ internal sealed class WidgetActionShellDispatcher : IDisposable
                     if (OperatingSystem.IsWindows()) thread.SetApartmentState(ApartmentState.STA);
                     thread.Start(); _started = true;
                 }
-                full = !_queue.TryAdd((Interlocked.Read(ref _generation), action.Target, action.Arguments, widget, id, System.Diagnostics.Stopwatch.GetTimestamp()));
+                full = !_queue.TryAdd((Interlocked.Read(ref _generation), action.Target, action.Arguments, action.RunAs, widget, id, System.Diagnostics.Stopwatch.GetTimestamp()));
             }
         }
         // Logging and callbacks never hold the dispatch queue gate.
@@ -74,9 +76,12 @@ internal sealed class WidgetActionShellDispatcher : IDisposable
                 { operation?.Cancel("superseded-before-shell"); continue; }
                 try
                 {
-                    operation?.Phase("shell.dispatch", $"queueWaitMs={System.Diagnostics.Stopwatch.GetElapsedTime(request.Queued).TotalMilliseconds:F1}");
-                    var error = _invoke(request.Target, request.Arguments);
-                    if (error != 0)
+                    var verb = ResolveVerb(request.RunAs);
+                    operation?.Phase("shell.dispatch", $"queueWaitMs={System.Diagnostics.Stopwatch.GetElapsedTime(request.Queued).TotalMilliseconds:F1}; runAs={request.RunAs}");
+                    var error = _invoke(request.Target, request.Arguments, verb);
+                    if (error == 1223 && verb == "runas") // ERROR_CANCELLED: user declined UAC.
+                        operation?.Cancel("uac-declined");
+                    else if (error != 0)
                     {
                         operation?.Fail(new System.ComponentModel.Win32Exception(error), "Shell returned a native failure.");
                         _reportFailure(error);
@@ -109,12 +114,19 @@ internal sealed class WidgetActionShellDispatcher : IDisposable
         }
     }
 
-    private static int InvokeShell(string target, string arguments)
+    internal static string? ResolveVerb(string runAs) => runAs switch
+    {
+        DashboardModel.WidgetActionDefinition.User => null,
+        DashboardModel.WidgetActionDefinition.Administrator => "runas",
+        _ => throw new ArgumentOutOfRangeException(nameof(runAs), runAs, "Invalid Action Run as mode.")
+    };
+
+    private static int InvokeShell(string target, string arguments, string? verb)
     {
         var info = new ShellExecuteInfo
         {
             Size = Marshal.SizeOf<ShellExecuteInfo>(), Mask = 0x00000100 | 0x00004000, // NOASYNC (worker has no message loop), UNICODE
-            File = target, Parameters = arguments, Show = 1
+            Verb = verb, File = target, Parameters = arguments, Show = 1
         };
         // No NO_UI flag: Windows owns association/security/error UI; do not promise it for every failure.
         return ShellExecuteEx(ref info) ? 0 : Marshal.GetLastPInvokeError();

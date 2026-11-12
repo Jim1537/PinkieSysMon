@@ -402,3 +402,6 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ### Arguments
     --8<-- "widgets/properties.md:action-arguments"
+
+    ### Run as
+    --8<-- "widgets/properties.md:action-run-as"

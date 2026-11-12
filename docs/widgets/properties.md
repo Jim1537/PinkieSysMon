@@ -2557,3 +2557,21 @@ Schema 29 converts old icon opacity to iconOpacity and removes legacy file/text 
     **Used by:** All widgets; Canvas excluded. Physical Outputs are display-only.
 
 <!-- --8<-- [end:action-arguments] -->
+
+---
+## Action Run as
+
+<!-- --8<-- [start:action-run-as] -->
+
+!!! info ""
+
+    **Editor name:** Run as  
+    **Semantic key:** `action.runAs`  
+    **Canonical model:** `WidgetDefinition.Action.RunAs`  
+    **JSON:** `action.runAs`
+
+    `User` (default) retains the standard Windows Shell verb and caller's current privileges. `Administrator` requests the native `runas` verb and Windows UAC consent/credentials; it does **not** elevate PinkieSysMon Runtime. The configured Target and literal Arguments are passed unchanged. Only targets supporting `runas` can be elevated; unsupported targets return a native Shell failure. Declining UAC cancels that action without launching the target. Read-only when Activation is `None`; the selected value remains stored. Schema 32 dashboards migrate to 33 with `User` as the implicit default.
+
+    **Used by:** All widgets; Canvas excluded. Physical Outputs are display-only.
+
+<!-- --8<-- [end:action-run-as] -->

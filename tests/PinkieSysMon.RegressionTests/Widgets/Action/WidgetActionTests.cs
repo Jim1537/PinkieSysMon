@@ -45,8 +45,26 @@ internal static class WidgetActionTests
         var path = Path.Combine(Path.GetTempPath(), "pinkie-action-contract.json");
         var parsed = DashboardJson.DeserializeCurrent(legacy, path);
         Check(parsed.Widgets.Count == 1 && parsed.Widgets[0].Action.Activation == C.WidgetActionDefinition.None &&
-              parsed.Widgets[0].Action.Target == "" && parsed.Widgets[0].Action.Arguments == "",
+              parsed.Widgets[0].Action.Target == "" && parsed.Widgets[0].Action.Arguments == "" &&
+              parsed.Widgets[0].Action.RunAs == C.WidgetActionDefinition.User,
             "Omitted actions must acquire the canonical inactive defaults.");
+        var incompatible32 = JsonNode.Parse(original)!.AsObject();
+        incompatible32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;
+        ExpectInvalid(() => DashboardSchemaMigration.UpgradeToCurrent(incompatible32),
+            "Schema 32 must reject future Run as fields rather than silently activating elevation.");
+
+        var schema32 = JsonNode.Parse(original)!.AsObject();
+        schema32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;
+        schema32["widgets"]![0]!["action"]!.AsObject().Remove("runAs");
+        Check(DashboardSchemaMigration.UpgradeToCurrent(schema32) &&
+              schema32["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.WidgetActionRunAsSchemaVersion,
+            "Schema 32 must migrate to 33 without inventing an elevated Action.");
+        var legacyAction = DashboardJson.DeserializeCurrent(schema32, "legacy-action.json").Widgets[0].Action;
+        Check(legacyAction.RunAs == C.WidgetActionDefinition.User,
+            "Legacy Action must retain the default non-elevating Shell verb.");
+        var migrated32 = schema32.ToJsonString();
+        Check(!DashboardSchemaMigration.UpgradeToCurrent(schema32) && schema32.ToJsonString() == migrated32,
+            "Schema 32 to 33 migration must be idempotent.");
         var saved = DashboardJson.Serialize(parsed, indented: false);
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(saved, path), indented: false) == saved,
             "Current-schema parse/save and repeated migration must be deterministic.");
@@ -64,7 +82,12 @@ internal static class WidgetActionTests
         image.Action.Activation = C.WidgetActionDefinition.None;
         Check(!image.Action.IsActive && image.Action.Target == "shell:AppsFolder" &&
               image.Action.Arguments == "--literal argument", "None must retain dormant payloads.");
+        image.Action.RunAs = C.WidgetActionDefinition.Administrator;
         var persisted = DashboardJson.Serialize(Board(image), indented: false);
+        var elevated = C.DashboardDefinition.Parse(persisted, path).Widgets[0].Action;
+        Check(elevated.RunAs == C.WidgetActionDefinition.Administrator && !elevated.IsActive &&
+              DashboardJson.CloneWidget(image).Action.RunAs == C.WidgetActionDefinition.Administrator,
+            "Dormant Administrator selection must persist across parse/save and clipboard clone.");
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(persisted, path), indented: false) == persisted,
             "Dormant Target/Arguments must survive serialization.");
 
@@ -73,6 +96,11 @@ internal static class WidgetActionTests
         image.Action.Activation = C.WidgetActionDefinition.None;
         image.Action.Target = null!;
         ExpectInvalid(() => DashboardJson.Serialize(Board(image)), "Null Action payload must be rejected.");
+        image.Action.Target = "notepad.exe";
+        image.Action.RunAs = "Unknown";
+        ExpectInvalid(() => DashboardJson.Serialize(Board(image)), "Unknown Run as values must be rejected.");
+        image.Action.RunAs = null!;
+        ExpectInvalid(() => DashboardJson.Serialize(Board(image)), "Null Run as values must be rejected.");
 
         var unsupported = JsonNode.Parse(saved)!.AsObject();
         unsupported["widgets"]!.AsArray()[0]!.AsObject()["type"] = "shortcut";
@@ -112,9 +140,15 @@ internal static class WidgetActionTests
             Check(row["Action"] is not null, $"{widget.Type}: missing universal Action group.");
             var cells = Children(row);
             Check(cells.Cast<PropertyDescriptor>().Select(d => d.DisplayName)
-                    .SequenceEqual(new[] { "Activation", "Target", "Arguments" }),
-                $"{widget.Type}: Action order must be Activation, Target, Arguments.");
-            Check(cells["Target"]!.IsReadOnly && cells["Arguments"]!.IsReadOnly,
+                    .SequenceEqual(new[] { "Activation", "Target", "Arguments", "Run as" }),
+                $"{widget.Type}: Action order must be Activation, Target, Arguments, Run as.");
+            Check((string?)cells["RunAs"]!.GetValue(null) == C.WidgetActionDefinition.User &&
+                  cells["RunAs"]!.Converter.GetStandardValuesSupported() &&
+                  cells["RunAs"]!.Converter.GetStandardValuesExclusive() &&
+                  cells["RunAs"]!.Converter.GetStandardValues()!.Cast<string>()
+                      .SequenceEqual(new[] { C.WidgetActionDefinition.User, C.WidgetActionDefinition.Administrator }),
+                "Run as must offer exactly User/Administrator and default to User.");
+            Check(cells["Target"]!.IsReadOnly && cells["Arguments"]!.IsReadOnly && cells["RunAs"]!.IsReadOnly,
                 "None must make dormant Target/Arguments read-only.");
             var merged = new EditorPropertyView(widget, section: EditorPropertySection.All).GetProperties();
             Check(merged.Cast<PropertyDescriptor>().Last().DisplayName == "Action",
@@ -127,8 +161,11 @@ internal static class WidgetActionTests
         var fields = Children(new EditorPropertyView(image, section: EditorPropertySection.Action).GetProperties());
         fields["Activation"]!.SetValue(null, "Single click");
         Check(image.Action.Activation == C.WidgetActionDefinition.SingleClick &&
-              !fields["Target"]!.IsReadOnly && !fields["Arguments"]!.IsReadOnly,
+              !fields["Target"]!.IsReadOnly && !fields["Arguments"]!.IsReadOnly && !fields["RunAs"]!.IsReadOnly,
             "Choosing Single must enable editing without requiring Target first.");
+        fields["RunAs"]!.SetValue(null, C.WidgetActionDefinition.Administrator);
+        Check(image.Action.RunAs == C.WidgetActionDefinition.Administrator,
+            "Editor Run as selection must update the canonical model.");
         fields["Target"]!.SetValue(null, "  ");
         fields["Arguments"]!.SetValue(null, "--test with whitespace");
         Check(!image.Action.IsActive && image.Action.Arguments == "--test with whitespace",
@@ -146,13 +183,18 @@ internal static class WidgetActionTests
         var shared = Children(multi.GetProperties());
         shared["Activation"]!.SetValue(null, "Double click");
         shared["Target"]!.SetValue(null, "shell:AppsFolder");
+        shared["RunAs"]!.SetValue(null, C.WidgetActionDefinition.Administrator);
         Check(image.Action.Activation == C.WidgetActionDefinition.DoubleClick &&
               value.Action.Activation == C.WidgetActionDefinition.DoubleClick &&
-              image.Action.Target == "shell:AppsFolder" && value.Action.Target == "shell:AppsFolder",
+              image.Action.Target == "shell:AppsFolder" && value.Action.Target == "shell:AppsFolder" &&
+              image.Action.RunAs == C.WidgetActionDefinition.Administrator &&
+              value.Action.RunAs == C.WidgetActionDefinition.Administrator,
             "Cross-type selection must edit the same Action model.");
         shared["Activation"]!.SetValue(null, "None");
-        Check(shared["Target"]!.IsReadOnly && shared["Arguments"]!.IsReadOnly &&
-              image.Action.Target == "shell:AppsFolder" && value.Action.Target == "shell:AppsFolder",
+        Check(shared["Target"]!.IsReadOnly && shared["Arguments"]!.IsReadOnly && shared["RunAs"]!.IsReadOnly &&
+              image.Action.Target == "shell:AppsFolder" && value.Action.Target == "shell:AppsFolder" &&
+              image.Action.RunAs == C.WidgetActionDefinition.Administrator &&
+              value.Action.RunAs == C.WidgetActionDefinition.Administrator,
             "Multi-edit None must disable inputs without erasing dormant payloads.");
     }
 
@@ -181,6 +223,10 @@ internal static class WidgetActionTests
             "Inactive higher layers must not mask the rotated active widget or clip outside Canvas.");
         Check(map.Rasterize().Count > 0, "The geometric hotspot must not depend on visible pixels or media.");
         var frozen = map.Rasterize().ToArray();
+        active.Action.RunAs = C.WidgetActionDefinition.Administrator;
+        Check(map.Hit(new Point(20, 20))?.RunAs == C.WidgetActionDefinition.User &&
+              !map.IsEquivalent(new WidgetActionInteractionMap(board)),
+            "Action snapshots must capture Run as independently of subsequent model changes.");
         active.X = 100;
         active.Action.Target = "changed";
         Check(map.Rasterize().SequenceEqual(frozen) && map.Hit(new Point(20, 20))?.Target == "calc.exe",
