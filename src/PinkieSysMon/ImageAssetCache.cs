@@ -547,8 +547,8 @@ internal sealed class ImageAsset : IDisposable
         if (!float.IsFinite(devicePixels) || devicePixels <= 0f)
             return sourcePixels;
 
-        // A final bilinear draw is sufficient for mild reductions. Explicit
-        // multi-stage low-pass filtering is reserved for strong reductions,
+        // Final interpolation handles mild reductions; at zero sharpness it
+        // remains bilinear. Explicit multi-stage low-pass filtering is used for strong reductions,
         // where a prepared frame can be reused at a bounded memory cost.
         // Preserve the original Issue 122 behavior at zero. With sharpening,
         // retain an additional intermediate level so 256 -> 32 retains detail
