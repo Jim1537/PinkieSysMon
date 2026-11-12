@@ -135,23 +135,39 @@ internal static class Issue116ShadowMigrationTests
                 Mode = C.WidgetPanelLayerMode.Color, Color = "#FFFFFFFF"
             }
         };
-        var dashboard = new C.DashboardDefinition
+        // Renderer asset resolution requires a real application root, even when
+        // the test uses no fonts or external artwork.
+        var applicationRoot = Path.Combine(Path.GetTempPath(),
+            "pinkiesysmon-issue116-" + Guid.NewGuid().ToString("N"));
+        var dashboardDirectory = Path.Combine(applicationRoot, "dashboards", "shadow-alpha");
+        try
         {
-            BaseDirectory = Path.GetTempPath(),
-            Canvas = new C.CanvasDefinition
+            Directory.CreateDirectory(dashboardDirectory);
+            Directory.CreateDirectory(Path.Combine(applicationRoot, "config"));
+            File.WriteAllText(Path.Combine(applicationRoot, "config", "app.json"), "{}");
+            var dashboard = new C.DashboardDefinition
             {
-                Width = 64, Height = 32,
-                PanelBackground = new C.WidgetPanelLayerDefinition
+                BaseDirectory = dashboardDirectory,
+                Canvas = new C.CanvasDefinition
                 {
-                    Mode = C.WidgetPanelLayerMode.None
-                }
-            },
-            Widgets = [widget]
-        };
-        using var renderer = new DashboardRenderer(dashboard);
-        using var rendered = renderer.RenderBgra(new Dictionary<string, object?>());
-        Check(Math.Abs(rendered.Bitmap.GetPixel(30, 8).Alpha - 48) <= 1,
-            "Widget contour shadow must use the migrated RGBA alpha without a second multiplier.");
+                    Width = 64, Height = 32,
+                    PanelBackground = new C.WidgetPanelLayerDefinition
+                    {
+                        Mode = C.WidgetPanelLayerMode.None
+                    }
+                },
+                Widgets = [widget]
+            };
+            using var renderer = new DashboardRenderer(dashboard);
+            using var rendered = renderer.RenderBgra(new Dictionary<string, object?>());
+            Check(Math.Abs(rendered.Bitmap.GetPixel(30, 8).Alpha - 48) <= 1,
+                "Widget contour shadow must use the migrated RGBA alpha without a second multiplier.");
+        }
+        finally
+        {
+            if (Directory.Exists(applicationRoot))
+                Directory.Delete(applicationRoot, recursive: true);
+        }
     }
 
     private static void CheckShadowGroup(object owner, string description)

@@ -27,7 +27,7 @@ internal static class CommonWidgetPropertyTests
             ExpectRows(panel, "Background", "Mode");
             ExpectRows(panel, "Foreground", "Mode");
             ExpectRows(panel, "Border", "Width", "Color", "Style", "Top", "Right", "Bottom", "Left");
-            ExpectRows(panel, "Shadow", "Enabled", "Color", "Opacity", "Blur", "Offset X", "Offset Y");
+            ExpectRows(panel, "Shadow", "Enabled", "Color", "Blur", "Offset X", "Offset Y");
 
             var border = Children(panel, "Border");
             Check(border["BorderLeft"]!.IsReadOnly, "Zero-width border sides must be disabled.");

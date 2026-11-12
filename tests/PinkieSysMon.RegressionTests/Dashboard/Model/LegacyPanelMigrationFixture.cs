@@ -45,6 +45,10 @@ internal static class LegacyPanelMigrationFixture
                     foregroundPanel["mode"]?.GetValue<string>() != "None")
                     throw new InvalidOperationException(
                         "This historical fixture supports widgets with inactive Panel layers only.");
+                // Historical schemas carried a separate Shadow Opacity. An
+                // explicit unit multiplier preserves the canonical RGBA alpha
+                // when the 31→32 migration folds both factors together.
+                widget["shadowOpacity"] = 1f;
                 widget["backgroundColor"] = panel["color"]?.DeepClone();
                 widget.Remove("panelBackground");
                 widget.Remove("panelForeground");
