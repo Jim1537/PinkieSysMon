@@ -388,6 +388,12 @@ Property groups are **expanded by default**, including nested groups. A group yo
     --8<-- "widgets/properties.md:bump-pause"
 
 
+=== "Calculator"
+
+    ## Calculator
+
+    The six [Calculator-specific properties](properties.md#calculator-specific-properties) are grouped under **Buttons** (Fill Color, Border Color, Border Width, Text Color), **Display** (Text Color), and **Font** (Family). Panel geometry, common layers, and Action remain separate.
+
 === "Action"
 
     ## Action

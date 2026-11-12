@@ -19,6 +19,7 @@ internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
     private readonly bool _locked;
     private readonly Action<Point> _drag;
     private readonly WidgetActionShellDispatcher _shell;
+    private readonly Action<string, string, IntPtr>? _calculatorKey;
     private readonly WidgetActionGesture _gesture = new((uint)SystemInformation.DoubleClickTime,
         SystemInformation.DoubleClickSize, SystemInformation.DragSize);
     private bool _empty;
@@ -28,9 +29,10 @@ internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
 
     internal DesktopWidgetActionInput(WidgetActionInteractionMap map, Form visual, bool locked,
         Action<Point> drag, Action<int> reportFailure, FileLogger? log = null,
-        DesktopCanvasViewport? viewport = null)
+        DesktopCanvasViewport? viewport = null, Action<string, string, IntPtr>? calculatorKey = null)
     {
         _map = map; _visual = visual; _locked = locked; _drag = drag;
+        _calculatorKey = calculatorKey;
         _viewport = viewport ?? DesktopCanvasViewport.ForCanvas(map.Canvas);
         if (_viewport.Canvas != map.Canvas)
             throw new InvalidOperationException("Desktop input and Canvas geometry disagree.");
@@ -153,6 +155,9 @@ internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
         _gesture.Cancel(); _generation++; _shell.CancelPending(); ReleaseOwnCapture();
     }
 
+    private static string? GestureIdentity(WidgetActionInteraction? hit) =>
+        hit is null ? null : hit.IsCalculatorKey ? hit.Id + "|key:" + hit.CalculatorKey : hit.Id;
+
     protected override void WndProc(ref Message m)
     {
         if (ShouldUseHandCursor(m.Msg, m.LParam))
@@ -171,7 +176,7 @@ internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
             case 0x000f: ValidateRect(Handle, IntPtr.Zero); return;
             case 0x0201:
             case 0x0203:
-                _gesture.Down(_map.Hit(point)?.Id, _generation, point, unchecked((uint)GetMessageTime()));
+                _gesture.Down(GestureIdentity(_map.Hit(point)), _generation, point, unchecked((uint)GetMessageTime()));
                 SetCapture(Handle); return;
             case 0x0200:
                 if (_gesture.Move(point) && !_locked)
@@ -183,9 +188,14 @@ internal sealed class DesktopWidgetActionInput : NativeWindow, IDisposable
                 return;
             case 0x0202:
                 var hit = _map.Hit(point);
-                var invoke = _gesture.Up(hit?.Id, _generation, point, hit?.SingleClick ?? false);
+                var invoke = _gesture.Up(GestureIdentity(hit), _generation, point,
+                    hit?.SingleClick ?? false, hit?.IsCalculatorKey ?? false);
                 ReleaseOwnCapture();
-                if (invoke && hit is not null) _shell.TryDispatch(hit);
+                if (invoke && hit is not null)
+                {
+                    if (hit.IsCalculatorKey) _calculatorKey?.Invoke(hit.Id, hit.CalculatorKey!, Handle);
+                    else _shell.TryDispatch(hit);
+                }
                 return;
             case 0x0215: if (!_releasing) _gesture.Cancel(); break;
             case 0x001f: Cancel(); break;

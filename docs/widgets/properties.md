@@ -28,6 +28,23 @@ Padding accepts one nonnegative value or four numbers in top|right|bottom|left o
 
 
 
+## Calculator-specific properties
+
+The [Calculator widget](calculator.md) has six content-only properties, available on its dedicated Calculator tab. They do not override the common Panel/Action appearance or interaction settings.
+
+| Editor group | Property | Persisted field | Meaning |
+| --- | --- | --- | --- |
+| Buttons | Fill Color | `buttonFillColor` | RGBA fill for all calculator keys |
+| Buttons | Border Color | `buttonBorderColor` | RGBA key outline color |
+| Buttons | Border Width | `buttonBorderWidth` | Nonnegative key outline width; 0 disables it |
+| Buttons | Text Color | `buttonTextColor` | RGBA key captions |
+| Display | Text Color | `displayTextColor` | RGBA readout text |
+| Font | Family | `fontFamily` | Bundled font family used for keys and readout |
+
+The widget scales its readout/key layout and font sizes automatically within the padded Panel. General → Data Source → Metric is disabled/Not applicable. Only Desktop Outputs have interactive Calculator keys.
+
+---
+
 ## Background Color
 
 <!-- --8<-- [start:background-color] -->

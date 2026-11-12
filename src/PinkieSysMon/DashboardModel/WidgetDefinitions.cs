@@ -12,6 +12,7 @@ namespace PinkieSysMon.DashboardModel;
 [JsonDerivedType(typeof(PowerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Power)]
 [JsonDerivedType(typeof(MediaSystemWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaSystem)]
 [JsonDerivedType(typeof(MediaPlayerWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.MediaPlayer)]
+[JsonDerivedType(typeof(CalculatorWidgetDefinition), global::PinkieSysMon.WidgetTypeContract.Calculator)]
 internal abstract class WidgetDefinition
 {
     [JsonIgnore]
@@ -530,5 +531,44 @@ internal sealed class MediaPlayerWidgetDefinition : StateVisualWidgetDefinition
     {
         base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidateProfiles(dashboardBaseDirectory, allowUnavailableArtwork);
+    }
+}
+
+internal sealed class CalculatorWidgetDefinition : WidgetDefinition
+{
+    [JsonIgnore]
+    public override string Type => global::PinkieSysMon.WidgetTypeContract.Calculator;
+
+    [JsonPropertyName("buttonFillColor")]
+    public string ButtonFillColor { get; set; } = "#FF343C4F";
+
+    [JsonPropertyName("buttonBorderColor")]
+    public string ButtonBorderColor { get; set; } = "#FF9BA8C0";
+
+    [JsonPropertyName("buttonBorderWidth")]
+    public float ButtonBorderWidth { get; set; } = 1f;
+
+    [JsonPropertyName("buttonTextColor")]
+    public string ButtonTextColor { get; set; } = "#FFFFFFFF";
+
+    [JsonPropertyName("displayTextColor")]
+    public string DisplayTextColor { get; set; } = "#FFFFFFFF";
+
+    [JsonPropertyName("fontFamily")]
+    public string FontFamily { get; set; } = "Roboto";
+
+    internal override void Validate(string dashboardBaseDirectory, bool allowUnavailableArtwork = false)
+    {
+        base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
+        ValidatePositiveGeometry();
+        RequireFinite(ButtonBorderWidth, nameof(ButtonBorderWidth));
+        if (ButtonBorderWidth < 0f)
+            throw new InvalidDataException($"Calculator widget '{Id}' ButtonBorderWidth cannot be negative.");
+        if (string.IsNullOrWhiteSpace(FontFamily))
+            throw new InvalidDataException($"Calculator widget '{Id}' FontFamily is required.");
+        _ = global::PinkieSysMon.ColorParser.Parse(ButtonFillColor);
+        _ = global::PinkieSysMon.ColorParser.Parse(ButtonBorderColor);
+        _ = global::PinkieSysMon.ColorParser.Parse(ButtonTextColor);
+        _ = global::PinkieSysMon.ColorParser.Parse(DisplayTextColor);
     }
 }

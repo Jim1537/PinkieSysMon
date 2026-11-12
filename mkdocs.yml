@@ -23,6 +23,7 @@ nav:
       - iCUE Sensor Logging: telemetry/icue-sensor-logging.md
   - Widgets:
       - Text / Value: widgets/text-value.md
+      - Calculator: widgets/calculator.md
       - Binary: widgets/binary.md
       - Gauge: widgets/gauge.md
       - Bar: widgets/bar.md

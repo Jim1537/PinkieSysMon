@@ -9,6 +9,7 @@ internal static class WidgetRendererRegistry
         IWidgetRenderer[] renderers =
         [
             new ValueWidgetRenderer(),
+            new CalculatorWidgetRenderer(),
             new BarWidgetRenderer(imageAssets),
             new GaugeWidgetRenderer(),
             new GraphWidgetRenderer(imageAssets, iconAssets),

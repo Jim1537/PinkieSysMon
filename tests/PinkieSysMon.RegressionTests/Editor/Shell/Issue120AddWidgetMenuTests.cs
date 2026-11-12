@@ -11,6 +11,7 @@ internal static partial class Program
         var expected = new (string? Type, string Label)[]
         {
             (WidgetTypeContract.Binary, "Binary Indicator"),
+            (WidgetTypeContract.Calculator, "Calculator"),
             (WidgetTypeContract.Gauge, "Gauge"),
             (WidgetTypeContract.Graph, "History Graph"),
             (WidgetTypeContract.Image, "Image / Icon"),
@@ -52,7 +53,7 @@ internal static partial class Program
         void CheckMenu(ToolStripItemCollection items, string location)
         {
             Assert(items.Count == expected.Length,
-                $"{location} Add Widget must contain nine widgets and exactly one separator.");
+                $"{location} Add Widget must contain ten widgets and exactly one separator.");
             for (var index = 0; index < expected.Length; index++)
             {
                 var (type, label) = expected[index];

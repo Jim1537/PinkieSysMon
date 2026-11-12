@@ -11,6 +11,7 @@ internal sealed class WidgetRenderContext : IDisposable
     private const long MaximumShadowCacheBytes = 64L * 1024L * 1024L;
 
     private readonly TypefaceCache _typefaces;
+    private readonly Func<CanonicalDashboard.CalculatorWidgetDefinition, string>? _calculatorReadout;
     private readonly Dictionary<CanonicalWidgetDefinition, ShadowRenderResources?> _shadowResources = new();
     private readonly Dictionary<CanonicalWidgetDefinition, ContainerRenderResources> _containerResources = new();
     private ImageAssetCache? _panelImageAssets;
@@ -27,12 +28,14 @@ internal sealed class WidgetRenderContext : IDisposable
     public WidgetRenderContext(
         IReadOnlyDictionary<string, object?> metrics,
         bool antialias,
-        TypefaceCache typefaces, MetricHistoryStore? history = null)
+        TypefaceCache typefaces, MetricHistoryStore? history = null,
+        Func<CanonicalDashboard.CalculatorWidgetDefinition, string>? calculatorReadout = null)
     {
         History = history;
         _metrics = metrics;
         Antialias = antialias;
         _typefaces = typefaces;
+        _calculatorReadout = calculatorReadout;
     }
 
     public MetricHistoryStore? History { get; }
@@ -40,6 +43,9 @@ internal sealed class WidgetRenderContext : IDisposable
     public long FrameSequence { get; private set; }
     public IReadOnlyDictionary<string, object?> Metrics => _metrics;
     public bool Antialias { get; }
+
+    public string GetCalculatorReadout(CanonicalDashboard.CalculatorWidgetDefinition widget) =>
+        _calculatorReadout?.Invoke(widget) ?? "0";
 
     public void UpdateMetrics(IReadOnlyDictionary<string, object?> metrics)
     {

@@ -2215,6 +2215,10 @@ internal sealed partial class EditorForm : PinkieEditorForm
                         OverflowMode = ValueOverflowContract.None
                     }
                 },
+                WidgetTypeContract.Calculator => new PinkieSysMon.DashboardModel.CalculatorWidgetDefinition
+                {
+                    Id = id, Z = nextZ, X = 100, Y = 100, Width = 240, Height = 330
+                },
                 WidgetTypeContract.Graph => new PinkieSysMon.DashboardModel.GraphWidgetDefinition
                 {
                     Id = id, Z = nextZ, X = 100, Y = 100, Width = 300, Height = 120,

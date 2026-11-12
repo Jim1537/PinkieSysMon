@@ -35,6 +35,7 @@ internal sealed partial class EditorForm
     private readonly TabPage _statesPropertyTab = new() { Name = "States", Padding = Padding.Empty, ToolTipText = "States", AccessibleName = "States" };
     private readonly TabPage _imagePropertyTab = new() { Name = "Image", Padding = Padding.Empty, ToolTipText = "Image", AccessibleName = "Image" };
     private readonly TabPage _textPropertyTab = new() { Name = "Text", Padding = Padding.Empty, ToolTipText = "Text", AccessibleName = "Text" };
+    private readonly TabPage _calculatorPropertyTab = new() { Name = "Calculator", Padding = Padding.Empty, ToolTipText = "Calculator", AccessibleName = "Calculator" };
     private readonly TabPage _actionPropertyTab = new() { Name = "Action", Padding = Padding.Empty, ToolTipText = "Action", AccessibleName = "Action" };
 
     private static readonly string[] PropertyGeneralIcons = ["settings-2", "settings", "sliders-horizontal", "grid-3x3"];
@@ -208,6 +209,7 @@ internal sealed partial class EditorForm
             replacements.Add((_statesPropertyTab, CreateLucideToolbarImage(size, PropertyStatesIcons)));
             replacements.Add((_imagePropertyTab, CreateLucideToolbarImage(size, PropertyImageIcons)));
             replacements.Add((_textPropertyTab, CreateLucideToolbarImage(size, PropertyTextIcons)));
+            replacements.Add((_calculatorPropertyTab, CreateLucideToolbarImage(size, ["calculator", "hash"])));
             replacements.Add((_actionPropertyTab, CreateLucideToolbarImage(size, ["mouse-pointer-click", "mouse-pointer", "play"])));
             return replacements;
         }
@@ -282,7 +284,8 @@ internal sealed partial class EditorForm
                     var includeImage = CreatePropertyTargetView(target!, EditorPropertySection.Image).GetProperties().Count > 0;
                     var includeText = CreatePropertyTargetView(target!, EditorPropertySection.Text).GetProperties().Count > 0;
                     var includeGraph = CreatePropertyTargetView(target!, EditorPropertySection.Graph).GetProperties().Count > 0;
-                    ConfigureWidgetPropertyTabs(includeAppearance, includeData, includeGauge, includeStates, includeImage, includeText, includeGraph);
+                    var includeCalculator = CreatePropertyTargetView(target!, EditorPropertySection.Calculator).GetProperties().Count > 0;
+                    ConfigureWidgetPropertyTabs(includeAppearance, includeData, includeGauge, includeStates, includeImage, includeText, includeGraph, includeCalculator);
 
                     _generalPropertyTab.Enabled = true;
                     _panelPropertyTab.Enabled = true;
@@ -293,6 +296,7 @@ internal sealed partial class EditorForm
                     _statesPropertyTab.Enabled = true;
                     _imagePropertyTab.Enabled = true;
                     _textPropertyTab.Enabled = true;
+                    _calculatorPropertyTab.Enabled = true;
                     _actionPropertyTab.Enabled = true;
 
                     var preferredPage = GetPropertyTab(_lastWidgetPropertySection);
@@ -339,7 +343,7 @@ internal sealed partial class EditorForm
             _ => throw new InvalidOperationException($"Unsupported property target '{target.GetType().Name}'.")
         };
 
-    private void ConfigureWidgetPropertyTabs(bool includeAppearance, bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText, bool includeGraph = false)
+    private void ConfigureWidgetPropertyTabs(bool includeAppearance, bool includeData, bool includeGauge, bool includeStates, bool includeImage, bool includeText, bool includeGraph = false, bool includeCalculator = false)
     {
         var desired = new List<TabPage>
         {
@@ -360,6 +364,8 @@ internal sealed partial class EditorForm
             desired.Add(_imagePropertyTab);
         if (includeText)
             desired.Add(_textPropertyTab);
+        if (includeCalculator)
+            desired.Add(_calculatorPropertyTab);
         desired.Add(_actionPropertyTab);
 
         ConfigurePropertyTabs(desired);
@@ -437,7 +443,7 @@ internal sealed partial class EditorForm
             EditorPropertySection.Graph or
             EditorPropertySection.States or
             EditorPropertySection.Image or
-            EditorPropertySection.Text or EditorPropertySection.Action
+            EditorPropertySection.Text or EditorPropertySection.Calculator or EditorPropertySection.Action
                 ? PropertySort.NoSort
                 : PropertySort.Categorized;
         SetPropertyGridSelectedObject(CreatePropertyTargetView(target, section));
@@ -492,6 +498,11 @@ internal sealed partial class EditorForm
             section = EditorPropertySection.Text;
             return true;
         }
+        if (ReferenceEquals(page, _calculatorPropertyTab))
+        {
+            section = EditorPropertySection.Calculator;
+            return true;
+        }
         if (ReferenceEquals(page, _actionPropertyTab))
         {
             section = EditorPropertySection.Action;
@@ -512,6 +523,7 @@ internal sealed partial class EditorForm
         EditorPropertySection.States => _statesPropertyTab,
         EditorPropertySection.Image => _imagePropertyTab,
         EditorPropertySection.Text => _textPropertyTab,
+        EditorPropertySection.Calculator => _calculatorPropertyTab,
         EditorPropertySection.Action => _actionPropertyTab,
         _ => null
     };

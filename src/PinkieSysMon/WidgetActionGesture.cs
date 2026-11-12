@@ -31,7 +31,7 @@ internal sealed class WidgetActionGesture(uint doubleClickMs, Size doubleClickSi
         return true;
     }
 
-    public bool Up(string? id, long generation, Point point, bool single)
+    public bool Up(string? id, long generation, Point point, bool single, bool repeatSingleClick = false)
     {
         var press = _press;
         _press = null;
@@ -42,7 +42,7 @@ internal sealed class WidgetActionGesture(uint doubleClickMs, Size doubleClickSi
             return false;
         }
         if (!press.IsSecond) _firstClick = press;
-        return single ? !press.IsSecond : press.IsSecond;
+        return single ? repeatSingleClick || !press.IsSecond : press.IsSecond;
     }
 
     public void Cancel() { _press = null; _firstClick = null; Dragged = false; }

@@ -4,26 +4,33 @@ using C = PinkieSysMon.DashboardModel;
 namespace PinkieSysMon;
 
 internal sealed record WidgetActionInteraction(string Id, RectangleF Bounds, double Rotation, int Z, int Order,
-    string Target, string Arguments, bool SingleClick, string RunAs = C.WidgetActionDefinition.User)
+    string Target, string Arguments, bool SingleClick, string RunAs = C.WidgetActionDefinition.User,
+    string? CalculatorKey = null, PointF? RotationCenter = null)
 {
+    public bool IsCalculatorKey => CalculatorKey is not null;
+
     public bool Contains(double x, double y)
     {
         var angle = Rotation % 360 * Math.PI / 180;
-        var dx = x - (Bounds.Left + Bounds.Width / 2d);
-        var dy = y - (Bounds.Top + Bounds.Height / 2d);
-        var localX = dx * Math.Cos(angle) + dy * Math.Sin(angle) + Bounds.Width / 2d;
-        var localY = -dx * Math.Sin(angle) + dy * Math.Cos(angle) + Bounds.Height / 2d;
-        return localX >= 0 && localX < Bounds.Width && localY >= 0 && localY < Bounds.Height;
+        var cx = RotationCenter?.X ?? Bounds.Left + Bounds.Width / 2d;
+        var cy = RotationCenter?.Y ?? Bounds.Top + Bounds.Height / 2d;
+        var dx = x - cx;
+        var dy = y - cy;
+        var localX = dx * Math.Cos(angle) + dy * Math.Sin(angle) + cx;
+        var localY = -dx * Math.Sin(angle) + dy * Math.Cos(angle) + cy;
+        return localX >= Bounds.Left && localX < Bounds.Right &&
+               localY >= Bounds.Top && localY < Bounds.Bottom;
     }
 
     internal (int Left, int Right)? Row(int y, int width)
     {
         var angle = Rotation % 360 * Math.PI / 180;
         var cos = Math.Cos(angle); var sin = Math.Sin(angle);
-        var cx = Bounds.Left + Bounds.Width / 2d; var cy = Bounds.Top + Bounds.Height / 2d;
+        var cx = RotationCenter?.X ?? Bounds.Left + Bounds.Width / 2d;
+        var cy = RotationCenter?.Y ?? Bounds.Top + Bounds.Height / 2d;
         double left = .5, right = width - .5;
-        if (!Constrain(cos, sin * (y + .5 - cy) - cos * cx + Bounds.Width / 2d, Bounds.Width, ref left, ref right) ||
-            !Constrain(-sin, cos * (y + .5 - cy) + sin * cx + Bounds.Height / 2d, Bounds.Height, ref left, ref right)) return null;
+        if (!Constrain(cos, sin * (y + .5 - cy) + cx * (1d - cos) - Bounds.Left, Bounds.Width, ref left, ref right) ||
+            !Constrain(-sin, cos * (y + .5 - cy) + sin * cx + cy - Bounds.Top, Bounds.Height, ref left, ref right)) return null;
         // Expand the candidate by one pixel, then use the exact dispatch predicate at both edges.
         var first = Math.Max(0, (int)Math.Ceiling(left - .5) - 1);
         var last = Math.Min(width - 1, (int)Math.Floor(right - .5) + 1);
@@ -61,16 +68,27 @@ internal sealed class WidgetActionInteractionMap
         // Static Gauge geometry does not require this refresh.
         HasDerivedGeometry = dashboard.Widgets.Any(w => w.Action.IsActive &&
             w is C.ValueWidgetDefinition or C.StateVisualWidgetDefinition);
-        _frontToBack = dashboard.Widgets.Select((widget, index) => (widget, index))
-            .Where(entry => entry.widget.Action.IsActive)
-            .Select(entry =>
+        _frontToBack = dashboard.Widgets.SelectMany((widget, index) =>
+        {
+            var entries = new List<WidgetActionInteraction>();
+            if (widget.Action.IsActive)
             {
-                var widget = entry.widget;
                 var action = widget.Action;
-                return new WidgetActionInteraction(widget.Id!, panelBounds?.Invoke(widget) ?? new RectangleF(widget.X, widget.Y, widget.Width, widget.Height), widget.Rotation,
-                    widget.Z, entry.index, action.Target, action.Arguments,
-                    action.Activation == C.WidgetActionDefinition.SingleClick, action.RunAs);
-            }).OrderByDescending(s => s.Z).ThenByDescending(s => s.Order).ToArray();
+                entries.Add(new WidgetActionInteraction(widget.Id!,
+                    panelBounds?.Invoke(widget) ?? new RectangleF(widget.X, widget.Y, widget.Width, widget.Height),
+                    widget.Rotation, widget.Z, index, action.Target, action.Arguments,
+                    action.Activation == C.WidgetActionDefinition.SingleClick, action.RunAs));
+            }
+            if (widget is C.CalculatorWidgetDefinition calculator)
+            {
+                var center = new PointF(widget.X + widget.Width / 2f, widget.Y + widget.Height / 2f);
+                foreach (var key in CalculatorGeometry.Keys(calculator))
+                    entries.Add(new WidgetActionInteraction(widget.Id!, key.Bounds, widget.Rotation, widget.Z,
+                        index, string.Empty, string.Empty, true, CalculatorKey: key.Caption, RotationCenter: center));
+            }
+            return entries;
+        }).OrderByDescending(s => s.Z).ThenByDescending(s => s.Order)
+          .ThenByDescending(s => s.IsCalculatorKey).ToArray();
     }
 
     public WidgetActionInteraction? Hit(Point pixel)

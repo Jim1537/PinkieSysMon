@@ -13,6 +13,7 @@ internal static class EditorAddWidgetMenuContract
     private static readonly Entry[] Entries =
     [
         new(WidgetTypeContract.Binary, "Binary Indicator", Group.Basic),
+        new(WidgetTypeContract.Calculator, "Calculator", Group.Basic),
         new(WidgetTypeContract.Gauge, "Gauge", Group.Basic),
         new(WidgetTypeContract.Graph, "History Graph", Group.Basic),
         new(WidgetTypeContract.Image, "Image / Icon", Group.Basic),

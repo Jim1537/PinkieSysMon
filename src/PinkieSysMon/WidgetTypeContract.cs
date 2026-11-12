@@ -8,6 +8,7 @@ internal static class WidgetTypeContract
     public const string Graph = "graph";
     public const string Image = "image";
     public const string Binary = "binary";
+    public const string Calculator = "calculator";
     public const string Power = "power";
     public const string MediaSystem = "media.system";
     public const string MediaPlayer = "media.player";
@@ -20,6 +21,7 @@ internal static class WidgetTypeContract
         Graph,
         Image,
         Binary,
+        Calculator,
         Power,
         MediaSystem,
         MediaPlayer

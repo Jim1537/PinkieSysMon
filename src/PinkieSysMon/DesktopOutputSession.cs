@@ -58,7 +58,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         _interactions = new WidgetActionInteractionMap(dashboard);
         var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
-        _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log);
+        _renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log, interactiveCalculators: true);
         IDesktopOutputWindow? window = null;
         DesktopCanvasShadowCompositor? shadow = null;
         try
@@ -73,6 +73,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             window.ConfigureViewport(viewport);
             window.Configure(target.Name, viewport.Canvas, LocationFor(target), IntervalFor(config, target),
                 target.Desktop?.Lock ?? true);
+            window.ConfigureCalculatorInput(PressCalculator);
             window.ConfigureInteractions(_interactions);
             _window = window;
             _shadowCompositor = shadow;
@@ -84,6 +85,19 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
             window?.Dispose();
             _renderer.Dispose();
             throw;
+        }
+    }
+
+    private void PressCalculator(string id, string key, IntPtr clipboardOwner)
+    {
+        try
+        {
+            if (_renderer.PressCalculator(id, key, clipboardOwner))
+                _window.RequestFrame();
+        }
+        catch (Exception error)
+        {
+            _log.Warn($"Desktop calculator click failed; widget={id}.", error);
         }
     }
 
@@ -170,7 +184,7 @@ internal sealed class DesktopOutputSession : IOutputSession, IDesktopStackSessio
 
         var viewport = DesktopCanvasViewport.Create(dashboard.Canvas);
         var interactions = new WidgetActionInteractionMap(dashboard);
-        var renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log);
+        var renderer = new DashboardRenderer(dashboard, history: _metrics.History, log: _log, interactiveCalculators: true);
         try
         {
             var shadow = viewport.HasShadow ? new DesktopCanvasShadowCompositor(viewport, dashboard.Canvas) : null;
@@ -480,6 +494,7 @@ internal interface IDesktopOutputWindow : IDisposable
     void Configure(string title, Size clientPixels, Point location, int refreshMs, bool locked);
     // Default interface implementation keeps existing test windows and non-native consumers compatible.
     void ConfigureViewport(DesktopCanvasViewport viewport) { }
+    void ConfigureCalculatorInput(Action<string, string, IntPtr> press) { }
     void ConfigureInteractions(WidgetActionInteractionMap interactions) { }
     void RefreshInteractions(WidgetActionInteractionMap interactions) { }
     void ShowWindow();
@@ -503,6 +518,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private readonly System.Windows.Forms.Timer _moveDebounce = new() { Interval = 500 };
     private DesktopLayeredSurface? _surface;
     private DesktopWidgetActionInput? _input;
+    private Action<string, string, IntPtr>? _calculatorInput;
     private readonly Action<int> _reportWidgetActionFailure;
     private Size _canvas;
     private DesktopCanvasViewport? _viewport;
@@ -593,6 +609,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         finally { _configuring = false; }
     }
 
+    public void ConfigureCalculatorInput(Action<string, string, IntPtr> press) =>
+        _calculatorInput = press ?? throw new ArgumentNullException(nameof(press));
+
     public void ConfigureInteractions(WidgetActionInteractionMap interactions)
     {
         DesktopWidgetActionInput? candidate = null;
@@ -600,7 +619,7 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         {
             if (!interactions.IsEmpty)
                 candidate = new DesktopWidgetActionInput(interactions, this, _locked, BeginWidgetActionDrag,
-                    _reportWidgetActionFailure, _log, _viewport);
+                    _reportWidgetActionFailure, _log, _viewport, _calculatorInput);
             var previous = _input; _input = candidate; candidate = null;
             previous?.Dispose();
             if (Visible) _input?.ShowRestricted();

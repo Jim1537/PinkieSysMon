@@ -89,6 +89,12 @@ internal static partial class Program
                 ("Configurable Canvas geometry", ConfigurableCanvasGeometry),
                 ("Configurable Canvas render surfaces", ConfigurableCanvasRenderSurfaces),
             ]),
+            ("Widgets / Calculator", [
+                ("arithmetic, entry and error handling", CalculatorWidgetTests.ArithmeticAndErrorRecovery),
+                ("clipboard, invalid input and state isolation", CalculatorWidgetTests.ClipboardAndIsolation),
+                ("Desktop key routing, rotation and gesture cancellation", CalculatorWidgetTests.InteractionAndGeometry),
+                ("schema migration, persistence and Editor property tabs", CalculatorWidgetTests.PersistenceAndEditorProperties),
+            ]),
             ("Widgets / Bar", [
                 ("Bar image property visibility", BarImagePropertyVisibility),
                 ("Bar image progress modes", BarImageProgressModes),

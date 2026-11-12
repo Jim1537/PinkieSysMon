@@ -17,6 +17,7 @@ internal enum EditorPropertySection
     States,
     Image,
     Text,
+    Calculator,
     Action
 }
 

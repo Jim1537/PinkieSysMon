@@ -133,6 +133,12 @@ internal sealed class TypefaceCache : IDisposable
             yield break;
         }
 
+        if (widget is CanonicalDashboard.CalculatorWidgetDefinition calculator)
+        {
+            yield return new FontRequest(calculator.FontFamily.Trim(), 400, false);
+            yield break;
+        }
+
         if (widget is not CanonicalDashboard.StateVisualWidgetDefinition stateWidget)
             yield break;
 

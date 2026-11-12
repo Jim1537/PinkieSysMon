@@ -38,6 +38,7 @@ The toolbar **Add widget** dropdown and **Edit → Add Widget** show the same al
 **Basic widgets**
 
 - **[Binary Indicator](widgets/binary.md)** — configurable two-state text, icons, or images.
+- **[Calculator](widgets/calculator.md)** — simple mouse-driven arithmetic on Windows Desktop panels.
 - **[Gauge](widgets/gauge.md)** — radial numeric indicator with ranges and thresholds.
 - **[History Graph](widgets/graph.md)** — historical metric values plotted over time.
 - **[Image / Icon](widgets/image.md)** — static or animated images and icons.

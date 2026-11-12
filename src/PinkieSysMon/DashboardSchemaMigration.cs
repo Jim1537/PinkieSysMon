@@ -28,7 +28,8 @@ internal static class DashboardSchemaMigration
     public const int WidgetActionSchemaVersion = 31;
     public const int ShadowColorAlphaSchemaVersion = 32;
     public const int WidgetActionRunAsSchemaVersion = 33;
-    public const int CurrentSchemaVersion = WidgetActionRunAsSchemaVersion;
+    public const int CalculatorSchemaVersion = 34;
+    public const int CurrentSchemaVersion = CalculatorSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -52,7 +53,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion or ShadowColorAlphaSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion or ShadowColorAlphaSchemaVersion or WidgetActionRunAsSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -179,6 +180,13 @@ internal static class DashboardSchemaMigration
                 throw new InvalidDataException("Legacy Action Run as must be User.");
             root["schemaVersion"] = WidgetActionRunAsSchemaVersion;
             schemaVersion = WidgetActionRunAsSchemaVersion;
+        }
+
+        if (schemaVersion == WidgetActionRunAsSchemaVersion)
+        {
+            // Existing widgets retain their meaning. Calculator is a new optional type.
+            root["schemaVersion"] = CalculatorSchemaVersion;
+            schemaVersion = CalculatorSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

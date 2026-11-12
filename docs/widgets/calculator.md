@@ -1,0 +1,42 @@
+# Calculator
+
+## User Guide
+
+Add **Calculator** using **Add Widget → Calculator** in the Dashboard Editor. The default 240 × 330 Panel contains a readout and fixed keypad. Resize or rotate the Panel normally; the buttons, text, spacing, and clickable regions scale together.
+
+Only a **Windows Desktop Output** accepts mouse input. Editor preview and physical-device Outputs draw the same keypad with a **0** readout but never perform calculations, capture input, or use the clipboard. Calculator is independent of telemetry.
+
+| Keys | Behavior |
+| --- | --- |
+| 0–9, decimal point, ±, ⌫ | Enter and edit the current number |
+| +, −, ×, ÷, = | Left-to-right chained arithmetic; equals can repeat the last operation |
+| C, CE | Clear everything, or clear the current entry |
+| Copy, Paste | Copy the numeric readout to the Windows clipboard, or enter a valid numeric clipboard value |
+
+Divide-by-zero and unrepresentable results show **Error**; use C or CE to recover. Paste accepts a single finite signed decimal value (including ordinary scientific notation), but ignores ambiguous, nonnumeric, or unavailable clipboard contents. Copy/Paste are activated only by clicking their Desktop keys. Clipboard failures do not display modal dialogs.
+
+### Interaction and Action
+
+Calculator keys always take precedence over the inherited **Action**. Configure **Action → Activation/Target** to launch an optional Windows Shell action when clicking the readout or remaining unused Panel space. **Action = None** does not disable calculator keys. Desktop **Lock** permits the active key/Action hit regions while ordinary inactive areas remain click-through; an unlocked panel retains normal drag behavior. The Calculator does not accept keyboard input.
+
+### Appearance
+
+The dedicated **Calculator** property tab contains only:
+
+| Group | Property |
+| --- | --- |
+| Buttons | Fill Color, Border Color, Border Width, Text Color |
+| Display | Text Color |
+| Font | Family |
+
+These settings are independent of the common **Panel** background, foreground, border, corner radius, shadow, padding, rotation, and Action. The common **General → Data Source → Metric** remains visible as **Not applicable**. A single bundled font family applies to keys and readout; font sizes are automatic. See [Property Dictionary](properties.md#calculator-specific-properties).
+
+## Technical Information
+
+Canonical type: `calculator`. Introduced by **dashboard schema 34**. The persisted widget has all common Panel/Action properties and six calculator appearance fields: `buttonFillColor`, `buttonBorderColor`, `buttonBorderWidth`, `buttonTextColor`, `displayTextColor`, and `fontFamily`. An existing schema-33 dashboard upgrades to 34 without changing widget data.
+
+The shared Skia renderer draws the same static keypad for Editor and physical Outputs. Each active Desktop renderer owns a separate transient calculation state per calculator widget ID; normal refreshes and window movement preserve it, while a new session or dashboard reload resets it. State and clipboard text are **never serialized** or published as telemetry.
+
+Native Desktop mouse routing uses the existing [restricted input companion](../outputs/desktop.md#placement-dpi-and-mouse-routing), with the same key geometry shared by drawing and hit-testing; keys are resolved ahead of their Panel Action in the same Z layer. No separate native calculator control, additional process, USB touch handling, global mouse/keyboard hook, or Shell activation from a key click is involved.
+
+Older application releases do not recognize the new schema/widget type. Retain an older dashboard copy if rollback to a pre-34 build is required.

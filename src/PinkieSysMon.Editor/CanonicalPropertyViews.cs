@@ -198,6 +198,7 @@ internal static class CanonicalPropertyViewBuilder
             EditorPropertySection.States => BuildStates(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Image => BuildImage(widget, applicationRoot, dashboardDirectory),
             EditorPropertySection.Text => BuildText(widget, applicationRoot),
+            EditorPropertySection.Calculator => BuildCalculator(widget, applicationRoot),
             EditorPropertySection.Action => BuildAction(widget),
             EditorPropertySection.All => BuildAll(widget, applicationRoot, dashboardDirectory, mediaEndpoints, endpointTypeOverrides, effectiveSizeAccessor),
             _ => []
@@ -217,7 +218,7 @@ internal static class CanonicalPropertyViewBuilder
                  {
                      EditorPropertySection.General, EditorPropertySection.Panel, EditorPropertySection.Appearance, EditorPropertySection.Data,
                      EditorPropertySection.Gauge, EditorPropertySection.Graph, EditorPropertySection.States, EditorPropertySection.Image,
-                     EditorPropertySection.Text, EditorPropertySection.Action
+                     EditorPropertySection.Text, EditorPropertySection.Calculator, EditorPropertySection.Action
                  })
         {
             result.AddRange(BuildWidget(widget, section, applicationRoot, dashboardDirectory, mediaEndpoints, endpointTypeOverrides, effectiveSizeAccessor));
@@ -297,7 +298,7 @@ internal static class CanonicalPropertyViewBuilder
             _ => "Not applicable"
         };
         return new CanonicalPropertyDescriptor("Metric", key, "Metric", widget, typeof(string), () => DisplayBinding(), null,
-            editor: MetricEditor, description: widget is C.ImageWidgetDefinition
+            editor: MetricEditor, description: widget is C.ImageWidgetDefinition or C.CalculatorWidgetDefinition
                 ? "Not applicable to this widget." : "Binding determined by the widget source.");
     }
 
@@ -417,6 +418,36 @@ internal static class CanonicalPropertyViewBuilder
         }
 
         return rows;
+    }
+
+    private static List<PropertyDescriptor> BuildCalculator(C.WidgetDefinition widget, string? applicationRoot)
+    {
+        if (widget is not C.CalculatorWidgetDefinition calculator) return [];
+        var fontConverter = string.IsNullOrWhiteSpace(applicationRoot)
+            ? null
+            : BundledFontFamilyConverter.Create(applicationRoot);
+        return [
+            Group("Buttons", [
+                Color(calculator, nameof(calculator.ButtonFillColor), "calculator.buttons.fill",
+                    "Fill Color", () => calculator.ButtonFillColor, v => calculator.ButtonFillColor = v),
+                Color(calculator, nameof(calculator.ButtonBorderColor), "calculator.buttons.border_color",
+                    "Border Color", () => calculator.ButtonBorderColor, v => calculator.ButtonBorderColor = v),
+                Float(calculator, nameof(calculator.ButtonBorderWidth), "calculator.buttons.border_width",
+                    "Border Width", () => calculator.ButtonBorderWidth, v => calculator.ButtonBorderWidth = Math.Max(0f, v)),
+                Color(calculator, nameof(calculator.ButtonTextColor), "calculator.buttons.text_color",
+                    "Text Color", () => calculator.ButtonTextColor, v => calculator.ButtonTextColor = v)
+            ]),
+            Group("Display", [
+                Color(calculator, nameof(calculator.DisplayTextColor), "calculator.display.text_color",
+                    "Text Color", () => calculator.DisplayTextColor, v => calculator.DisplayTextColor = v)
+            ]),
+            Group("Font", [
+                String(calculator, nameof(calculator.FontFamily), "calculator.font.family",
+                    "Family", () => calculator.FontFamily,
+                    v => calculator.FontFamily = Convert.ToString(v)?.Trim() ?? "Roboto",
+                    converter: fontConverter)
+            ])
+        ];
     }
 
     private static List<PropertyDescriptor> BuildAction(C.WidgetDefinition widget)

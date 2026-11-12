@@ -23,6 +23,7 @@ internal sealed class DashboardRenderer : IDisposable
     private readonly ImageAssetCache _imageAssets;
     private readonly IconAssetCache _iconAssets;
     private readonly RenderEntry[] _renderEntries;
+    private readonly Dictionary<string, CalculatorState>? _calculatorStates;
     private readonly int _logicalWidth;
     private readonly int _logicalHeight;
     private readonly CanvasPanelGraphics _canvasPanel;
@@ -30,10 +31,15 @@ internal sealed class DashboardRenderer : IDisposable
     private int _owners = 1;
 
 
-    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null, FileLogger? log = null)
+    public DashboardRenderer(CanonicalDashboardDefinition definition, Func<DateTime>? frameClockNow = null, MetricHistoryStore? history = null, FileLogger? log = null,
+        bool interactiveCalculators = false)
     {
         _definition = definition;
         _frameClockNow = frameClockNow;
+        _calculatorStates = interactiveCalculators
+            ? definition.Widgets.OfType<global::PinkieSysMon.DashboardModel.CalculatorWidgetDefinition>()
+                .ToDictionary(w => w.Id!, _ => new CalculatorState(), StringComparer.OrdinalIgnoreCase)
+            : null;
         _nativeWidth = definition.Canvas.Width;
         _nativeHeight = definition.Canvas.Height;
         _orientation = definition.Canvas.Orientation;
@@ -66,7 +72,9 @@ internal sealed class DashboardRenderer : IDisposable
             renderContext = new WidgetRenderContext(
                 new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
                 RenderQuality.Antialias,
-                typefaceCache, history);
+                typefaceCache, history, widget =>
+                    _calculatorStates is not null && _calculatorStates.TryGetValue(widget.Id!, out var state)
+                        ? state.Readout : "0");
 
             logicalSurface = SKSurface.Create(new SKImageInfo(logical.Width, logical.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
                 ?? throw new InvalidOperationException("Failed to create logical Skia surface.");
@@ -130,6 +138,13 @@ internal sealed class DashboardRenderer : IDisposable
             typefaceCache?.Dispose();
             throw;
         }
+    }
+
+    internal bool PressCalculator(string id, string key, IntPtr clipboardOwner)
+    {
+        if (_calculatorStates is null || !_calculatorStates.TryGetValue(id, out var state)) return false;
+        return state.Press(key, WindowsCalculatorClipboard.ReadText,
+            text => WindowsCalculatorClipboard.WriteText(clipboardOwner, text));
     }
 
     internal string ResourceSummary => $"images={_imageAssets.ResourceCount}; imageBytes={_imageAssets.DecodedBytes}; icons={_iconAssets.ResourceCount}; iconBytes={_iconAssets.DecodedBytes}; fonts={_typefaceCache.LoadedFaces}";
