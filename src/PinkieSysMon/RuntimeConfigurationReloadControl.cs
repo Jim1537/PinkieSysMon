@@ -30,7 +30,15 @@ internal sealed class RuntimeConfigurationReloadControl(
             var appBytes = File.ReadAllBytes(appPath);
             var telemetryBytes = File.Exists(telemetryPath) ? File.ReadAllBytes(telemetryPath) : null;
             var app = AppConfig.Load(appPath, log);
-            var telemetry = TelemetryConfig.Load(telemetryPath, sources, log);
+            // Normalize the new metric catalog before mutating the active source.
+            // Otherwise a newly admitted source's explicit polling policy is lost.
+            var activeFilesystem = sources.OfType<FilesystemTelemetrySource>().SingleOrDefault();
+            using var pendingFilesystem = activeFilesystem is null
+                ? null : new FilesystemTelemetrySource(app.Filesystem, log);
+            IReadOnlyCollection<IMetricSource> candidateSources = pendingFilesystem is null
+                ? sources
+                : [.. sources.Where(source => !ReferenceEquals(source, activeFilesystem)), pendingFilesystem];
+            var telemetry = TelemetryConfig.Load(telemetryPath, candidateSources, log);
             operation.Phase("dashboard.validate");
             var boards = RuntimeConfigurationValidator.LoadEnabledAssignments(app, applicationRoot);
             var next = new RuntimeConfigurationSnapshot(app, telemetry, boards);
@@ -51,6 +59,8 @@ internal sealed class RuntimeConfigurationReloadControl(
             }
             operation.Phase("conflict.inputs");
             EnsureInputs();
+            var filesystemSource = sources.OfType<FilesystemTelemetrySource>().SingleOrDefault();
+            var filesystemAttempted = false;
             var outputCommitted = false;
             var telemetryAttempted = false;
             var mediaAttempted = false;
@@ -58,6 +68,14 @@ internal sealed class RuntimeConfigurationReloadControl(
             var runtimeAttempted = false;
             try
             {
+                operation.Phase("filesystem.configure");
+                filesystemAttempted = filesystemSource is not null;
+                filesystemSource?.ReplaceSources(app.Filesystem);
+                // Descriptor meaning must be visible before the telemetry/history
+                // prepare/commit path sees newly admitted metric IDs.
+                catalogAttempted = true;
+                MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+                    FilesystemSourceContract.DescriptorsFor(app.Filesystem.Sources));
                 operation.Phase("outputs.apply");
                 sessions.Reconfigure(app, boards, EnsureInputs);
                 outputCommitted = true;
@@ -100,10 +118,13 @@ internal sealed class RuntimeConfigurationReloadControl(
                     }
                 }
                 if (mediaAttempted) Recover(() => applyMedia(previousMedia), "media");
+                // Restore the old dynamic source catalog before reconstructing
+                // the previous telemetry schedule and its enabled metric demand.
+                if (filesystemAttempted) Recover(() => filesystemSource!.ReplaceSources(previous.App.Filesystem), "filesystem");
                 if (outputCommitted) Recover(() => sessions.Reconfigure(previous.App, previous.Boards), "outputs");
+                if (catalogAttempted) Recover(() => PublishConfiguration(previous.App), "catalog/version");
                 if (telemetryAttempted) Recover(() => telemetryEngine.Reconfigure(previous.Telemetry,
                     MetricProviderContract.GetEnabledProviderIds(previous.App.MetricProviders), previousRequired), "telemetry");
-                if (catalogAttempted) Recover(() => PublishConfiguration(previous.App), "catalog/version");
                 if (runtimeAttempted) Recover(() => commitRuntime(previous), "committed state");
                 if (failures.Count > 0)
                     throw new AggregateException("Configuration reload failed and subsystem recovery was incomplete.",
@@ -122,6 +143,8 @@ internal sealed class RuntimeConfigurationReloadControl(
     private void PublishConfiguration(AppConfig app)
     {
         MetricContract.ReplaceOutputDescriptors(app.Outputs.Targets);
+        MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+            FilesystemSourceContract.DescriptorsFor(app.Filesystem.Sources));
         metrics.Publish(RuntimeMetricContract.Version,
             MetricProviderContract.IsEnabled(app.MetricProviders, MetricProviderContract.System)
                 ? RuntimeVersion.Current : null);

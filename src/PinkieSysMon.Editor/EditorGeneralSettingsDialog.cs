@@ -37,6 +37,9 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         AutoSize = true
     };
     private readonly CheckBox _icueProvider = new() { Text = "iCUE", AutoSize = true };
+    private readonly CheckBox _filesystemProvider = new() { Text = "Filesystem", AutoSize = true };
+    private readonly Button _filesystemSourcesButton = new() { Text = "Sources...", AutoSize = true };
+    private IReadOnlyList<FilesystemSourceConfig> _filesystemSources = [];
     private readonly ComboBox _toolbarIconSize = new()
     {
         DropDownStyle = ComboBoxStyle.DropDownList,
@@ -78,6 +81,20 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
         _systemProvider.Checked = systemProviderEnabled;
         _libreHardwareMonitorProvider.Checked = libreHardwareMonitorProviderEnabled;
         _icueProvider.Checked = icueProviderEnabled;
+        _filesystemProvider.Checked = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.Filesystem);
+        _filesystemSources = config.Filesystem.Sources.Select(source => source.Copy()).ToArray();
+        _filesystemProvider.CheckedChanged += (_, _) =>
+        {
+            if (!_filesystemProvider.Checked) return;
+            using var warning = new FilesystemEnableWarningDialog();
+            if (warning.ShowDialog(this) != DialogResult.OK) _filesystemProvider.Checked = false;
+        };
+        _filesystemSourcesButton.Click += (_, _) =>
+        {
+            using var manager = new FilesystemSourcesDialog(_filesystemSources);
+            if (manager.ShowDialog(this) == DialogResult.OK)
+                _filesystemSources = manager.Sources;
+        };
         _toolbarIconSize.Items.AddRange(["16 × 16", "32 × 32", "48 × 48"]);
         _toolbarIconSize.SelectedIndex = toolbarIconSize switch { 16 => 0, 48 => 2, _ => 1 };
         _theme.Items.AddRange([
@@ -194,10 +211,20 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Padding = new Padding(12)
         };
-        providersGroup.Controls.Add(_help.ToggleRows(
+        var providerLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1, RowCount = 2
+        };
+        providerLayout.Controls.Add(_help.ToggleRows(
             (_systemProvider, EditorSettingsHelp.SystemProvider),
             (_libreHardwareMonitorProvider, EditorSettingsHelp.LhmProvider),
-            (_icueProvider, EditorSettingsHelp.IcueProvider)));
+            (_icueProvider, EditorSettingsHelp.IcueProvider),
+            (_filesystemProvider, EditorSettingsHelp.FilesystemProvider)), 0, 0);
+        var sourcesRow = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(4) };
+        sourcesRow.Controls.Add(_filesystemSourcesButton);
+        providerLayout.Controls.Add(sourcesRow, 0, 1);
+        providersGroup.Controls.Add(providerLayout);
 
         var interfaceGroup = new GroupBox
         {
@@ -273,6 +300,9 @@ internal sealed class EditorGeneralSettingsDialog : PinkieEditorForm
     public bool SystemProviderEnabled => _systemProvider.Checked;
     public bool LibreHardwareMonitorProviderEnabled => _libreHardwareMonitorProvider.Checked;
     public bool IcueProviderEnabled => _icueProvider.Checked;
+    public bool FilesystemProviderEnabled => _filesystemProvider.Checked;
+    public IReadOnlyList<FilesystemSourceConfig> FilesystemSources =>
+        _filesystemSources.Select(source => source.Copy()).ToArray();
     public int ToolbarIconSize => _toolbarIconSize.SelectedIndex switch { 0 => 16, 2 => 48, _ => 32 };
     public EditorThemeMode ThemeMode => EditorThemeContract.Parse(_theme.SelectedItem as string);
 

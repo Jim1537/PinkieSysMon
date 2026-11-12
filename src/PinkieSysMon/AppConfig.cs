@@ -11,6 +11,7 @@ internal sealed class AppConfig
     public UsbConfig Usb { get; set; } = new();
     public MediaConfig Media { get; set; } = new();
     public Dictionary<string, bool> MetricProviders { get; set; } = MetricProviderContract.CreateDefaults();
+    public FilesystemConfig Filesystem { get; set; } = new();
 
     public static AppConfig Load(string path, FileLogger log)
     {
@@ -65,8 +66,8 @@ internal sealed class AppConfig
     private void Validate()
     {
         if (Display is null || Runtime is null || Outputs is null ||
-            Renderer is null || Usb is null || Media is null)
-            throw new InvalidDataException("Application config requires Display, Runtime, Outputs, Renderer, Usb and Media objects.");
+            Renderer is null || Usb is null || Media is null || Filesystem is null)
+            throw new InvalidDataException("Application config requires Display, Runtime, Outputs, Renderer, Usb, Media and Filesystem objects.");
         if (Outputs.Targets is null)
             throw new InvalidDataException("Outputs.Targets must be an array of configured outputs.");
         if (Outputs.IgnoredDeviceNodeKeys is null || Outputs.IgnoredDeviceNodeKeys.Any(key =>
@@ -98,6 +99,7 @@ internal sealed class AppConfig
             throw new InvalidDataException("Usb.TransferTimeoutMs must be at least 500 ms.");
 
         MetricProviders = MetricProviderContract.Normalize(MetricProviders);
+        FilesystemSourceContract.Validate(Filesystem);
 
         Media.EndpointTypeOverrides ??= new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var pair in Media.EndpointTypeOverrides)

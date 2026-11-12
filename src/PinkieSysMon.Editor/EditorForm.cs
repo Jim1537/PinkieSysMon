@@ -195,6 +195,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _log = logger ?? new FileLogger(Path.Combine(root, "logs", "PinkieSysMon.Editor.log"), "Editor");
         _appConfigPath = Path.Combine(root, "config", "app.json");
         _appConfig = AppConfig.Load(_appConfigPath, _log);
+        MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+            FilesystemSourceContract.DescriptorsFor(_appConfig.Filesystem.Sources));
         _systemTelemetry = new WindowsSystemTelemetrySource(_log);
         _networkTelemetry = new WindowsNetworkTelemetrySource(_log);
         _powerTelemetry = new WindowsPowerTelemetrySource(_log);
@@ -743,11 +745,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         var providersChanged =
             dialog.SystemProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.System) ||
             dialog.LibreHardwareMonitorProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.LibreHardwareMonitor) ||
-            dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue);
+            dialog.IcueProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Icue) ||
+            dialog.FilesystemProviderEnabled != MetricProviderContract.IsEnabled(runtimeConfig.MetricProviders, MetricProviderContract.Filesystem);
+        var sourcesChanged = !FilesystemSourceContract.SameSources(runtimeConfig.Filesystem.Sources, dialog.FilesystemSources);
         var idleChanged = dialog.RuntimeIdleTimeoutMinutes != runtimeConfig.Runtime.IdleTimeoutMinutes;
         var retentionChanged = dialog.LogRetentionDays != runtimeConfig.Runtime.LogRetentionDays;
         var sharpnessChanged = dialog.RasterSharpness != runtimeConfig.Renderer.RasterSharpness;
-        var runtimeChanged = providersChanged || idleChanged || retentionChanged || sharpnessChanged;
+        var runtimeChanged = providersChanged || sourcesChanged || idleChanged || retentionChanged || sharpnessChanged;
         var interfaceChanged = dialog.ToolbarIconSize != _toolbarIconSize;
         var themeChanged = dialog.ThemeMode != _themeMode;
 
@@ -757,7 +761,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
         using var operation = new LogOperation(_log, "editor.settings.general");
         operation.Phase("draft.accepted", "changedProperties=" + string.Join(",", new[]
         {
-            providersChanged ? "MetricProviders" : null, idleChanged ? "Runtime.IdleTimeoutMinutes" : null,
+            providersChanged ? "MetricProviders" : null, sourcesChanged ? "Filesystem.Sources" : null,
+            idleChanged ? "Runtime.IdleTimeoutMinutes" : null,
             retentionChanged ? "Runtime.LogRetentionDays" : null,
             sharpnessChanged ? "Renderer.RasterSharpness" : null,
             startupChanged ? "StartupTask" : null, interfaceChanged ? "ToolbarIconSize" : null,
@@ -774,9 +779,14 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 runtimeConfig.MetricProviders[MetricProviderContract.System] = dialog.SystemProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.LibreHardwareMonitor] = dialog.LibreHardwareMonitorProviderEnabled;
                 runtimeConfig.MetricProviders[MetricProviderContract.Icue] = dialog.IcueProviderEnabled;
+                runtimeConfig.MetricProviders[MetricProviderContract.Filesystem] = dialog.FilesystemProviderEnabled;
+                runtimeConfig.Filesystem.Sources = dialog.FilesystemSources.Select(source => source.Copy()).ToList();
                 runtimeReloaded = await ApplySettingsAndReloadRuntimeAsync(
                     appConfigPath, runtimeConfig, originalConfigBytes, operation.Id);
                 _appConfig.MetricProviders = MetricProviderContract.Normalize(runtimeConfig.MetricProviders);
+                _appConfig.Filesystem = runtimeConfig.Filesystem;
+                MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+                    FilesystemSourceContract.DescriptorsFor(_appConfig.Filesystem.Sources));
                 _appConfig.Runtime = runtimeConfig.Runtime;
                 _appConfig.Renderer = runtimeConfig.Renderer;
             }
@@ -808,9 +818,9 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
             if (sharpnessChanged)
                 RebuildPreviewRenderer();
-            if (providersChanged)
+            if (providersChanged || sourcesChanged)
                 RefreshPreviewTelemetry();
-            if (sharpnessChanged || providersChanged)
+            if (sharpnessChanged || providersChanged || sourcesChanged)
                 RenderPreview(force: true);
 
             if (themeChanged)
