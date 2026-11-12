@@ -225,6 +225,12 @@ These are the same three canonical Fit options regardless of which Image source 
 
 These asset paths have different owners: [Bar Image](bar.md#image-rendering) has a progress transform layered over file-backed fitting, whereas [state-driven visual profiles](profiles.md#state-visual-profiles) can restart supported animation when the selected state changes. Standalone Image uses its own `ImageVisual`/asset playback contract; shared caches do **not** make the three rendering or animation contracts interchangeable.
 
+### Raster Scaling and Resource Ownership
+
+The shared CPU raster path is used for dashboard file images and **raster** icons wherever they appear: Image widgets, Canvas and widget Panel layers, Graph artwork, state profiles, and Bar Image mode. On strong reductions it explicitly builds successive approximately half-size, bilinear-prefiltered frames from the **original decoded source** (not from a previously displayed result), then uses linear sampling for final placement. This suppresses aliasing at ratios such as 256 → 32 without changing Fit geometry, clipping, progress transforms or source pixels. Native-resolution, integer-aligned copies retain nearest sampling for sharp pixels; enlargement uses linear interpolation. SVG icons retain their independent vector rendering.
+
+Reduced frames are cached by source frame and prepared dimensions, with per-asset LRU eviction. Derived-cache storage is limited to one quarter of that asset's decoded bytes, capped at 16 MiB per asset; temporary intermediate reductions are disposed after preparation and all retained reductions are released with the decoded asset. Original image/cache budgets remain unchanged. The same path serves Editor preview and Runtime's Desktop/physical composition; subsequent JPEG compression on physical outputs is independent. Quality is automatic and does not add persisted fields or Editor settings.
+
 ### Color and Opacity Contract
 
 File-backed Image content draws using its own embedded pixel alpha and intrinsic colors. No standalone file Opacity or tint exists.
@@ -233,7 +239,7 @@ For Icon content, `IconOpacity` multiplies the icon's intrinsic alpha. The widge
 
 ### Animation and Playback Contract
 
-File-backed Image widgets obtain frames from `ImageAsset.GetFrame(loop)`, which uses the asset's loaded-time playback clock and decoded frame durations. Looping playback wraps to the beginning; non-looping playback clamps to the last frame.
+File-backed Image widgets select frames in `ImageAsset.Draw` using the asset's loaded-time playback clock and decoded frame durations. Looping playback wraps to the beginning; non-looping playback clamps to the last frame.
 
 An icon-backed Image widget delegates animation to its `IIconAsset` implementation. Icon capability detection distinguishes static from animated assets and also reports tint and alpha support.
 

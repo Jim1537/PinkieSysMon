@@ -142,11 +142,7 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
                 canvas.ClipRect(compiled.Inner, SKClipOperation.Intersect, compiled.Antialias);
             }
 
-            canvas.DrawBitmap(
-                compiled.Image!.GetFrame(compiled.Loop),
-                compiled.ImageDestination,
-                SKSamplingOptions.Default,
-                null);
+            compiled.Image!.Draw(canvas, compiled.ImageDestination, compiled.Loop);
         }
         finally
         {

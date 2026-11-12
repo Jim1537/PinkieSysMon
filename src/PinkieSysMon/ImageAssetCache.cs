@@ -239,6 +239,21 @@ internal sealed class ImageAsset : IDisposable
 {
     private const int MaximumFrameCount = 1000;
     private const long MaximumDecodedBytes = 128L * 1024L * 1024L;
+    // Derived raster frames are separate from the decoded source budget.
+    // One quarter of each asset, capped at 16 MiB, bounds total derived memory
+    // to 25% of the corresponding decoded frames across all image/icon caches.
+    private const long MaximumScaledCacheBytes = 16L * 1024L * 1024L;
+    private static readonly SKSamplingOptions LinearSampling = new(SKFilterMode.Linear);
+
+    private sealed record ScaledFrame(
+        SKBitmap Bitmap,
+        LinkedListNode<(int Frame, int Width, int Height)> Node,
+        long Bytes);
+
+    private readonly object _scaledSync = new();
+    private readonly Dictionary<(int Frame, int Width, int Height), ScaledFrame> _scaledFrames = new();
+    private readonly LinkedList<(int Frame, int Width, int Height)> _scaledLru = new();
+    private long _scaledBytes;
 
     private readonly SKBitmap[] _frames;
     private readonly int[] _frameEndMs;
@@ -260,6 +275,17 @@ internal sealed class ImageAsset : IDisposable
     public int FrameCount => _frames.Length;
     public bool IsAnimated => _frames.Length > 1;
     public long DecodedByteCount => _decodedByteCount;
+
+    internal long ScaledFrameBudget => Math.Min(MaximumScaledCacheBytes, _decodedByteCount / 4);
+    internal long ScaledFrameBytes
+    {
+        get { lock (_scaledSync) return _scaledBytes; }
+    }
+
+    internal int ScaledFrameCount
+    {
+        get { lock (_scaledSync) return _scaledFrames.Count; }
+    }
 
     // Takes ownership only after validating the same per-image decoded-memory contract.
     internal static ImageAsset FromBitmap(SKBitmap bitmap)
@@ -407,10 +433,175 @@ internal sealed class ImageAsset : IDisposable
         return low;
     }
 
+
+    // Every file-backed image and raster icon, including Canvas/Panel/Graph/state
+    // layers and Bar progress images, enters the same CPU raster sampling path.
+    // This performs explicit low-pass preparation instead of relying on Skia to
+    // synthesize mipmaps for SKBitmap drawing.
+    internal void Draw(
+        SKCanvas canvas,
+        SKRect destination,
+        bool loop,
+        SKPaint? paint = null,
+        long? elapsedMs = null)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        if (destination.Width <= 0f || destination.Height <= 0f)
+            return;
+
+        var elapsed = elapsedMs ?? Math.Max(0L, Environment.TickCount64 - _loadedAtMs);
+        var index = _frames.Length == 1 ? 0 : ResolveFrameIndex(_frameEndMs, _totalDurationMs, elapsed, loop);
+        var matrix = canvas.TotalMatrix;
+        var renderedWidth = destination.Width * MathF.Sqrt(
+            matrix.ScaleX * matrix.ScaleX + matrix.SkewY * matrix.SkewY);
+        var renderedHeight = destination.Height * MathF.Sqrt(
+            matrix.SkewX * matrix.SkewX + matrix.ScaleY * matrix.ScaleY);
+        var width = PrefilterDimension(Width, renderedWidth);
+        var height = PrefilterDimension(Height, renderedHeight);
+
+        // Drawing while holding this asset's lock prevents a concurrent cache
+        // eviction or Dispose from freeing the SKBitmap used by Skia.
+        lock (_scaledSync)
+        {
+            var original = _frames[index];
+            // If a prepared frame would exceed the bounded cache, prefer
+            // direct bilinear drawing over repeated uncached CPU rescaling.
+            if (checked((long)width * height * original.Info.BytesPerPixel) > ScaledFrameBudget)
+            {
+                width = original.Width;
+                height = original.Height;
+            }
+            var bitmap = original;
+            var temporary = false;
+            if (width != original.Width || height != original.Height)
+            {
+                var key = (Frame: index, Width: width, Height: height);
+                if (_scaledFrames.TryGetValue(key, out var cached))
+                {
+                    _scaledLru.Remove(cached.Node);
+                    _scaledLru.AddFirst(cached.Node);
+                    bitmap = cached.Bitmap;
+                }
+                else
+                {
+                    bitmap = PrepareScaledFrame(original, width, height);
+                    var bytes = checked((long)bitmap.RowBytes * bitmap.Height);
+                    var budget = ScaledFrameBudget;
+                    if (bytes > budget)
+                    {
+                        temporary = true;
+                    }
+                    else
+                    {
+                        while (_scaledBytes > budget - bytes)
+                        {
+                            var oldest = _scaledLru.Last!;
+                            var evicted = _scaledFrames[oldest.Value];
+                            _scaledFrames.Remove(oldest.Value);
+                            _scaledLru.RemoveLast();
+                            _scaledBytes -= evicted.Bytes;
+                            evicted.Bitmap.Dispose();
+                        }
+
+                        var node = _scaledLru.AddFirst(key);
+                        _scaledFrames.Add(key, new ScaledFrame(bitmap, node, bytes));
+                        _scaledBytes += bytes;
+                    }
+                }
+            }
+
+            try
+            {
+                // A native-resolution, integer-aligned blit should not blur
+                // pixel art or trigger an unnecessary resampling pass.
+                var sampling = ReferenceEquals(bitmap, original) &&
+                    IsAlignedNativeCopy(matrix, destination, original.Width, original.Height)
+                    ? SKSamplingOptions.Default
+                    : LinearSampling;
+                canvas.DrawBitmap(bitmap, destination, sampling, paint);
+            }
+            finally
+            {
+                if (temporary)
+                    bitmap.Dispose();
+            }
+        }
+    }
+
+    private static int PrefilterDimension(int sourcePixels, float devicePixels)
+    {
+        if (!float.IsFinite(devicePixels) || devicePixels <= 0f)
+            return sourcePixels;
+
+        // A final bilinear draw is sufficient for mild reductions. Explicit
+        // multi-stage low-pass filtering is reserved for strong reductions,
+        // where a prepared frame can be reused at a bounded memory cost.
+        if (sourcePixels < 4f * devicePixels)
+            return sourcePixels;
+
+        var width = sourcePixels;
+        while (width > 1 && width > 1.5f * devicePixels)
+            width = Math.Max(1, width / 2);
+        return width;
+    }
+
+    private static SKBitmap PrepareScaledFrame(SKBitmap source, int width, int height)
+    {
+        var current = source;
+        try
+        {
+            while (current.Width > width || current.Height > height)
+            {
+                var nextWidth = Math.Max(width, (current.Width + 1) / 2);
+                var nextHeight = Math.Max(height, (current.Height + 1) / 2);
+                var next = new SKBitmap(current.Info.WithSize(nextWidth, nextHeight));
+                if (!current.ScalePixels(next, LinearSampling))
+                {
+                    next.Dispose();
+                    throw new InvalidOperationException("Skia failed to prepare a reduced raster frame.");
+                }
+
+                if (!ReferenceEquals(current, source))
+                    current.Dispose();
+                current = next;
+            }
+
+            return current;
+        }
+        catch
+        {
+            if (!ReferenceEquals(current, source))
+                current.Dispose();
+            throw;
+        }
+    }
+
+    private static bool IsAlignedNativeCopy(SKMatrix matrix, SKRect destination, int width, int height)
+    {
+        if (MathF.Abs(matrix.SkewX) > 0.0001f || MathF.Abs(matrix.SkewY) > 0.0001f)
+            return false;
+
+        var x = matrix.ScaleX * destination.Left + matrix.TransX;
+        var y = matrix.ScaleY * destination.Top + matrix.TransY;
+        return MathF.Abs(MathF.Abs(matrix.ScaleX * destination.Width) - width) < 0.001f &&
+               MathF.Abs(MathF.Abs(matrix.ScaleY * destination.Height) - height) < 0.001f &&
+               MathF.Abs(x - MathF.Round(x)) < 0.001f &&
+               MathF.Abs(y - MathF.Round(y)) < 0.001f;
+    }
+
     public void Dispose()
     {
-        foreach (var frame in _frames)
-            frame.Dispose();
+        lock (_scaledSync)
+        {
+            foreach (var scaled in _scaledFrames.Values)
+                scaled.Bitmap.Dispose();
+            _scaledFrames.Clear();
+            _scaledLru.Clear();
+            _scaledBytes = 0;
+
+            foreach (var frame in _frames)
+                frame.Dispose();
+        }
     }
 }
 

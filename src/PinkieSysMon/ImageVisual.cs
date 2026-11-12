@@ -247,15 +247,12 @@ internal sealed class ImageVisual : IDisposable
         }
 
         var image = _image ?? throw new InvalidOperationException("Image visual has no renderable asset.");
-        var bitmap = elapsedMs.HasValue
-            ? image.GetFrameAtElapsed(elapsedMs.Value, _loop)
-            : image.GetFrame(_loop);
         var destination = CalculateDestination(bounds, image.Width, image.Height, _fit);
 
         switch (_fit)
         {
             case FitMode.Stretch:
-                canvas.DrawBitmap(bitmap, bounds, SKSamplingOptions.Default, _paint);
+                image.Draw(canvas, bounds, _loop, _paint, elapsedMs);
                 break;
 
             case FitMode.Cover:
@@ -263,7 +260,7 @@ internal sealed class ImageVisual : IDisposable
                 try
                 {
                     canvas.ClipRect(bounds);
-                    canvas.DrawBitmap(bitmap, destination, SKSamplingOptions.Default, _paint);
+                    image.Draw(canvas, destination, _loop, _paint, elapsedMs);
                 }
                 finally
                 {
@@ -272,7 +269,7 @@ internal sealed class ImageVisual : IDisposable
                 break;
 
             default:
-                canvas.DrawBitmap(bitmap, destination, SKSamplingOptions.Default, _paint);
+                image.Draw(canvas, destination, _loop, _paint, elapsedMs);
                 break;
         }
     }

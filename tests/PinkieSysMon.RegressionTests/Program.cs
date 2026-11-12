@@ -718,6 +718,11 @@ internal static partial class Program
                 ("Alpha BGRA layers, orientation and Editor parity", SharedAlphaStage08Tests.LayersAndPreviewParity),
                 ("Alpha BGRA frame ownership and disposal", SharedAlphaStage08Tests.OwnershipAndDisposal),
             ]),
+            ("Rendering / Raster Sampling", [
+                ("raster checkerboards downscale without aliasing", Issue122RasterSamplingTests.CheckerboardDownscaling),
+                ("native pixels, enlargement and transformed scaling", Issue122RasterSamplingTests.NativePixelsAndTransformedScaling),
+                ("raster icon/file alpha, cache lifetime and bounds", Issue122RasterSamplingTests.IconFileAlphaAndCacheLifecycle),
+            ]),
             ("Rendering / Cache & Geometry", [
                 ("Runtime JPEG zero-copy transport contract", RuntimeJpegZeroCopyTransportContract),
                 ("Stable widget shadow cache", StableWidgetShadowIsReused),

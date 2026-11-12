@@ -203,9 +203,6 @@ internal sealed class RasterIconAsset : IIconAsset
     {
         _ = color; // Raster icon assets preserve their intrinsic colors.
 
-        var bitmap = elapsedMs.HasValue
-            ? _image.GetFrameAtElapsed(Math.Max(0L, elapsedMs.Value), loop)
-            : _image.GetFrame(loop);
         var destination = CalculateDestination(bounds, _image.Width, _image.Height, fit);
         using var paint = new SKPaint
         {
@@ -224,7 +221,7 @@ internal sealed class RasterIconAsset : IIconAsset
             try
             {
                 canvas.ClipRect(bounds);
-                canvas.DrawBitmap(bitmap, destination, SKSamplingOptions.Default, paint);
+                _image.Draw(canvas, destination, loop, paint, elapsedMs);
             }
             finally
             {
@@ -234,7 +231,7 @@ internal sealed class RasterIconAsset : IIconAsset
             return;
         }
 
-        canvas.DrawBitmap(bitmap, destination, SKSamplingOptions.Default, paint);
+        _image.Draw(canvas, destination, loop, paint, elapsedMs);
     }
 
     public void Dispose() => _image.Dispose();
