@@ -288,11 +288,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(new ToolStripSeparator());
 
         _addWidgetMenuItem = new ToolStripMenuItem("Add Widget");
-        foreach (var type in WidgetTypeContract.EditorAddableTypes)
-        {
-            var captured = type;
-            _addWidgetMenuItem.DropDownItems.Add(new ToolStripMenuItem(WidgetTypeDisplayName(type), null, (_, _) => ExecuteAddWidgetCommand(captured)));
-        }
+        EditorAddWidgetMenuContract.Populate(_addWidgetMenuItem.DropDownItems, ExecuteAddWidgetCommand);
         editMenu.DropDownItems.Add(_addWidgetMenuItem);
 
         _renameMenuItem = new ToolStripMenuItem("Rename", null, (_, _) => ExecuteRenameCommand()) { ShortcutKeys = Keys.F2 };
@@ -2556,9 +2552,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 "Editor view settings save failed.", ex);
         }
     }
-
-    private static string WidgetTypeDisplayName(string type) =>
-        WidgetTypeContract.Is(type, WidgetTypeContract.Value) ? "Text / Value" : WidgetTypeContract.Is(type, WidgetTypeContract.Graph) ? "Graph" : type;
 
     private static string WidgetCaption(CanonicalWidgetDefinition widget)
     {

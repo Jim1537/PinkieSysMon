@@ -332,6 +332,7 @@ internal static partial class Program
             ]),
             ("Editor / Shell", [
                 ("Editor main-menu Group cleanup", EditorMainMenuGroupCleanup),
+                ("Editor Add Widget menu grouping and dispatch (#120)", Issue120AddWidgetMenuContract),
                 ("Editor Outputs toolbar right inset", EditorOutputsToolbarRightInset),
                 ("Editor native title-bar layout contract", EditorWindowChromeHitTestContract),
                 ("Editor title-bar native ownership contract", EditorTitleBarCaptionVisualExclusion),

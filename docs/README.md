@@ -33,14 +33,22 @@ For accessibility status, known limitations and reporting barriers, see the [Acc
 
 ## Available Widgets
 
-- **[Text / Value](widgets/text-value.md)** — formatted text or live metrics.
-- **[Binary](widgets/binary.md)** — two-state values with configurable text, icons, or images.
+The toolbar **Add widget** dropdown and **Edit → Add Widget** show the same alphabetically ordered lists: **Basic** widgets first, followed by one separator and **Specialized** widgets. These are display labels only; saved dashboard widget types remain unchanged.
+
+**Basic widgets**
+
+- **[Binary Indicator](widgets/binary.md)** — configurable two-state text, icons, or images.
 - **[Gauge](widgets/gauge.md)** — radial numeric indicator with ranges and thresholds.
-- **[Bar](widgets/bar.md)** — linear numeric indicator with fill or image progress.
-- **[Image](widgets/image.md)** — static or animated images and icons.
-- **[Power](widgets/power.md)** — battery and UPS states.
-- **[Media System](widgets/media-system.md)** — audio endpoint type and availability.
-- **[Media Player](widgets/media-player.md)** — media playback state.
+- **[History Graph](widgets/graph.md)** — historical metric values plotted over time.
+- **[Image / Icon](widgets/image.md)** — static or animated images and icons.
+- **[Progress Bar](widgets/bar.md)** — linear numeric indicator with fill or image progress.
+- **[Text / Value](widgets/text-value.md)** — formatted text or live metrics.
+
+**Specialized widgets**
+
+- **[Audio Devices](widgets/media-system.md)** — Windows default audio endpoint type and availability.
+- **[Playback Status](widgets/media-player.md)** — media playback state.
+- **[Power Status](widgets/power.md)** — battery and UPS states.
 
 Every ordinary widget includes a universal [Action tab](widgets/properties-by-tab.md#action) for optional Windows Desktop single- or double-click Windows Shell activation. Canvas and physical Outputs do not accept Actions. The [Properties by Tab](widgets/properties-by-tab.md) and [Property Dictionary](widgets/properties.md) describe Editor settings and supported values.
 

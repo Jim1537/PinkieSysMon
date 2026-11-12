@@ -51,11 +51,7 @@ internal sealed partial class EditorForm
         _toolbar.Items.Add(CreateToolbarSeparator());
 
         _toolbarAddButton = CreateToolbarDropDownButton("Add widget", ToolbarAddIcons);
-        foreach (var type in WidgetTypeContract.EditorAddableTypes)
-        {
-            var captured = type;
-            _toolbarAddButton.DropDownItems.Add(new ToolStripMenuItem(WidgetTypeDisplayName(type), null, (_, _) => ExecuteAddWidgetCommand(captured)));
-        }
+        EditorAddWidgetMenuContract.Populate(_toolbarAddButton.DropDownItems, ExecuteAddWidgetCommand);
         _toolbar.Items.Add(_toolbarAddButton);
         _toolbar.Items.Add(CreateToolbarSeparator());
         _toolbarCopyButton = CreateToolbarButton("Copy selected widgets (Ctrl+C)", ToolbarCopyIcons, (_, _) => ExecuteCopyWidgetsCommand());

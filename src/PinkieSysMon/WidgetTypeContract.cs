@@ -25,19 +25,6 @@ internal static class WidgetTypeContract
         MediaPlayer
     ];
 
-    public static readonly string[] EditorAddableTypes =
-    [
-        Value,
-        Bar,
-        Gauge,
-        Graph,
-        Image,
-        Binary,
-        Power,
-        MediaSystem,
-        MediaPlayer
-    ];
-
     private static readonly HashSet<string> KnownTypeSet = new(KnownTypes, StringComparer.OrdinalIgnoreCase);
 
     public static bool IsKnown(string? type) =>
