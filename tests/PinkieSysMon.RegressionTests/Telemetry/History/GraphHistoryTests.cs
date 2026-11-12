@@ -223,21 +223,36 @@ internal static class GraphHistoryTests
         object reading = 42d;
         var destination = new MetricHistorySample[3];
         for (var i = 0; i < 1000; i++) { history.Record("a", reading); _ = history.CopyTo("a", 60, now, destination); }
+        // Concurrent GC can retire an allocation context and increase the thread's
+        // allocation counter without allocations by Record or CopyTo. Exclude that
+        // runtime bookkeeping only during this strict zero-allocation measurement.
+        if (!GC.TryStartNoGCRegion(4 * 1024 * 1024))
+            throw new InvalidOperationException("Unable to establish a no-GC region for GraphHistory allocation measurement.");
         long recordAllocated = 0;
         long copyAllocated = 0;
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 10000; i++)
+        long allocated;
+        try
         {
-            now++;
-            var stepBefore = GC.GetAllocatedBytesForCurrentThread();
-            history.Record("a", reading);
-            var afterRecord = GC.GetAllocatedBytesForCurrentThread();
-            _ = history.CopyTo("a", 60, now, destination);
-            var afterCopy = GC.GetAllocatedBytesForCurrentThread();
-            recordAllocated += afterRecord - stepBefore;
-            copyAllocated += afterCopy - afterRecord;
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 10000; i++)
+            {
+                now++;
+                var stepBefore = GC.GetAllocatedBytesForCurrentThread();
+                history.Record("a", reading);
+                var afterRecord = GC.GetAllocatedBytesForCurrentThread();
+                _ = history.CopyTo("a", 60, now, destination);
+                var afterCopy = GC.GetAllocatedBytesForCurrentThread();
+                recordAllocated += afterRecord - stepBefore;
+                copyAllocated += afterCopy - afterRecord;
+            }
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        finally
+        {
+            // A broken no-GC region is a test failure, never a reason to ignore
+            // a positive allocation measurement.
+            GC.EndNoGCRegion();
+        }
         Check(allocated == 0,
             $"Admitting and copying fixed scalar records must allocate zero managed bytes after warmup; observed {allocated} " +
             $"(Record={recordAllocated}, CopyTo={copyAllocated}, other={allocated - recordAllocated - copyAllocated}).");
