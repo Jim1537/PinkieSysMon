@@ -99,8 +99,8 @@ internal static class Issue116ShadowMigrationTests
             new C.GraphWidgetDefinition(), new C.ImageWidgetDefinition(), new C.BinaryWidgetDefinition(),
             new C.PowerWidgetDefinition(), new C.MediaSystemWidgetDefinition(), new C.MediaPlayerWidgetDefinition()
         ];
-        foreach (var widget in widgets)
-            CheckShadowGroup(widget, widget.Type);
+        foreach (var panelWidget in widgets)
+            CheckShadowGroup(panelWidget, panelWidget.Type);
         CheckShadowGroup(new C.CanvasDefinition(), "Canvas");
 
         var root = new C.CanvasDefinition
