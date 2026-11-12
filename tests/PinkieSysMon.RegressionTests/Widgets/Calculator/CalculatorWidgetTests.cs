@@ -115,6 +115,35 @@ internal static class CalculatorWidgetTests
         var keys = CalculatorGeometry.Keys(calculator);
         Check(keys.Count == 22 && map.Rasterize().Count > 0 && !map.IsEmpty,
             "Calculator keys must create active native regions without an Action.");
+        Check(CalculatorGeometry.DisplayCaption("⌫") == "BS" &&
+              CalculatorGeometry.DisplayCaption("9") == "9" &&
+              keys.Any(key => key.Caption == "⌫"),
+            "Backspace keeps its native operation while rendering a font-safe ASCII caption.");
+        var keyByCaption = keys.ToDictionary(key => key.Caption);
+        var equals = keyByCaption["="].Bounds;
+        var sign = keyByCaption["±"].Bounds;
+        var copy = keyByCaption["Copy"].Bounds;
+        var paste = keyByCaption["Paste"].Bounds;
+        var dot = keyByCaption["."].Bounds;
+        var tolerance = 0.01f;
+        Check(Math.Abs(equals.Top - sign.Top) < tolerance &&
+              Math.Abs(equals.Bottom - copy.Bottom) < tolerance &&
+              Math.Abs(equals.Width - sign.Width) < tolerance,
+            "Equals must span both bottom rows without changing the standard key width.");
+        Check(Math.Abs(copy.Top - paste.Top) < tolerance &&
+              Math.Abs(copy.Bottom - paste.Bottom) < tolerance &&
+              Math.Abs(copy.Width - paste.Width) < tolerance &&
+              Math.Abs(copy.Left - sign.Left) < tolerance &&
+              Math.Abs(paste.Right - dot.Right) < tolerance &&
+              copy.Right < paste.Left,
+            "Copy and Paste must divide the lower-left three columns equally, with a real gap.");
+        Check(map.Hit(new Point((int)(equals.Left + equals.Width / 2),
+                                (int)(equals.Bottom - 3)))?.CalculatorKey == "=",
+            "The lower half of the vertically merged Equals key must remain clickable.");
+        for (var i = 0; i < keys.Count; i++)
+            for (var j = i + 1; j < keys.Count; j++)
+                Check(RectangleF.Intersect(keys[i].Bounds, keys[j].Bounds).IsEmpty,
+                    "Calculator key regions must not overlap after merging the bottom rows.");
         foreach (var key in keys)
         {
             var sample = new Point((int)(key.Bounds.Left + key.Bounds.Width / 2),

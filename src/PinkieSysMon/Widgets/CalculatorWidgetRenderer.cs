@@ -15,6 +15,8 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
         var text = context.GetCalculatorReadout(calculator);
         var readout = CalculatorGeometry.Readout(calculator);
         var keys = CalculatorGeometry.Keys(calculator);
+        // A two-row Equals key must keep the same caption size as a one-row key.
+        var standardKeyHeight = keys.Count > 0 ? keys[0].Bounds.Height : 0f;
         using var fill = new SKPaint { Color = ColorParser.Parse(calculator.ButtonFillColor), IsAntialias = context.Antialias };
         using var border = new SKPaint
         {
@@ -36,7 +38,8 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
                 var inset = Math.Min(calculator.ButtonBorderWidth / 2f, Math.Min(r.Width, r.Height) / 2f);
                 canvas.DrawRect(new SKRect(r.Left + inset, r.Top + inset, r.Right - inset, r.Bottom - inset), border);
             }
-            var desiredSize = Math.Min(r.Height * .48f, r.Width / Math.Max(2f, key.Caption.Length * .65f));
+            var displayCaption = CalculatorGeometry.DisplayCaption(key.Caption);
+            var desiredSize = Math.Min(standardKeyHeight * .48f, r.Width / Math.Max(2f, displayCaption.Length * .65f));
             if (desiredSize <= 0f) continue;
             using var font = new SKFont(typeface, desiredSize);
             var m = font.Metrics;
@@ -45,7 +48,7 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
             try
             {
                 canvas.ClipRect(bounds);
-                canvas.DrawText(key.Caption, r.Left + r.Width / 2f, y, SKTextAlign.Center, font, caption);
+                canvas.DrawText(displayCaption, r.Left + r.Width / 2f, y, SKTextAlign.Center, font, caption);
             }
             finally { canvas.Restore(); }
         }

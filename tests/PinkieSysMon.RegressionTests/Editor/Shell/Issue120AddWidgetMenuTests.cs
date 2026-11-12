@@ -11,7 +11,6 @@ internal static partial class Program
         var expected = new (string? Type, string Label)[]
         {
             (WidgetTypeContract.Binary, "Binary Indicator"),
-            (WidgetTypeContract.Calculator, "Calculator"),
             (WidgetTypeContract.Gauge, "Gauge"),
             (WidgetTypeContract.Graph, "History Graph"),
             (WidgetTypeContract.Image, "Image / Icon"),
@@ -19,6 +18,7 @@ internal static partial class Program
             (WidgetTypeContract.Value, "Text / Value"),
             (null, string.Empty),
             (WidgetTypeContract.MediaSystem, "Audio Devices"),
+            (WidgetTypeContract.Calculator, "Calculator"),
             (WidgetTypeContract.MediaPlayer, "Playback Status"),
             (WidgetTypeContract.Power, "Power Status")
         };

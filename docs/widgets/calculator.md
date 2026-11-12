@@ -2,16 +2,18 @@
 
 ## User Guide
 
-Add **Calculator** using **Add Widget → Calculator** in the Dashboard Editor. The default 240 × 330 Panel contains a readout and fixed keypad. Resize or rotate the Panel normally; the buttons, text, spacing, and clickable regions scale together.
+Add **Calculator** from the specialized section of **Add Widget** in the Dashboard Editor. The default 240 × 330 Panel contains a readout and fixed keypad. Resize or rotate the Panel normally; the buttons, text, spacing, and clickable regions scale together.
 
 Only a **Windows Desktop Output** accepts mouse input. Editor preview and physical-device Outputs draw the same keypad with a **0** readout but never perform calculations, capture input, or use the clipboard. Calculator is independent of telemetry.
 
 | Keys | Behavior |
 | --- | --- |
-| 0–9, decimal point, ±, ⌫ | Enter and edit the current number |
+| 0–9, decimal point, ±, BS (Backspace) | Enter and edit the current number |
 | +, −, ×, ÷, = | Left-to-right chained arithmetic; equals can repeat the last operation |
 | C, CE | Clear everything, or clear the current entry |
 | Copy, Paste | Copy the numeric readout to the Windows clipboard, or enter a valid numeric clipboard value |
+
+The bottom-right **=** key spans the final two keypad rows; **Copy** and **Paste** share the remaining three cells on the last row.
 
 Divide-by-zero and unrepresentable results show **Error**; use C or CE to recover. Paste accepts a single finite signed decimal value (including ordinary scientific notation), but ignores ambiguous, nonnumeric, or unavailable clipboard contents. Copy/Paste are activated only by clicking their Desktop keys. Clipboard failures do not display modal dialogs.
 

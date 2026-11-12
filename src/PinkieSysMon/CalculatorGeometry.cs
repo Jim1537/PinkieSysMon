@@ -8,15 +8,18 @@ internal static class CalculatorGeometry
 {
     internal readonly record struct Key(string Caption, RectangleF Bounds);
 
-    private static readonly (string Caption, int Row, int Column, int Span)[] Layout =
+    private static readonly (string Caption, int Row, float Column, float Columns, int Rows)[] Layout =
     [
-        ("C", 0, 0, 1), ("CE", 0, 1, 1), ("⌫", 0, 2, 1), ("÷", 0, 3, 1),
-        ("7", 1, 0, 1), ("8", 1, 1, 1), ("9", 1, 2, 1), ("×", 1, 3, 1),
-        ("4", 2, 0, 1), ("5", 2, 1, 1), ("6", 2, 2, 1), ("−", 2, 3, 1),
-        ("1", 3, 0, 1), ("2", 3, 1, 1), ("3", 3, 2, 1), ("+", 3, 3, 1),
-        ("±", 4, 0, 1), ("0", 4, 1, 1), (".", 4, 2, 1), ("=", 4, 3, 1),
-        ("Copy", 5, 0, 2), ("Paste", 5, 2, 2)
+        ("C", 0, 0, 1, 1), ("CE", 0, 1, 1, 1), ("⌫", 0, 2, 1, 1), ("÷", 0, 3, 1, 1),
+        ("7", 1, 0, 1, 1), ("8", 1, 1, 1, 1), ("9", 1, 2, 1, 1), ("×", 1, 3, 1, 1),
+        ("4", 2, 0, 1, 1), ("5", 2, 1, 1, 1), ("6", 2, 2, 1, 1), ("−", 2, 3, 1, 1),
+        ("1", 3, 0, 1, 1), ("2", 3, 1, 1, 1), ("3", 3, 2, 1, 1), ("+", 3, 3, 1, 1),
+        ("±", 4, 0, 1, 1), ("0", 4, 1, 1, 1), (".", 4, 2, 1, 1), ("=", 4, 3, 1, 2),
+        ("Copy", 5, 0, 1.5f, 1), ("Paste", 5, 1.5f, 1.5f, 1)
     ];
+
+    // Keep the native key identity for routing while using a font-safe caption.
+    internal static string DisplayCaption(string key) => key == "⌫" ? "BS" : key;
 
     internal static RectangleF Content(C.CalculatorWidgetDefinition widget)
     {
@@ -45,7 +48,7 @@ internal static class CalculatorGeometry
             new RectangleF(
                 content.X + spec.Column * (keyWidth + gap),
                 top + spec.Row * (keyHeight + gap),
-                keyWidth * spec.Span + gap * (spec.Span - 1),
-                keyHeight))).ToArray();
+                keyWidth * spec.Columns + gap * (spec.Columns - 1f),
+                keyHeight * spec.Rows + gap * (spec.Rows - 1)))).ToArray();
     }
 }
