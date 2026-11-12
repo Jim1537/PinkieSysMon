@@ -37,16 +37,16 @@ The [Calculator widget](calculator.md) has eleven content-only properties in thr
 | Font | Family | `fontFamily` | Bundled font family for keys and readout |
 | Buttons | Text Color | `buttonTextColor` | RGBA key captions |
 | Buttons | Fill Color | `buttonFillColor` | RGBA fill for all keys |
-| Buttons | Border Width | `buttonBorderWidth` | Nonnegative key border width; 0 disables the outline and rounding |
+| Buttons | Border Width | `buttonBorderWidth` | Nonnegative key border width; 0 disables the outline only |
 | Buttons | Border Color | `buttonBorderColor` | RGBA key outline; disabled when border width is 0 |
-| Buttons | Corner Radius | `buttonCornerRadius` | Key corner rounding; disabled when border width is 0 |
+| Buttons | Corner Radius | `buttonCornerRadius` | Key fill and outline corner rounding, independent of border width |
 | Display | Text Color | `displayTextColor` | RGBA readout text |
 | Display | Fill Color | `displayFillColor` | RGBA readout fill (default transparent) |
-| Display | Border Width | `displayBorderWidth` | Nonnegative readout outline width; 0 disables the outline and rounding |
+| Display | Border Width | `displayBorderWidth` | Nonnegative readout outline width; 0 disables the outline only |
 | Display | Border Color | `displayBorderColor` | RGBA readout outline; disabled when border width is 0 |
-| Display | Corner Radius | `displayCornerRadius` | Readout corner rounding; disabled when border width is 0 |
+| Display | Corner Radius | `displayCornerRadius` | Readout fill and outline corner rounding, independent of border width |
 
-Border Color and Corner Radius are inactive when the corresponding Border Width is zero; their saved values are retained and do not affect rendering. The widget scales layout and font sizes automatically within the padded Panel. General → Data Source → Metric is disabled/Not applicable. Only Desktop Outputs have interactive Calculator keys.
+Border Color is inactive when the corresponding Border Width is zero; its saved value is retained. Corner Radius remains editable and shapes each fill even without a visible border. The widget scales layout and font sizes automatically within the padded Panel. General → Data Source → Metric is disabled/Not applicable. Only Desktop Outputs have interactive Calculator keys.
 
 ---
 

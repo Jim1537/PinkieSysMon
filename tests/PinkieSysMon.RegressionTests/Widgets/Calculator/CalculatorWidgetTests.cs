@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Text.Json.Nodes;
 using PinkieSysMon.Editor;
+using PinkieSysMon.Widgets;
+using SkiaSharp;
 using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon.RegressionTests;
@@ -194,6 +196,37 @@ internal static class CalculatorWidgetTests
             "Release over another key must cancel activation.");
     }
 
+    public static void BorderlessCornerRadiusRendering()
+    {
+        // Both Calculator surface types must round their fills without a border.
+        using var bitmap = new SKBitmap(80, 120);
+        using var canvas = new SKCanvas(bitmap);
+        using var fill = new SKPaint { Color = SKColors.Lime, IsAntialias = false };
+        using var border = new SKPaint
+        {
+            Color = SKColors.Blue, Style = SKPaintStyle.Stroke,
+            StrokeWidth = 4f, IsAntialias = false
+        };
+        var buttonBounds = new SKRect(8, 8, 72, 48);
+        var displayBounds = new SKRect(8, 60, 72, 100);
+        canvas.Clear(SKColors.Transparent);
+        CalculatorWidgetRenderer.DrawSurface(canvas, buttonBounds, fill, border, 0f, 16f);
+        CalculatorWidgetRenderer.DrawSurface(canvas, displayBounds, fill, border, 0f, 12f);
+        canvas.Flush();
+
+        Check(bitmap.GetPixel(8, 8).Alpha == 0 && bitmap.GetPixel(8, 60).Alpha == 0 &&
+              bitmap.GetPixel(40, 28) == SKColors.Lime && bitmap.GetPixel(40, 80) == SKColors.Lime,
+            "Button and display fills must retain rounded corners when Border Width is zero.");
+        Check(bitmap.GetPixel(8, 28).Blue == 0 && bitmap.GetPixel(8, 80).Blue == 0,
+            "A disabled border must not paint even when a non-null border paint is supplied.");
+
+        canvas.Clear(SKColors.Transparent);
+        CalculatorWidgetRenderer.DrawSurface(canvas, buttonBounds, fill, null, 0f, 0f);
+        canvas.Flush();
+        Check(bitmap.GetPixel(8, 8) == SKColors.Lime,
+            "Zero radius and zero border must retain the square filled shape.");
+    }
+
     public static void PersistenceAndEditorProperties()
     {
         var calculator = Widget();
@@ -284,30 +317,35 @@ internal static class CalculatorWidgetTests
         Check(TypeDescriptor.GetProperties(sections["Font"]!.GetValue(null)!).Count == 1,
             "Calculator Font group must retain just Family.");
 
-        // Disabled dependent editors must refuse writes without clearing stored values.
+        // Border color depends on border width; fill rounding does not.
         calculator.ButtonBorderWidth = 0f;
         calculator.DisplayBorderWidth = 0f;
-        Check(buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly && buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
-              displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly && displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
-            "Border Color and Corner Radius must disable independently at zero width.");
+        Check(buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly &&
+              displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly &&
+              !buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
+              !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
+            "Only border color must disable at zero width; both corner radii remain editable.");
         var oldButtonBorderColor = calculator.ButtonBorderColor;
         var oldDisplayBorderColor = calculator.DisplayBorderColor;
         buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.SetValue(null, "#FFFF0000");
-        buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.SetValue(null, 99f);
         displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.SetValue(null, "#FFFF0000");
-        displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.SetValue(null, 99f);
-        Check(calculator.ButtonBorderColor == oldButtonBorderColor && calculator.ButtonCornerRadius == 7f &&
-              calculator.DisplayBorderColor == oldDisplayBorderColor && calculator.DisplayCornerRadius == 4f,
-            "Disabled border settings must not be modified.");
+        buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.SetValue(null, 12f);
+        displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.SetValue(null, 10f);
+        Check(calculator.ButtonBorderColor == oldButtonBorderColor &&
+              calculator.DisplayBorderColor == oldDisplayBorderColor &&
+              calculator.ButtonCornerRadius == 12f && calculator.DisplayCornerRadius == 10f,
+            "Disabled border colors must stay unchanged while borderless radii remain independently editable.");
         calculator.ButtonBorderWidth = 2f;
         calculator.DisplayBorderWidth = 3f;
-        Check(!buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly && !buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
-              !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly && !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
-            "Border Color and Corner Radius must re-enable when their own border width is positive.");
+        Check(!buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly &&
+              !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly &&
+              !buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
+              !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
+            "Both border colors must re-enable at positive width without changing corner-radius availability.");
         buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.SetValue(null, 8f);
         displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.SetValue(null, 6f);
         Check(calculator.ButtonCornerRadius == 8f && calculator.DisplayCornerRadius == 6f,
-            "Re-enabled radii must be independently editable.");
+            "Both corner radii must remain independently editable at positive border width.");
 
         var general = new EditorPropertyView(calculator, section: EditorPropertySection.General).GetProperties();
         Check(general["Data Source"] is not null, "Universal Data Source group must remain visible.");

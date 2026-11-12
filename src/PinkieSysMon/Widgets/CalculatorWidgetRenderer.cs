@@ -73,24 +73,18 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
         finally { canvas.Restore(); }
     }
 
-    // A disabled border does not read its color or apply corner rounding.
-    // One shape path keeps the independent key/readout fill and border aligned.
-    private static void DrawSurface(SKCanvas canvas, SKRect bounds, SKPaint fill, SKPaint? border,
+    // Corner Radius shapes the fill independently of whether a border is drawn.
+    // Keys and readout share this path so their geometry stays consistent.
+    internal static void DrawSurface(SKCanvas canvas, SKRect bounds, SKPaint fill, SKPaint? border,
         float borderWidth, float cornerRadius)
     {
-        if (borderWidth <= 0f)
-        {
-            canvas.DrawRect(bounds, fill);
-            return;
-        }
-
         var radius = Math.Clamp(cornerRadius, 0f, Math.Min(bounds.Width, bounds.Height) / 2f);
         if (radius > 0f)
             canvas.DrawRoundRect(bounds, radius, radius, fill);
         else
             canvas.DrawRect(bounds, fill);
 
-        if (border is null || border.Color.Alpha == 0) return;
+        if (borderWidth <= 0f || border is null || border.Color.Alpha == 0) return;
 
         var inset = Math.Min(borderWidth / 2f, Math.Min(bounds.Width, bounds.Height) / 2f);
         var innerBounds = new SKRect(bounds.Left + inset, bounds.Top + inset,

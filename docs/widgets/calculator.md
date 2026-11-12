@@ -31,7 +31,7 @@ The dedicated **Calculator** property tab contains only:
 | Buttons | Text Color, Fill Color, Border Width, Border Color, Corner Radius |
 | Display | Text Color, Fill Color, Border Width, Border Color, Corner Radius |
 
-Both key and readout fills are independent of their own borders. **Border Width = 0** suppresses that group's border and corner rounding; **Border Color** and **Corner Radius** become read-only in the Editor without losing their saved values. With a positive width, each group's corner radius rounds both its fill and border. The readout fill defaults to transparent with no border, preserving earlier dashboards.
+Both key and readout fills are independent of their own borders. **Corner Radius** always shapes the fill, including with **Border Width = 0**. Zero width suppresses only the border and makes **Border Color** read-only; Corner Radius remains editable. With a positive width, the same radius rounds both fill and border. The readout fill defaults to transparent with no border, preserving earlier dashboards.
 
 These settings are independent of the common **Panel** background, foreground, border, corner radius, shadow, padding, rotation, and Action. The common **General → Data Source → Metric** remains visible as **Not applicable**. A single bundled font family applies to keys and readout; font sizes are automatic. See [Property Dictionary](properties.md#calculator-specific-properties).
 

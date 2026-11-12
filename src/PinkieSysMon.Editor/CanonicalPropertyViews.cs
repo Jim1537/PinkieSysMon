@@ -446,8 +446,7 @@ internal static class CanonicalPropertyViewBuilder
                     "Border Color", () => calculator.ButtonBorderColor, v => calculator.ButtonBorderColor = v,
                     ButtonBorderDisabled),
                 Float(calculator, nameof(calculator.ButtonCornerRadius), "calculator.buttons.corner_radius",
-                    "Corner Radius", () => calculator.ButtonCornerRadius, v => calculator.ButtonCornerRadius = Math.Max(0f, v),
-                    ButtonBorderDisabled)
+                    "Corner Radius", () => calculator.ButtonCornerRadius, v => calculator.ButtonCornerRadius = Math.Max(0f, v))
             ]),
             Group("Display", [
                 Color(calculator, nameof(calculator.DisplayTextColor), "calculator.display.text_color",
@@ -460,8 +459,7 @@ internal static class CanonicalPropertyViewBuilder
                     "Border Color", () => calculator.DisplayBorderColor, v => calculator.DisplayBorderColor = v,
                     DisplayBorderDisabled),
                 Float(calculator, nameof(calculator.DisplayCornerRadius), "calculator.display.corner_radius",
-                    "Corner Radius", () => calculator.DisplayCornerRadius, v => calculator.DisplayCornerRadius = Math.Max(0f, v),
-                    DisplayBorderDisabled)
+                    "Corner Radius", () => calculator.DisplayCornerRadius, v => calculator.DisplayCornerRadius = Math.Max(0f, v))
             ])
         ];
     }

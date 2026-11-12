@@ -93,6 +93,7 @@ internal static partial class Program
                 ("arithmetic, entry and error handling", CalculatorWidgetTests.ArithmeticAndErrorRecovery),
                 ("clipboard, invalid input and state isolation", CalculatorWidgetTests.ClipboardAndIsolation),
                 ("Desktop key routing, rotation and gesture cancellation", CalculatorWidgetTests.InteractionAndGeometry),
+                ("rounded Calculator fills without borders", CalculatorWidgetTests.BorderlessCornerRadiusRendering),
                 ("schema migration, persistence and Editor property tabs", CalculatorWidgetTests.PersistenceAndEditorProperties),
             ]),
             ("Widgets / Bar", [
