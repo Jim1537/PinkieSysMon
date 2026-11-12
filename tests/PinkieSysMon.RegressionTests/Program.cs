@@ -469,6 +469,7 @@ internal static partial class Program
                 ("unavailable native Desktop window isolation and recovery", DesktopSessionStage09Tests.UnavailableExplorerHost),
                 ("Desktop Z-order policy and persistence", DesktopZOrderStage14Tests.PolicyAndPersistence),
                 ("Desktop Z-order lifecycle reconciliation", DesktopZOrderStage14Tests.SessionLifecycle),
+                ("Issue 118 bounded Desktop startup placement recovery and physical isolation", DesktopZOrderStage14Tests.RecoverablePlacementFailure),
                 ("Multiple Desktop session dashboard and removal isolation", DesktopMultiSessionStage15Tests.SharedBoardReloadAndRemoval),
                 ("Multiple Desktop session failed-start recovery", DesktopMultiSessionStage15Tests.FailedPanelCreationIsolation),
                 ("Desktop session lifecycle and no USB", DesktopSessionStage09Tests.DesktopLifecycle),

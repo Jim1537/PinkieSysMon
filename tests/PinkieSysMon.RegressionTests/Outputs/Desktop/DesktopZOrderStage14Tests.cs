@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text.Json;
 using PinkieSysMon;
 using PinkieSysMon.Editor;
@@ -66,6 +67,115 @@ internal static class DesktopZOrderStage14Tests
         Check(DesktopBottomPlacement.WsExToolWindow == 0x80 &&
               DesktopBottomPlacement.WsExAppWindow == 0x40000,
             "Native ToolWindow style must exclude top-level Desktop panels from Alt+Tab.");
+    }
+
+    public static void RecoverablePlacementFailure()
+    {
+        // This is the same recoverable Win32 boundary used by the native window;
+        // no shell window, physical USB device or Windows reboot is required.
+        var attempts = 0;
+        var placement = new DesktopPlacementRecovery();
+        bool SimulatedNative()
+        {
+            if (++attempts <= 2)
+                throw new Win32Exception(5, "Injected SetWindowPos access denied.");
+            return false;
+        }
+
+        Check(!placement.TryPlace(SimulatedNative, out _, out var firstFailure) &&
+              firstFailure?.NativeErrorCode == 5 && placement.Pending &&
+              placement.NextDelayMs == 250,
+            "Initial ERROR_ACCESS_DENIED must be nonfatal and schedule bounded recovery.");
+        Check(placement.BeginAutomaticRetry() && placement.AutomaticRetries == 1 &&
+              placement.NextDelayMs == 1000 &&
+              !placement.TryPlace(SimulatedNative, out _, out var secondFailure) &&
+              secondFailure?.NativeErrorCode == 5,
+            "A failed retry must preserve the native error and advance only on a retry event.");
+        Check(placement.BeginAutomaticRetry() &&
+              placement.TryPlace(SimulatedNative, out var fallback, out var recoveredFailure) &&
+              !fallback && recoveredFailure is null && !placement.Pending &&
+              placement.AutomaticRetries == 0 && placement.NextDelayMs == 0,
+            "A later successful native placement must clear retry state without needing a restart.");
+
+        var persistent = new DesktopPlacementRecovery();
+        Check(!persistent.TryPlace(() => throw new Win32Exception(5), out _, out _),
+            "Persistent failure must be captured.");
+        foreach (var expectedDelay in new[] { 250, 1000, 3000 })
+        {
+            Check(persistent.NextDelayMs == expectedDelay &&
+                  persistent.BeginAutomaticRetry() &&
+                  !persistent.TryPlace(() => throw new Win32Exception(5), out _, out _),
+                "Each bounded retry must preserve the unresolved placement state.");
+        }
+        Check(persistent.Pending && persistent.AutomaticRetries == 3 &&
+              persistent.NextDelayMs == 0 && !persistent.BeginAutomaticRetry(),
+            "A permanent native failure must not produce an indefinite retry loop.");
+        persistent.Cancel();
+        Check(!persistent.Pending && persistent.AutomaticRetries == 0 &&
+              persistent.NextDelayMs == 0 && !persistent.BeginAutomaticRetry(),
+            "Hide and disposal must cancel outstanding recovery.");
+        try
+        {
+            placement.TryPlace(() => throw new InvalidOperationException("Non-native failure"),
+                out _, out _);
+            throw new InvalidOperationException("Non-Win32 failure was incorrectly swallowed.");
+        }
+        catch (InvalidOperationException error) when (error.Message == "Non-native failure") { }
+
+        var root = Path.Combine(Path.GetTempPath(),
+            "pinkiesysmon-issue118-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var config = CreateConfig();
+            config.Outputs.Targets[3].DeviceEnabled = true;
+            var board = new C.DashboardDefinition
+            {
+                BaseDirectory = root,
+                Canvas = new C.CanvasDefinition { Width = 40, Height = 20 },
+                Widgets = []
+            };
+            var events = new List<string>();
+            var nativeCalls = 0;
+            FakeStackSession? degraded = null;
+            FakePhysicalSession? physical = null;
+            using (var manager = new OutputSessionManager(config, board,
+                new MetricStore(), new FileLogger(Path.Combine(root, "issue118.log")),
+                (app, target, assigned, metrics, logger) =>
+                {
+                    if (target.Kind == OutputTargetContract.PhysicalKind)
+                        return physical = new FakePhysicalSession(target.Id);
+                    return target.Id == "d1"
+                        ? degraded = new FakeStackSession(target.Id, events, () =>
+                        {
+                            if (++nativeCalls <= 3)
+                                throw new Win32Exception(5, "Injected initial access denied.");
+                            return false;
+                        })
+                        : new FakeStackSession(target.Id, events);
+                }))
+            {
+                manager.Start();
+                Check(degraded is { PendingPlacement: true } &&
+                      physical is { Started: true } &&
+                      manager.GetStatuses().Single(s => s.TargetId == "usb-off").IsActive,
+                    "Native Desktop placement denial must not abort Runtime or an unrelated physical Output.");
+                manager.RestoreDesktopAfterShellChange();
+                Check(degraded.PendingPlacement && physical.Started,
+                    "A failed shell reconciliation must leave other active Outputs untouched.");
+                manager.RestoreDesktopAfterShellChange();
+                Check(!degraded.PendingPlacement && physical.Started &&
+                      manager.GetStatuses().Single(s => s.TargetId == "d1").IsConnected,
+                    "A later valid placement must recover within the existing session lifetime.");
+            }
+            Check(physical is { Started: false } && degraded is { IsStackVisible: false },
+                "Shutdown must dispose the recovered Desktop and physical sessions.");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     public static void SessionLifecycle()
@@ -215,32 +325,74 @@ internal static class DesktopZOrderStage14Tests
             $"Unexpected panel stack: {string.Join(", ", actual)}; expected {string.Join(", ", expected)}.");
     }
 
-    private sealed class FakeStackSession(string id, List<string> events)
-        : IOutputSession, IDesktopStackSession
+    private sealed class FakeStackSession(string id, List<string> events,
+        Func<bool>? nativePlacement = null) : IOutputSession, IDesktopStackSession
     {
         private bool _visible;
+        private readonly DesktopPlacementRecovery? _placement = nativePlacement is null
+            ? null : new DesktopPlacementRecovery();
         private Action? _restoreStack;
         public string TargetId => id;
         public string TargetName => id;
         public bool IsConnected => _visible;
         public bool IsStackVisible => _visible;
         public bool BelowDesktop { get; set; }
-        public bool IsBelowDesktop => BelowDesktop;
+        public bool IsBelowDesktop => BelowDesktop || PendingPlacement;
+        public bool PendingPlacement => _placement?.Pending == true;
         public long SentFrames => 0;
         public double LastFrameMs => 0;
         public int LastJpegBytes => 0;
         public string UsbState => _visible ? "DISPLAYING" : "STOPPED";
-        public void Start() => _visible = true;
+        public void Start()
+        {
+            _visible = true;
+            if (_placement is not null)
+                PlaceAtDesktopBack();
+        }
         public void Suspend() => _visible = false;
         public void Resume() => _visible = true;
-        public void Dispose() => _visible = false;
+        public void Dispose()
+        {
+            _visible = false;
+            _placement?.Cancel();
+        }
         public void SetStackRestorer(Action restorer) => _restoreStack = restorer;
         public void CompleteMove() => _restoreStack?.Invoke();
         public void SetRuntimeMetricsPublisher(bool enabled) { }
         public IOutputSessionReconfiguration PrepareReconfiguration(
             AppConfig config, OutputTargetConfig target, C.DashboardDefinition dashboard) => new Plan();
         public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration) { }
-        public void PlaceAtDesktopBack() => events.Add($"{id}@back");
+        public void PlaceAtDesktopBack()
+        {
+            if (_placement is null)
+                events.Add($"{id}@back");
+            else
+                _placement.TryPlace(nativePlacement!, out _, out _);
+        }
+        private sealed class Plan : IOutputSessionReconfiguration
+        {
+            public void Dispose() { }
+        }
+    }
+
+    private sealed class FakePhysicalSession(string id) : IOutputSession
+    {
+        public bool Started { get; private set; }
+        public string TargetId => id;
+        public string TargetName => id;
+        public bool IsConnected => Started;
+        public long SentFrames => 0;
+        public double LastFrameMs => 0;
+        public int LastJpegBytes => 0;
+        public string UsbState => Started ? "CONNECTED" : "STOPPED";
+        public void Start() => Started = true;
+        public void Suspend() => Started = false;
+        public void Resume() => Started = true;
+        public void Dispose() => Started = false;
+        public void SetRuntimeMetricsPublisher(bool enabled) { }
+        public IOutputSessionReconfiguration PrepareReconfiguration(
+            AppConfig config, OutputTargetConfig target, C.DashboardDefinition dashboard) => new Plan();
+        public void CommitReconfiguration(IOutputSessionReconfiguration reconfiguration) { }
         private sealed class Plan : IOutputSessionReconfiguration
         {
             public void Dispose() { }

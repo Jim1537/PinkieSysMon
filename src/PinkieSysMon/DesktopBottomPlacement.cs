@@ -65,3 +65,50 @@ internal static class DesktopBottomPlacement
         int x, int y, int width, int height, uint flags);
 }
 
+
+// A failing native Z-order adjustment is nonfatal. This small controller is also
+// the deterministic seam for testing Win32 failures without restarting Windows.
+// Automatic retry ownership and timers remain with the visible Desktop window.
+internal sealed class DesktopPlacementRecovery
+{
+    private static readonly int[] RetryDelaysMs = [250, 1000, 3000];
+
+    internal bool Pending { get; private set; }
+    internal int AutomaticRetries { get; private set; }
+    internal int NextDelayMs =>
+        Pending && AutomaticRetries < RetryDelaysMs.Length ? RetryDelaysMs[AutomaticRetries] : 0;
+
+    internal bool TryPlace(Func<bool> placement, out bool shellFallback, out Win32Exception? failure)
+    {
+        ArgumentNullException.ThrowIfNull(placement);
+        try
+        {
+            shellFallback = placement();
+            failure = null;
+            Pending = false;
+            AutomaticRetries = 0;
+            return true;
+        }
+        catch (Win32Exception error)
+        {
+            shellFallback = false;
+            failure = error;
+            Pending = true;
+            return false;
+        }
+    }
+
+    internal bool BeginAutomaticRetry()
+    {
+        if (NextDelayMs == 0)
+            return false;
+        AutomaticRetries++;
+        return true;
+    }
+
+    internal void Cancel()
+    {
+        Pending = false;
+        AutomaticRetries = 0;
+    }
+}

@@ -518,6 +518,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private readonly Action _restoreStack;
     private readonly System.Windows.Forms.Timer _refresh = new();
     private readonly System.Windows.Forms.Timer _moveDebounce = new() { Interval = 500 };
+    private readonly System.Windows.Forms.Timer _placementRetry = new();
+    private readonly DesktopPlacementRecovery _placementRecovery = new();
+    private bool _placementExhaustionReported;
     private DesktopLayeredSurface? _surface;
     private DesktopWidgetActionInput? _input;
     private Action<string, string, IntPtr>? _calculatorInput;
@@ -565,6 +568,21 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
         AutoScaleMode = AutoScaleMode.None;
         StartPosition = FormStartPosition.Manual;
         _refresh.Tick += (_, _) => _render();
+        // This one-shot UI timer exists only after a real native placement failure.
+        // Reconcile all siblings through the manager, never reorder just one panel.
+        _placementRetry.Tick += (_, _) =>
+        {
+            _placementRetry.Stop();
+            if (_disposed || !Visible || !_placementRecovery.BeginAutomaticRetry())
+                return;
+            try { _restoreStack(); }
+            catch (Exception error)
+            {
+                _log?.Warn("Desktop Z-order retry coordination failed.", error);
+            }
+            if (_placementRecovery.Pending)
+                SchedulePlacementRetry();
+        };
         _moveDebounce.Tick += (_, _) =>
         {
             _moveDebounce.Stop();
@@ -683,16 +701,57 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private static extern bool SetWindowPos(
         IntPtr hWnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
+    private void SchedulePlacementRetry()
+    {
+        var delay = _placementRecovery.NextDelayMs;
+        if (_disposed || !Visible || delay == 0 || _placementRetry.Enabled)
+            return;
+        _placementRetry.Interval = delay;
+        _placementRetry.Start();
+    }
+
     internal void PlaceAtDesktopBack()
     {
-        if (!_disposed && IsVisible && IsHandleCreated)
+        if (_disposed || !IsVisible || !IsHandleCreated)
+            return;
+
+        var wasPending = _placementRecovery.Pending;
+        var completedRetries = _placementRecovery.AutomaticRetries;
+        if (!_placementRecovery.TryPlace(() =>
+            {
+                var shellFallback = DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
+                _input?.PlaceAboveVisual();
+                return shellFallback;
+            }, out var fallback, out var failure))
         {
-            var fallback = DesktopBottomPlacement.PlaceAtDesktopBack(Handle);
-            if (_lastBottomFallback != fallback)
-                _observe?.Invoke("desktop.bottom.placement", $"shellFallback={fallback}; nativePlacementReturned=true");
-            _lastBottomFallback = fallback;
-            _input?.PlaceAboveVisual();
+            if (!wasPending)
+            {
+                _log?.Warn("Desktop Z-order placement failed; the visible panel and Runtime remain active.", failure);
+                _observe?.Invoke("desktop.bottom.placement.deferred",
+                    $"win32={failure!.NativeErrorCode}; recoveryPending=true");
+            }
+            if (_placementRecovery.NextDelayMs == 0 && !_placementExhaustionReported)
+            {
+                _placementExhaustionReported = true;
+                _log?.Warn($"Desktop Z-order placement remains unresolved after {completedRetries} automatic retries; no further retry timer is scheduled.");
+                _observe?.Invoke("desktop.bottom.placement.deferred",
+                    $"win32={failure!.NativeErrorCode}; retriesExhausted=true");
+            }
+            SchedulePlacementRetry();
+            return;
         }
+
+        _placementRetry.Stop();
+        _placementExhaustionReported = false;
+        if (wasPending)
+        {
+            _log?.Info($"Desktop Z-order placement recovered; automaticRetries={completedRetries}.");
+            _observe?.Invoke("desktop.bottom.placement.recovered",
+                $"automaticRetries={completedRetries}; nativePlacementReturned=true");
+        }
+        if (_lastBottomFallback != fallback)
+            _observe?.Invoke("desktop.bottom.placement", $"shellFallback={fallback}; nativePlacementReturned=true");
+        _lastBottomFallback = fallback;
     }
 
     public void ShowWindow()
@@ -708,6 +767,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 
     public void HideWindow()
     {
+        _placementRetry.Stop();
+        _placementRecovery.Cancel();
+        _placementExhaustionReported = false;
         _input?.Hide();
         _moveDebounce.Stop();
         _refresh.Stop();
@@ -880,6 +942,8 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
             SystemEvents.DisplaySettingsChanged -= OnDisplaysChanged;
             _refresh.Dispose();
             _moveDebounce.Dispose();
+            _placementRetry.Dispose();
+            _placementRecovery.Cancel();
             _surface?.Dispose();
             _surface = null;
         }
