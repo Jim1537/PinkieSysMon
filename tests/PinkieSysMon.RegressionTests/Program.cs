@@ -389,6 +389,9 @@ internal static partial class Program
                 ("Output provider active isolation without System", OutputProviderStage07Tests.LiveIsolation),
             ]),
             ("Telemetry / Providers", [
+                ("Filesystem config, stable metrics and selector", FilesystemProviderTests.ConfigurationAndSelector),
+                ("Filesystem complete scanner, bounds and reparse safety", FilesystemProviderTests.ScannerCompletenessAndBudgets),
+                ("Filesystem demanded background refresh and recovery", FilesystemProviderTests.RuntimeDemandAndRecovery),
                 ("Telemetry provider failure isolation", TelemetryProviderFailureIsIsolated),
                 ("PC catalog, types and selector", Issue92PcTelemetryTests.CatalogAndSelector),
                 ("PC installed memory and architecture values", Issue92PcTelemetryTests.ValueNormalization),

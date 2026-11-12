@@ -10,16 +10,18 @@ internal static class MetricProviderContract
     public const string System = "system";
     public const string LibreHardwareMonitor = "lhm";
     public const string Icue = "icue";
+    public const string Filesystem = "filesystem";
 
     public static readonly MetricProviderDescriptor[] Descriptors =
     [
         new(System, "System", true),
         new(LibreHardwareMonitor, "LibreHardwareMonitor", false),
-        new(Icue, "iCUE", false)
+        new(Icue, "iCUE", false),
+        new(Filesystem, "Filesystem", false)
     ];
 
     // Dynamic Output providers are identified by stable configured Output IDs.
-    // They are intentionally independent from the global System/LHM/iCUE switches.
+    // They are intentionally independent from the global built-in provider switches.
     public static IReadOnlyList<MetricProviderDescriptor> GetDescriptors(
         IEnumerable<OutputTargetConfig> outputs)
     {

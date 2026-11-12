@@ -39,6 +39,9 @@ internal static class MetricSelectorEnvironment
 
         var config = configAccessor();
         MetricContract.ReplaceOutputDescriptors(config.Outputs.Targets);
+        MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+            FilesystemSourceContract.DescriptorsFor(config.Filesystem.Sources));
+        var filesystemEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.Filesystem);
         var systemEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.System);
         var lhmEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.LibreHardwareMonitor);
         var icueEnabled = MetricProviderContract.IsEnabled(config.MetricProviders, MetricProviderContract.Icue);
@@ -53,6 +56,19 @@ internal static class MetricSelectorEnvironment
                     !descriptor.Id.StartsWith(OutputMetricContract.Prefix, StringComparison.OrdinalIgnoreCase))
                 .Select(descriptor => CreateRawMetric(descriptor.Id, available: true)));
         }
+
+        if (filesystemEnabled)
+            foreach (var source in config.Filesystem.Sources)
+                foreach (var descriptor in FilesystemSourceContract.DescriptorsFor([source]))
+                {
+                    var suffix = descriptor.Id[(FilesystemSourceContract.Prefix.Length + source.Id.Length + 1)..];
+                    metrics.Add(new MetricSelectorMetric(descriptor.Id, true,
+                    [
+                        new MetricSelectorPathSegment("provider:filesystem", "Filesystem"),
+                        new MetricSelectorPathSegment("filesystem:" + source.Id, source.Alias),
+                        new MetricSelectorPathSegment("metric:" + descriptor.Id, suffix)
+                    ]));
+                }
 
         var outputPicker = OutputMetricSelectorCatalog.Build(config, currentMetric);
         metrics.AddRange(outputPicker.Metrics);
@@ -181,6 +197,17 @@ internal static class MetricSelectorEnvironment
                 : CreateRawMetric(currentMetric!, available: false);
         }
 
+        if (FilesystemSourceContract.IsMetricId(currentMetric) &&
+            !metrics.Any(metric => metric.Id.Equals(currentMetric, StringComparison.OrdinalIgnoreCase)))
+        {
+            ghostMetric = new MetricSelectorMetric(currentMetric!, false,
+            [
+                new MetricSelectorPathSegment("provider:filesystem", "Filesystem"),
+                new MetricSelectorPathSegment("provider:filesystem-unavailable", "Unavailable source"),
+                new MetricSelectorPathSegment("metric:" + currentMetric, currentMetric!)
+            ]);
+        }
+
         var statusMessages = new List<string>();
         if (lhmEnabled && !lhmDiscoverySucceeded)
             statusMessages.Add("LibreHardwareMonitor is unavailable. Existing LHM metrics remain unchanged and are shown as unavailable.");
@@ -192,6 +219,8 @@ internal static class MetricSelectorEnvironment
         else if (currentIcueUnavailable)
             statusMessages.Add("The current iCUE metric is not present in the discovered catalog.");
 
+        if (FilesystemSourceContract.IsMetricId(currentMetric) && ghostMetric is not null)
+            statusMessages.Add("The selected Filesystem source is disabled or no longer configured.");
         if (ghostMetric is null)
             ghostMetric = outputPicker.GhostMetric;
         if (outputPicker.StatusText is not null)

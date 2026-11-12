@@ -12,17 +12,17 @@ internal static class OutputProviderStage07Tests
         var second = Physical("physical-b", "Trofeo", enabled: false, deviceEnabled: true);
         var desktop = Desktop("desktop-a", "Panel", enabled: true, boardEnabled: false);
         var providers = MetricProviderContract.GetDescriptors([first, second, desktop]);
-        Check(providers.Count == 6 &&
-              providers.Take(3).Select(d => d.Id).SequenceEqual(
+        Check(providers.Count == 7 &&
+              providers.Take(4).Select(d => d.Id).SequenceEqual(
                   MetricProviderContract.Descriptors.Select(d => d.Id)),
-              "System, LHM and iCUE provider contracts must remain unchanged.");
-        Check(providers.Skip(3).Select(d => d.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 3,
+              "Existing System/LHM/iCUE plus disabled Filesystem provider contracts must remain stable.");
+        Check(providers.Skip(4).Select(d => d.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 3,
             "Every configured Output needs one independent stable provider identity.");
-        Check(providers.Skip(3).All(d => !d.DefaultEnabled),
+        Check(providers.Skip(4).All(d => !d.DefaultEnabled),
             "Dynamic provider enablement defaults OFF even when device/board enablement differs.");
-        var original = providers[3].Id;
+        var original = providers[4].Id;
         first.Name = "Renamed Trofeo";
-        var renamed = MetricProviderContract.GetDescriptors([first])[3];
+        var renamed = MetricProviderContract.GetDescriptors([first])[4];
         Check(renamed.Id == original && renamed.DisplayName == "Renamed Trofeo",
             "Renaming an Output changes its display label, never its provider/metric IDs.");
         Check(Throws<InvalidDataException>(() =>

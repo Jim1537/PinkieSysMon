@@ -47,6 +47,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     {
         _baseDir = baseDir;
         _log = log;
+        startup?.Phase("configuration.load");
+        var initialApp = AppConfig.Load(AppConfigPath, log);
         startup?.Phase("sources.create");
         _applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         _mediaTelemetry = new WindowsMediaTelemetrySource(log);
@@ -57,11 +59,13 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             new WindowsPowerTelemetrySource(log),
             _mediaTelemetry,
             new LibreHardwareMonitorRawTelemetrySource(log),
-            new IcueSensorLogTelemetrySource(baseDir, log)
+            new IcueSensorLogTelemetrySource(baseDir, log),
+            new FilesystemTelemetrySource(initialApp.Filesystem, log)
         ];
 
-        startup?.Phase("configuration.load");
-        (_config, _telemetryConfig, _boards) = LoadInitial();
+        MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem,
+            FilesystemSourceContract.DescriptorsFor(initialApp.Filesystem.Sources));
+        (_config, _telemetryConfig, _boards) = LoadInitial(initialApp);
         MetricContract.ReplaceOutputDescriptors(_config.Outputs.Targets);
         _metrics.Publish(RuntimeMetricContract.Version,
             MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.System)
@@ -231,9 +235,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
     }
 
     private (AppConfig App, TelemetryConfig Telemetry,
-        IReadOnlyDictionary<string, CanonicalDashboardDefinition> Boards) LoadInitial()
+        IReadOnlyDictionary<string, CanonicalDashboardDefinition> Boards) LoadInitial(AppConfig app)
     {
-        var app = AppConfig.Load(AppConfigPath, _log);
         var telemetry = TelemetryConfig.Load(TelemetryConfigPath, _sources, _log);
         return (app, telemetry, RuntimeConfigurationValidator.LoadEnabledAssignments(app, _baseDir));
     }

@@ -222,6 +222,7 @@ internal sealed class TelemetryEngine : IDisposable
         _enabledProviders = NormalizeEnabledProviders(enabledProviders);
         _requiredMetrics = NormalizeRequiredMetrics(requiredMetrics);
         RebuildScheduleLocked();
+        NotifyDemandObserversLocked();
     }
 
     // Fired once per active schedule after its first completed capture batch has been published.
@@ -416,6 +417,7 @@ internal sealed class TelemetryEngine : IDisposable
             _sourceSchedules = prepared.SourceSchedules;
             _initialCapturePending = _metricSchedules.Count > 0;
             _scheduleVersion++;
+            NotifyDemandObserversLocked();
         }
 
         SignalWake();
@@ -441,6 +443,7 @@ internal sealed class TelemetryEngine : IDisposable
                     metric.NextDueTimestamp = 0; // Fresh sample, no missed-cycle catch-up.
                 _initialCapturePending = _metricSchedules.Count > 0;
             }
+            NotifyDemandObserversLocked();
         }
         SignalWake();
     }
@@ -614,6 +617,20 @@ internal sealed class TelemetryEngine : IDisposable
         _initialCapturePending = _metricSchedules.Count > 0;
     }
 
+    private void NotifyDemandObserversLocked()
+    {
+        // No filesystem I/O: the notification only hands off the committed demand set.
+        foreach (var source in _sources)
+        {
+            if (source is not IMetricDemandObserver observer) continue;
+            var demanded = _sourceSchedules
+                .Where(schedule => ReferenceEquals(schedule.Source, source))
+                .SelectMany(schedule => schedule.MetricSchedules.Select(metric => metric.MetricName))
+                .ToArray();
+            observer.SetDemand(demanded, !_idlePaused && _enabledProviders.Contains(source.ProviderId));
+        }
+    }
+
     private (List<MetricSchedule> MetricSchedules, List<SourceSchedule> SourceSchedules) BuildSchedule(
         TelemetryConfig config,
         HashSet<string> enabledProviders,
@@ -762,6 +779,9 @@ internal sealed class TelemetryEngine : IDisposable
             return;
 
         _cts.Cancel();
+        lock (_sync)
+            foreach (var source in _sources.OfType<IMetricDemandObserver>())
+                source.SetDemand([], active: false);
         SignalWake();
         try
         {
