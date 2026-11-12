@@ -55,8 +55,9 @@ internal static class Issue105DesktopLoggingTests
             using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
             using var failureReported = new ManualResetEventSlim(); using var done = new ManualResetEventSlim();
             var nativeCalls = 0;
-            var dispatcher = new WidgetActionShellDispatcher(code => { if (code == 5) failureReported.Set(); }, (target, args) =>
+            var dispatcher = new WidgetActionShellDispatcher(code => { if (code == 5) failureReported.Set(); }, (target, args, verb) =>
             {
+                Check(verb is null, "Legacy User Action must retain the default Shell verb.");
                 Interlocked.Increment(ref nativeCalls);
                 if (target == "PRIVATE-FIRST") { entered.Set(); Check(release.Wait(TimeSpan.FromSeconds(10)), "Shell fixture release."); return 5; }
                 done.Set(); return 0;
