@@ -32,7 +32,8 @@ internal static class Issue116ShadowMigrationTests
             """)!.AsObject();
 
         Check(DashboardSchemaMigration.UpgradeToCurrent(legacy), "Schema 31 must migrate to 32.");
-        Check(legacy["schemaVersion"]!.GetValue<int>() == 32, "Shadow migration must own schema 32.");
+        Check(legacy["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Schema 31 shadow migration must complete through the current dashboard schema.");
         var canvas = legacy["canvas"]!.AsObject();
         var widgets = legacy["widgets"]!.AsArray();
         Check(canvas["shadowColor"]!.GetValue<string>() == "#80000000" &&
@@ -88,7 +89,7 @@ internal static class Issue116ShadowMigrationTests
         var path = Path.Combine(Path.GetTempPath(), "issue116-shadow.json");
         var parsed = DashboardJson.ParseCurrent(saved, path);
         Check(DashboardJson.Serialize(parsed, indented: false) == saved,
-            "Canonical schema-32 parse/save must be deterministic.");
+            "Canonical current-schema parse/save must be deterministic.");
     }
 
     public static void PropertyContractAndDesktopAlpha()

@@ -454,7 +454,7 @@ internal static class CanonicalPropertyViewBuilder
                     C.WidgetActionDefinition.Administrator => C.WidgetActionDefinition.Administrator,
                     _ => throw new ArgumentException("Invalid Run as option.", nameof(value))
                 },
-                converter: new FixedStringConverter([C.WidgetActionDefinition.User, C.WidgetActionDefinition.Administrator]),
+                converter: new FixedStringConverter([C.WidgetActionDefinition.User, C.WidgetActionDefinition.Administrator], exclusive: true),
                 disabledReason: DisabledWhenNone)
         ])];
     }

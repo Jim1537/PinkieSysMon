@@ -672,13 +672,15 @@ internal sealed class EndpointOverridePropertyDescriptor : PropertyDescriptor
 internal sealed class FixedStringConverter : StringConverter
 {
     private readonly StandardValuesCollection _values;
+    private readonly bool _exclusive;
 
-    public FixedStringConverter(IEnumerable<string> values)
+    public FixedStringConverter(IEnumerable<string> values, bool exclusive = false)
     {
         _values = new StandardValuesCollection(values.ToArray());
+        _exclusive = exclusive;
     }
 
     public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
-    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
+    public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => _exclusive;
     public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context) => _values;
 }

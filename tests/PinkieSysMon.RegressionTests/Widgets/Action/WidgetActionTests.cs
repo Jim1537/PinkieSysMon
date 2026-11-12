@@ -48,10 +48,18 @@ internal static class WidgetActionTests
               parsed.Widgets[0].Action.Target == "" && parsed.Widgets[0].Action.Arguments == "" &&
               parsed.Widgets[0].Action.RunAs == C.WidgetActionDefinition.User,
             "Omitted actions must acquire the canonical inactive defaults.");
+        var compatible32 = JsonNode.Parse(original)!.AsObject();
+        compatible32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;
+        Check(DashboardSchemaMigration.UpgradeToCurrent(compatible32) &&
+              DashboardJson.DeserializeCurrent(compatible32, "legacy-user-action.json")
+                  .Widgets[0].Action.RunAs == C.WidgetActionDefinition.User,
+            "An explicit legacy User value must remain non-elevated after migration.");
+
         var incompatible32 = JsonNode.Parse(original)!.AsObject();
         incompatible32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;
+        incompatible32["widgets"]![0]!["action"]!["runAs"] = C.WidgetActionDefinition.Administrator;
         ExpectInvalid(() => DashboardSchemaMigration.UpgradeToCurrent(incompatible32),
-            "Schema 32 must reject future Run as fields rather than silently activating elevation.");
+            "Schema 32 must reject an Administrator field rather than silently activating elevation.");
 
         var schema32 = JsonNode.Parse(original)!.AsObject();
         schema32["schemaVersion"] = DashboardSchemaMigration.ShadowColorAlphaSchemaVersion;

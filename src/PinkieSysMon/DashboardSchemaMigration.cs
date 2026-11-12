@@ -168,10 +168,15 @@ internal static class DashboardSchemaMigration
 
         if (schemaVersion == ShadowColorAlphaSchemaVersion)
         {
-            // Schema 32 has no elevation setting; preserve the original Shell default verb.
+            // Schema 32 did not define elevation. A harmless explicit User default
+            // can appear in legacy-shaped fixtures; never accept Administrator
+            // or malformed future values from an earlier schema.
             if (root["widgets"] is JsonArray actionWidgets && actionWidgets.OfType<JsonObject>().Any(widget =>
-                widget["action"] is JsonObject action && action.ContainsKey("runAs")))
-                throw new InvalidDataException("Schema-32 Action cannot contain a Run as field.");
+                widget["action"] is JsonObject action && action.ContainsKey("runAs") &&
+                (action["runAs"] is not JsonValue value ||
+                 !value.TryGetValue<string>(out var runAs) ||
+                 runAs != DashboardModel.WidgetActionDefinition.User)))
+                throw new InvalidDataException("Legacy Action Run as must be User.");
             root["schemaVersion"] = WidgetActionRunAsSchemaVersion;
             schemaVersion = WidgetActionRunAsSchemaVersion;
         }
