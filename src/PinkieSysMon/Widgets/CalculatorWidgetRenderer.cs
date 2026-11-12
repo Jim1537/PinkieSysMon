@@ -18,12 +18,18 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
         // A two-row Equals key must keep the same caption size as a one-row key.
         var standardKeyHeight = keys.Count > 0 ? keys[0].Bounds.Height : 0f;
         using var fill = new SKPaint { Color = ColorParser.Parse(calculator.ButtonFillColor), IsAntialias = context.Antialias };
-        using var border = new SKPaint
+        using var border = calculator.ButtonBorderWidth > 0f ? new SKPaint
         {
             Color = ColorParser.Parse(calculator.ButtonBorderColor), IsAntialias = context.Antialias,
             Style = SKPaintStyle.Stroke, StrokeWidth = calculator.ButtonBorderWidth
-        };
+        } : null;
         using var caption = new SKPaint { Color = ColorParser.Parse(calculator.ButtonTextColor), IsAntialias = context.Antialias };
+        using var displayFill = new SKPaint { Color = ColorParser.Parse(calculator.DisplayFillColor), IsAntialias = context.Antialias };
+        using var displayBorder = calculator.DisplayBorderWidth > 0f ? new SKPaint
+        {
+            Color = ColorParser.Parse(calculator.DisplayBorderColor), IsAntialias = context.Antialias,
+            Style = SKPaintStyle.Stroke, StrokeWidth = calculator.DisplayBorderWidth
+        } : null;
         using var display = new SKPaint { Color = ColorParser.Parse(calculator.DisplayTextColor), IsAntialias = context.Antialias };
         var fontProfile = new TextPresentation(calculator.FontFamily, 12f, 400, false,
             "center", "middle", 0f, "#00000000", ValueOverflowContract.None, 0f, 0);
@@ -32,12 +38,7 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
         {
             var r = key.Bounds;
             var bounds = new SKRect(r.Left, r.Top, r.Right, r.Bottom);
-            canvas.DrawRect(bounds, fill);
-            if (calculator.ButtonBorderWidth > 0 && border.Color.Alpha != 0)
-            {
-                var inset = Math.Min(calculator.ButtonBorderWidth / 2f, Math.Min(r.Width, r.Height) / 2f);
-                canvas.DrawRect(new SKRect(r.Left + inset, r.Top + inset, r.Right - inset, r.Bottom - inset), border);
-            }
+            DrawSurface(canvas, bounds, fill, border, calculator.ButtonBorderWidth, calculator.ButtonCornerRadius);
             var displayCaption = CalculatorGeometry.DisplayCaption(key.Caption);
             var desiredSize = Math.Min(standardKeyHeight * .48f, r.Width / Math.Max(2f, displayCaption.Length * .65f));
             if (desiredSize <= 0f) continue;
@@ -54,6 +55,7 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
         }
         if (readout.Width <= 0 || readout.Height <= 0) return;
         var textRect = new SKRect(readout.Left, readout.Top, readout.Right, readout.Bottom);
+        DrawSurface(canvas, textRect, displayFill, displayBorder, calculator.DisplayBorderWidth, calculator.DisplayCornerRadius);
         var fontSize = Math.Min(readout.Height * .70f, readout.Width * .30f);
         if (fontSize <= 0) return;
         using var resultFont = new SKFont(typeface, fontSize);
@@ -69,5 +71,35 @@ internal sealed class CalculatorWidgetRenderer : IWidgetRenderer
             canvas.DrawText(text, readout.Right - 2f, baseline, SKTextAlign.Right, resultFont, display);
         }
         finally { canvas.Restore(); }
+    }
+
+    // A disabled border does not read its color or apply corner rounding.
+    // One shape path keeps the independent key/readout fill and border aligned.
+    private static void DrawSurface(SKCanvas canvas, SKRect bounds, SKPaint fill, SKPaint? border,
+        float borderWidth, float cornerRadius)
+    {
+        if (borderWidth <= 0f)
+        {
+            canvas.DrawRect(bounds, fill);
+            return;
+        }
+
+        var radius = Math.Clamp(cornerRadius, 0f, Math.Min(bounds.Width, bounds.Height) / 2f);
+        if (radius > 0f)
+            canvas.DrawRoundRect(bounds, radius, radius, fill);
+        else
+            canvas.DrawRect(bounds, fill);
+
+        if (border is null || border.Color.Alpha == 0) return;
+
+        var inset = Math.Min(borderWidth / 2f, Math.Min(bounds.Width, bounds.Height) / 2f);
+        var innerBounds = new SKRect(bounds.Left + inset, bounds.Top + inset,
+            bounds.Right - inset, bounds.Bottom - inset);
+        var innerRadius = Math.Min(Math.Max(0f, radius - inset),
+            Math.Max(0f, Math.Min(innerBounds.Width, innerBounds.Height) / 2f));
+        if (innerRadius > 0f)
+            canvas.DrawRoundRect(innerBounds, innerRadius, innerRadius, border);
+        else
+            canvas.DrawRect(innerBounds, border);
     }
 }

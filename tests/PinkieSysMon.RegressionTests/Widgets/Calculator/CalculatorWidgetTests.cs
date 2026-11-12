@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing;
 using System.Text.Json.Nodes;
 using PinkieSysMon.Editor;
@@ -204,26 +205,110 @@ internal static class CalculatorWidgetTests
         var parsed = C.DashboardDefinition.Parse(json, Path.Combine(Path.GetTempPath(), "calculator.json"));
         Check(parsed.Widgets.Single() is C.CalculatorWidgetDefinition copy &&
               copy.FontFamily == "Roboto" &&
+              copy.DisplayFillColor == "#00000000" && copy.DisplayBorderWidth == 0f &&
+              copy.DisplayCornerRadius == 0f && copy.ButtonCornerRadius == 0f &&
               DashboardJson.Serialize(parsed, indented: false) == json,
-            "Fresh Calculator save/reload must preserve semantic and textual serialization.");
+            "Fresh Calculator save/reload must preserve all appearance defaults and serialization.");
+
+        calculator.ButtonCornerRadius = 7f;
+        calculator.DisplayFillColor = "#80FF0088";
+        calculator.DisplayBorderWidth = 2f;
+        calculator.DisplayBorderColor = "#FF00FF00";
+        calculator.DisplayCornerRadius = 4f;
+        var customized = C.DashboardDefinition.Parse(
+            DashboardJson.Serialize(board, indented: false), Path.Combine(Path.GetTempPath(), "custom-calculator.json"));
+        Check(customized.Widgets.Single() is C.CalculatorWidgetDefinition selected &&
+              selected.ButtonCornerRadius == 7f &&
+              selected.DisplayFillColor == "#80FF0088" &&
+              selected.DisplayBorderWidth == 2f &&
+              selected.DisplayBorderColor == "#FF00FF00" &&
+              selected.DisplayCornerRadius == 4f,
+            "New button/readout appearance fields must survive persisted save and reload.");
 
         var legacy = Board(new C.ImageWidgetDefinition { Id = "existing", Width = 24, Height = 24 });
         var old = JsonNode.Parse(DashboardJson.Serialize(legacy, indented: false))!.AsObject();
         var previousWidget = old["widgets"]!.ToJsonString();
         old["schemaVersion"] = DashboardSchemaMigration.WidgetActionRunAsSchemaVersion;
         Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
-              old["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CalculatorSchemaVersion,
-            "Schema 33 must migrate to Calculator schema 34.");
+              old["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
+            "Schema 33 must migrate through Calculator schema 34 to appearance schema 35.");
         Check(old["widgets"]!.ToJsonString() == previousWidget,
             "Migration must preserve every existing widget field exactly.");
         var migrated = old.ToJsonString();
         Check(!DashboardSchemaMigration.UpgradeToCurrent(old) && old.ToJsonString() == migrated,
             "Repeated Calculator schema migration must be an exact no-op.");
 
+        // A genuine schema-34 Calculator lacks all five newly introduced fields.
+        // Migration must not edit any existing widget field.
+        var schema34 = JsonNode.Parse(json)!.AsObject();
+        schema34["schemaVersion"] = DashboardSchemaMigration.CalculatorSchemaVersion;
+        var previousCalculator = schema34["widgets"]!.AsArray()[0]!.AsObject();
+        foreach (var field in new[]
+        {
+            "buttonCornerRadius", "displayFillColor", "displayBorderWidth",
+            "displayBorderColor", "displayCornerRadius"
+        })
+            previousCalculator.Remove(field);
+        var beforeAppearanceMigration = previousCalculator.ToJsonString();
+        Check(DashboardSchemaMigration.UpgradeToCurrent(schema34) &&
+              schema34["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CalculatorAppearanceSchemaVersion &&
+              previousCalculator.ToJsonString() == beforeAppearanceMigration,
+            "Schema 34 must migrate to 35 without rewriting existing Calculator appearance.");
+        var upgraded = C.DashboardDefinition.Parse(schema34.ToJsonString(), Path.Combine(Path.GetTempPath(), "old-calculator.json"));
+        Check(upgraded.Widgets.Single() is C.CalculatorWidgetDefinition upgradedCalculator &&
+              upgradedCalculator.ButtonCornerRadius == 0f &&
+              upgradedCalculator.DisplayFillColor == "#00000000" &&
+              upgradedCalculator.DisplayBorderWidth == 0f &&
+              upgradedCalculator.DisplayBorderColor == "#FF9BA8C0" &&
+              upgradedCalculator.DisplayCornerRadius == 0f,
+            "Schema-34 Calculator must acquire all new appearance defaults.");
+        var migratedAppearanceJson = schema34.ToJsonString();
+        Check(!DashboardSchemaMigration.UpgradeToCurrent(schema34) &&
+              schema34.ToJsonString() == migratedAppearanceJson,
+            "Schema-35 repeated migration must be an exact no-op.");
+        var stableJson = DashboardJson.Serialize(upgraded, indented: false);
+        Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(stableJson, "idempotent.json"), indented: false) == stableJson,
+            "Schema-35 Calculator parse/save must be idempotent.");
+
         var sections = new EditorPropertyView(calculator, section: EditorPropertySection.Calculator).GetProperties();
-        Check(sections.Count == 3 && sections["Buttons"] is not null &&
-              sections["Display"] is not null && sections["Font"] is not null,
-            "Calculator-specific tab must have only Buttons, Display, Font groups.");
+        Check(sections.Cast<PropertyDescriptor>().Select(property => property.Name)
+                  .SequenceEqual(["Font", "Buttons", "Display"]),
+            "Calculator PropertyGrid groups must appear Font, Buttons, then Display.");
+        var buttonRows = TypeDescriptor.GetProperties(sections["Buttons"]!.GetValue(null)!);
+        var displayRows = TypeDescriptor.GetProperties(sections["Display"]!.GetValue(null)!);
+        Check(buttonRows.Cast<PropertyDescriptor>().Select(property => property.DisplayName)
+                  .SequenceEqual(["Text Color", "Fill Color", "Border Width", "Border Color", "Corner Radius"]) &&
+              displayRows.Cast<PropertyDescriptor>().Select(property => property.DisplayName)
+                  .SequenceEqual(["Text Color", "Fill Color", "Border Width", "Border Color", "Corner Radius"]),
+            "Both Calculator surface groups must use exactly the five approved rows and ordering.");
+        Check(TypeDescriptor.GetProperties(sections["Font"]!.GetValue(null)!).Count == 1,
+            "Calculator Font group must retain just Family.");
+
+        // Disabled dependent editors must refuse writes without clearing stored values.
+        calculator.ButtonBorderWidth = 0f;
+        calculator.DisplayBorderWidth = 0f;
+        Check(buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly && buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
+              displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly && displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
+            "Border Color and Corner Radius must disable independently at zero width.");
+        var oldButtonBorderColor = calculator.ButtonBorderColor;
+        var oldDisplayBorderColor = calculator.DisplayBorderColor;
+        buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.SetValue(null, "#FFFF0000");
+        buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.SetValue(null, 99f);
+        displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.SetValue(null, "#FFFF0000");
+        displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.SetValue(null, 99f);
+        Check(calculator.ButtonBorderColor == oldButtonBorderColor && calculator.ButtonCornerRadius == 7f &&
+              calculator.DisplayBorderColor == oldDisplayBorderColor && calculator.DisplayCornerRadius == 4f,
+            "Disabled border settings must not be modified.");
+        calculator.ButtonBorderWidth = 2f;
+        calculator.DisplayBorderWidth = 3f;
+        Check(!buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonBorderColor)]!.IsReadOnly && !buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.IsReadOnly &&
+              !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayBorderColor)]!.IsReadOnly && !displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.IsReadOnly,
+            "Border Color and Corner Radius must re-enable when their own border width is positive.");
+        buttonRows[nameof(C.CalculatorWidgetDefinition.ButtonCornerRadius)]!.SetValue(null, 8f);
+        displayRows[nameof(C.CalculatorWidgetDefinition.DisplayCornerRadius)]!.SetValue(null, 6f);
+        Check(calculator.ButtonCornerRadius == 8f && calculator.DisplayCornerRadius == 6f,
+            "Re-enabled radii must be independently editable.");
+
         var general = new EditorPropertyView(calculator, section: EditorPropertySection.General).GetProperties();
         Check(general["Data Source"] is not null, "Universal Data Source group must remain visible.");
         var action = new EditorPropertyView(calculator, section: EditorPropertySection.Action).GetProperties();

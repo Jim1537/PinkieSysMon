@@ -14,6 +14,7 @@ using CanonicalImageWidgetDefinition = PinkieSysMon.DashboardModel.ImageWidgetDe
 using CanonicalPowerWidgetDefinition = PinkieSysMon.DashboardModel.PowerWidgetDefinition;
 using CanonicalMediaSystemWidgetDefinition = PinkieSysMon.DashboardModel.MediaSystemWidgetDefinition;
 using CanonicalMediaPlayerWidgetDefinition = PinkieSysMon.DashboardModel.MediaPlayerWidgetDefinition;
+using CanonicalCalculatorWidgetDefinition = PinkieSysMon.DashboardModel.CalculatorWidgetDefinition;
 using CanonicalStateContentType = PinkieSysMon.DashboardModel.StateContentType;
 using CanonicalImageAssetSourceType = PinkieSysMon.DashboardModel.ImageAssetSourceType;
 using CanonicalImageAssetPresentationDefinition = PinkieSysMon.DashboardModel.ImageAssetPresentationDefinition;
@@ -1361,6 +1362,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
         else if (widget is CanonicalStateVisualWidgetDefinition && propertyName.Equals("Width", StringComparison.OrdinalIgnoreCase))
         {
+            refreshPropertyView = true;
+        }
+        else if (widget is CanonicalCalculatorWidgetDefinition &&
+                 (propertyName == nameof(CanonicalCalculatorWidgetDefinition.ButtonBorderWidth) ||
+                  propertyName == nameof(CanonicalCalculatorWidgetDefinition.DisplayBorderWidth)))
+        {
+            // Re-evaluate dependent color and radius editors after a width change.
             refreshPropertyView = true;
         }
 

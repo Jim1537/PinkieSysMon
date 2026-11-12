@@ -551,8 +551,23 @@ internal sealed class CalculatorWidgetDefinition : WidgetDefinition
     [JsonPropertyName("buttonTextColor")]
     public string ButtonTextColor { get; set; } = "#FFFFFFFF";
 
+    [JsonPropertyName("buttonCornerRadius")]
+    public float ButtonCornerRadius { get; set; }
+
     [JsonPropertyName("displayTextColor")]
     public string DisplayTextColor { get; set; } = "#FFFFFFFF";
+
+    [JsonPropertyName("displayFillColor")]
+    public string DisplayFillColor { get; set; } = "#00000000";
+
+    [JsonPropertyName("displayBorderWidth")]
+    public float DisplayBorderWidth { get; set; }
+
+    [JsonPropertyName("displayBorderColor")]
+    public string DisplayBorderColor { get; set; } = "#FF9BA8C0";
+
+    [JsonPropertyName("displayCornerRadius")]
+    public float DisplayCornerRadius { get; set; }
 
     [JsonPropertyName("fontFamily")]
     public string FontFamily { get; set; } = "Roboto";
@@ -562,13 +577,20 @@ internal sealed class CalculatorWidgetDefinition : WidgetDefinition
         base.Validate(dashboardBaseDirectory, allowUnavailableArtwork);
         ValidatePositiveGeometry();
         RequireFinite(ButtonBorderWidth, nameof(ButtonBorderWidth));
-        if (ButtonBorderWidth < 0f)
-            throw new InvalidDataException($"Calculator widget '{Id}' ButtonBorderWidth cannot be negative.");
+        RequireFinite(ButtonCornerRadius, nameof(ButtonCornerRadius));
+        RequireFinite(DisplayBorderWidth, nameof(DisplayBorderWidth));
+        RequireFinite(DisplayCornerRadius, nameof(DisplayCornerRadius));
+        if (ButtonBorderWidth < 0f || DisplayBorderWidth < 0f)
+            throw new InvalidDataException($"Calculator widget '{Id}' Border Width cannot be negative.");
+        if (ButtonCornerRadius < 0f || DisplayCornerRadius < 0f)
+            throw new InvalidDataException($"Calculator widget '{Id}' Corner Radius cannot be negative.");
         if (string.IsNullOrWhiteSpace(FontFamily))
             throw new InvalidDataException($"Calculator widget '{Id}' FontFamily is required.");
         _ = global::PinkieSysMon.ColorParser.Parse(ButtonFillColor);
         _ = global::PinkieSysMon.ColorParser.Parse(ButtonBorderColor);
         _ = global::PinkieSysMon.ColorParser.Parse(ButtonTextColor);
         _ = global::PinkieSysMon.ColorParser.Parse(DisplayTextColor);
+        _ = global::PinkieSysMon.ColorParser.Parse(DisplayFillColor);
+        _ = global::PinkieSysMon.ColorParser.Parse(DisplayBorderColor);
     }
 }

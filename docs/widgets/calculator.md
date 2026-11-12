@@ -27,15 +27,17 @@ The dedicated **Calculator** property tab contains only:
 
 | Group | Property |
 | --- | --- |
-| Buttons | Fill Color, Border Color, Border Width, Text Color |
-| Display | Text Color |
 | Font | Family |
+| Buttons | Text Color, Fill Color, Border Width, Border Color, Corner Radius |
+| Display | Text Color, Fill Color, Border Width, Border Color, Corner Radius |
+
+Both key and readout fills are independent of their own borders. **Border Width = 0** suppresses that group's border and corner rounding; **Border Color** and **Corner Radius** become read-only in the Editor without losing their saved values. With a positive width, each group's corner radius rounds both its fill and border. The readout fill defaults to transparent with no border, preserving earlier dashboards.
 
 These settings are independent of the common **Panel** background, foreground, border, corner radius, shadow, padding, rotation, and Action. The common **General → Data Source → Metric** remains visible as **Not applicable**. A single bundled font family applies to keys and readout; font sizes are automatic. See [Property Dictionary](properties.md#calculator-specific-properties).
 
 ## Technical Information
 
-Canonical type: `calculator`. Introduced by **dashboard schema 34**. The persisted widget has all common Panel/Action properties and six calculator appearance fields: `buttonFillColor`, `buttonBorderColor`, `buttonBorderWidth`, `buttonTextColor`, `displayTextColor`, and `fontFamily`. An existing schema-33 dashboard upgrades to 34 without changing widget data.
+Canonical type: `calculator` (introduced in schema 34). **Schema 35** adds five appearance fields with defaults: `buttonCornerRadius`, `displayFillColor`, `displayBorderWidth`, `displayBorderColor`, and `displayCornerRadius`. Existing schema-34 Calculator widgets migrate without changing earlier settings; six previous appearance fields remain `buttonFillColor`, `buttonBorderColor`, `buttonBorderWidth`, `buttonTextColor`, `displayTextColor`, and `fontFamily`.
 
 The shared Skia renderer draws the same static keypad for Editor and physical Outputs. Each active Desktop renderer owns a separate transient calculation state per calculator widget ID; normal refreshes and window movement preserve it, while a new session or dashboard reload resets it. State and clipboard text are **never serialized** or published as telemetry.
 

@@ -66,13 +66,13 @@ internal static class WidgetActionTests
         schema32["widgets"]![0]!["action"]!.AsObject().Remove("runAs");
         Check(DashboardSchemaMigration.UpgradeToCurrent(schema32) &&
               schema32["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Schema 32 must migrate through 33 to current schema 34 without inventing an elevated Action.");
+            "Schema 32 must migrate through 33 and 34 to current schema 35 without inventing an elevated Action.");
         var legacyAction = DashboardJson.DeserializeCurrent(schema32, "legacy-action.json").Widgets[0].Action;
         Check(legacyAction.RunAs == C.WidgetActionDefinition.User,
             "Legacy Action must retain the default non-elevating Shell verb.");
         var migrated32 = schema32.ToJsonString();
         Check(!DashboardSchemaMigration.UpgradeToCurrent(schema32) && schema32.ToJsonString() == migrated32,
-            "Schema 32 to 33 migration must be idempotent.");
+            "Schema 32 to current migration must be idempotent.");
         var saved = DashboardJson.Serialize(parsed, indented: false);
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(saved, path), indented: false) == saved,
             "Current-schema parse/save and repeated migration must be deterministic.");

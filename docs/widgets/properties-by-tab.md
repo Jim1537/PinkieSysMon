@@ -392,7 +392,7 @@ Property groups are **expanded by default**, including nested groups. A group yo
 
     ## Calculator
 
-    The six [Calculator-specific properties](properties.md#calculator-specific-properties) are grouped under **Buttons** (Fill Color, Border Color, Border Width, Text Color), **Display** (Text Color), and **Font** (Family). Panel geometry, common layers, and Action remain separate.
+    The eleven [Calculator-specific properties](properties.md#calculator-specific-properties) are ordered **Font** (Family), **Buttons** (Text Color, Fill Color, Border Width, Border Color, Corner Radius), then **Display** (Text Color, Fill Color, Border Width, Border Color, Corner Radius). Within Buttons and Display, Border Color and Corner Radius are disabled while Border Width is zero. Panel geometry, common layers, and Action remain separate.
 
 === "Action"
 

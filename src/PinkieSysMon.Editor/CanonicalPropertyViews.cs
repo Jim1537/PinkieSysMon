@@ -426,26 +426,42 @@ internal static class CanonicalPropertyViewBuilder
         var fontConverter = string.IsNullOrWhiteSpace(applicationRoot)
             ? null
             : BundledFontFamilyConverter.Create(applicationRoot);
+        string? ButtonBorderDisabled() => calculator.ButtonBorderWidth == 0f ? NotApplicable("Border Width") : null;
+        string? DisplayBorderDisabled() => calculator.DisplayBorderWidth == 0f ? NotApplicable("Border Width") : null;
         return [
-            Group("Buttons", [
-                Color(calculator, nameof(calculator.ButtonFillColor), "calculator.buttons.fill",
-                    "Fill Color", () => calculator.ButtonFillColor, v => calculator.ButtonFillColor = v),
-                Color(calculator, nameof(calculator.ButtonBorderColor), "calculator.buttons.border_color",
-                    "Border Color", () => calculator.ButtonBorderColor, v => calculator.ButtonBorderColor = v),
-                Float(calculator, nameof(calculator.ButtonBorderWidth), "calculator.buttons.border_width",
-                    "Border Width", () => calculator.ButtonBorderWidth, v => calculator.ButtonBorderWidth = Math.Max(0f, v)),
-                Color(calculator, nameof(calculator.ButtonTextColor), "calculator.buttons.text_color",
-                    "Text Color", () => calculator.ButtonTextColor, v => calculator.ButtonTextColor = v)
-            ]),
-            Group("Display", [
-                Color(calculator, nameof(calculator.DisplayTextColor), "calculator.display.text_color",
-                    "Text Color", () => calculator.DisplayTextColor, v => calculator.DisplayTextColor = v)
-            ]),
             Group("Font", [
                 String(calculator, nameof(calculator.FontFamily), "calculator.font.family",
                     "Family", () => calculator.FontFamily,
                     v => calculator.FontFamily = Convert.ToString(v)?.Trim() ?? "Roboto",
                     converter: fontConverter)
+            ]),
+            Group("Buttons", [
+                Color(calculator, nameof(calculator.ButtonTextColor), "calculator.buttons.text_color",
+                    "Text Color", () => calculator.ButtonTextColor, v => calculator.ButtonTextColor = v),
+                Color(calculator, nameof(calculator.ButtonFillColor), "calculator.buttons.fill",
+                    "Fill Color", () => calculator.ButtonFillColor, v => calculator.ButtonFillColor = v),
+                Float(calculator, nameof(calculator.ButtonBorderWidth), "calculator.buttons.border_width",
+                    "Border Width", () => calculator.ButtonBorderWidth, v => calculator.ButtonBorderWidth = Math.Max(0f, v)),
+                Color(calculator, nameof(calculator.ButtonBorderColor), "calculator.buttons.border_color",
+                    "Border Color", () => calculator.ButtonBorderColor, v => calculator.ButtonBorderColor = v,
+                    ButtonBorderDisabled),
+                Float(calculator, nameof(calculator.ButtonCornerRadius), "calculator.buttons.corner_radius",
+                    "Corner Radius", () => calculator.ButtonCornerRadius, v => calculator.ButtonCornerRadius = Math.Max(0f, v),
+                    ButtonBorderDisabled)
+            ]),
+            Group("Display", [
+                Color(calculator, nameof(calculator.DisplayTextColor), "calculator.display.text_color",
+                    "Text Color", () => calculator.DisplayTextColor, v => calculator.DisplayTextColor = v),
+                Color(calculator, nameof(calculator.DisplayFillColor), "calculator.display.fill",
+                    "Fill Color", () => calculator.DisplayFillColor, v => calculator.DisplayFillColor = v),
+                Float(calculator, nameof(calculator.DisplayBorderWidth), "calculator.display.border_width",
+                    "Border Width", () => calculator.DisplayBorderWidth, v => calculator.DisplayBorderWidth = Math.Max(0f, v)),
+                Color(calculator, nameof(calculator.DisplayBorderColor), "calculator.display.border_color",
+                    "Border Color", () => calculator.DisplayBorderColor, v => calculator.DisplayBorderColor = v,
+                    DisplayBorderDisabled),
+                Float(calculator, nameof(calculator.DisplayCornerRadius), "calculator.display.corner_radius",
+                    "Corner Radius", () => calculator.DisplayCornerRadius, v => calculator.DisplayCornerRadius = Math.Max(0f, v),
+                    DisplayBorderDisabled)
             ])
         ];
     }
