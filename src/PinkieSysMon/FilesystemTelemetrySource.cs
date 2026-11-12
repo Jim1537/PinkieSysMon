@@ -49,7 +49,10 @@ internal sealed class FilesystemTelemetrySource : IMetricSource, IMetricDemandOb
     {
         var id = FilesystemSourceContract.SourceIdForMetric(metricName);
         if (id is null) return false;
-        lock (_sync) return _sources.ContainsKey(id);
+        lock (_sync)
+            return _sources.TryGetValue(id, out var source) &&
+                (source.Kind == FilesystemSourceContract.DirectoryKind ||
+                 !FilesystemSourceContract.IsDirectoryOnlyMetric(metricName));
     }
 
     // Called before building a new Runtime schedule. Metadata only; scan I/O stays on the worker.
@@ -138,6 +141,9 @@ internal sealed class FilesystemTelemetrySource : IMetricSource, IMetricDemandOb
                 var id = FilesystemSourceContract.SourceIdForMetric(metric);
                 object? value = null;
                 if (id is not null && _demanded.Contains(id) &&
+                    _sources.TryGetValue(id, out var source) &&
+                    (source.Kind == FilesystemSourceContract.DirectoryKind ||
+                     !FilesystemSourceContract.IsDirectoryOnlyMetric(metric)) &&
                     _readings.TryGetValue(id, out var reading) && reading?.Complete == true)
                 {
                     var suffix = metric[(FilesystemSourceContract.Prefix.Length + id.Length + 1)..];
@@ -146,6 +152,8 @@ internal sealed class FilesystemTelemetrySource : IMetricSource, IMetricDemandOb
                         FilesystemSourceContract.Size => reading.SizeBytes,
                         FilesystemSourceContract.Created => reading.Created,
                         FilesystemSourceContract.Modified => reading.Modified,
+                        FilesystemSourceContract.Files => reading.Files,
+                        FilesystemSourceContract.Directories => reading.Directories,
                         _ => null
                     };
                 }

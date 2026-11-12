@@ -27,6 +27,8 @@ internal static class FilesystemSourceContract
     public const string Size = "size";
     public const string Created = "created";
     public const string Modified = "modified";
+    public const string Files = "files";
+    public const string Directories = "directories";
 
     public static string NewId() => Guid.NewGuid().ToString("N");
 
@@ -47,17 +49,32 @@ internal static class FilesystemSourceContract
         return Guid.TryParseExact(id, "N", out _) &&
                (suffix.Equals(Size, StringComparison.OrdinalIgnoreCase) ||
                 suffix.Equals(Created, StringComparison.OrdinalIgnoreCase) ||
-                suffix.Equals(Modified, StringComparison.OrdinalIgnoreCase))
+                suffix.Equals(Modified, StringComparison.OrdinalIgnoreCase) ||
+                suffix.Equals(Files, StringComparison.OrdinalIgnoreCase) ||
+                suffix.Equals(Directories, StringComparison.OrdinalIgnoreCase))
             ? id.ToLowerInvariant() : null;
     }
 
-    public static IReadOnlyList<MetricDescriptor> DescriptorsFor(IEnumerable<FilesystemSourceConfig> sources) =>
-        sources.SelectMany(source => new[]
+    public static bool IsDirectoryOnlyMetric(string metricName) =>
+        metricName.EndsWith("." + Files, StringComparison.OrdinalIgnoreCase) ||
+        metricName.EndsWith("." + Directories, StringComparison.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<MetricDescriptor> DescriptorsFor(IEnumerable<FilesystemSourceConfig> sources)
+    {
+        var descriptors = new List<MetricDescriptor>();
+        foreach (var source in sources)
         {
-            new MetricDescriptor(MetricId(source.Id, Size), MetricValueKind.DataSize, MetricUnit.Bytes),
-            new MetricDescriptor(MetricId(source.Id, Created), MetricValueKind.DateTime, MetricUnit.None),
-            new MetricDescriptor(MetricId(source.Id, Modified), MetricValueKind.DateTime, MetricUnit.None)
-        }).ToArray();
+            descriptors.Add(new MetricDescriptor(MetricId(source.Id, Size), MetricValueKind.DataSize, MetricUnit.Bytes));
+            descriptors.Add(new MetricDescriptor(MetricId(source.Id, Created), MetricValueKind.DateTime, MetricUnit.None));
+            descriptors.Add(new MetricDescriptor(MetricId(source.Id, Modified), MetricValueKind.DateTime, MetricUnit.None));
+            if (source.Kind == DirectoryKind)
+            {
+                descriptors.Add(new MetricDescriptor(MetricId(source.Id, Files), MetricValueKind.Number, MetricUnit.None));
+                descriptors.Add(new MetricDescriptor(MetricId(source.Id, Directories), MetricValueKind.Number, MetricUnit.None));
+            }
+        }
+        return descriptors;
+    }
 
     // Validation is deliberately metadata-only. The Editor's explicit preflight
     // is responsible for verifying actual filesystem access before admission.

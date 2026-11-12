@@ -79,6 +79,61 @@ internal static class FilesystemProviderTests
             duplicateAlias.Filesystem.Sources.Add(source.Copy());
             duplicateAlias.Filesystem.Sources.Add(Source(Path.Combine(root, "other.dat"), FilesystemSourceContract.FileKind, "example"));
             ExpectInvalid(() => duplicateAlias.Save(configPath), "Duplicate source aliases must be rejected.");
+            var directoryPath = Path.Combine(root, "directory-source");
+            Directory.CreateDirectory(directoryPath);
+            var directorySource = Source(directoryPath, FilesystemSourceContract.DirectoryKind, "Folder");
+            var folderMetrics = FilesystemSourceContract.DescriptorsFor([directorySource]);
+            var filesMetric = FilesystemSourceContract.MetricId(directorySource.Id, FilesystemSourceContract.Files);
+            var directoriesMetric = FilesystemSourceContract.MetricId(directorySource.Id, FilesystemSourceContract.Directories);
+            Check(folderMetrics.Count == 5 &&
+                  folderMetrics.Single(d => d.Id == filesMetric).ValueKind == MetricValueKind.Number &&
+                  folderMetrics.Single(d => d.Id == directoriesMetric).ValueKind == MetricValueKind.Number &&
+                  folderMetrics.Where(d => d.Id == filesMetric || d.Id == directoriesMetric)
+                      .All(d => d.BaseUnit == MetricUnit.None),
+                "Directory sources must expose two unitless numeric counts alongside existing metrics.");
+            Check(FilesystemSourceContract.DescriptorsFor([source]).Count == 3 &&
+                  FilesystemSourceContract.SourceIdForMetric(filesMetric.ToUpperInvariant()) == directorySource.Id,
+                "File sources retain three metrics; directory metric IDs must support case-insensitive lookup.");
+            using (var directoryProvider = new FilesystemTelemetrySource(
+                new FilesystemConfig { Sources = [directorySource] }, log))
+            {
+                Check(directoryProvider.CanProvide(filesMetric) &&
+                      directoryProvider.CanProvide(directoriesMetric),
+                    "A Directory source must resolve both count metrics.");
+            }
+            using (var fileProvider = new FilesystemTelemetrySource(
+                new FilesystemConfig { Sources = [source] }, log))
+            {
+                Check(!fileProvider.CanProvide(FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Files)) &&
+                      !fileProvider.CanProvide(FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Directories)),
+                    "A File source must never resolve Directory-only metrics.");
+            }
+
+            renamed.Filesystem.Sources.Add(directorySource);
+            renamed.Save(configPath);
+            var savedFolder = AppConfig.Load(configPath, log);
+            Check(savedFolder.Filesystem.Sources.Single(s => s.Id == directorySource.Id).Kind ==
+                  FilesystemSourceContract.DirectoryKind,
+                "Directory source identity must survive configuration persistence.");
+            try
+            {
+                savedFolder.MetricProviders[MetricProviderContract.Filesystem] = true;
+                MetricSelectorEnvironment.Configure(root, log, () => savedFolder);
+                var snapshot = MetricSelectorEnvironment.BuildSnapshot(null);
+                Check(snapshot.Metrics.Any(m => m.Id == filesMetric && m.Available &&
+                      m.DisplayPath.Last().Text == FilesystemSourceContract.Files) &&
+                      snapshot.Metrics.Any(m => m.Id == directoriesMetric && m.Available &&
+                      m.DisplayPath.Last().Text == FilesystemSourceContract.Directories) &&
+                      snapshot.Metrics.All(m => m.Id != FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Files)),
+                    "Directory counts must appear in the existing selector, never under File sources.");
+                savedFolder.MetricProviders[MetricProviderContract.Filesystem] = false;
+                var disabledFolder = MetricSelectorEnvironment.BuildSnapshot(filesMetric);
+                Check(disabledFolder.GhostMetric is { Available: false } &&
+                      disabledFolder.GhostMetric.Id == filesMetric,
+                    "Disabled directory-count binding must remain unavailable without rebinding.");
+            }
+            finally { MetricContract.ReplaceProviderDescriptors(MetricProviderContract.Filesystem, []); }
+
             var relativePath = new AppConfig();
             relativePath.Filesystem.Sources.Add(Source("relative\\file.txt", FilesystemSourceContract.FileKind, "Bad"));
             ExpectInvalid(() => relativePath.Save(configPath), "Relative paths must be rejected.");
@@ -204,6 +259,76 @@ internal static class FilesystemProviderTests
         });
     }
 
+    public static void DirectoryCountsAndRecovery()
+    {
+        WithFixture((root, log) =>
+        {
+            var folder = Path.Combine(root, "tree");
+            var nested = Path.Combine(folder, "nested");
+            var deepest = Path.Combine(nested, "deep");
+            Directory.CreateDirectory(deepest);
+            File.WriteAllBytes(Path.Combine(folder, "first.bin"), [1]);
+            File.WriteAllBytes(Path.Combine(nested, "second.bin"), [1, 2]);
+            File.WriteAllBytes(Path.Combine(deepest, "third.bin"), [1, 2, 3]);
+
+            var configured = Source(folder, FilesystemSourceContract.DirectoryKind, "Tree");
+            var files = FilesystemSourceContract.MetricId(configured.Id, FilesystemSourceContract.Files);
+            var directories = FilesystemSourceContract.MetricId(configured.Id, FilesystemSourceContract.Directories);
+            var size = FilesystemSourceContract.MetricId(configured.Id, FilesystemSourceContract.Size);
+            using var source = new FilesystemTelemetrySource(
+                new FilesystemConfig { Sources = [configured] }, log, TimeSpan.FromMilliseconds(150));
+            var polling = new TelemetryConfig
+            {
+                Metrics = new(StringComparer.OrdinalIgnoreCase)
+                {
+                    [files] = new MetricPollingConfig { IntervalMs = 100 },
+                    [directories] = new MetricPollingConfig { IntervalMs = 100 },
+                    [size] = new MetricPollingConfig { IntervalMs = 100 }
+                }
+            };
+            var store = new MetricStore();
+            using (var engine = new TelemetryEngine(store, [source], polling,
+                       [MetricProviderContract.Filesystem], [], log))
+            {
+                engine.Start();
+                Thread.Sleep(250);
+                Check(source.ScanAttempts == 0,
+                    "Unused directory count metrics must not trigger a filesystem scan.");
+                engine.Reconfigure(polling, [MetricProviderContract.Filesystem], [files, directories, size]);
+                Check(SpinWait.SpinUntil(() =>
+                    IsCount(store, files, 3) && IsCount(store, directories, 2) &&
+                    IsSize(store, size, 6), TimeSpan.FromSeconds(8)),
+                    "A single complete recursive traversal must publish both counts and logical size.");
+
+                var empty = Path.Combine(folder, "empty");
+                Directory.CreateDirectory(empty);
+                File.WriteAllBytes(Path.Combine(empty, "fourth.bin"), [9]);
+                Check(SpinWait.SpinUntil(() =>
+                    IsCount(store, files, 4) && IsCount(store, directories, 3) &&
+                    IsSize(store, size, 7), TimeSpan.FromSeconds(8)),
+                    "All counts must refresh together after nested filesystem changes.");
+
+                var missing = Path.Combine(root, "tree-moved");
+                Directory.Move(folder, missing);
+                Check(SpinWait.SpinUntil(() =>
+                    IsUnavailable(store, files) && IsUnavailable(store, directories) &&
+                    IsUnavailable(store, size), TimeSpan.FromSeconds(8)),
+                    "A failed scan must invalidate counts and size as one atomic result.");
+                Directory.Move(missing, folder);
+                Check(SpinWait.SpinUntil(() =>
+                    IsCount(store, files, 4) && IsCount(store, directories, 3) &&
+                    IsSize(store, size, 7), TimeSpan.FromSeconds(8)),
+                    "Folder count metrics must recover after source reappearance.");
+
+                engine.Reconfigure(polling, [], [files, directories, size]);
+                Check(SpinWait.SpinUntil(() =>
+                    IsUnavailable(store, files) && IsUnavailable(store, directories) &&
+                    IsUnavailable(store, size), TimeSpan.FromSeconds(3)),
+                    "Disabling the provider must clear all new metrics and previous size.");
+            }
+        });
+    }
+
     private static FilesystemSourceConfig Source(string path, string kind, string alias) => new()
     {
         Id = FilesystemSourceContract.NewId(), Path = path, Kind = kind, Alias = alias
@@ -211,6 +336,9 @@ internal static class FilesystemProviderTests
 
     private static bool IsSize(MetricStore store, string metric, long expected) =>
         store.Snapshot().TryGetValue(metric, out var value) && value is long length && length == expected;
+
+    private static bool IsCount(MetricStore store, string metric, int expected) =>
+        store.Snapshot().TryGetValue(metric, out var value) && value is int count && count == expected;
 
     private static bool IsUnavailable(MetricStore store, string metric) =>
         store.Snapshot().TryGetValue(metric, out var value) && value is null;

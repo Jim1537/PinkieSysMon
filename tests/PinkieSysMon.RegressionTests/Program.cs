@@ -392,6 +392,7 @@ internal static partial class Program
                 ("Filesystem config, stable metrics and selector", FilesystemProviderTests.ConfigurationAndSelector),
                 ("Filesystem complete scanner, bounds and reparse safety", FilesystemProviderTests.ScannerCompletenessAndBudgets),
                 ("Filesystem demanded background refresh and recovery", FilesystemProviderTests.RuntimeDemandAndRecovery),
+                ("Filesystem folder counts, shared scan and recovery", FilesystemProviderTests.DirectoryCountsAndRecovery),
                 ("Telemetry provider failure isolation", TelemetryProviderFailureIsIsolated),
                 ("PC catalog, types and selector", Issue92PcTelemetryTests.CatalogAndSelector),
                 ("PC installed memory and architecture values", Issue92PcTelemetryTests.ValueNormalization),

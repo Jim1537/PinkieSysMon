@@ -25,8 +25,12 @@ Each configured source has an immutable, opaque 32-character ID. Aliases and pat
 | Size | `filesystem.<id>.size` | `DataSize`, bytes | File length; or recursive sum of descendant file lengths for a directory |
 | Created | `filesystem.<id>.created` | `DateTime` | Creation timestamp of the configured file or directory **itself**, in local time |
 | Modified | `filesystem.<id>.modified` | `DateTime` | Last-write timestamp of the configured file or directory **itself**, in local time |
+| Files | `filesystem.<id>.files` | `Number`, unitless | **Directories only:** total number of files at all descendant depths |
+| Directories | `filesystem.<id>.directories` | `Number`, unitless | **Directories only:** number of nested directories at all depths, excluding the source root |
 
-Directory timestamps **do not** represent the newest or oldest descendant. Directory size is not a disk-volume capacity or free-space reading.
+Directory timestamps **do not** represent the newest or oldest descendant. Directory size is not a disk-volume capacity or free-space reading. File sources expose only the original three metrics; folder counts are available only for Directory sources.
+
+The two counts are collected **during the same full traversal** as size, with no extra scan. They exclude skipped reparse points (symlinks and junctions). Empty directories return zero; failed or incomplete traversals make both counts unavailable, just like size.
 
 Source records live in `config/app.json` under `Filesystem.Sources` (`Id`, `Alias`, `Path`, `Kind`). Provider enablement is `MetricProviders["filesystem"]`. Existing configuration files load with an empty Sources list and Filesystem disabled. Dashboard JSON and its schema are not changed. Removed or disabled sources retain existing widget metric ID references as **unavailable**; they are not silently rebound to different paths.
 
@@ -37,7 +41,7 @@ A common scanner validates a source before admission in Editor and whenever Runt
 - **15 elapsed seconds** and **250,000 encountered entries** per source are hard cooperative budgets. Both must be met by a *complete* traversal, with no access or metadata errors. Exactly 250,000 complete entries may pass; any further entry fails.
 - Every encountered file, subdirectory and skipped reparse point counts. Directory junctions, symlinks and other reparse-point targets are never traversed. A root that is itself a reparse point is rejected.
 - A file needs metadata validation but no recursive walk. The scanner reads file attributes, lengths and timestamps, **not payload bytes**.
-- Missing or inaccessible paths, type mismatches, overflowing sums, access-denied children, enumeration failures, cancellation and exceeded budgets yield **unavailable (`null`)**, never a valid-looking partial size.
+- Missing or inaccessible paths, type mismatches, overflowing sums, access-denied children, enumeration failures, cancellation and exceeded budgets yield **unavailable (`null`)**, never a valid-looking partial size or count.
 - A single blocked native Windows filesystem call is not forcibly interruptible. The deadline and cancellation are checked between operations; neither guarantees an operating-system I/O timeout.
 
 Runtime has one serialized background scanner for the entire Filesystem provider. Multiple active Outputs requesting the same source share its result, and only demanded sources are scanned. The ordinary synchronous `IMetricSource.Capture()` returns a memory snapshot without walking directories or waiting on a scan. Runtime schedules each demanded source for a new scan **five minutes after its previous scan completes**, independently of widget redraw and normal metric snapshot-publication cadence. Refreshing a second source never creates a second overlapping scanner.
