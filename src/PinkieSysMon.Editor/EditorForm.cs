@@ -70,6 +70,8 @@ internal sealed partial class EditorForm : PinkieEditorForm
     private readonly Dictionary<string, TreeNode> _groupTreeNodes = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, object?> _lastMetrics = new Dictionary<string, object?>();
     private IReadOnlySet<string> _previewRequiredMetrics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly EditorRuntimeMetricCache _runtimeMetricCache = new();
+    private int _runtimePreviewGeneration;
     private string _dashboardName = string.Empty;
     private string _dashboardPath = string.Empty;
     private float _zoom = 0.5f;
@@ -650,26 +652,75 @@ internal sealed partial class EditorForm : PinkieEditorForm
         return null;
     }
 
+    private static bool SameRuntimeMetricOwners(RuntimeStatusSnapshot? previous, RuntimeStatusSnapshot current)
+    {
+        if (previous is null || previous.Outputs.Length != current.Outputs.Length)
+            return false;
+
+        return previous.Outputs.All(old => current.Outputs.Any(next =>
+            old.TargetId.Equals(next.TargetId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(old.Kind, next.Kind, StringComparison.OrdinalIgnoreCase) &&
+            old.ProviderEnabled == next.ProviderEnabled &&
+            old.OutputEnabled == next.OutputEnabled &&
+            old.IsActive == next.IsActive));
+    }
+
     private async Task RefreshRuntimeStatusAsync()
     {
-        if (_runtimeStatusProbeInProgress || _screenCommandInProgress || IsDisposed)
+        if (_runtimeStatusProbeInProgress || _screenCommandInProgress || _previewShutdownStarted || IsDisposed)
             return;
 
-        var generation = _runtimeStateGeneration;
+        var stateGeneration = _runtimeStateGeneration;
+        var previewGeneration = _runtimePreviewGeneration;
+        var requestedIds = _previewRequiredMetrics
+            .Where(id => OutputMetricContract.DescribeKnownId(id) is not null)
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray();
         _runtimeStatusProbeInProgress = true;
         try
         {
             var response = await RuntimeClient.GetStatusAsync();
-            if (!IsDisposed && !_screenCommandInProgress && generation == _runtimeStateGeneration)
+            if (IsDisposed || _screenCommandInProgress || _previewShutdownStarted ||
+                stateGeneration != _runtimeStateGeneration || previewGeneration != _runtimePreviewGeneration)
+                return;
+
+            var previous = _runtimeStatusSnapshot;
+            _runtimeRunning = response.Success;
+            _runtimeStatusSnapshot = response.Status;
+            if (response.Success && response.Status is { } status)
             {
-                _runtimeRunning = response.Success;
-                _runtimeStatusSnapshot = response.Status;
-                if (response.Success && _runtimeStatusSnapshot is { } status)
+                if (!SameRuntimeMetricOwners(previous, status))
+                    _runtimeMetricCache.Clear();
+
+                var active = status.Outputs.Count(output => output.IsActive);
+                _statusRuntime.Text = $"Runtime: Running · Outputs {active}/{status.Outputs.Length}";
+
+                if (requestedIds.Length > 0 && _definition is not null &&
+                    WindowState != FormWindowState.Minimized)
                 {
-                    var active = status.Outputs.Count(output => output.IsActive);
-                    _statusRuntime.Text = $"Runtime: Running · Outputs {active}/{status.Outputs.Length}";
+                    // The existing one-second status opportunity owns this
+                    // asynchronous read. Never perform IPC from painting or editing.
+                    var metrics = await RuntimeClient.GetCurrentMetricsAsync(requestedIds);
+                    if (!IsDisposed && !_screenCommandInProgress && !_previewShutdownStarted &&
+                        WindowState != FormWindowState.Minimized &&
+                        stateGeneration == _runtimeStateGeneration &&
+                        previewGeneration == _runtimePreviewGeneration)
+                    {
+                        if (metrics is null) _runtimeMetricCache.Clear();
+                        else _runtimeMetricCache.Accept(metrics);
+                        // The existing render timer consumes the refreshed immutable cache.
+                        // Property edits still render immediately against its latest values.
+                    }
                 }
-                else if (IsRuntimeProcessPresent())
+                else
+                {
+                    _runtimeMetricCache.Clear();
+                }
+            }
+            else
+            {
+                var hadReadings = _runtimeMetricCache.Current().Count > 0;
+                _runtimeMetricCache.Clear();
+                if (IsRuntimeProcessPresent())
                 {
                     _runtimeRunning = null;
                     _runtimeStatusSnapshot = null;
@@ -679,12 +730,17 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 {
                     _statusRuntime.Text = "Runtime: Not running";
                 }
+                if (hadReadings && !_dragging) RenderPreview(force: true);
             }
         }
         catch
         {
-            if (!IsDisposed && !_screenCommandInProgress && generation == _runtimeStateGeneration)
+            if (!IsDisposed && !_screenCommandInProgress && !_previewShutdownStarted &&
+                stateGeneration == _runtimeStateGeneration &&
+                previewGeneration == _runtimePreviewGeneration)
             {
+                var hadReadings = _runtimeMetricCache.Current().Count > 0;
+                _runtimeMetricCache.Clear();
                 if (IsRuntimeProcessPresent())
                 {
                     _runtimeRunning = null;
@@ -697,6 +753,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                     _runtimeStatusSnapshot = null;
                     _statusRuntime.Text = "Runtime: Not running";
                 }
+                if (hadReadings && !_dragging) RenderPreview(force: true);
             }
         }
         finally

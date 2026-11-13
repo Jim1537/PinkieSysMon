@@ -32,7 +32,7 @@ You can select a metric from an enabled provider, including [System](../telemetr
 !!! info
     Binary can work with Boolean, numeric, text, and DateTime metrics. DateTime needs an explicitly selected numeric Component; the metric's value type determines how `Auto` and `Setpoint` evaluate it.
 
-    The selected provider must be supplying a usable current value for Binary to select a visual state.
+    The selected provider must be supplying a usable current value for Binary to select a visual state. In Editor, Runtime-owned Output metrics use genuine read-only Runtime snapshots; if Runtime is absent or the value unavailable, Binary follows its existing fallback behavior, not a fabricated True or False. Changing a Setpoint immediately re-evaluates the last accepted current value.
 
 
 See [Metric](properties.md#metric).

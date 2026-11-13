@@ -55,7 +55,7 @@ internal static class GraphPreviewLifecycleTests
             "Editor disposal/data must remain independent of a Runtime-owned history instance.");
     }
 
-    public static void StaleDiscoveryAndIllustrativeOutputHistory()
+    public static void StaleDiscoveryAndUnavailableRuntimeOutputHistory()
     {
         using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
         var source = new GraphTelemetryTests.Source(SystemMetricContract.Uptime, MetricProviderContract.System, _ => 1);
@@ -77,7 +77,7 @@ internal static class GraphPreviewLifecycleTests
             ((C.GraphWidgetDefinition)board.Widgets[0]).Metric = metric;
             preview.Configure(config, board);
             Check(preview.History.CopyTo(metric, 60, preview.History.GetTimestamp(), new MetricHistorySample[8192]).Count == 0,
-                "Illustrative Editor Output readings must never be periodically republished as real Graph history.");
+                "Runtime-owned current-value IPC must not inject samples into Editor Graph history.");
         }
         finally { release.Set(); preview.StopAsync().GetAwaiter().GetResult(); }
     }

@@ -7,6 +7,7 @@ namespace PinkieSysMon;
 
 internal sealed class PinkieApplicationContext : ApplicationContext
 {
+    private readonly Guid _ipcInstanceId = Guid.NewGuid();
     private readonly string _baseDir;
     private readonly FileLogger _log;
     private readonly MetricStore _metrics = new(new MetricHistoryStore());
@@ -368,6 +369,10 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus() with { IpcDiagnosticsVersion = RuntimeIpcDiagnostics.Version })));
+
+        if (parsed.Kind == RuntimeIpcCommandKind.ReadMetrics && parsed.MetricIds is { } ids)
+            return Task.FromResult(new RuntimeIpcResponse(true, RuntimeMetricSnapshotProtocol.SerializeSnapshot(
+                _ipcInstanceId, ids, _outputSessions.ReadPublishedMetricSnapshot(ids))));
 
         if (parsed.Kind is RuntimeIpcCommandKind.UsbTestBegin or
             RuntimeIpcCommandKind.UsbTestStatus or RuntimeIpcCommandKind.UsbTestCancel)

@@ -578,6 +578,8 @@ This is an intentional distinction between:
 When the System provider is disabled, its metrics are not added to the normal Metric selector list.
 
 
+Runtime-owned `system.output.<OutputId>.*` values are not collected by the Editor's local System sources. The Editor reads their actual current publications through the [bounded read-only Runtime IPC preview boundary](../development/architecture.md#editor-versus-runtime-state). When Runtime is unavailable or the Output's provider is disabled, it does not invent Output status or performance samples. This does not alter the independent [Output publication contract](#runtime-and-output-performance-metrics) or transfer Graph history.
+
 ### Provider Enablement
 
 The System provider is enabled by default.

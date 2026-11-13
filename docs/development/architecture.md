@@ -23,7 +23,7 @@ Both primary application processes use classes from `PinkieSysMon.dll`. **The sh
          PinkieApplicationContext   EditorForm
                     |                   |
           +---------+----------+        +-- in-memory document / Editor metadata
-          |                    |        +-- independent preview and sample data
+          |                    |        +-- independent local preview telemetry
     TelemetryEngine      OutputSessionManager
           |                    |        +-- Runtime IPC client ------+
       IMetricSource[]     per-target session                       |
@@ -38,7 +38,7 @@ Both primary application processes use classes from `PinkieSysMon.dll`. **The sh
                                |
                     Desktop window / device transport
 
-The horizontal link from `MetricStore` to output sessions carries **data snapshots**, not commands. The IPC connection carries **control requests and status**, not live widget objects or a stream of rendered frames. The persistence link is file-based.
+The horizontal link from `MetricStore` to output sessions carries **data snapshots**, not commands. IPC carries **control requests, status, and narrowly scoped read-only current Output metric snapshots**, never live widget objects, historical telemetry or rendered frames. The persistence link is file-based.
 
 ## Runtime data path
 
@@ -119,8 +119,10 @@ The Editor creates its own `DashboardPreviewRenderer` from the canonical documen
 
 Capture, catalog discovery and source-setting operations share the existing acquisition worker. Its bounded operation queue serializes them outside scheduler locks; concurrent picker discovery is coalesced, returned as immutable catalogs, and stale generations cannot replace the current preview catalog. The UI can show a loading picker while native discovery completes. Normal Editor close awaits terminal worker completion asynchronously before disposing sources; direct programmatic Dispose also waits for terminal ownership. A blocked provider can delay shutdown: sources are never disposed underneath a running operation. Specific [System](../telemetry/system.md#editor-integration), [LHM](../telemetry/libre-hardware-monitor.md#editor-integration), and [iCUE](../telemetry/icue-sensor-logging.md#editor-integration) pages own each provider's Editor-side discovery, caching, and failure behavior.
 
-!!! info "Preview Runtime metrics are illustrative"
-    The Editor preview can synthesize illustrative `system.output.<OutputId>.*` performance values only for configured, provider-enabled Outputs with rendering/device enablement. It can show passive status with no active device or visible Desktop panel. These preview fixtures are not measurements of the live Runtime, USB connection, or Desktop rendering. They are added only to the display snapshot and never admitted to Graph history; an Output Graph in Editor therefore has no fabricated measurements.
+!!! info "Runtime-owned Output metrics in Editor preview"
+    The Editor uses actual published current values for referenced `system.output.<OutputId>.*` metrics when Runtime is reachable. It obtains them through a bounded, read-only `METRICS_V1` IPC request, then merges them with independently collected Editor-local metrics at the preview boundary. There are **no fabricated Output readings**: an absent, disabled, unsupported, stale or inaccessible producer leaves the metric unavailable, not a guessed connection state, numerical sample, or False-from-missing. Existing widget fallback rules apply without changing any saved dashboard property.
+
+    The existing one-second Runtime status opportunity also schedules the asynchronous metric read; painting and PropertyGrid editing only consume the last accepted snapshot. Requests carry at most 32 canonical Output IDs each (128 per cycle), use the existing 8192-character request cap and a 32768-character response cap, and accept only bounded, explicitly typed scalar values from the same Runtime instance across batches. Values older than three seconds are discarded. Output configuration/provider changes and dashboard switches invalidate prior cached values. Neither Editor nor IPC starts USB operations, Output sessions or telemetry captures. A Graph requiring Runtime-owned **history** still has no imported samples; current values are not fabricated into its history.
 
 The two processes can load the same persisted dashboard from disk without sharing an editable object. **Save** commits the Editor's document to disk; the already-running Runtime retains its own loaded definition until an explicit reload/start operation is requested. Opening an unchanged current-schema dashboard leaves Editor Save disabled and does not prompt on switching. On every successful document load, the default-selected Canvas node and PropertyGrid bind to the newly published document; obsolete widget, multi-selection and Canvas property callbacks cannot mark or edit the replacement document. A load rejected before document publication leaves the existing document and property view intact. Actual schema upgrades or Editor normalization remain unsaved until a successful Save, including after Undo returns to the loaded in-memory state. Undo/Redo otherwise compares document snapshots against the last saved canonical state.
 
@@ -245,7 +247,7 @@ Two simultaneously running Editors exchange selected widgets through a versioned
 
 ## Control path and reconfiguration
 
-The Editor's Runtime controls communicate with the independent Runtime process over a **local, current-user Windows named pipe**. `RuntimeIpcServer` receives commands; `PinkieApplicationContext` routes state-changing work to its UI-thread orchestration path. The Editor does not call Runtime's live `FramePump` or WinUSB objects directly.
+The Editor communicates with the independent Runtime process over a **local, current-user Windows named pipe**. `RuntimeIpcServer` receives commands; `PinkieApplicationContext` routes state-changing work to its UI-thread orchestration path. The narrowly scoped `METRICS_V1` read-only request instead copies already-published current values under the existing Output manager ownership gate; it does not invoke the UI-thread command path, force telemetry capture, or acquire hardware. The existing `STATUS` payload and ordinary-command correlation remain unchanged. The Editor does not call Runtime's live `FramePump` or WinUSB objects directly.
 
 The shared IPC server rejects any request line longer than 8192 characters and bounds the time spent receiving a connected client's line. This input limit is separate from native transfer completion. The named pipe restricts callers to the current Windows account and elevation level; GUID correlation is not an additional authentication mechanism. Candidate testing uses the [transient USB Test coordinator](#transient-usb-test-coordination).
 

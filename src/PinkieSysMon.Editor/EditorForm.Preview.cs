@@ -54,6 +54,11 @@ internal sealed partial class EditorForm
             _statusArtwork.Text = $"Repair artwork ({recovery.Sources.Count})";
             _statusArtwork.ToolTipText = string.Join(Environment.NewLine, recovery.Sources);
             replacement = null;
+            if (!ReferenceEquals(definition, _definition) || !_previewRequiredMetrics.SetEquals(requiredMetrics))
+            {
+                ++_runtimePreviewGeneration;
+                _runtimeMetricCache.Clear();
+            }
             _previewRequiredMetrics = requiredMetrics;
             UpdatePreviewTimerState();
 
@@ -154,40 +159,15 @@ internal sealed partial class EditorForm
 
     private IReadOnlyDictionary<string, object?> ReadPreviewMetrics()
     {
-        var result = new Dictionary<string, object?>(_previewTelemetry.Store.Snapshot(), StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, object?>(
+            EditorRuntimeMetricCache.Compose(_previewTelemetry.Store.Snapshot(),
+                _runtimeMetricCache.Current(), _previewRequiredMetrics),
+            StringComparer.OrdinalIgnoreCase);
 
+        // Editor-local application version is genuine build metadata, not a
+        // fabricated Output sample. All Output semantics require Runtime data.
         if (MetricProviderContract.IsEnabled(_appConfig.MetricProviders, MetricProviderContract.System))
-        {
-
             AddPreviewMetric(result, RuntimeMetricContract.Version, RuntimeVersion.Current);
-        }
-
-        // Output providers are independent from the global System telemetry provider.
-        // Preview values are illustrative, never read from live USB or hidden panels.
-        foreach (var output in _appConfig.Outputs.Targets.Where(t => t.ProviderEnabled))
-        {
-            // Pure illustrative snapshot; never infer live device state.
-            var id = output.Id;
-            var isPhysical = OutputTargetContract.IsPhysicalKind(output.Kind);
-            var isBoardActive = OutputTargetContract.IsEnabled(output);
-            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Status),
-                isPhysical ? (output.DeviceEnabled ? "EDITOR" : "DISABLED") : "DESKTOP_PENDING");
-
-            if (!isBoardActive)
-                continue;
-            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameCount), 12_345L);
-            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.Fps), 24.0);
-            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.RenderDuration), 18.4);
-            AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.FrameDuration), 41.7);
-            if (isPhysical)
-            {
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.EncodeDuration), 7.1);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbDuration), 16.2);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.JpegSize), 184_321);
-                AddPreviewMetric(result, OutputMetricContract.Id(id, OutputMetricContract.UsbState), "EDITOR");
-            }
-        }
-
         return result;
     }
 

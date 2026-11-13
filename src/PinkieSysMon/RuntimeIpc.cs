@@ -60,6 +60,7 @@ internal enum RuntimeIpcCommandKind
     Invalid,
     Ping,
     Status,
+    ReadMetrics,
     ReloadConfiguration,
     Exit,
     StartOrReloadTarget,
@@ -84,7 +85,8 @@ internal sealed record RuntimeIpcCommand(
     bool? Value = null,
     CatalogUsbTestBeginRequest? UsbTestBegin = null,
     CatalogUsbTestHandle? UsbTestHandle = null,
-    string? RecordHash = null);
+    string? RecordHash = null,
+    string[]? MetricIds = null);
 
 internal static class RuntimeIpcProtocol
 {
@@ -151,6 +153,13 @@ internal static class RuntimeIpcProtocol
             return new RuntimeIpcCommand(RuntimeIpcCommandKind.StartOrReloadAll);
         if (command.Equals(StopAllCommand, StringComparison.OrdinalIgnoreCase))
             return new RuntimeIpcCommand(RuntimeIpcCommandKind.StopAll);
+
+        if (command.StartsWith(RuntimeMetricSnapshotProtocol.Command + "\t", StringComparison.OrdinalIgnoreCase))
+        {
+            try { return new(RuntimeIpcCommandKind.ReadMetrics, MetricIds: RuntimeMetricSnapshotProtocol.ParseRequest(command)); }
+            catch (Exception error) when (error is JsonException or InvalidDataException or NotSupportedException)
+            { return new(RuntimeIpcCommandKind.Invalid, Error: "Invalid read-only metric snapshot request."); }
+        }
 
         if (CatalogUsbTestIpcProtocol.TryParse(command, out var usbTest))
             return usbTest;
@@ -290,6 +299,7 @@ internal static class RuntimeIpc
         var requestAttempted = false;
         var readOnly = command.Equals(RuntimeIpcProtocol.PingCommand, StringComparison.OrdinalIgnoreCase) ||
             command.Equals(RuntimeIpcProtocol.StatusCommand, StringComparison.OrdinalIgnoreCase) ||
+            command.StartsWith(RuntimeMetricSnapshotProtocol.Command + "\t", StringComparison.OrdinalIgnoreCase) ||
             command.StartsWith(CatalogUsbTestIpcProtocol.StatusCommand + "\t", StringComparison.OrdinalIgnoreCase);
 
         using var requestContext = RuntimeIpcTrace.Enter(request);

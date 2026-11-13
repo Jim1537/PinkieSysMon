@@ -71,6 +71,44 @@ internal sealed class RuntimeIpcClient(FileLogger? log, string? pipeName = null,
         }
     }
 
+    // Read-only snapshots use the same current-user pipe, without capability
+    // probes or retries. The complete cycle is accepted only if every bounded
+    // batch succeeds and comes from the same Runtime process instance.
+    internal async Task<RuntimeMetricSnapshot?> GetCurrentMetricsAsync(
+        IReadOnlyCollection<string> metricIds, int timeoutMs = 750,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(metricIds);
+        var ids = metricIds.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (ids.Length is 0 or > RuntimeMetricSnapshotProtocol.MaxTotalIds)
+            return null;
+        var combined = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        Guid? instance = null;
+        try
+        {
+            foreach (var batch in ids.Chunk(RuntimeMetricSnapshotProtocol.MaxRequestIds))
+            {
+                var response = await RuntimeIpc.SendCoreAsync(
+                    RuntimeMetricSnapshotProtocol.BuildRequest(batch), _pipeName,
+                    timeoutMs, cancellationToken).ConfigureAwait(false);
+                if (!response.Success) return null;
+                var snapshot = RuntimeMetricSnapshotProtocol.DeserializeSnapshot(response.Message, batch);
+                if (instance is not null && instance != snapshot.InstanceId)
+                    return null;
+                instance = snapshot.InstanceId;
+                foreach (var (id, value) in snapshot.Values)
+                    combined[id] = value;
+            }
+            return instance is { } identity ? new RuntimeMetricSnapshot(identity, combined) : null;
+        }
+        catch (Exception error) when (error is JsonException or InvalidDataException or NotSupportedException)
+        {
+            log?.WarnThrottled("ipc.metrics.decode", TimeSpan.FromSeconds(30),
+                "Runtime metric snapshot was rejected; preview values are unavailable.", error);
+            return null;
+        }
+    }
+
     private string Incident(string phase) => "ipc.status." + _observerId + "." + phase;
 
     private void ObserveTransportFailure(Exception error, string phase)

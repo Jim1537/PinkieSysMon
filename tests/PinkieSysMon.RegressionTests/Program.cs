@@ -280,7 +280,7 @@ internal static partial class Program
             ("Editor / Graph Preview", [
                 ("Graph preview coalescing and terminal source ownership", GraphPreviewLifecycleTests.DiscoveryCoalescingAndTerminalShutdown),
                 ("Graph preview close fence and Runtime isolation", GraphPreviewLifecycleTests.BlockedCaptureCloseFenceAndIsolation),
-                ("Graph preview stale discovery and illustrative Output history", GraphPreviewLifecycleTests.StaleDiscoveryAndIllustrativeOutputHistory),
+                ("Graph preview stale discovery and unavailable Runtime history", GraphPreviewLifecycleTests.StaleDiscoveryAndUnavailableRuntimeOutputHistory),
             ]),
             ("Editor / Output Control", [
                 ("dirty document Save, Don't Save, Cancel and failed Save", EditorOutputStartStage25Tests.DirtyDocumentDecisions),
@@ -443,6 +443,10 @@ internal static partial class Program
                 ("IPC lost response never repeats command", Issue105IpcLoggingTests.LostResponseNeverRepeatsCommand),
                 ("IPC context lifetime and deferred feedback", Issue105IpcLoggingTests.ContextIsolationAndDeferredFeedback),
                 ("IPC counted status and observer isolation", Issue105IpcLoggingTests.CountedStatusAndObserverIsolation),
+                ("Issue 110 bounded typed current-metric IPC", Issue110MetricSnapshotTests.BoundedTypedProtocol),
+                ("Issue 110 Runtime Output metric ownership", Issue110MetricSnapshotTests.RuntimeOwnershipAndProviderFiltering),
+                ("Issue 110 read-only pipe and process generation", Issue110MetricSnapshotTests.ReadOnlyPipeAndGenerationIsolation),
+                ("Issue 110 Editor preview fallback and stale invalidation", Issue110MetricSnapshotTests.EditorMergeAndStaleInvalidation),
                 ("Runtime IPC output control isolation", RuntimeIpcOutputControlIsolation),
                 ("Runtime IPC shutdown cancellation contract", RuntimeIpcShutdownCancellationContract),
                 ("Runtime normal startup and unsupported arguments", RuntimeOutputStartupPolicy),

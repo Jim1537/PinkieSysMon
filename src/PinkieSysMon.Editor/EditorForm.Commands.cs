@@ -648,6 +648,7 @@ internal sealed partial class EditorForm
 
         _screenCommandInProgress = true;
         ++_runtimeStateGeneration;
+        _runtimeMetricCache.Clear();
         UpdateCommandStates();
         try
         {

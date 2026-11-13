@@ -647,6 +647,30 @@ internal sealed class OutputSessionManager : IDisposable
         }
     }
 
+    // Configuration and the published immutable snapshot are read under one
+    // manager gate. The IPC reader neither discovers hardware nor acquires data.
+    internal IReadOnlyDictionary<string, object?> ReadPublishedMetricSnapshot(IReadOnlyList<string> requestedIds)
+    {
+        ArgumentNullException.ThrowIfNull(requestedIds);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var allowed = _config.Outputs.Targets
+                .Where(target => target.ProviderEnabled && !_pendingRemoval.Contains(target.Id))
+                .SelectMany(target => OutputMetricContract.DescriptorsFor(target))
+                .Select(descriptor => descriptor.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var current = _metrics.Snapshot();
+            var selected = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in requestedIds)
+            {
+                if (allowed.Contains(id))
+                    selected[id] = current.TryGetValue(id, out var value) ? value : null;
+            }
+            return selected;
+        }
+    }
+
     public IReadOnlyList<OutputSessionStatus> GetStatuses()
     {
         lock (_sync)
