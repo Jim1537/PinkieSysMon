@@ -14,7 +14,7 @@ The built-in **Filesystem** provider exposes metrics for individual files and di
     Directory scans may generate significant disk I/O, especially on HDDs and network shares. Scanning is opt-in and only scheduled for metrics demanded by an active Output. A configured but unused directory is not scanned periodically. Editing or adding a source is the separate explicit preflight exception.
 
 !!! info "Editor preview"
-    The Editor performs **only explicit preflight**, not recurring directory scans. Until the Runtime-owned metric snapshot integration tracked in [Issue #110](https://github.com/Jim1537/PinkieSysMon/issues/110) is implemented, the Editor preview treats Filesystem readings as unavailable and can display a widget's Fallback. The live Runtime dashboard uses its own provider results.
+    The Editor performs **only explicit preflight**, not recurring Filesystem scans. When Runtime is available, the Editor obtains already-published values for configured, enabled Filesystem sources through the [read-only current-value snapshot boundary](../development/architecture.md#editor-versus-runtime-state). Runtime scans only sources demanded by an active Output: opening or editing a dashboard in Editor alone does not initiate a scan. If Runtime is absent, the source is disabled/removed, no scan has completed or the published reading is unavailable, the widget displays its normal Fallback. Creation and modification timestamps retain their native date/time values and use ordinary widget formatting.
 
 ## Metrics and identity
 

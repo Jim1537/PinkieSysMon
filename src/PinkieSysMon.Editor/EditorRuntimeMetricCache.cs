@@ -37,15 +37,14 @@ internal sealed class EditorRuntimeMetricCache(Func<long>? timestamp = null)
         IReadOnlySet<string> required)
     {
         var merged = new Dictionary<string, object?>(editorLocal, StringComparer.OrdinalIgnoreCase);
-        // No Editor-produced Output value, including any legacy illustrative sample,
-        // may be interpreted as real device/manager telemetry.
-        foreach (var id in merged.Keys.Where(id =>
-                     id.StartsWith(OutputMetricContract.Prefix, StringComparison.OrdinalIgnoreCase)).ToArray())
+        // Runtime-owned namespaces cannot borrow Editor-local snapshots.
+        // Filesystem does not run recurring scans inside Editor.
+        foreach (var id in merged.Keys.Where(RuntimeMetricSnapshotProtocol.IsRuntimeOwnedNamespace).ToArray())
             merged.Remove(id);
 
         foreach (var (id, value) in runtimeOwned)
         {
-            if (required.Contains(id) && OutputMetricContract.DescribeKnownId(id) is not null)
+            if (required.Contains(id) && RuntimeMetricSnapshotProtocol.IsSupportedMetricId(id))
                 merged[id] = value;
         }
         return merged;

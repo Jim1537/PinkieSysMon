@@ -6,8 +6,8 @@ namespace PinkieSysMon;
 
 internal sealed record RuntimeMetricSnapshot(Guid InstanceId, IReadOnlyDictionary<string, object?> Values);
 
-// Versioned, bounded current-value transport. Only canonical Output IDs are
-// admitted; the Runtime owner additionally filters configured/authorized producers.
+// Versioned, bounded current-value transport for Runtime-owned Output and
+// Filesystem metrics. The Runtime owner filters configured/authorized producers.
 internal static class RuntimeMetricSnapshotProtocol
 {
     internal const string Command = "METRICS_V1";
@@ -21,6 +21,16 @@ internal static class RuntimeMetricSnapshotProtocol
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
+
+    // The namespace decision is shared by the IPC parser, Editor demand and
+    // preview merge. Individual Runtime configuration still authorizes each ID.
+    internal static bool IsSupportedMetricId(string id) =>
+        OutputMetricContract.DescribeKnownId(id) is not null ||
+        FilesystemSourceContract.SourceIdForMetric(id) is not null;
+
+    internal static bool IsRuntimeOwnedNamespace(string id) =>
+        id.StartsWith(OutputMetricContract.Prefix, StringComparison.OrdinalIgnoreCase) ||
+        id.StartsWith(FilesystemSourceContract.Prefix, StringComparison.OrdinalIgnoreCase);
 
     private sealed record Request([property: JsonRequired] string[] Ids);
     private sealed record Response(
@@ -106,8 +116,8 @@ internal static class RuntimeMetricSnapshotProtocol
         {
             if (string.IsNullOrWhiteSpace(id) || id.Length > MaxMetricIdCharacters ||
                 id != id.Trim() || id.Any(char.IsControl) ||
-                OutputMetricContract.DescribeKnownId(id) is null || !seen.Add(id))
-                throw new InvalidDataException("Metric snapshot request contains an invalid or repeated Output metric ID.");
+                !IsSupportedMetricId(id) || !seen.Add(id))
+                throw new InvalidDataException("Metric snapshot request contains an invalid or repeated Runtime-owned metric ID.");
         }
         return ids;
     }
@@ -120,6 +130,10 @@ internal static class RuntimeMetricSnapshotProtocol
         if (value is string text)
             return text.Length <= MaxTextCharacters ? new("text", text) : new("null", null);
         if (value is bool boolean) return new("bool", boolean);
+        if (value is DateTime timestamp)
+            return new("datetime", timestamp.ToString("O", CultureInfo.InvariantCulture));
+        if (value is DateTimeOffset timestampOffset)
+            return new("datetimeoffset", timestampOffset.ToString("O", CultureInfo.InvariantCulture));
 
         switch (Type.GetTypeCode(value.GetType()))
         {
@@ -158,6 +172,12 @@ internal static class RuntimeMetricSnapshotProtocol
                         payload.GetString() is { Length: <= MaxTextCharacters } text => text,
             "bool" when payload.ValueKind == JsonValueKind.True => true,
             "bool" when payload.ValueKind == JsonValueKind.False => false,
+            "datetime" when payload.ValueKind == JsonValueKind.String &&
+                DateTime.TryParseExact(payload.GetString(), "O", CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var timestamp) => timestamp,
+            "datetimeoffset" when payload.ValueKind == JsonValueKind.String &&
+                DateTimeOffset.TryParseExact(payload.GetString(), "O", CultureInfo.InvariantCulture,
+                    DateTimeStyles.None, out var timestampOffset) => timestampOffset,
             "integer" when payload.ValueKind == JsonValueKind.Number &&
                            payload.TryGetInt64(out var integer) => integer,
             "number" when payload.ValueKind == JsonValueKind.Number &&

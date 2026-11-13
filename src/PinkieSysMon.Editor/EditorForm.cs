@@ -673,7 +673,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         var stateGeneration = _runtimeStateGeneration;
         var previewGeneration = _runtimePreviewGeneration;
         var requestedIds = _previewRequiredMetrics
-            .Where(id => OutputMetricContract.DescribeKnownId(id) is not null)
+            .Where(RuntimeMetricSnapshotProtocol.IsSupportedMetricId)
             .OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray();
         _runtimeStatusProbeInProgress = true;
         try

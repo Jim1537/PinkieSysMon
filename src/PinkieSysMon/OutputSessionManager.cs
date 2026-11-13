@@ -660,6 +660,12 @@ internal sealed class OutputSessionManager : IDisposable
                 .SelectMany(target => OutputMetricContract.DescriptorsFor(target))
                 .Select(descriptor => descriptor.Id)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Filesystem scans are owned by Runtime's existing demand-driven
+            // provider. IPC only exports already published values for sources
+            // admitted by the current application configuration.
+            if (MetricProviderContract.IsEnabled(_config.MetricProviders, MetricProviderContract.Filesystem))
+                allowed.UnionWith(FilesystemSourceContract.DescriptorsFor(_config.Filesystem.Sources)
+                    .Select(descriptor => descriptor.Id));
             var current = _metrics.Snapshot();
             var selected = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var id in requestedIds)

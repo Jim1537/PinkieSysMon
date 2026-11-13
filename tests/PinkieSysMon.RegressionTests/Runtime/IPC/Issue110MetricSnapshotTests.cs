@@ -71,6 +71,36 @@ internal static class Issue110MetricSnapshotTests
             response, [Fps]));
         Throws<InvalidDataException>(() => RuntimeMetricSnapshotProtocol.DeserializeSnapshot(
             response.Replace("\"CONNECTED\"", "[\"CONNECTED\"]", StringComparison.Ordinal), [Status, Fps]));
+
+        var sourceId = FilesystemSourceContract.NewId();
+        var sizeId = FilesystemSourceContract.MetricId(sourceId, FilesystemSourceContract.Size);
+        var createdId = FilesystemSourceContract.MetricId(sourceId, FilesystemSourceContract.Created);
+        var modifiedId = FilesystemSourceContract.MetricId(sourceId, FilesystemSourceContract.Modified);
+        var observedLocal = new DateTime(2026, 11, 13, 13, 42, 15, DateTimeKind.Local);
+        var observedOffset = new DateTimeOffset(2026, 11, 13, 13, 42, 15, TimeSpan.FromHours(-6));
+        var fsRequest = RuntimeMetricSnapshotProtocol.BuildRequest([sizeId, createdId, modifiedId]);
+        Check(RuntimeIpcProtocol.ParseCommand(fsRequest) is
+            { Kind: RuntimeIpcCommandKind.ReadMetrics, MetricIds.Length: 3 },
+            "Filesystem IDs must use the same read-only IPC command as Output IDs.");
+        var fsResponse = RuntimeMetricSnapshotProtocol.SerializeSnapshot(instance,
+            [sizeId, createdId, modifiedId],
+            new Dictionary<string, object?>
+            {
+                [sizeId] = 1024L,
+                [createdId] = observedLocal,
+                [modifiedId] = observedOffset
+            });
+        var filesystem = RuntimeMetricSnapshotProtocol.DeserializeSnapshot(fsResponse,
+            [sizeId, createdId, modifiedId]);
+        Check(filesystem.Values[sizeId] is long bytes && bytes == 1024L &&
+              filesystem.Values[createdId] is DateTime dt &&
+              dt.Ticks == observedLocal.Ticks && dt.Kind == DateTimeKind.Local &&
+              filesystem.Values[modifiedId] is DateTimeOffset dto && dto.EqualsExact(observedOffset),
+            "Filesystem bytes and timestamps must retain their CLR types, ticks, Kind and UTC offset.");
+        Check(RuntimeIpcProtocol.ParseCommand(
+            RuntimeMetricSnapshotProtocol.Command + "\t{\"Ids\":[\"filesystem.invalid.size\"]}"
+        ).Kind == RuntimeIpcCommandKind.Invalid,
+            "Unregistered or malformed Filesystem identities must not bypass canonical request validation.");
     }
 
     public static void RuntimeOwnershipAndProviderFiltering()
@@ -103,6 +133,98 @@ internal static class Issue110MetricSnapshotTests
             manager.Reconfigure(replacement, new C.DashboardDefinition());
             Check(manager.ReadPublishedMetricSnapshot([Status, Fps]).Count == 0,
                 "Removed Output identities must cease to export previously published values.");
+        }
+        finally
+        {
+            try { Directory.Delete(root, true); } catch { }
+        }
+    }
+
+    public static void FilesystemOwnerAuthorizationAndPreview()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "PinkieSysMon-110-filesystem-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var source = new FilesystemSourceConfig
+            {
+                Id = FilesystemSourceContract.NewId(), Alias = "Synthetic",
+                Path = Path.Combine(root, "fixture.bin"), Kind = FilesystemSourceContract.FileKind
+            };
+            var size = FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Size);
+            var created = FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Created);
+            var invalidCount = FilesystemSourceContract.MetricId(source.Id, FilesystemSourceContract.Files);
+            var missing = FilesystemSourceContract.MetricId(FilesystemSourceContract.NewId(), FilesystemSourceContract.Size);
+            var timestamp = new DateTime(2026, 11, 13, 14, 8, 0, DateTimeKind.Local);
+            var config = Config();
+            config.Filesystem.Sources.Add(source);
+            config.MetricProviders[MetricProviderContract.Filesystem] = true;
+            var store = new MetricStore();
+            store.Publish(new Dictionary<string, object?>
+            {
+                [size] = 4096L, [created] = timestamp,
+                [invalidCount] = 999L, [missing] = 123L
+            });
+            using var manager = new OutputSessionManager(config, new C.DashboardDefinition(), store,
+                new FileLogger(Path.Combine(root, "regression.log")));
+            var requested = new[] { size, created, invalidCount, missing };
+            var values = manager.ReadPublishedMetricSnapshot(requested);
+            Check(values.Count == 2 && values[size] is long bytes && bytes == 4096L &&
+                  values[created] is DateTime date && date.Ticks == timestamp.Ticks &&
+                  !values.ContainsKey(invalidCount) && !values.ContainsKey(missing),
+                "Only configured and enabled Filesystem source metrics may be read; File sources cannot expose Directory counters.");
+            var formatted = MetricValueFormatter.Format(values[size]!,
+                FilesystemSourceContract.DescriptorsFor([source]).Single(x => x.Id == size),
+                null, null, System.Globalization.CultureInfo.InvariantCulture);
+            Check(!string.IsNullOrWhiteSpace(formatted) && formatted != "--",
+                "The original Text/Value formatting pipeline must accept genuine Filesystem values.");
+
+            var preview = EditorRuntimeMetricCache.Compose(
+                new Dictionary<string, object?> { [size] = 100L, ["system.test.local"] = 7L },
+                values, new HashSet<string>([size, created, "system.test.local"], StringComparer.OrdinalIgnoreCase));
+            Check(preview[size] is long visible && visible == 4096 &&
+                  preview[created] is DateTime && preview["system.test.local"] is long local && local == 7,
+                "Editor preview must prefer published Filesystem readings while retaining its independently captured metrics.");
+
+            var directory = Config();
+            directory.Filesystem.Sources.Add(new FilesystemSourceConfig
+            {
+                Id = source.Id, Alias = "Directory", Path = Path.Combine(root, "directory"),
+                Kind = FilesystemSourceContract.DirectoryKind
+            });
+            directory.MetricProviders[MetricProviderContract.Filesystem] = true;
+            manager.Reconfigure(directory, new C.DashboardDefinition());
+            store.Publish(invalidCount, 0L);
+            var directoryCounts = manager.ReadPublishedMetricSnapshot([invalidCount]);
+            Check(directoryCounts.TryGetValue(invalidCount, out var zero) && zero is long number && number == 0,
+                "Configured Directory counters must preserve a genuine zero instead of rendering Fallback.");
+
+            var off = Config();
+            off.Filesystem.Sources.Add(source.Copy());
+            off.MetricProviders[MetricProviderContract.Filesystem] = false;
+            manager.Reconfigure(off, new C.DashboardDefinition());
+            Check(manager.ReadPublishedMetricSnapshot(requested).Count == 0,
+                "Turning Filesystem off must hide previous published values even when MetricStore still holds them.");
+
+            var removed = Config();
+            removed.MetricProviders[MetricProviderContract.Filesystem] = true;
+            manager.Reconfigure(removed, new C.DashboardDefinition());
+            Check(manager.ReadPublishedMetricSnapshot(requested).Count == 0,
+                "Removing a Filesystem source must not expose stale metrics or its private path.");
+
+            var onlineButUnpublished = Config();
+            onlineButUnpublished.Filesystem.Sources.Add(new FilesystemSourceConfig
+            {
+                Id = FilesystemSourceContract.NewId(), Alias = "Unscanned",
+                Path = Path.Combine(root, "unscanned.bin"), Kind = FilesystemSourceContract.FileKind
+            });
+            onlineButUnpublished.MetricProviders[MetricProviderContract.Filesystem] = true;
+            manager.Reconfigure(onlineButUnpublished, new C.DashboardDefinition());
+            var absentSize = FilesystemSourceContract.MetricId(
+                onlineButUnpublished.Filesystem.Sources[0].Id, FilesystemSourceContract.Size);
+            var absent = manager.ReadPublishedMetricSnapshot([absentSize]);
+            Check(absent.TryGetValue(absentSize, out var unknown) && unknown is null,
+                "Configured but not yet published Filesystem readings must be unavailable, never zero.");
         }
         finally
         {
@@ -150,6 +272,13 @@ internal static class Issue110MetricSnapshotTests
                   snapshot is not null && snapshot.Values.Count == ids.Length && requests == 2 &&
                   snapshot.Values.Values.All(value => value is long number && number == 60),
                 "The unchanged STATUS endpoint and bounded multi-batch read-only IPC must coexist.");
+
+            var filesystemId = FilesystemSourceContract.MetricId(
+                FilesystemSourceContract.NewId(), FilesystemSourceContract.Size);
+            var filesystemSnapshot = client.GetCurrentMetricsAsync([filesystemId], 5000)
+                .GetAwaiter().GetResult();
+            Check(filesystemSnapshot?.Values[filesystemId] is long fileSize && fileSize == 60,
+                "Read-only named pipe must accept Filesystem IDs through the shared request path.");
 
             requests = 0;
             changeInstance = true;

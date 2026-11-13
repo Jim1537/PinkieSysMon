@@ -445,6 +445,7 @@ internal static partial class Program
                 ("IPC counted status and observer isolation", Issue105IpcLoggingTests.CountedStatusAndObserverIsolation),
                 ("Issue 110 bounded typed current-metric IPC", Issue110MetricSnapshotTests.BoundedTypedProtocol),
                 ("Issue 110 Runtime Output metric ownership", Issue110MetricSnapshotTests.RuntimeOwnershipAndProviderFiltering),
+                ("Issue 110 Filesystem published-value ownership", Issue110MetricSnapshotTests.FilesystemOwnerAuthorizationAndPreview),
                 ("Issue 110 read-only pipe and process generation", Issue110MetricSnapshotTests.ReadOnlyPipeAndGenerationIsolation),
                 ("Issue 110 Editor preview fallback and stale invalidation", Issue110MetricSnapshotTests.EditorMergeAndStaleInvalidation),
                 ("Runtime IPC output control isolation", RuntimeIpcOutputControlIsolation),
