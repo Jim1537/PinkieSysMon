@@ -91,7 +91,13 @@ internal static class Issue102EditorDirtyTests
         Check((bool)Invoke(editor, "SaveDashboard")!, "Saving a valid Second edit failed.");
         AssertClean(editor, "Second");
 
-        tree.SelectedNode = tree.Nodes[0];
+        var canvasNode = tree.Nodes[0];
+        tree.SelectedNode = canvasNode;
+        // A programmatically selected node on an unshown WinForms TreeView does
+        // not exercise the mouse-click selection handler. Drive the same path
+        // as an actual left click, without relying on a displayed window.
+        Invoke(editor, "TreeNodeMouseClick", tree,
+            new TreeNodeMouseClickEventArgs(canvasNode, MouseButtons.Left, 1, 0, 0));
         AssertCanvasBound(second, "Canvas selection after widget edit");
         Open(editor, "First");
         var reopened = GetField<C.DashboardDefinition>(editor, "_definition");
