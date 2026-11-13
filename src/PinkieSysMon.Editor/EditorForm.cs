@@ -1096,11 +1096,17 @@ internal sealed partial class EditorForm : PinkieEditorForm
             _undo.Clear();
             _redo.Clear();
             _propertyEditUndoSnapshot = null;
+            // Invalidate property refresh callbacks captured for the previous document.
+            ++_propertyViewRefreshGeneration;
 
             _widgetTreeNodes.Clear();
             _groupTreeNodes.Clear();
 
             PopulateTree();
+            // PopulateTree selects the new Canvas node by default while suppressing
+            // selection events. Bind its properties explicitly so no view from the
+            // previous dashboard remains editable after the document swap.
+            SetPropertyGridTarget(definition.Canvas);
             RestoreDashboardViewState();
             RefreshPreviewTelemetry();
             RenderPreview(force: true);
@@ -1172,6 +1178,14 @@ internal sealed partial class EditorForm : PinkieEditorForm
     {
         if (_definition is null || string.IsNullOrWhiteSpace(propertyName))
             return;
+
+        // PropertyGrid descriptors can outlive a document switch. Never attribute
+        // an obsolete document's edit, dirty state, or undo checkpoint to the new one.
+        if (!IsCurrentDocumentPropertyTarget())
+        {
+            _propertyEditUndoSnapshot = null;
+            return;
+        }
 
         EditorSnapshot? rollbackSnapshot = null;
         var rollbackOnFailure = false;

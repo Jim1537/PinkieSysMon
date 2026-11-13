@@ -25,6 +25,84 @@ internal static class Issue102EditorDirtyTests
         AssertClean(editor, "First");
     });
 
+
+    public static void PropertyPaneRebindsOnDashboardSwitch() => WithEditor((root, editor) =>
+    {
+        CreateDashboard(root, "First");
+        CreateDashboard(root, "Second");
+
+        var grid = GetField<PropertyGrid>(editor, "_propertyGrid");
+        var tree = GetField<TreeView>(editor, "_widgetTree");
+
+        void AssertCanvasBound(C.DashboardDefinition document, string context)
+        {
+            Check(ReferenceEquals(GetField<object>(editor, "_propertyGridTarget"), document.Canvas) &&
+                  grid.SelectedObject is EditorPropertyView view &&
+                  ReferenceEquals(view.Target, document.Canvas) &&
+                  ReferenceEquals(tree.SelectedNode?.Tag, document.Canvas),
+                context + ": the PropertyGrid must show the newly opened Canvas, not a previous document.");
+            Check(GetField<C.WidgetDefinition?>(editor, "_selectedWidget") is null &&
+                  GetField<HashSet<C.WidgetDefinition>>(editor, "_selectedWidgets").Count == 0,
+                context + ": no widget from another dashboard may remain selected.");
+        }
+
+        Open(editor, "First");
+        var first = GetField<C.DashboardDefinition>(editor, "_definition");
+        AssertCanvasBound(first, "First initial load");
+        Invoke(editor, "SetSingleSelection", first.Widgets[0]);
+        Check(grid.SelectedObject is EditorPropertyView firstView &&
+              ReferenceEquals(firstView.Target, first.Widgets[0]),
+            "Selecting a widget must bind its own properties.");
+
+        Check((bool)Invoke(editor, "SaveDashboard")!, "Fixture dashboard Save failed.");
+        Open(editor, "Second");
+        var second = GetField<C.DashboardDefinition>(editor, "_definition");
+        AssertCanvasBound(second, "First to Second");
+        AssertClean(editor, "Second");
+
+        // Simulate a delayed property callback from an obsolete document.
+        // A stale view must not dirty the active document or create undo history.
+        grid.SelectedObject = new EditorPropertyView(first.Widgets[0]);
+        Invoke(editor, "OnPropertyChanged", "Name", null);
+        AssertClean(editor, "Second");
+        Check(GetField<object>(editor, "_undo") is System.Collections.ICollection { Count: 0 },
+            "A stale single-widget event created a new-document undo checkpoint.");
+
+        grid.SelectedObject = new EditorPropertyView(first.Canvas);
+        Invoke(editor, "OnPropertyChanged", "Width", null);
+        AssertClean(editor, "Second");
+
+        grid.SelectedObject = new EditorMultiPropertyView(
+            first.Widgets.Take(2).Select(widget => new EditorPropertyView(widget)).ToArray());
+        Invoke(editor, "OnPropertyChanged", "Name", null);
+        AssertClean(editor, "Second");
+
+        Invoke(editor, "SetPropertyGridTarget", second.Canvas);
+        AssertCanvasBound(second, "After obsolete callbacks");
+        Invoke(editor, "SetSingleSelection", second.Widgets[0]);
+        Check(grid.SelectedObject is EditorPropertyView secondView &&
+              ReferenceEquals(secondView.Target, second.Widgets[0]),
+            "The new document's widget selection must remain editable.");
+
+        var before = Invoke(editor, "CaptureSnapshot");
+        second.Widgets[0].Name = "Second edited";
+        Invoke(editor, "OnPropertyChanged", "Name", before);
+        AssertDirty(editor, "Current-document widget property changes must still work.");
+        Check((bool)Invoke(editor, "SaveDashboard")!, "Saving a valid Second edit failed.");
+        AssertClean(editor, "Second");
+
+        Invoke(editor, "SelectTreeObject", second.Canvas);
+        AssertCanvasBound(second, "Canvas selection after widget edit");
+        Open(editor, "First");
+        var reopened = GetField<C.DashboardDefinition>(editor, "_definition");
+        Check(!ReferenceEquals(reopened, first), "Reopening must create a fresh document instance.");
+        AssertCanvasBound(reopened, "Second to First");
+        Invoke(editor, "ReloadDashboard");
+        var reloaded = GetField<C.DashboardDefinition>(editor, "_definition");
+        Check(!ReferenceEquals(reloaded, reopened), "Reload must publish a fresh document instance.");
+        AssertCanvasBound(reloaded, "Same-document reload");
+    });
+
     public static void MigrationAndSave() => WithEditor((root, editor) =>
     {
         var path = CreateDashboard(root, "Legacy");

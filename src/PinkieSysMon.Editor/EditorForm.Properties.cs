@@ -328,6 +328,32 @@ internal sealed partial class EditorForm
         });
     }
 
+    private bool IsCurrentDocumentPropertyTarget()
+    {
+        var document = _definition;
+        if (document is null)
+            return false;
+
+        bool ContainsWidget(CanonicalWidgetDefinition widget) =>
+            document.Widgets.Any(candidate => ReferenceEquals(candidate, widget));
+
+        return _propertyGrid.SelectedObject switch
+        {
+            EditorPropertyView { Target: CanonicalCanvasDefinition canvas } =>
+                ReferenceEquals(_propertyGridTarget, canvas) &&
+                ReferenceEquals(document.Canvas, canvas),
+            EditorPropertyView { Target: CanonicalWidgetDefinition widget } =>
+                ReferenceEquals(_propertyGridTarget, widget) &&
+                _selectedWidgets.Contains(widget) && ContainsWidget(widget),
+            EditorMultiPropertyView multi when _propertyGridTarget is PropertyWidgetSelection selection =>
+                multi.Targets.Count == selection.Widgets.Length && multi.Targets.Count > 0 &&
+                multi.Targets.Select((widget, index) =>
+                    ReferenceEquals(widget, selection.Widgets[index]) &&
+                    _selectedWidgets.Contains(widget) && ContainsWidget(widget)).All(valid => valid),
+            _ => false
+        };
+    }
+
     private static bool IsWidgetPropertyTarget(object? target) =>
         target is CanonicalWidgetDefinition or PropertyWidgetSelection;
 

@@ -271,6 +271,7 @@ internal static partial class Program
                 ("startup selection and theme-restart arguments", Issue84EditorStartupTests.SelectionAndRestartArguments),
                 ("document-free Editor commands", Issue84EditorStartupTests.EmptyWorkspaceControls),
                 ("current-schema load and clean switching", Issue102EditorDirtyTests.CleanLoadAndSwitch),
+                ("Issue #125 property pane document ownership and switching", Issue102EditorDirtyTests.PropertyPaneRebindsOnDashboardSwitch),
                 ("migration remains dirty until saved", Issue102EditorDirtyTests.MigrationAndSave),
                 ("normalization remains dirty through undo", Issue102EditorDirtyTests.NormalizationAndUndo),
                 ("user edits undo redo and Save", Issue102EditorDirtyTests.EditUndoRedoAndSave),

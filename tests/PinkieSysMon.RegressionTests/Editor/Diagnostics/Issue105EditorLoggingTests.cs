@@ -218,8 +218,12 @@ internal static class Issue105EditorLoggingTests
         CreateDashboard(root, "Current");
         Check((bool)Invoke(editor, "LoadDashboard", "Current")!, "Fixture document did not load.");
         var definition = Get<C.DashboardDefinition>(editor, "_definition");
+        var propertyTarget = Get<object>(editor, "_propertyGridTarget");
+        var propertyView = Get<PropertyGrid>(editor, "_propertyGrid").SelectedObject;
         Check(!(bool)Invoke(editor, "LoadDashboard", "Missing")!, "Missing document must return failure.");
         Check(ReferenceEquals(definition, Get<C.DashboardDefinition>(editor, "_definition")) &&
+              ReferenceEquals(propertyTarget, Get<object>(editor, "_propertyGridTarget")) &&
+              ReferenceEquals(propertyView, Get<PropertyGrid>(editor, "_propertyGrid").SelectedObject) &&
               Get<string>(editor, "_dashboardName") == "Current" && messages.Count == 1,
             "An early load failure must preserve the current document and its existing notification.");
         var failure = Operations(Read(log.ErrorsPath), "editor.dashboard.load").Single();
