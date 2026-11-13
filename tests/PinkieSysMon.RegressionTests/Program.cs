@@ -185,6 +185,7 @@ internal static partial class Program
                 ("Widget source property hierarchy", WidgetSourcePropertyHierarchy),
                 ("common widget property order and bindings", CommonWidgetPropertyTests.OrderAndBindings),
                 ("Issue #123 common Border Width live dependent editors", CommonWidgetPropertyTests.BorderDependencyRefresh),
+                ("Issue #124 common Panel layer Mode dependent editors", CommonWidgetPropertyTests.PanelLayerModeRefresh),
                 ("Issue #117 Image content source placement and switching", Issue117ImageSourcePropertyTests.PlacementAndSwitching),
                 ("Issue #117 Image mixed selection and persisted source", Issue117ImageSourcePropertyTests.MultiSelectionAndSerialization),
                 ("common padding parsing and atomic edits", CommonWidgetPropertyTests.PaddingEdits),

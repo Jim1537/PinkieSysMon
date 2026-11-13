@@ -134,6 +134,110 @@ internal static class CommonWidgetPropertyTests
             "Canvas Shadow Enabled must restore its dependent color editor.");
     }
 
+
+    public static void PanelLayerModeRefresh()
+    {
+        Check(EditorPropertyRefreshPolicy.RequiresCommonPanelRefresh(nameof(C.WidgetPanelLayerDefinition.Mode)) &&
+              EditorForm.IsPropertyContextSwitch(nameof(C.WidgetPanelLayerDefinition.Mode)) &&
+              !EditorPropertyRefreshPolicy.RequiresCommonPanelRefresh(nameof(C.WidgetPanelLayerDefinition.Color)) &&
+              !EditorPropertyRefreshPolicy.RequiresCommonPanelRefresh(nameof(C.ImageAssetPresentationDefinition.Source)),
+            "A shared Panel layer Mode edit must refresh Canvas and widget property views.");
+
+        object[] targets = [
+            new C.ValueWidgetDefinition(), new C.BinaryWidgetDefinition(),
+            new C.GraphWidgetDefinition(), new C.GaugeWidgetDefinition(),
+            new C.BarWidgetDefinition(), new C.ImageWidgetDefinition(),
+            new C.PowerWidgetDefinition(), new C.MediaSystemWidgetDefinition(),
+            new C.MediaPlayerWidgetDefinition(), new C.CalculatorWidgetDefinition(),
+            new C.CanvasDefinition()
+        ];
+
+        foreach (var target in targets)
+        {
+            var layers = target switch
+            {
+                C.WidgetDefinition widget => new[] { widget.PanelBackground, widget.PanelForeground },
+                C.CanvasDefinition canvas => new[] { canvas.PanelBackground, canvas.PanelForeground },
+                _ => throw new InvalidOperationException("Unexpected common Panel target.")
+            };
+
+            for (var i = 0; i < layers.Length; i++)
+            {
+                var role = i == 0 ? "Background" : "Foreground";
+                var layer = layers[i];
+                layer.Mode = C.WidgetPanelLayerMode.None;
+                layer.Image.Source = "saved-image.png";
+                layer.Icon.Source = "lucide:check";
+
+                PropertyDescriptorCollection PanelRows() =>
+                    Children(new EditorPropertyView(target, section: EditorPropertySection.Panel).GetProperties(), role);
+                PropertyDescriptorCollection ImageGroups() =>
+                    new EditorPropertyView(target, section: EditorPropertySection.Image).GetProperties();
+
+                Check(PanelRows()["Mode"] is not null && PanelRows()["Source"] is null &&
+                      PanelRows()["Color"] is null && ImageGroups()[role] is null,
+                    $"{target.GetType().Name}/{role}: None must hide dependent editors.");
+
+                PanelRows()["Mode"]!.SetValue(null, "Image");
+                Check(layer.Mode == C.WidgetPanelLayerMode.Image &&
+                      Equals(PanelRows()["Source"]?.GetValue(null), "saved-image.png") &&
+                      PanelRows()["Color"] is null &&
+                      ImageGroups()[role] is not null,
+                    $"{target.GetType().Name}/{role}: Image must reveal its Source and presentation group.");
+
+                PanelRows()["Mode"]!.SetValue(null, "Icon");
+                var iconGroup = ImageGroups()[role];
+                Check(layer.Mode == C.WidgetPanelLayerMode.Icon &&
+                      Equals(PanelRows()["Source"]?.GetValue(null), "lucide:check") &&
+                      iconGroup is not null &&
+                      Children(ImageGroups(), role)["IconOpacity"] is not null,
+                    $"{target.GetType().Name}/{role}: Icon must reveal its Source and opacity.");
+
+                PanelRows()["Mode"]!.SetValue(null, "Color");
+                Check(layer.Mode == C.WidgetPanelLayerMode.Color &&
+                      PanelRows()["Color"] is not null &&
+                      PanelRows()["Source"] is null &&
+                      ImageGroups()[role] is null,
+                    $"{target.GetType().Name}/{role}: Color must hide image/icon controls.");
+
+                PanelRows()["Mode"]!.SetValue(null, "None");
+                Check(PanelRows()["Color"] is null && PanelRows()["Source"] is null &&
+                      ImageGroups()[role] is null &&
+                      layer.Image.Source == "saved-image.png" && layer.Icon.Source == "lucide:check",
+                    $"{target.GetType().Name}/{role}: None must preserve dormant artwork.");
+
+                PanelRows()["Mode"]!.SetValue(null, "Image");
+                Check(Equals(PanelRows()["Source"]?.GetValue(null), "saved-image.png"),
+                    $"{target.GetType().Name}/{role}: re-enabling Image must restore its Source.");
+            }
+        }
+
+        var first = new C.ValueWidgetDefinition();
+        var second = new C.GaugeWidgetDefinition();
+        PropertyDescriptorCollection MultiPanel(string role) =>
+            Children(new EditorMultiPropertyView([
+                new EditorPropertyView(first, section: EditorPropertySection.Panel),
+                new EditorPropertyView(second, section: EditorPropertySection.Panel)
+            ]).GetProperties(), role);
+
+        foreach (var role in new[] { "Background", "Foreground" })
+        {
+            Check(MultiPanel(role)["Source"] is null,
+                $"Mixed selection/{role}: None must hide Source.");
+            MultiPanel(role)["Mode"]!.SetValue(null, "Image");
+            Check(MultiPanel(role)["Source"] is not null &&
+                  (role == "Background"
+                      ? first.PanelBackground.Mode == C.WidgetPanelLayerMode.Image &&
+                        second.PanelBackground.Mode == C.WidgetPanelLayerMode.Image
+                      : first.PanelForeground.Mode == C.WidgetPanelLayerMode.Image &&
+                        second.PanelForeground.Mode == C.WidgetPanelLayerMode.Image),
+                $"Mixed selection/{role}: shared Image Mode must reveal Source.");
+            MultiPanel(role)["Mode"]!.SetValue(null, "None");
+            Check(MultiPanel(role)["Source"] is null,
+                $"Mixed selection/{role}: disabling a shared layer must hide Source.");
+        }
+    }
+
     public static void PaddingEdits()
     {
         var image = new C.ImageWidgetDefinition { Width = 100, Height = 100 };

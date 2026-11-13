@@ -25,7 +25,8 @@ internal static class EditorPropertyRefreshPolicy
 {
     public static bool RequiresCommonPanelRefresh(string? propertyName) =>
         propertyName is nameof(CanonicalWidgetDefinition.BorderWidth)
-            or nameof(CanonicalWidgetDefinition.ShadowEnabled);
+            or nameof(CanonicalWidgetDefinition.ShadowEnabled)
+            or nameof(PinkieSysMon.DashboardModel.WidgetPanelLayerDefinition.Mode);
 }
 
 internal sealed class EditorPropertyView : CustomTypeDescriptor
