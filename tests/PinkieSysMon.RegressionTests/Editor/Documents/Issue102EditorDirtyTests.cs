@@ -91,7 +91,7 @@ internal static class Issue102EditorDirtyTests
         Check((bool)Invoke(editor, "SaveDashboard")!, "Saving a valid Second edit failed.");
         AssertClean(editor, "Second");
 
-        Invoke(editor, "SelectTreeObject", second.Canvas);
+        tree.SelectedNode = tree.Nodes[0];
         AssertCanvasBound(second, "Canvas selection after widget edit");
         Open(editor, "First");
         var reopened = GetField<C.DashboardDefinition>(editor, "_definition");
