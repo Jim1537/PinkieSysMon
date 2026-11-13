@@ -1237,6 +1237,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
                 rollbackOnFailure = true;
 
                 canvasPropertyViewNeedsRefresh =
+                    EditorPropertyRefreshPolicy.RequiresCommonPanelRefresh(propertyName) ||
                     propertyName is nameof(CanonicalImageAssetPresentationDefinition.SourceType)
                         or nameof(CanonicalImageAssetPresentationDefinition.Source);
 
