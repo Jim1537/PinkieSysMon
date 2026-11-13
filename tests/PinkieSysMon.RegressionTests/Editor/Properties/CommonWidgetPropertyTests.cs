@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Drawing.Design;
 using PinkieSysMon.Editor;
 using C = PinkieSysMon.DashboardModel;
 

@@ -21,6 +21,13 @@ internal enum EditorPropertySection
     Action
 }
 
+internal static class EditorPropertyRefreshPolicy
+{
+    public static bool RequiresCommonPanelRefresh(string? propertyName) =>
+        propertyName is nameof(CanonicalWidgetDefinition.BorderWidth)
+            or nameof(CanonicalWidgetDefinition.ShadowEnabled);
+}
+
 internal sealed class EditorPropertyView : CustomTypeDescriptor
 {
     private readonly string? _applicationRoot;

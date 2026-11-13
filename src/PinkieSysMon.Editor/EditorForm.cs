@@ -1355,7 +1355,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
             refreshPropertyView = true;
         }
         else if (propertyName.StartsWith("Threshold", StringComparison.Ordinal) ||
-                 propertyName.Equals(nameof(CanonicalWidgetDefinition.ShadowEnabled), StringComparison.OrdinalIgnoreCase) ||
+                 EditorPropertyRefreshPolicy.RequiresCommonPanelRefresh(propertyName) ||
                  propertyName is "TrackEnabled" or "NeedleEnabled" or "Activation")
         {
             refreshPropertyView = true;
