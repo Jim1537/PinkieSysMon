@@ -819,6 +819,8 @@ internal static partial class Program
                 ("Fixture cleanup held-file snapshot and native ABI", RegressionFixtureCleanupTests.HeldFileSnapshotAndNativeLayout),
             ]),
             ("Infrastructure / Launcher", [
+                ("Issue 128 Launcher command routes", Issue128LauncherActivationTests.CommandRouting),
+                ("Issue 128 Launcher lease and activation handoff", Issue128LauncherActivationTests.OwnerContentionAndHandoff),
                 ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
                 ("launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ]),
