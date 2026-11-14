@@ -234,7 +234,6 @@ internal static class PropertyModelNormalizationMigration
         Format = legacy.Format,
         Prefix = legacy.Prefix,
         Suffix = legacy.Suffix,
-        Fallback = legacy.Fallback,
         TextPresentation = MapTextPresentation(legacy)
     };
 
@@ -245,7 +244,6 @@ internal static class PropertyModelNormalizationMigration
         Format = legacy.Format,
         Prefix = legacy.Prefix,
         Suffix = legacy.Suffix,
-        Fallback = legacy.Fallback,
         EvaluationMode = NormalizeBinaryEvaluationMode(legacy.EvaluationMode),
         Setpoint = legacy.Setpoint,
         TrueIf = legacy.TrueIf,
