@@ -59,6 +59,39 @@ internal static class Issue70ConcurrentEditorSettingsTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    public static void SharedPreferencesKeepDashboardViewsAndRejectStaleBytes()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "pinkie-settings-shared-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var path = Path.Combine(folder, "editor.json");
+            var initial = new EditorSettings();
+            initial.GetDashboard("First").Zoom = "125%";
+            initial.GetDashboard("Second").Zoom = "75%";
+            initial.Save(path, "First");
+            initial.Save(path, "Second");
+            var before = File.ReadAllBytes(path);
+            EditorSettings.SaveSharedPreferences(path, before, 48, EditorThemeContract.DarkSetting);
+            var saved = EditorSettings.LoadForWrite(path);
+            if (saved.ToolbarIconSize != 48 || saved.Theme != EditorThemeContract.DarkSetting ||
+                saved.GetDashboard("First").Zoom != "125%" || saved.GetDashboard("Second").Zoom != "75%")
+                throw new InvalidOperationException("Shared preference update lost another Editor's view.");
+            var after = File.ReadAllBytes(path);
+            try
+            {
+                EditorSettings.SaveSharedPreferences(path, before, 16, EditorThemeContract.LightSetting);
+                throw new InvalidOperationException("Stale Editor preferences unexpectedly committed.");
+            }
+            catch (InvalidOperationException error) when (error.Message.StartsWith("Editor preferences changed", StringComparison.Ordinal))
+            {
+                if (!File.ReadAllBytes(path).AsSpan().SequenceEqual(after))
+                    throw new InvalidOperationException("Stale preferences write changed the newer file.");
+            }
+        }
+        finally { Directory.Delete(folder, recursive: true); }
+    }
+
     public static void MergesDashboardViews()
     {
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-editor-settings-" + Guid.NewGuid().ToString("N"));

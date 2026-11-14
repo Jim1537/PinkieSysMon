@@ -55,6 +55,48 @@ internal sealed class EditorSettings
     internal static StreamReader OpenSnapshotReader(string path) =>
         new(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete));
 
+    // Apply only app-wide interface preferences while protecting the exact
+    // expected preferences snapshot and all per-dashboard view state.
+    // Launcher and Editor compile this same writer and share its path mutex.
+    internal static void SaveSharedPreferences(string path, byte[]? expectedBytes,
+        int toolbarIconSize, string theme)
+    {
+        if (toolbarIconSize is not (16 or 32 or 48))
+            throw new ArgumentOutOfRangeException(nameof(toolbarIconSize));
+        if (theme is not (EditorThemeContract.SystemSetting or
+            EditorThemeContract.LightSetting or EditorThemeContract.DarkSetting))
+            throw new ArgumentException("Unknown Editor theme.", nameof(theme));
+
+        var fullPath = Path.GetFullPath(path);
+        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullPath.ToUpperInvariant())));
+        using var mutex = new Mutex(false, @"Local\PinkieSysMon.EditorSettings." + identity);
+        var acquired = false;
+        try
+        {
+            try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (AbandonedMutexException) { acquired = true; }
+            if (!acquired)
+                throw new IOException("Timed out waiting to update shared Editor preferences.");
+
+            var matches = expectedBytes is null ? !File.Exists(fullPath) :
+                File.Exists(fullPath) && File.ReadAllBytes(fullPath).AsSpan().SequenceEqual(expectedBytes);
+            if (!matches)
+                throw new InvalidOperationException(
+                    "Editor preferences changed while Settings was open. The newer file was preserved.");
+
+            var current = LoadForWrite(fullPath);
+            current.ToolbarIconSize = toolbarIconSize;
+            current.Theme = theme;
+            // A known non-dashboard key retains every dashboard view as loaded
+            // under this mutex, without inserting a synthetic document state.
+            current.Save(fullPath, activeDashboard: string.Empty);
+        }
+        finally
+        {
+            if (acquired) mutex.ReleaseMutex();
+        }
+    }
+
     public DashboardViewSettings GetDashboard(string name)
     {
         if (!Dashboards.TryGetValue(name, out var state))
