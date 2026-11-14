@@ -48,6 +48,11 @@ internal sealed class OutputSessionManager : IDisposable
 
     internal void RequestDiagnosticsFlush() => _diagnostics.RequestFlush();
 
+    internal bool IsStarted
+    {
+        get { lock (_sync) { ThrowIfDisposed(); return _started; } }
+    }
+
     private static IReadOnlyDictionary<string, CanonicalDashboardDefinition> ValidateBoards(
         AppConfig config, IReadOnlyDictionary<string, CanonicalDashboardDefinition> boards)
     {

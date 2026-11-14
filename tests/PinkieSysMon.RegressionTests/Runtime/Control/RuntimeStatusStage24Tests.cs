@@ -55,14 +55,20 @@ internal static class RuntimeStatusStage24Tests
         };
         var expected = new RuntimeStatusSnapshot("(per-output dashboards)", [output])
         {
-            ApplicationRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "pinkie-root"))
+            ApplicationRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "pinkie-root")),
+            RuntimeInstanceId = Guid.Parse("11111111-2222-3333-4444-555555555555"),
+            OutputLifetimeRunning = true
         };
         var actual = RuntimeIpcProtocol.DeserializeStatus(RuntimeIpcProtocol.SerializeStatus(expected));
         Check(actual.Outputs.Single() == output && actual.Dashboard == expected.Dashboard &&
-              actual.ApplicationRoot == expected.ApplicationRoot,
+              actual.ApplicationRoot == expected.ApplicationRoot &&
+              actual.RuntimeInstanceId == expected.RuntimeInstanceId &&
+              actual.OutputLifetimeRunning == expected.OutputLifetimeRunning,
             "Additive output fields and opaque target IDs must survive v1 status serialization exactly.");
         const string legacy = "{\"Dashboard\":\"Legacy\",\"Outputs\":[{\"TargetId\":\"old\",\"TargetName\":\"Old\",\"IsActive\":true,\"IsConnected\":false,\"UsbState\":\"WAITING\"}]}";
         var legacyStatus = RuntimeIpcProtocol.DeserializeStatus(legacy);
+        if (legacyStatus.RuntimeInstanceId is not null || legacyStatus.OutputLifetimeRunning is not null)
+            throw new InvalidOperationException("Legacy Runtime state must not fabricate instance or lifetime.");
         if (legacyStatus.ApplicationRoot is not null)
             throw new InvalidOperationException("Missing Runtime root identity must remain unknown.");
         var old = legacyStatus.Outputs.Single();

@@ -24,6 +24,7 @@
     <!-- Portable Settings uses source-shared BCL/WinForms contracts, never Runtime.dll. -->
     <Compile Include="..\PinkieSysMon\FilesystemSourceModel.cs" Link="FilesystemSourceModel.cs" />
     <Compile Include="..\PinkieSysMon\FilesystemScanner.cs" Link="FilesystemScanner.cs" />
+    <Compile Include="..\PinkieSysMon\RuntimeProcessLease.cs" Link="RuntimeProcessLease.cs" />
     <Compile Include="..\PinkieSysMon.Editor\EditorSettings.cs" Link="EditorSettings.cs" />
     <Compile Include="..\PinkieSysMon.Editor\StartupTaskManager.cs" Link="StartupTaskManager.cs" />
     <Compile Include="..\PinkieSysMon.Editor\EditorSessionWire.cs" Link="EditorSessionWire.cs" />

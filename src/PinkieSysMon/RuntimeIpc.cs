@@ -53,6 +53,12 @@ internal sealed record RuntimeStatusSnapshot(
     // Missing in older Runtime responses means identity is unverified.
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? ApplicationRoot { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? RuntimeInstanceId { get; init; }
+
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public bool? OutputLifetimeRunning { get; init; }
 }
 
 internal sealed record RuntimeIpcStatusResponse(

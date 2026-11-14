@@ -371,7 +371,9 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus() with
             {
                 IpcDiagnosticsVersion = RuntimeIpcDiagnostics.Version,
-                ApplicationRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_baseDir))
+                ApplicationRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_baseDir)),
+                RuntimeInstanceId = _ipcInstanceId,
+                OutputLifetimeRunning = _outputSessions.IsStarted
             })));
 
         if (parsed.Kind == RuntimeIpcCommandKind.ReadMetrics && parsed.MetricIds is { } ids)

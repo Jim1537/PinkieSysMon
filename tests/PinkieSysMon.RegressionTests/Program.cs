@@ -825,6 +825,7 @@ internal static partial class Program
                 ("Issue 128 Settings JSON preservation and rollback", Issue128SettingsDraftTests.PreservesUnrelatedApplicationFields),
                 ("Issue 128 Settings stale and malformed rejection", Issue128SettingsDraftTests.RejectsConcurrentOrMalformedSourceChanges),
                 ("Issue 128 Editor session identity and close admission", Issue128EditorSessionTests.PerRootGateAndSessionProtocol),
+                ("Issue 128 Runtime same-install identity and stopped-vs-live verb", Issue128RuntimeClientTests.OwnershipAndLifetime),
                 ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
                 ("launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ]),
