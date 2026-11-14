@@ -7,6 +7,7 @@ namespace PinkieSysMon.Widgets;
 internal abstract class StateProfileWidgetRenderer : IWidgetRenderer, IWidgetShadowCacheKeyProvider, IDisposable
 {
     private readonly StateIconVisualCache _visuals;
+    private readonly IconAssetCache _fallbackIcons;
     private readonly TextContentRenderer _text = new();
     private readonly StateAnimationPlaybackTracker _playback = new();
     private readonly Func<long> _clock;
@@ -19,6 +20,7 @@ internal abstract class StateProfileWidgetRenderer : IWidgetRenderer, IWidgetSha
     {
         Type = type;
         _visuals = new StateIconVisualCache(images, icons);
+        _fallbackIcons = icons;
         _clock = clock ?? (() => Environment.TickCount64);
     }
 
@@ -27,10 +29,28 @@ internal abstract class StateProfileWidgetRenderer : IWidgetRenderer, IWidgetSha
 
     public void Render(SKCanvas canvas, CanonicalWidgetDefinition widget, WidgetRenderContext context)
     {
-        if (!WidgetTypeContract.Is(widget.Type, Type) ||
-            !context.TryResolveStateVisualProfile(widget, out var stateKey, out var profile))
+        if (!WidgetTypeContract.Is(widget.Type, Type))
+            return;
+
+        if (!context.TryResolveStateVisualProfile(widget, out var stateKey, out var profile))
         {
             _playback.Deactivate(widget);
+            if (widget is CanonicalDashboard.BinaryWidgetDefinition binary)
+            {
+                if (binary.UsesOnlyValueSources())
+                {
+                    // Typography comes from the True visual, but no Boolean state is chosen.
+                    var textProfile = binary.Profiles[BinarySignalContract.TrueKey].TextPresentation.ToRenderProfile();
+                    _text.Render(canvas, widget, context, SystemFallback.Text,
+                        layoutMode: TextContentLayoutMode.AutoHeightContainer,
+                        presentationOverride: textProfile);
+                }
+                else
+                {
+                    SystemFallback.DrawGraphic(canvas, _fallbackIcons,
+                        WidgetGeometry.GetArtworkBounds(widget), widget.Color, context.Antialias);
+                }
+            }
             return;
         }
 
@@ -92,7 +112,9 @@ internal abstract class StateProfileWidgetRenderer : IWidgetRenderer, IWidgetSha
         if (!WidgetTypeContract.Is(widget.Type, Type) ||
             !context.TryResolveStateVisualProfile(widget, out var stateKey, out var profile))
         {
-            key = WidgetRenderContext.ShadowContentKey.Unavailable;
+            key = widget is CanonicalDashboard.BinaryWidgetDefinition binary && binary.UsesOnlyValueSources()
+                ? WidgetRenderContext.ShadowContentKey.ForText(SystemFallback.Text)
+                : WidgetRenderContext.ShadowContentKey.Unavailable;
             return true;
         }
 

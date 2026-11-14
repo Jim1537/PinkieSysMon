@@ -275,19 +275,19 @@ internal sealed class WidgetRenderContext : IDisposable
         }
         catch (FormatException)
         {
-            return widget.Prefix + widget.Fallback + widget.Suffix;
+            return SystemFallback.Text;
         }
         catch (InvalidCastException)
         {
-            return widget.Prefix + widget.Fallback + widget.Suffix;
+            return SystemFallback.Text;
         }
         catch (OverflowException)
         {
-            return widget.Prefix + widget.Fallback + widget.Suffix;
+            return SystemFallback.Text;
         }
         catch (InvalidOperationException)
         {
-            return widget.Prefix + widget.Fallback + widget.Suffix;
+            return SystemFallback.Text;
         }
     }
 
@@ -750,10 +750,10 @@ internal sealed class WidgetRenderContext : IDisposable
     }
 
     public string FormatMetric(CanonicalDashboard.ValueWidgetDefinition widget) =>
-        FormatMetricCore(widget, widget.Metric, widget.Unit, widget.Format, widget.Prefix, widget.Suffix, widget.Fallback);
+        FormatMetricCore(widget, widget.Metric, widget.Unit, widget.Format, widget.Prefix, widget.Suffix);
 
     public string FormatMetric(CanonicalDashboard.BinaryWidgetDefinition widget) =>
-        FormatMetricCore(widget, widget.Metric, widget.Unit, widget.Format, widget.Prefix, widget.Suffix, widget.Fallback);
+        FormatMetricCore(widget, widget.Metric, widget.Unit, widget.Format, widget.Prefix, widget.Suffix);
 
     private string FormatMetricCore(
         CanonicalWidgetDefinition cacheKey,
@@ -761,8 +761,7 @@ internal sealed class WidgetRenderContext : IDisposable
         string? unit,
         string? format,
         string prefix,
-        string suffix,
-        string fallback)
+        string suffix)
     {
         var cache = IsFrameClockMetric(metric) ? _frameClockTextCache : _formattedMetricCache;
         if (cache.TryGetValue(cacheKey, out var cached))
@@ -771,7 +770,7 @@ internal sealed class WidgetRenderContext : IDisposable
         string formatted;
         if (string.IsNullOrWhiteSpace(metric) || !Metrics.TryGetValue(metric, out var value) || value is null)
         {
-            formatted = prefix + fallback + suffix;
+            formatted = SystemFallback.Text;
         }
         else
         {
@@ -779,7 +778,7 @@ internal sealed class WidgetRenderContext : IDisposable
             var descriptor = MetricContract.GetDescriptor(metric);
             if (descriptor is null)
             {
-                formatted = prefix + (Convert.ToString(value, CultureInfo.CurrentCulture) ?? fallback) + suffix;
+                formatted = prefix + (Convert.ToString(value, CultureInfo.CurrentCulture) ?? SystemFallback.Text) + suffix;
             }
             else
             {
@@ -790,19 +789,19 @@ internal sealed class WidgetRenderContext : IDisposable
                 }
                 catch (FormatException)
                 {
-                    formatted = prefix + fallback + suffix;
+                    formatted = SystemFallback.Text;
                 }
                 catch (InvalidCastException)
                 {
-                    formatted = prefix + fallback + suffix;
+                    formatted = SystemFallback.Text;
                 }
                 catch (OverflowException)
                 {
-                    formatted = prefix + fallback + suffix;
+                    formatted = SystemFallback.Text;
                 }
                 catch (InvalidOperationException)
                 {
-                    formatted = prefix + fallback + suffix;
+                    formatted = SystemFallback.Text;
                 }
             }
         }

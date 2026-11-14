@@ -639,8 +639,7 @@ internal static class CanonicalPropertyViewBuilder
                 result.Add(Group("Value", valueRows));
                 result.Add(Group("Display", [
                     String(value, nameof(C.ValueWidgetDefinition.Prefix), "data.display.prefix", "Prefix", () => value.Prefix, v => value.Prefix = Convert.ToString(v) ?? string.Empty),
-                    String(value, nameof(C.ValueWidgetDefinition.Suffix), "data.display.suffix", "Suffix", () => value.Suffix, v => value.Suffix = Convert.ToString(v) ?? string.Empty),
-                    String(value, nameof(C.ValueWidgetDefinition.Fallback), "data.display.fallback", "Fallback", () => value.Fallback, v => value.Fallback = Convert.ToString(v) ?? "--", disabled: () => literal ? NotApplicable("Type") : null)
+                    String(value, nameof(C.ValueWidgetDefinition.Suffix), "data.display.suffix", "Suffix", () => value.Suffix, v => value.Suffix = Convert.ToString(v) ?? string.Empty)
                 ]));
                 break;
             }
@@ -732,8 +731,7 @@ internal static class CanonicalPropertyViewBuilder
                     {
                         result.Add(Group("Display", [
                             String(binary, nameof(C.BinaryWidgetDefinition.Prefix), "data.display.prefix", "Prefix", () => binary.Prefix, v => binary.Prefix = Convert.ToString(v) ?? string.Empty),
-                            String(binary, nameof(C.BinaryWidgetDefinition.Suffix), "data.display.suffix", "Suffix", () => binary.Suffix, v => binary.Suffix = Convert.ToString(v) ?? string.Empty),
-                            String(binary, nameof(C.BinaryWidgetDefinition.Fallback), "data.display.fallback", "Fallback", () => binary.Fallback, v => binary.Fallback = Convert.ToString(v) ?? "--")
+                            String(binary, nameof(C.BinaryWidgetDefinition.Suffix), "data.display.suffix", "Suffix", () => binary.Suffix, v => binary.Suffix = Convert.ToString(v) ?? string.Empty)
                         ]));
                     }
                 }

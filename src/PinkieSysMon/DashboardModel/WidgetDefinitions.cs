@@ -293,9 +293,6 @@ internal sealed class ValueWidgetDefinition : WidgetDefinition
     [JsonPropertyName("suffix")]
     public string Suffix { get; set; } = string.Empty;
 
-    [JsonPropertyName("fallback")]
-    public string Fallback { get; set; } = "--";
-
     [JsonPropertyName("textPresentation")]
     public TextPresentationDefinition TextPresentation { get; set; } = new();
 
@@ -347,9 +344,6 @@ internal sealed class BinaryWidgetDefinition : StateVisualWidgetDefinition
 
     [JsonPropertyName("suffix")]
     public string Suffix { get; set; } = string.Empty;
-
-    [JsonPropertyName("fallback")]
-    public string Fallback { get; set; } = "--";
 
     [JsonPropertyName("evaluationMode")]
     public string EvaluationMode { get; set; } = global::PinkieSysMon.BinarySignalContract.EvaluationModeAuto;

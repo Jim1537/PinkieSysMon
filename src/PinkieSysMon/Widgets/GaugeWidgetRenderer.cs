@@ -9,7 +9,10 @@ internal sealed class GaugeWidgetRenderer : IWidgetRenderer, IDisposable
 {
     private const float AngleEpsilon = 0.0001f;
     private const float GeometryEpsilon = 0.0001f;
+    private readonly IconAssetCache _icons;
     private readonly Dictionary<CanonicalWidgetDefinition, CompiledGauge> _compiled = new();
+
+    public GaugeWidgetRenderer(IconAssetCache icons) => _icons = icons;
 
     public string Type => WidgetTypeContract.Gauge;
 
@@ -69,6 +72,11 @@ internal sealed class GaugeWidgetRenderer : IWidgetRenderer, IDisposable
 
             if (compiled.NeedleEnabled && hasMetric)
                 DrawNeedle(canvas, compiled, compiled.Indicator.GetRatio(raw));
+
+            if (!hasMetric)
+                SystemFallback.DrawGraphic(canvas, _icons,
+                    WidgetGeometry.InsetContent(new SKRect(0, 0, gauge.Width, gauge.Height), gauge.Padding),
+                    gauge.Color, context.Antialias);
         }
         finally
         {

@@ -10,8 +10,8 @@ internal static class WidgetRendererRegistry
         [
             new ValueWidgetRenderer(),
             new CalculatorWidgetRenderer(),
-            new BarWidgetRenderer(imageAssets),
-            new GaugeWidgetRenderer(),
+            new BarWidgetRenderer(imageAssets, iconAssets),
+            new GaugeWidgetRenderer(iconAssets),
             new GraphWidgetRenderer(imageAssets, iconAssets),
             new ImageWidgetRenderer(imageAssets, iconAssets),
             new BinaryWidgetRenderer(imageAssets, iconAssets),

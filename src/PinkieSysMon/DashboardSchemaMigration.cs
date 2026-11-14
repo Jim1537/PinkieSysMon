@@ -30,7 +30,8 @@ internal static class DashboardSchemaMigration
     public const int WidgetActionRunAsSchemaVersion = 33;
     public const int CalculatorSchemaVersion = 34;
     public const int CalculatorAppearanceSchemaVersion = 35;
-    public const int CurrentSchemaVersion = CalculatorAppearanceSchemaVersion;
+    public const int SystemFallbackSchemaVersion = 36;
+    public const int CurrentSchemaVersion = SystemFallbackSchemaVersion;
     private const int LegacyBinarySchemaVersion = 10;
 
     public static bool UpgradeToCurrent(JsonObject root)
@@ -54,7 +55,7 @@ internal static class DashboardSchemaMigration
             return false;
 
         if (schemaVersion is not (PropertyModelNormalizationSchemaVersion or
-            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion or ShadowColorAlphaSchemaVersion or WidgetActionRunAsSchemaVersion or CalculatorSchemaVersion))
+            DateTimeComponentSchemaVersion or BinaryDateTimeComponentSchemaVersion or DateTimeComponentPrecisionSchemaVersion or GraphSchemaVersion or GraphReverseSchemaVersion or GraphSignalSchemaVersion or ShortcutSchemaVersion or CommonWidgetGeometrySchemaVersion or BarTrackSchemaVersion or WidgetPanelLayersSchemaVersion or CanvasPanelSchemaVersion or WidgetActionSchemaVersion or ShadowColorAlphaSchemaVersion or WidgetActionRunAsSchemaVersion or CalculatorSchemaVersion or CalculatorAppearanceSchemaVersion))
         {
             _ = UpgradeToPropertyModelNormalization(root);
             schemaVersion = ReadSchemaVersion(root);
@@ -196,6 +197,22 @@ internal static class DashboardSchemaMigration
             // No legacy button/display values are rewritten or synthesized.
             root["schemaVersion"] = CalculatorAppearanceSchemaVersion;
             schemaVersion = CalculatorAppearanceSchemaVersion;
+        }
+
+        if (schemaVersion == CalculatorAppearanceSchemaVersion)
+        {
+            // The fixed system marker supersedes editable Value/Binary fallback strings.
+            // Existing custom strings intentionally normalize to a uniform presentation.
+            if (root["widgets"] is JsonArray widgets)
+                foreach (var widget in widgets.OfType<JsonObject>())
+                {
+                    var type = widget["type"]?.GetValue<string>();
+                    if (string.Equals(type, WidgetTypeContract.Value, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(type, WidgetTypeContract.Binary, StringComparison.OrdinalIgnoreCase))
+                        widget.Remove("fallback");
+                }
+            root["schemaVersion"] = SystemFallbackSchemaVersion;
+            schemaVersion = SystemFallbackSchemaVersion;
         }
 
         if (schemaVersion != CurrentSchemaVersion)

@@ -200,7 +200,7 @@ internal static class WidgetGeometry
         CanonicalDashboard.BinaryWidgetDefinition widget,
         WidgetRenderContext context)
     {
-        var text = context.FormatMetric(widget);
+        var text = SystemFallback.Text;
         SKRect? bounds = null;
         foreach (var profile in widget.Profiles.Values)
         {

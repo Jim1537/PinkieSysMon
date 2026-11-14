@@ -8,11 +8,13 @@ namespace PinkieSysMon.Widgets;
 internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
 {
     private readonly ImageAssetCache _images;
+    private readonly IconAssetCache _icons;
     private readonly Dictionary<CanonicalWidgetDefinition, CompiledBar> _compiled = new();
 
-    public BarWidgetRenderer(ImageAssetCache images)
+    public BarWidgetRenderer(ImageAssetCache images, IconAssetCache icons)
     {
         _images = images;
+        _icons = icons;
     }
 
     public string Type => WidgetTypeContract.Bar;
@@ -29,8 +31,15 @@ internal sealed class BarWidgetRenderer : IWidgetRenderer, IDisposable
             if (compiled.TrackPaint is not null && compiled.TrackBounds.Width > 0 && compiled.TrackBounds.Height > 0)
                 DrawFill(canvas, compiled.TrackBounds, compiled.TrackRadius, compiled.TrackPaint);
 
-            if (compiled.Inner.Width <= 0f || compiled.Inner.Height <= 0f ||
-                !context.TryGetMetricDouble(bar, out var raw))
+            if (!context.TryGetMetricDouble(bar, out var raw))
+            {
+                SystemFallback.DrawGraphic(canvas, _icons,
+                    WidgetGeometry.InsetContent(new SKRect(0, 0, bar.Width, bar.Height), bar.Padding),
+                    bar.Color, context.Antialias);
+                return;
+            }
+
+            if (compiled.Inner.Width <= 0f || compiled.Inner.Height <= 0f)
                 return;
 
             var ratio = compiled.GetRatio(raw);

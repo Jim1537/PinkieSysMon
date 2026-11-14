@@ -6,6 +6,7 @@ namespace PinkieSysMon.Widgets;
 internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache icons) : IWidgetRenderer, IDisposable
 {
     private const long MaximumScratchBytes = 32L * 1024 * 1024;
+    private readonly IconAssetCache _fallbackIcons = icons;
     private readonly Dictionary<C.WidgetDefinition, Resources> _resources = new();
     private long _scratchBytes;
     public string Type => WidgetTypeContract.Graph;
@@ -32,7 +33,12 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             if (r.Bounds.Width <= 0 || r.Bounds.Height <= 0) return;
             r.PrepareFrame(graph, context);
             if (graph.Padding != default) canvas.ClipRect(r.Bounds);
-            if (r.SelectedCount == 0) return;
+            if (r.SelectedCount == 0)
+            {
+                if (!r.HasVisibleObservations)
+                    SystemFallback.DrawGraphic(canvas, _fallbackIcons, r.Bounds, graph.Color, context.Antialias);
+                return;
+            }
             if (graph.Mode == "Line" && graph.FillEnabled) r.DrawFills(canvas, graph);
             for (var i = 0; i < r.SelectedCount; i++)
             {
@@ -92,6 +98,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public readonly ImageVisual? Image;
         public GraphRange Range;
         public int SelectedCount;
+        public bool HasVisibleObservations;
         private long _frame = -1;
         private SKShader? _shader;
         private GraphRange? _shaderRange;
@@ -127,7 +134,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
         public void PrepareFrame(C.GraphWidgetDefinition graph, WidgetRenderContext context)
         {
             if (_frame == context.FrameSequence) return;
-            _frame = context.FrameSequence; SelectedCount = 0;
+            _frame = context.FrameSequence; SelectedCount = 0; HasVisibleObservations = false;
             if (context.History is null || string.IsNullOrWhiteSpace(graph.Metric)) return;
             var query = context.History.CopyTo(graph.Metric, graph.WindowSeconds, context.HistoryTimestamp, Raw);
             _filter?.Begin(query.Epoch, Raw.AsSpan(0, query.Count));
@@ -145,7 +152,11 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
                 Points[count++] = new((raw.Timestamp - query.WindowStart) / (graph.WindowSeconds * TimeSpan.TicksPerSecond),
                     value, previousValid && raw.ConnectsToPrevious);
                 previousValid = true;
-                if (raw.Timestamp >= query.WindowStart) { min = Math.Min(min, value); max = Math.Max(max, value); }
+                if (raw.Timestamp >= query.WindowStart)
+                {
+                    HasVisibleObservations = true;
+                    min = Math.Min(min, value); max = Math.Max(max, value);
+                }
             }
             if (!double.IsFinite(min)) return;
             Range = graph.AutoScale ? GraphRange.Auto(min, max) : new(graph.Min, graph.Max);
