@@ -1,4 +1,5 @@
 using PinkieSysMon;
+using PinkieSysMon.Widgets;
 using C = PinkieSysMon.DashboardModel;
 
 namespace PinkieSysMon.RegressionTests;
@@ -14,6 +15,15 @@ internal static class Issue70EmptyImageSourceTests
         File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
         try
         {
+            // Empty user-selected sources are distinct from the mandatory system fallback.
+            // The isolated fixture must supply the same bundled icon as a normal installation.
+            var lucide = Path.Combine(root, "assets", "icons", "Lucide");
+            Directory.CreateDirectory(lucide);
+            File.Copy(
+                GlobalAssetResolver.ResolveIconFromRoot(
+                    ApplicationRootLocator.Find(AppContext.BaseDirectory), SystemFallback.Icon),
+                Path.Combine(lucide, "image-off.svg"));
+
             foreach (var blank in new string?[] { null, "", "  " })
             {
                 var definition = new C.DashboardDefinition

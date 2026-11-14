@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Text.Json;
 using PinkieSysMon;
+using PinkieSysMon.Widgets;
 using SkiaSharp;
 using C = PinkieSysMon.DashboardModel;
 
@@ -225,7 +226,19 @@ internal static class DeletedImageRollbackTests
         var root = Path.Combine(Path.GetTempPath(), "pinkiesysmon-issue32-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "config"));
         File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
-        try { action(root, new FileLogger(Path.Combine(root, "issue32.log"))); }
+        try
+        {
+            // Binary now renders the fixed icon when its required metric is missing.
+            // Provision the bundled icon in this isolated Desktop/Physical fixture so
+            // missing test assets cannot mask image reload or rollback behavior.
+            var lucide = Path.Combine(root, "assets", "icons", "Lucide");
+            Directory.CreateDirectory(lucide);
+            File.Copy(
+                GlobalAssetResolver.ResolveIconFromRoot(
+                    ApplicationRootLocator.Find(AppContext.BaseDirectory), SystemFallback.Icon),
+                Path.Combine(lucide, "image-off.svg"));
+            action(root, new FileLogger(Path.Combine(root, "issue32.log")));
+        }
         finally { Directory.Delete(root, true); }
     }
 
