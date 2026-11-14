@@ -72,6 +72,10 @@ internal static class LauncherSettingsCoordinator
             // Editor may have just saved view/scroll/expansion preferences.
             // Compare semantic app-wide fields, not the entire editor.json blob.
             draft.EnsureSharedPreferencesUnchanged();
+            var newlyAdmitted = EditorSessionWire.DiscoverAsync(draft.Root).GetAwaiter().GetResult();
+            if (newlyAdmitted.Count != 0)
+                throw new InvalidOperationException(
+                    "A new Editor became active during the Settings transaction. Configuration was not committed.");
             var freshRuntime = LauncherRuntimeClient.GetStatusAsync(draft.Root).GetAwaiter().GetResult();
             if (freshRuntime.Present != runtime.Present ||
                 freshRuntime.InstanceId != runtime.InstanceId)

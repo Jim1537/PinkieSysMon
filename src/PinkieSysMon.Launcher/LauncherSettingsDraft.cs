@@ -165,6 +165,14 @@ internal sealed class LauncherSettingsDraft
         if (!Matches(AppPath, OriginalAppBytes) || !Matches(EditorPath, OriginalEditorBytes))
             throw new InvalidOperationException(
                 "Settings input changed after the draft was opened. No newer configuration was overwritten.");
+        EnsureStartupUnchanged();
+    }
+
+    internal void EnsureStartupUnchanged()
+    {
+        if (OriginalStartupCommand != StartupTaskManager.ReadCurrentCommand())
+            throw new InvalidOperationException(
+                "Windows Runtime startup entry changed while Settings was open.");
     }
 
     // Closing a verified Editor legitimately saves fresh per-dashboard view
@@ -178,9 +186,7 @@ internal sealed class LauncherSettingsDraft
             !string.Equals(latest.Theme, _original.Theme, StringComparison.Ordinal))
             throw new InvalidOperationException(
                 "Shared Editor interface settings changed while Settings was open.");
-        if (OriginalStartupCommand != StartupTaskManager.ReadCurrentCommand())
-            throw new InvalidOperationException(
-                "Windows Runtime startup entry changed while Settings was open.");
+        EnsureStartupUnchanged();
     }
 
     // App files and Editor preferences are persisted separately by their
