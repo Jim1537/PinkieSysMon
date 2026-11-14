@@ -109,7 +109,8 @@ internal sealed class PinkieApplicationContext : ApplicationContext
 
         startup?.Phase("tray.prepare");
         _trayMenu = new RuntimeTrayMenu(OpenDashboardEditor, ExecuteTrayOutputCommand,
-            () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled);
+            () => OpenFolder(Path.Combine(_baseDir, "logs")), ChangePhysicalDeviceEnabled,
+            () => OpenLauncherTab("common"), () => OpenLauncherTab("about"));
         BuildTray();
         _uiInvoker.CreateControl();
         _usbTests = new RuntimeUsbTestService(CatalogUsbInterfaceDiscovery.CaptureSnapshot,
@@ -684,6 +685,31 @@ internal sealed class PinkieApplicationContext : ApplicationContext
         }
     }
 
+
+    private void OpenLauncherTab(string tab)
+    {
+        try
+        {
+            var launcher = Path.Combine(_baseDir, "Launcher.exe");
+            if (!File.Exists(launcher))
+                throw new FileNotFoundException("Portable Settings Launcher.exe was not found.", launcher);
+            var start = new ProcessStartInfo
+            {
+                FileName = launcher,
+                WorkingDirectory = _baseDir,
+                UseShellExecute = false
+            };
+            start.ArgumentList.Add("--tab=" + tab);
+            using var process = Process.Start(start)
+                ?? throw new InvalidOperationException("Windows did not start Settings Launcher.");
+        }
+        catch (Exception error)
+        {
+            _log.Error("Could not open Launcher " + tab + " tab.", error);
+            _notifications.Show("Settings / About could not be opened; inspect Runtime log.",
+                RuntimeNotificationKind.Error);
+        }
+    }
 
     private void OpenFolder(string path)
     {

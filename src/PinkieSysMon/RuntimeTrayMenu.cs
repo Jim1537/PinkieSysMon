@@ -14,7 +14,8 @@ internal sealed class RuntimeTrayMenu : IDisposable
     public ToolStripMenuItem ControlCenter { get; }
 
     public RuntimeTrayMenu(Action openEditor, Action<RuntimeIpcCommand> execute,
-        Action openLogs, Action<string, bool> setPhysicalEnabled)
+        Action openLogs, Action<string, bool> setPhysicalEnabled,
+        Action openSettings, Action openAbout)
     {
         _execute = execute;
         _setPhysicalEnabled = setPhysicalEnabled;
@@ -29,6 +30,9 @@ internal sealed class RuntimeTrayMenu : IDisposable
         Menu.Items.Add(new ToolStripSeparator());
         Menu.Items.Add(Status);
         Menu.Items.Add(ActionItem("Open Logs Folder", openLogs));
+        Menu.Items.Add(new ToolStripSeparator());
+        Menu.Items.Add(ActionItem("Settings", openSettings));
+        Menu.Items.Add(ActionItem("About", openAbout));
         Menu.Items.Add(new ToolStripSeparator());
         Menu.Items.Add(ActionItem("Exit", () => _execute(new(RuntimeIpcCommandKind.Exit))));
     }

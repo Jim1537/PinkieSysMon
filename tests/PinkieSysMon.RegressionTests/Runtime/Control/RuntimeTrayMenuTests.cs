@@ -8,14 +8,16 @@ internal static class RuntimeTrayMenuTests
         var commands = new List<RuntimeIpcCommand>();
         var editor = 0;
         var logs = 0;
-        using var tray = new RuntimeTrayMenu(() => editor++, commands.Add, () => logs++, (_, _) => { });
+        var settings = 0;
+        var about = 0;
+        using var tray = new RuntimeTrayMenu(() => editor++, commands.Add, () => logs++, (_, _) => { }, () => settings++, () => about++);
         tray.RefreshOutputs([Physical("usb"), Desktop("back"), Desktop("front")], ["Board", "Other"],
             new HashSet<string>(), new Dictionary<string, int> { ["usb"] = 92 });
         Check(tray.Menu.Items.Cast<ToolStripItem>().Select(i => i is ToolStripSeparator ? "|" : i.Text)
             .SequenceEqual(new[]
             {
                 "Control Center", "|", "Desktop", "back", "front", "|", "Physical Devices", "usb",
-                "|", "Reload All", "|", "Starting...", "Open Logs Folder", "|", "Exit"
+                "|", "Reload All", "|", "Starting...", "Open Logs Folder", "|", "Settings", "About", "|", "Exit"
             }), "The root must retain exact section/separator/command order and per-kind configured order.");
         Check(tray.Menu.Items.Cast<ToolStripItem>().Where(i => i.Tag is string).Count() == 3 &&
               !Item(tray.Menu.Items, "Desktop").Enabled && !Item(tray.Menu.Items, "Desktop").HasDropDownItems &&
@@ -27,8 +29,11 @@ internal static class RuntimeTrayMenuTests
         Item(tray.Menu.Items, "Control Center").PerformClick();
         Item(tray.Menu.Items, "Reload All").PerformClick();
         Item(tray.Menu.Items, "Open Logs Folder").PerformClick();
+        Item(tray.Menu.Items, "Settings").PerformClick();
+        Item(tray.Menu.Items, "About").PerformClick();
         Item(tray.Menu.Items, "Exit").PerformClick();
-        Check(editor == 2 && logs == 1 && commands.Select(c => c.Kind).SequenceEqual(
+        Check(editor == 2 && logs == 1 && settings == 1 && about == 1 &&
+              commands.Select(c => c.Kind).SequenceEqual(
                   new[] { RuntimeIpcCommandKind.StartOrReloadAll, RuntimeIpcCommandKind.Exit }) &&
               commands.All(c => c.TargetId is null) && !tray.Status.Enabled,
             "Fixed root actions must route once through their existing owners; overall status is read-only.");
@@ -45,7 +50,7 @@ internal static class RuntimeTrayMenuTests
         const string id = "panel\t\"opaque\"";
         var output = Desktop(id) with { TargetName = "A&B", Dashboard = "Board&One", Lock = true };
         var commands = new List<RuntimeIpcCommand>();
-        using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { }, (_, _) => throw new Exception("No device enable."));
+        using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { }, (_, _) => throw new Exception("No device enable."), () => { }, () => { });
         tray.RefreshOutputs([output], ["board&one", "Other"], new HashSet<string>(), new Dictionary<string, int>());
         var panel = Output(tray, id);
         Check(panel.Text == "A&&B" && panel.Enabled && panel.DropDownItems.Cast<ToolStripItem>().Select(i => i.Text)
@@ -91,7 +96,7 @@ internal static class RuntimeTrayMenuTests
     public static void RefreshOwnershipAndUnavailableFrames()
     {
         var commands = new List<RuntimeIpcCommand>();
-        using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { }, (_, _) => { });
+        using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { }, (_, _) => { }, () => { }, () => { });
         var empty = new Dictionary<string, int>();
         var enabledIds = new HashSet<string>();
         var output = Desktop("first");
@@ -157,7 +162,7 @@ internal static class RuntimeTrayMenuTests
         var commands = new List<RuntimeIpcCommand>();
         var permissions = new List<(string Id, bool Enabled)>();
         using var tray = new RuntimeTrayMenu(() => { }, commands.Add, () => { },
-            (id, value) => permissions.Add((id, value)));
+            (id, value) => permissions.Add((id, value)), () => { }, () => { });
         var physical = Physical("device");
         tray.RefreshOutputs([physical], ["Board", "Other"], new HashSet<string>(), new Dictionary<string, int> { ["device"] = 92 });
         var device = Output(tray, "device");
