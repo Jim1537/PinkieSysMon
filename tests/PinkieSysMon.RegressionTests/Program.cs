@@ -100,6 +100,7 @@ internal static partial class Program
                 ("fixed fallback, schema migration and idempotence", Issue126FallbackTests.FixedContractAndMigration),
                 ("missing versus zero and domain-specific state profiles", Issue126FallbackTests.RenderStateSemantics),
                 ("bundled Lucide graphic marker rendering", Issue126FallbackTests.BundledGraphicRendering),
+                ("Bar, Gauge and Binary unavailable versus valid rasters", Issue126FallbackTests.GraphicWidgetAvailabilityRasters),
             ]),
             ("Widgets / Bar", [
                 ("Bar image property visibility", BarImagePropertyVisibility),

@@ -19,7 +19,7 @@ internal static class SystemFallback
             return;
 
         // Derived from the content area; no user-facing fallback size or style property.
-        var side = Math.Min(32f, Math.Min(content.Width, content.Height) * 0.6f);
+        var side = Math.Min(64f, Math.Min(content.Width, content.Height) * 0.6f);
         if (side < 2f)
             return;
 

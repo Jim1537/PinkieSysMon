@@ -122,6 +122,69 @@ internal static class Issue126FallbackTests
             "Zero-size content must not draw an icon outside widget geometry.");
     }
 
+    public static void GraphicWidgetAvailabilityRasters()
+    {
+        var root = ApplicationRootLocator.Find(AppContext.BaseDirectory);
+        using var images = new ImageAssetCache(root);
+        using var icons = new IconAssetCache(root);
+        using var typefaces = new TypefaceCache(root, []);
+        using var missing = new WidgetRenderContext(new Dictionary<string, object?>(), false, typefaces);
+        using var validZero = new WidgetRenderContext(
+            new Dictionary<string, object?> { [SystemMetricContract.Uptime] = 0d },
+            false, typefaces);
+
+        var bar = new C.BarWidgetDefinition
+        {
+            Id = "fallback-bar", Metric = SystemMetricContract.Uptime, Width = 96,
+            Height = 96, Min = 0, Max = 100
+        };
+        bar.Track.BackgroundColor = "#FF101010";
+        var gauge = new C.GaugeWidgetDefinition
+        {
+            Id = "fallback-gauge", Metric = SystemMetricContract.Uptime, Width = 96,
+            Height = 96, Min = 0, Max = 100
+        };
+        gauge.Track.BackgroundColor = "#FF101010";
+        var binary = new C.BinaryWidgetDefinition
+        {
+            Id = "fallback-binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
+        };
+        StateVisualProfileContract.EnsureProfiles(binary);
+
+        using var barRenderer = new BarWidgetRenderer(images, icons);
+        using var gaugeRenderer = new GaugeWidgetRenderer(icons);
+        using var binaryRenderer = new BinaryWidgetRenderer(images, icons);
+
+        foreach (var (widget, renderer) in new (C.WidgetDefinition Widget, IWidgetRenderer Renderer)[]
+        {
+            (bar, barRenderer),
+            (gauge, gaugeRenderer),
+            (binary, binaryRenderer)
+        })
+        {
+            var absent = Raster(widget, renderer, missing);
+            var realZero = Raster(widget, renderer, validZero);
+            Check(!absent.AsSpan().SequenceEqual(realZero),
+                widget.Type + " must draw a distinct unavailable graphic, not present valid zero/False as unavailable.");
+        }
+
+        static SkiaSharp.SKColor[] Raster(C.WidgetDefinition widget, IWidgetRenderer renderer, WidgetRenderContext context)
+        {
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(96, 96))
+                ?? throw new InvalidOperationException("Could not create availability regression surface.");
+            surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+            WidgetTransform.Render(surface.Canvas, widget, context, renderer);
+            surface.Canvas.Flush();
+            using var pixels = surface.PeekPixels()
+                ?? throw new InvalidOperationException("Could not inspect availability regression raster.");
+            var result = new SkiaSharp.SKColor[96 * 96];
+            for (var y = 0; y < 96; y++)
+            for (var x = 0; x < 96; x++)
+                result[y * 96 + x] = pixels.GetPixelColor(x, y);
+            return result;
+        }
+    }
+
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);
