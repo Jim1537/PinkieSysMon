@@ -30,6 +30,8 @@ internal static class LauncherSettingsCoordinator
         LauncherRuntimeState runtime = LauncherRuntimeState.Absent;
         IDisposable? gate = null;
         var success = false;
+        var recoveryIncomplete = false;
+        var runtimeReloaded = false;
 
         try
         {
@@ -49,15 +51,22 @@ internal static class LauncherSettingsCoordinator
             // remaining closures and the entire Settings commit.
             foreach (var session in knownEditors.OrderBy(editor => editor.ProcessId))
             {
-                var reply = EditorSessionWire.RequestCloseAsync(session).GetAwaiter().GetResult();
+                EditorSessionReply reply;
+                try { reply = EditorSessionWire.RequestCloseAsync(session).GetAwaiter().GetResult(); }
+                catch (Exception closeError)
+                {
+                    // A lost acknowledgement may follow a successful FormClosed.
+                    // Reconcile the exact old process before deciding restoration.
+                    if (OriginalProcessExited(session, 5000)) closed.Add(session);
+                    throw new InvalidOperationException(
+                        "Editor close outcome was not confirmed. No Settings were committed.", closeError);
+                }
                 if (!reply.Accepted)
                     throw new InvalidOperationException("Editor refused coordinated close: " + reply.Message);
-                using var process = Process.GetProcessById(session.ProcessId);
-                if (process.StartTime.ToUniversalTime().Ticks != session.StartedUtcTicks ||
-                    !process.WaitForExit(15000))
+                closed.Add(session); // The FormClosed ACK is definitive even if the process has already exited.
+                if (!OriginalProcessExited(session, 15000))
                     throw new InvalidOperationException(
                         "Editor window closed, but exact process termination could not be confirmed.");
-                closed.Add(session);
             }
 
             // Editor may have just saved view/scroll/expansion preferences.
@@ -90,10 +99,11 @@ internal static class LauncherSettingsCoordinator
                 startupWritten = true;
             }
 
-            if (runtime.Present)
+            if (runtime.Present && draft.AppChanged)
             {
                 runtimeCommandStarted = true;
                 LauncherRuntimeClient.ReloadAsync(draft.Root, runtime).GetAwaiter().GetResult();
+                runtimeReloaded = true;
             }
             success = true;
         }
@@ -112,9 +122,12 @@ internal static class LauncherSettingsCoordinator
                     {
                         if (!LauncherSettingsDraft.RestoreIfUnchanged(
                             draft.EditorPath, savedEditorBytes, freshEditorBytes))
+                        {
+                            recoveryIncomplete = true;
                             errors.Add("Editor preferences rollback blocked by newer bytes.");
+                        }
                     }
-                    catch (Exception rollback) { errors.Add("Editor preferences rollback failed: " + rollback.Message); }
+                    catch (Exception rollback) { recoveryIncomplete = true; errors.Add("Editor preferences rollback failed: " + rollback.Message); }
                 }
                 if (appWritten && preparedAppBytes is not null)
                 {
@@ -122,9 +135,12 @@ internal static class LauncherSettingsCoordinator
                     {
                         if (!LauncherSettingsDraft.RestoreIfUnchanged(
                             draft.AppPath, preparedAppBytes, draft.OriginalAppBytes))
+                        {
+                            recoveryIncomplete = true;
                             errors.Add("Application configuration rollback blocked by newer bytes.");
+                        }
                     }
-                    catch (Exception rollback) { errors.Add("Application configuration rollback failed: " + rollback.Message); }
+                    catch (Exception rollback) { recoveryIncomplete = true; errors.Add("Application configuration rollback failed: " + rollback.Message); }
                 }
                 if (startupWritten)
                 {
@@ -133,20 +149,28 @@ internal static class LauncherSettingsCoordinator
                         StartupTaskManager.SetEnabled(!draft.Values.StartRuntimeWithWindows,
                             Path.Combine(draft.Root, "bin", "PinkieSysMon.exe"));
                     }
-                    catch (Exception rollback) { errors.Add("Autostart rollback failed: " + rollback.Message); }
+                    catch (Exception rollback) { recoveryIncomplete = true; errors.Add("Autostart rollback failed: " + rollback.Message); }
                 }
                 if (knownRejection && runtime.Present)
                 {
-                    try
+                    if (!recoveryIncomplete)
                     {
-                        LauncherRuntimeClient.ReloadAsync(draft.Root, runtime).GetAwaiter().GetResult();
+                        try
+                        {
+                            LauncherRuntimeClient.ReloadAsync(draft.Root, runtime).GetAwaiter().GetResult();
+                        }
+                        catch (Exception rollback)
+                        {
+                            recoveryIncomplete = true;
+                            errors.Add("Runtime recovery unconfirmed: " + rollback.Message);
+                        }
                     }
-                    catch (Exception rollback)
-                    { errors.Add("Runtime recovery unconfirmed: " + rollback.Message); }
+                    else errors.Add("Runtime recovery skipped because previous file state was not restored.");
                 }
             }
             else
             {
+                recoveryIncomplete = true;
                 errors.Add("Runtime apply outcome is uncertain after a command attempt. " +
                     "Persisted changes were retained; no blind rollback or retry occurred.");
             }
@@ -160,6 +184,9 @@ internal static class LauncherSettingsCoordinator
             {
                 try
                 {
+                    if (!OriginalProcessExited(session, 0))
+                        throw new InvalidOperationException(
+                            "Original Editor process has not exited; no duplicate was launched.");
                     var command = new ProcessStartInfo
                     {
                         FileName = Path.Combine(draft.Root, "bin", "PinkieSysMon.Editor.exe"),
@@ -173,7 +200,7 @@ internal static class LauncherSettingsCoordinator
                         ?? throw new InvalidOperationException("Windows did not return an Editor process.");
                     started.Add((session, process));
                 }
-                catch (Exception restart) { errors.Add("Editor restart failed: " + restart.Message); }
+                catch (Exception restart) { recoveryIncomplete = true; errors.Add("Editor restart failed: " + restart.Message); }
             }
             gate?.Dispose(); // Same worker thread that acquired the mutex.
         }
@@ -207,19 +234,37 @@ internal static class LauncherSettingsCoordinator
                     restored++;
                 }
                 catch (Exception verification)
-                { errors.Add("Editor restore unconfirmed: " + verification.Message); }
+                { recoveryIncomplete = true; errors.Add("Editor restore unconfirmed: " + verification.Message); }
             }
         }
         if (closed.Count != restored)
+        {
+            recoveryIncomplete = true;
             errors.Add("Only " + restored + "/" + closed.Count + " closed Editors were confirmed restored.");
+        }
 
         if (errors.Count > 0)
-            return new(false, false, appWritten || editorWritten || startupWritten || closed.Count > 0,
+            return new(false, false, recoveryIncomplete,
                 string.Join(Environment.NewLine, errors.Distinct()), restored);
 
         return new(success, false, false,
-            runtime.Present ? "Settings saved and Runtime reload confirmed." :
+            runtimeReloaded ? "Settings saved and Runtime reload confirmed." :
+                runtime.Present ? "Settings saved; Runtime reload was not necessary." :
                 "Settings saved; absent Runtime will load them on its next start.",
             restored);
+    }
+
+    private static bool OriginalProcessExited(EditorSessionSnapshot session, int waitMs)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(session.ProcessId);
+            if (process.StartTime.ToUniversalTime().Ticks != session.StartedUtcTicks)
+                return true; // PID was reused, so the original process has exited.
+            return process.WaitForExit(waitMs);
+        }
+        catch (ArgumentException) { return true; } // The original PID no longer exists.
+        catch (System.ComponentModel.Win32Exception) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 }
