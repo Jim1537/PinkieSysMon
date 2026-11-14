@@ -355,8 +355,8 @@ internal static partial class Program
             "Data/Value must expose Source Unit, Unit, and Format for a numeric metric.");
         Assert(GetNestedProperty(valueData, "Display", nameof(WidgetDefinition.Prefix)) is not null &&
                GetNestedProperty(valueData, "Display", nameof(WidgetDefinition.Suffix)) is not null &&
-               GetNestedProperty(valueData, "Display", nameof(WidgetDefinition.Fallback)) is not null,
-            "Data/Display must expose Prefix, Suffix, and Fallback for Text/Value.");
+               GetNestedProperty(valueData, "Display", "Fallback") is null,
+            "Data/Display exposes Prefix and Suffix, not a configurable Fallback.");
 
 
         foreach (var type in new[] { WidgetTypeContract.Bar, WidgetTypeContract.Gauge })
@@ -429,8 +429,8 @@ internal static partial class Program
                GetNestedProperty(literalData, "Value", nameof(WidgetDefinition.Format)) is { IsReadOnly: false } &&
                GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Prefix)) is { IsReadOnly: false } &&
                GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Suffix)) is { IsReadOnly: false } &&
-               GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Fallback)) is { IsReadOnly: true },
-            "Numeric literal Text must expose grouped Value/Display data while keeping Fallback unavailable.");
+               GetNestedProperty(literalData, "Display", "Fallback") is null,
+            "Numeric literal Text has no Fallback field in its Data/Display groups.");
 
         var image = new WidgetDefinition
         {

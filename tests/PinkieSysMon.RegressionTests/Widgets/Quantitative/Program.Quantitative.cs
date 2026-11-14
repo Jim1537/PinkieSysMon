@@ -172,7 +172,8 @@ internal static partial class Program
                 using var typefaces = new PinkieSysMon.Widgets.TypefaceCache(root, board.Widgets);
                 using var context = new PinkieSysMon.Widgets.WidgetRenderContext(
                     new Dictionary<string, object?>(), antialias: false, typefaces);
-                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images);
+                using var icons = new IconAssetCache(root);
+                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
                 using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 16))
                     ?? throw new InvalidOperationException("Could not create the Bar test surface.");
                 foreach (var reading in new double?[] { null, 0, 50 })
@@ -225,7 +226,8 @@ internal static partial class Program
                 typefaces);
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 10))
                 ?? throw new InvalidOperationException("Could not create Bar foreground rendering regression surface.");
-            using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images);
+            using var icons = new IconAssetCache(tempRoot);
+                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
 
             surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
             PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -360,7 +362,8 @@ internal static partial class Program
                     typefaces);
                 using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 10))
                     ?? throw new InvalidOperationException("Could not create Bar image progress regression surface.");
-                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images);
+                using var icons = new IconAssetCache(tempRoot);
+                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
 
                 surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
                 PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -437,7 +440,8 @@ internal static partial class Program
                     typefaces);
                 using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 20))
                     ?? throw new InvalidOperationException("Could not create Bar image fit regression surface.");
-                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images);
+                using var icons = new IconAssetCache(tempRoot);
+                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
 
                 surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
                 PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -502,7 +506,8 @@ internal static partial class Program
                 typefaces);
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(80, 80))
                 ?? throw new InvalidOperationException("Could not create gauge container regression surface.");
-            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer();
+            using var icons = new IconAssetCache(tempRoot);
+            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer(icons);
 
             surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
             PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -561,7 +566,8 @@ internal static partial class Program
                 typefaces);
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(100, 100))
                 ?? throw new InvalidOperationException("Could not create gauge needle regression surface.");
-            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer();
+            using var icons = new IconAssetCache(tempRoot);
+            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer(icons);
 
             surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
             PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -626,7 +632,8 @@ internal static partial class Program
                 typefaces);
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(100, 100))
                 ?? throw new InvalidOperationException("Could not create gauge layering regression surface.");
-            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer();
+            using var icons = new IconAssetCache(tempRoot);
+            using var renderer = new PinkieSysMon.Widgets.GaugeWidgetRenderer(icons);
 
             surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
             PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);

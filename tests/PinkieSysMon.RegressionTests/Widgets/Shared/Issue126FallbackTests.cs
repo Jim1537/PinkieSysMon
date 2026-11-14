@@ -1,0 +1,97 @@
+using System.Text.Json.Nodes;
+using PinkieSysMon;
+using PinkieSysMon.Widgets;
+using C = PinkieSysMon.DashboardModel;
+
+namespace PinkieSysMon.RegressionTests;
+
+internal static class Issue126FallbackTests
+{
+    public static void FixedContractAndMigration()
+    {
+        Check(SystemFallback.Text == "--" && SystemFallback.Icon == "lucide:image-off",
+            "System fallback content must remain fixed.");
+        var root = Path.Combine(Path.GetTempPath(), "Pinkie-Fallback-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "config"));
+        File.WriteAllText(Path.Combine(root, "config", "app.json"), "{}");
+        var icons = Path.Combine(root, "assets", "icons", "lucide");
+        Directory.CreateDirectory(icons);
+        File.Copy(GlobalAssetResolver.ResolveIconFromRoot(
+            ApplicationRootLocator.Find(AppContext.BaseDirectory), "lucide:check"),
+            Path.Combine(icons, "check.svg"));
+        try
+        {
+            var board = new C.DashboardDefinition { BaseDirectory = root };
+            var value = new C.ValueWidgetDefinition { Id = "value", Metric = SystemMetricContract.Uptime };
+            var binary = new C.BinaryWidgetDefinition
+            {
+                Id = "binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
+            };
+            StateVisualProfileContract.EnsureProfiles(binary);
+            board.Widgets.Add(value);
+            board.Widgets.Add(binary);
+            var json = DashboardJson.Serialize(board, indented: false);
+            Check(!json.Contains("\"fallback\"", StringComparison.OrdinalIgnoreCase),
+                "Current schema must not serialize editable fallback.");
+            var legacy = JsonNode.Parse(json)!.AsObject();
+            legacy["schemaVersion"] = DashboardSchemaMigration.CalculatorAppearanceSchemaVersion;
+            foreach (var item in legacy["widgets"]!.AsArray().OfType<JsonObject>())
+                item["fallback"] = "CUSTOM";
+            var parsed = C.DashboardDefinition.Parse(legacy.ToJsonString(), Path.Combine(root, "legacy.json"));
+            Check(parsed.SchemaVersion == DashboardSchemaMigration.CurrentSchemaVersion,
+                "Schema 35 must migrate to current version.");
+            var normalized = DashboardJson.Serialize(parsed, indented: false);
+            Check(!normalized.Contains("\"fallback\"", StringComparison.OrdinalIgnoreCase),
+                "Migrated definitions must retire custom fallback fields.");
+            var again = DashboardJson.Serialize(
+                DashboardJson.ParseCurrent(normalized, Path.Combine(root, "current.json")),
+                indented: false);
+            Check(normalized == again, "Migrated parse/save must be idempotent.");
+        }
+        finally { try { Directory.Delete(root, recursive: true); } catch { } }
+    }
+
+    public static void RenderStateSemantics()
+    {
+        using var typefaces = new TypefaceCache(
+            ApplicationRootLocator.Find(AppContext.BaseDirectory), []);
+        var value = new C.ValueWidgetDefinition
+        {
+            Id = "metric-fallback", Metric = SystemMetricContract.Uptime,
+            Prefix = "prefix", Suffix = "suffix"
+        };
+        using var missing = new WidgetRenderContext(new Dictionary<string, object?>(), false, typefaces);
+        Check(missing.ResolveValueText(value) == SystemFallback.Text,
+            "Missing metric must use exact -- without prefix/suffix.");
+        using var valid = new WidgetRenderContext(
+            new Dictionary<string, object?> { [SystemMetricContract.Uptime] = 0d }, false, typefaces);
+        Check(valid.ResolveValueText(value) != SystemFallback.Text,
+            "Valid zero must not become unavailable.");
+        var binary = new C.BinaryWidgetDefinition
+        {
+            Id = "binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
+        };
+        StateVisualProfileContract.EnsureProfiles(binary);
+        Check(!missing.TryResolveBinaryVisualProfile(binary, out _),
+            "Missing Binary input must not select False.");
+        Check(valid.TryResolveBinaryVisualProfile(binary, out _) &&
+              !binary.UsesOnlyValueSources(),
+            "Valid zero must select the graphical False state.");
+        foreach (var profile in binary.Profiles.Values)
+            profile.ContentType = C.StateContentType.Value;
+        Check(binary.UsesOnlyValueSources(),
+            "Both textual Binary states must select text fallback.");
+        Check(StateVisualProfileContract.GetSpecs(WidgetTypeContract.Power)
+                  .Any(profile => profile.Key == PowerMetricContract.StateUnavailable) &&
+              StateVisualProfileContract.GetSpecs(WidgetTypeContract.MediaSystem)
+                  .Any(profile => profile.Key == StateVisualProfileContract.UnavailableKey) &&
+              StateVisualProfileContract.GetSpecs(WidgetTypeContract.MediaPlayer)
+                  .Any(profile => profile.Key == StateVisualProfileContract.UnavailableKey),
+            "Power/Media must retain domain-specific Unavailable profiles.");
+    }
+
+    private static void Check(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
+    }
+}

@@ -96,6 +96,10 @@ internal static partial class Program
                 ("rounded Calculator fills without borders", CalculatorWidgetTests.BorderlessCornerRadiusRendering),
                 ("schema migration, persistence and Editor property tabs", CalculatorWidgetTests.PersistenceAndEditorProperties),
             ]),
+            ("Widgets / System Fallback", [
+                ("fixed fallback, schema migration and idempotence", Issue126FallbackTests.FixedContractAndMigration),
+                ("missing versus zero and domain-specific state profiles", Issue126FallbackTests.RenderStateSemantics),
+            ]),
             ("Widgets / Bar", [
                 ("Bar image property visibility", BarImagePropertyVisibility),
                 ("Bar image progress modes", BarImageProgressModes),
@@ -1245,6 +1249,11 @@ internal static partial class Program
         File.WriteAllText(
             Path.Combine(lucideRoot, "check.svg"),
             "<svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M4 12l5 5L20 6\"/></svg>");
+
+        File.Copy(
+            GlobalAssetResolver.ResolveIconFromRoot(ApplicationRootLocator.Find(AppContext.BaseDirectory),
+                PinkieSysMon.Widgets.SystemFallback.Icon),
+            Path.Combine(lucideRoot, "image-off.svg"));
 
         CopyBundledFonts(root);
 

@@ -137,7 +137,8 @@ internal static class GraphWidgetTests
         var graph = Graph(); graph.FillEnabled = true; graph.Color = "#FFFFFF";
         using (var f = new Fixture(graph))
         {
-            using (var empty = f.Render()) Check(!AnyPixel(empty), "Startup must not fabricate a history series.");
+            using (var empty = f.Render()) Check(AnyPixel(empty) && f.Count() == 0,
+                "Startup must show a fixed fallback but must not fabricate a history series.");
             f.Publish(1, 20); f.Publish(2, null); f.Publish(3, 80); f.Publish(4, 70); f.Now = T(10);
             using var bitmap = f.Render();
             Check(bitmap.GetPixel(20, 90).Alpha == 0 && bitmap.GetPixel(20, 50).Alpha == 0,
@@ -146,7 +147,8 @@ internal static class GraphWidgetTests
             using var repeat = f.Render();
             Check(f.Count() == before, "Rendering must not append history.");
             f.Now = T(30); using var expired = f.Render();
-            Check(!AnyPixel(expired), "Silence must expire geometry without extending the last observation.");
+            Check(AnyPixel(expired) && f.Count() == 0,
+                "Expired history must show fallback without extending the last observation.");
         }
         graph = Graph(); graph.ScaleMode = "Auto"; graph.FillEnabled = true;
         using (var f = new Fixture(graph))
@@ -467,6 +469,12 @@ internal static class GraphWidgetTests
         {
             _graph = graph; Directory.CreateDirectory(Root);
             Directory.CreateDirectory(Path.Combine(Root, "config"));
+            var lucide = Path.Combine(Root, "assets", "icons", "lucide");
+            Directory.CreateDirectory(lucide);
+            File.Copy(
+                GlobalAssetResolver.ResolveIconFromRoot(ApplicationRootLocator.Find(AppContext.BaseDirectory),
+                    SystemFallback.Icon),
+                Path.Combine(lucide, "image-off.svg"));
             File.WriteAllText(Path.Combine(Root, "config", "app.json"), "{}");
             _history = new(() => Now);
             _history.SetDemand([new(graph.Metric!, graph.WindowSeconds, 10, MetricContract.GetDescriptor(graph.Metric))]);

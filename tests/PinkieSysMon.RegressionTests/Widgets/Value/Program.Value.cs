@@ -126,7 +126,7 @@ internal static partial class Program
                textProperties[nameof(WidgetDefinition.Suffix)] is null &&
                textProperties[nameof(WidgetDefinition.Unit)] is null &&
                textProperties[nameof(WidgetDefinition.Format)] is null &&
-               textProperties[nameof(WidgetDefinition.Fallback)] is null,
+               textProperties["Fallback"] is null,
             "Literal Text data properties must live on Data rather than Widget.");
 
         var metricAppearance = CurrentPropertyView(
@@ -165,7 +165,7 @@ internal static partial class Program
             section: EditorPropertySection.Data).GetProperties();
         Assert(GetNestedProperty(metricData, "Display", nameof(WidgetDefinition.Prefix)) is not null &&
                GetNestedProperty(metricData, "Display", nameof(WidgetDefinition.Suffix)) is not null &&
-               GetNestedProperty(metricData, "Display", nameof(WidgetDefinition.Fallback)) is not null,
+               GetNestedProperty(metricData, "Display", "Fallback") is null,
             "Metric-source Text/Value presentation fields must live under Data/Display.");
         var literalData = CurrentPropertyView(
             textWidget,
@@ -175,7 +175,7 @@ internal static partial class Program
                GetNestedProperty(literalData, "Value", nameof(WidgetDefinition.Format)) is { IsReadOnly: true } &&
                GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Prefix)) is { IsReadOnly: false } &&
                GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Suffix)) is { IsReadOnly: false } &&
-               GetNestedProperty(literalData, "Display", nameof(WidgetDefinition.Fallback)) is { IsReadOnly: true },
+               GetNestedProperty(literalData, "Display", "Fallback") is null,
             "Non-numeric literal Text must keep Data discoverable while disabling numeric-only and unavailable-source fields.");
 
     }
