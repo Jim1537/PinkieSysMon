@@ -513,6 +513,12 @@ internal static class DesktopWidgetDragHandoff
     internal const uint Message = 0x0112; // WM_SYSCOMMAND
     internal const int MoveFromCaption = 0xF010 | 2; // SC_MOVE | HTCAPTION
 
+    // An Action HWND intentionally does not activate the visual on click.
+    // Native caption moving still needs the visual to be foreground, just as
+    // a regular click/drag on the visual's background would make it.
+    internal static bool NeedsForegroundActivation(IntPtr visual, IntPtr foreground) =>
+        visual != IntPtr.Zero && foreground != visual;
+
     internal static IntPtr PackScreenPoint(Point point) =>
         new(unchecked((int)((ushort)point.X | ((uint)(ushort)point.Y << 16))));
 }
@@ -675,10 +681,26 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private void BeginWidgetActionDrag(Point screen)
     {
         if (_locked || _disposed || !Visible) return;
-        SendMessage(Handle, DesktopWidgetDragHandoff.Message,
+        var visual = Handle;
+        if (DesktopWidgetDragHandoff.NeedsForegroundActivation(visual, GetForegroundWindow()))
+        {
+            // WM_MOUSEACTIVATE on the non-activating Action companion never
+            // foregrounds the visual. A normal Canvas caption drag does.
+            // Activate only after a real drag has crossed the threshold,
+            // preserving click-only Action/Calculator behavior.
+            if (SetForegroundWindow(visual))
+                _input?.PlaceAboveVisual(); // activation may raise the visual above its companion
+            else
+                _log?.Warn("Desktop Action drag could not foreground its visual window; Windows denied activation.");
+        }
+        SendMessage(visual, DesktopWidgetDragHandoff.Message,
             new IntPtr(DesktopWidgetDragHandoff.MoveFromCaption),
             DesktopWidgetDragHandoff.PackScreenPoint(screen));
     }
+
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr window);
 
     [DllImport("user32.dll", EntryPoint = "SendMessageW")]
     private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);

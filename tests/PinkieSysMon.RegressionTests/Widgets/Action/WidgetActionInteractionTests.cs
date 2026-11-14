@@ -93,6 +93,16 @@ internal static class WidgetActionInteractionTests
               DesktopWidgetDragHandoff.MoveFromCaption == 0xF012,
             "Action handoff must use WM_SYSCOMMAND SC_MOVE|HTCAPTION.");
 
+        var visual = new IntPtr(123);
+        var wallpaper = new IntPtr(456);
+        Check(DesktopWidgetDragHandoff.NeedsForegroundActivation(visual, wallpaper),
+            "After a wallpaper click, Action drag must foreground its inactive visual.");
+        Check(!DesktopWidgetDragHandoff.NeedsForegroundActivation(visual, visual),
+            "After a Canvas background click, Action drag must not re-activate an active visual.");
+        Check(!DesktopWidgetDragHandoff.NeedsForegroundActivation(IntPtr.Zero, wallpaper),
+            "An unavailable visual HWND must not be activated.");
+        // Windows' actual foreground transition/move loop needs owner runtime acceptance.
+
         foreach (var position in new[]
         {
             new Point(0, 0), new Point(-200, -1080),
