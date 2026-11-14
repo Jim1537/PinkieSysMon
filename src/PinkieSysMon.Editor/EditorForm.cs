@@ -328,7 +328,6 @@ internal sealed partial class EditorForm : PinkieEditorForm
         editMenu.DropDownItems.Add(_moveDownMenuItem);
         editMenu.DropDownItems.Add(_bringToFrontMenuItem);
         editMenu.DropDownItems.Add(_sendToBackMenuItem);
-        EditorMainMenuContract.AppendEditorSettings(editMenu, async (_, _) => await ShowEditorSettingsAsync());
         editMenu.DropDownOpening += (_, _) => UpdateCommandStates();
 
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
@@ -366,10 +365,13 @@ internal sealed partial class EditorForm : PinkieEditorForm
         var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText, null,
             async (_, _) => await ShowOutputSettingsAsync(physical: true));
 
-        var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
-        helpMenu.DropDownItems.Add(new ToolStripMenuItem("About", null, (_, _) => ShowAbout()));
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText, null,
+            (_, _) => OpenLauncherTab("common"));
+        var aboutMenu = new ToolStripMenuItem(EditorMainMenuContract.AboutMenuText, null,
+            (_, _) => OpenLauncherTab("about"));
 
-        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
+        EditorMainMenuContract.Populate(_mainMenuStrip, fileMenu, editMenu, desktopMenu,
+            devicesMenu, toolsMenu, settingsMenu, aboutMenu);
         _mainMenuStrip.ApplyTheme(_shellTheme);
         MainMenuStrip = _mainMenuStrip;
 
@@ -1066,15 +1068,27 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    private void ShowAbout()
+    private void OpenLauncherTab(string tab)
     {
-        var version = typeof(EditorForm).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-        using var dialog = new ProjectInfoWindow(_root, showLaunchButtons: false, version, (message, error) =>
+        try
         {
-            if (error is null) _log.Info(message);
-            else _log.Error(message, error);
-        });
-        dialog.ShowDialog(this);
+            var launcher = Path.Combine(_root, "Launcher.exe");
+            if (!File.Exists(launcher))
+                throw new FileNotFoundException("Portable Settings Launcher.exe was not found.", launcher);
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = launcher,
+                WorkingDirectory = _root,
+                UseShellExecute = false,
+                ArgumentList = { "--tab=" + tab }
+            }) ?? throw new InvalidOperationException("Windows did not start the portable Settings Launcher.");
+        }
+        catch (Exception error)
+        {
+            _log.Error("Could not open shared Launcher " + tab + " tab.", error);
+            MessageBox.Show(this, error.Message, "Settings / About",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void UpdateStatusBar()

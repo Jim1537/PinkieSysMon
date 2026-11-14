@@ -22,29 +22,36 @@ internal static partial class Program
         var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
         var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
+        var settingsTriggered = false;
+        var aboutTriggered = false;
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText, null,
+            (_, _) => settingsTriggered = true);
+        var aboutMenu = new ToolStripMenuItem(EditorMainMenuContract.AboutMenuText, null,
+            (_, _) => aboutTriggered = true);
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu,
+            toolsMenu, settingsMenu, aboutMenu);
         var labels = menu.Items.Cast<ToolStripItem>().Select(item => item.Text).ToArray();
-        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Desktop", "Devices", "Tools", "Help" }),
-            "The main menu must expose direct Desktop/Devices commands before Tools, without Settings or Outputs.");
+        Assert(labels.SequenceEqual(new[] { "File", "Edit", "Desktop", "Devices", "Tools", "About", "Settings" }),
+            "Editor menus must contain exactly the five left entries plus direct Settings and About.");
         Assert(desktopMenu.Alignment == ToolStripItemAlignment.Left &&
                devicesMenu.Alignment == ToolStripItemAlignment.Left &&
                toolsMenu.Alignment == ToolStripItemAlignment.Left &&
-               helpMenu.Alignment == ToolStripItemAlignment.Right,
-            "Help must occupy the right-aligned title-bar position; all other menus remain left.");
+               settingsMenu.Alignment == ToolStripItemAlignment.Right &&
+               aboutMenu.Alignment == ToolStripItemAlignment.Right &&
+               settingsMenu.DropDownItems.Count == 0 && aboutMenu.DropDownItems.Count == 0,
+            "Settings and About must be direct right-aligned commands without submenus.");
         editMenu.DropDownItems.Add(new ToolStripMenuItem("Send to Back"));
-        var editorInvoked = false;
-        EditorMainMenuContract.AppendEditorSettings(editMenu, (_, _) => editorInvoked = true);
-        Assert(editMenu.DropDownItems[^2] is ToolStripSeparator &&
-               editMenu.DropDownItems[^1] is ToolStripMenuItem { Text: EditorMainMenuContract.EditorSettingsText },
-            "Editor settings must be the last Edit command, immediately after a separator.");
-        ((ToolStripMenuItem)editMenu.DropDownItems[^1]).PerformClick();
-        Assert(editorInvoked, "The relocated Editor settings command must invoke its handler.");
-        Assert(!labels.Contains("Settings", StringComparer.OrdinalIgnoreCase) &&
+        Assert(!editMenu.DropDownItems.Cast<ToolStripItem>()
+            .Any(item => item.Text.Contains("settings", StringComparison.OrdinalIgnoreCase)),
+            "The obsolete Editor settings entry must not remain under Edit.");
+        settingsMenu.PerformClick();
+        aboutMenu.PerformClick();
+        Assert(settingsTriggered && aboutTriggered, "Direct Settings and About commands must dispatch.");
+        Assert(!labels.Contains("Help", StringComparer.OrdinalIgnoreCase) &&
                !labels.Contains("Output", StringComparer.OrdinalIgnoreCase) &&
                !labels.Contains("Group", StringComparer.OrdinalIgnoreCase),
-            "Editor top-level Group menu must remain removed.");
+            "Obsolete Help, Output and Group top-level menus must remain removed.");
 
         var fields = typeof(EditorForm)
             .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
@@ -149,9 +156,11 @@ internal static partial class Program
         var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
         var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
+        var aboutMenu = new ToolStripMenuItem(EditorMainMenuContract.AboutMenuText);
 
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu,
+            devicesMenu, toolsMenu, settingsMenu, aboutMenu);
         host.Controls.Add(menu);
         form.Controls.Add(host);
         form.MainMenuStrip = menu;
@@ -170,14 +179,16 @@ internal static partial class Program
         var passthrough = EditorWindowChromeContract.GetMenuPassthroughRegions(
             menu.Bounds,
             menu.GetInteractiveItemBounds());
-        Assert(helpMenu.Alignment == ToolStripItemAlignment.Right,
-            "The Help menu must occupy the former right-aligned Output title-bar position.");
-        Assert(passthrough.Length == 6,
-            "Every visible top-level menu item must have an explicit non-client passthrough region.");
+        Assert(settingsMenu.Alignment == ToolStripItemAlignment.Right &&
+               aboutMenu.Alignment == ToolStripItemAlignment.Right &&
+               settingsMenu.Bounds.Left < aboutMenu.Bounds.Left,
+            "Settings must precede About visually, both right-aligned within native hit-test bounds.");
+        Assert(passthrough.Length == 7,
+            "All seven top-level menu items must have non-client interactive passthrough regions.");
 
         var leftGroupRight = new[] { fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu }
             .Max(item => menu.Left + item.Bounds.Right);
-        var rightGroupLeft = menu.Left + helpMenu.Bounds.Left;
+        var rightGroupLeft = menu.Left + Math.Min(settingsMenu.Bounds.Left, aboutMenu.Bounds.Left);
         if (rightGroupLeft - leftGroupRight > 8)
         {
             var dragPoint = new Point(

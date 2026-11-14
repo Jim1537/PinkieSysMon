@@ -22,10 +22,10 @@ internal static class Issue128UnifiedLauncherTests
             if (controls.OfType<Button>().Count(x => x.Text == "Sources...") != 1 ||
                 controls.OfType<CheckBox>().Count(x => x.Text == "Filesystem") != 1)
                 throw new InvalidOperationException("Filesystem Sources must be adjacent to its single provider switch.");
-            form.SelectTab(LauncherTab.About);
+            form.SelectTab(LauncherTab.About, activateWindow: false);
             if (form.Tabs.SelectedIndex != 5)
                 throw new InvalidOperationException("About tab activation did not reach the shared window.");
-            form.SelectTab(LauncherTab.Common);
+            form.SelectTab(LauncherTab.Common, activateWindow: false);
             if (form.Tabs.SelectedIndex != 1 || form.Draft != draft)
                 throw new InvalidOperationException("Tab handoff must retain the same Settings draft and Form.");
         }

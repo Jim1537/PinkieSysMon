@@ -32,7 +32,7 @@ internal sealed class UnifiedLauncherWindow : Form
         MinimumSize = new Size(850, 610);
         ClientSize = new Size(980, 700);
         AutoScaleMode = AutoScaleMode.Font;
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ??
+        Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ??
             (Icon)SystemIcons.Application.Clone();
         string? loadingError = null;
         try { _draft = draftForTests ?? LauncherSettingsDraft.Open(_root); }
@@ -90,7 +90,7 @@ internal sealed class UnifiedLauncherWindow : Form
         };
     }
 
-    internal void SelectTab(LauncherTab tab)
+    internal void SelectTab(LauncherTab tab, bool activateWindow = true)
     {
         if (IsDisposed || Disposing)
             throw new ObjectDisposedException(nameof(UnifiedLauncherWindow));
@@ -98,10 +98,13 @@ internal sealed class UnifiedLauncherWindow : Form
         if (index < 0 || index >= _tabs.TabPages.Count)
             throw new ArgumentOutOfRangeException(nameof(tab));
         _tabs.SelectedIndex = index;
-        if (WindowState == FormWindowState.Minimized)
-            WindowState = FormWindowState.Normal;
-        Show();
-        Activate();
+        if (activateWindow)
+        {
+            if (WindowState == FormWindowState.Minimized)
+                WindowState = FormWindowState.Normal;
+            Show();
+            Activate();
+        }
     }
 
     private TabPage Page(string caption, out TableLayoutPanel body)
