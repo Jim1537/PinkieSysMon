@@ -78,7 +78,7 @@ internal sealed class FilesystemSourcesDialog : PinkieEditorForm
         var note = new Label
         {
             Dock = DockStyle.Top, AutoSize = true,
-            Text = "Sources are checked before admission. Changes are saved only with Editor Settings OK. " +
+            Text = "Sources are checked before admission. Changes are saved only with Settings OK. " +
                    "A configured source may later become unavailable."
         };
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true };

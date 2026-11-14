@@ -26,6 +26,7 @@
     <Compile Include="..\PinkieSysMon.Launcher\LauncherSettingsDraft.cs" Link="LauncherSettingsDraft.cs" />
     <Compile Include="..\PinkieSysMon.Launcher\LauncherRuntimeClient.cs" Link="LauncherRuntimeClient.cs" />
     <Compile Include="..\PinkieSysMon.Launcher\LauncherSettingsCoordinator.cs" Link="LauncherSettingsCoordinator.cs" />
+    <Compile Include="..\PinkieSysMon.Launcher\UnifiedLauncherWindow.cs" Link="UnifiedLauncherWindow.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\PinkieSysMon\PinkieSysMon.ico" Condition="Exists('$(MSBuildProjectDirectory)\..\PinkieSysMon\PinkieSysMon.ico')" Link="PinkieSysMon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

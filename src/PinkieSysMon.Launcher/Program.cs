@@ -16,21 +16,42 @@ internal static class Program
                 logger.Report("Unhandled non-UI Launcher exception.", e.ExceptionObject as Exception);
             ApplicationConfiguration.Initialize();
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
-            if (args.Length != 0)
+            var route = LauncherCommandLine.Parse(args);
+            if (route.IsDirectAction)
             {
-                ProjectActionDiagnostics.Execute("launcher.launch", args.Length == 1 &&
-                    args[0] is ("--editor" or "--runtime" or "--both") ? args[0] : "invalid", progress =>
+                ProjectActionDiagnostics.Execute("launcher.launch", route.DirectAction!, progress =>
                 {
                     progress("arguments.validate");
-                    if (args.Length != 1 || args[0] is not ("--editor" or "--runtime" or "--both"))
-                        throw new ArgumentException("Unknown launcher command.");
-                    ProjectLauncherActions.Run(root, args[0], progress);
+                    ProjectLauncherActions.Run(root, route.DirectAction!, progress);
                 }, logger.Report);
                 return;
             }
 
+            // Acquire ownership BEFORE constructing any Settings window or
+            // draft. A second invocation only selects a tab on this owner.
+            var identity = LauncherUiLease.CurrentNames(root);
+            using var owner = LauncherUiLease.TryAcquire(root);
+            if (owner is null)
+            {
+                LauncherUiLease.ActivateAsync(identity.PipeName, route.Tab!.Value).GetAwaiter().GetResult();
+                return;
+            }
+
             var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-            Application.Run(new ProjectInfoWindow(root, showLaunchButtons: true, version, logger.Report));
+            using var window = new UnifiedLauncherWindow(root, version, logger.Report);
+            _ = window.Handle;
+            window.SelectTab(route.Tab!.Value);
+            owner.Listen(tab =>
+            {
+                var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                window.BeginInvoke((Action)(() =>
+                {
+                    try { window.SelectTab(tab); completed.TrySetResult(); }
+                    catch (Exception error) { completed.TrySetException(error); }
+                }));
+                completed.Task.WaitAsync(TimeSpan.FromSeconds(4)).GetAwaiter().GetResult();
+            }, error => logger.Report("Launcher tab activation failed.", error));
+            Application.Run(window);
         }
         catch (Exception ex)
         {
