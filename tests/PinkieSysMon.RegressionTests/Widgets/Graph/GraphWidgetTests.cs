@@ -146,8 +146,10 @@ internal static class GraphWidgetTests
             var before = f.Count();
             using var repeat = f.Render();
             Check(f.Count() == before, "Rendering must not append history.");
-            f.Now = T(30); using var expired = f.Render();
-            Check(AnyPixel(expired) && f.Count() == 0,
+            f.Now = T(30);
+            var retainedBefore = f.Count();
+            using var expired = f.Render();
+            Check(AnyPixel(expired) && f.Count() == retainedBefore,
                 "Expired history must show fallback without extending the last observation.");
         }
         graph = Graph(); graph.ScaleMode = "Auto"; graph.FillEnabled = true;

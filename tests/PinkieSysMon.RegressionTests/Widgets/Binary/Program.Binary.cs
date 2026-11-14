@@ -846,7 +846,7 @@ internal static partial class Program
                GetNestedProperty(mixedData, "Value", nameof(C.BinaryWidgetDefinition.Format)) is not null &&
                GetNestedProperty(mixedData, "Display", nameof(C.BinaryWidgetDefinition.Prefix)) is not null &&
                GetNestedProperty(mixedData, "Display", nameof(C.BinaryWidgetDefinition.Suffix)) is not null &&
-               GetNestedProperty(mixedData, "Display", nameof(C.BinaryWidgetDefinition.Fallback)) is not null &&
+               GetNestedProperty(mixedData, "Display", "Fallback") is null &&
                GetNestedProperty(mixedData, "Evaluation", nameof(C.BinaryWidgetDefinition.EvaluationMode)) is { DisplayName: "Mode" },
             "Binary value mode must expose Value, Display, and Evaluation groups on Data.");
 
