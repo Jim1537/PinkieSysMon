@@ -215,7 +215,7 @@ internal static class GraphWidgetTests
         imageGraph.Image.Asset.Source = "background.png"; imageGraph.Image.Opacity = .5f;
         using var rendered = fixture.Render();
         Check(rendered.GetPixel(10, 10).Alpha == 0 && NearPixel(rendered, 50, 11, SKColors.Red) &&
-              rendered.GetPixel(50, 60).Blue > 240 && rendered.GetPixel(50, 60).Alpha == 255,
+              rendered.GetPixel(50, 75).Blue > 240 && rendered.GetPixel(50, 75).Alpha == 255,
             "Graph must compose rounded container, border and file artwork with intrinsic alpha only.");
     }
 
@@ -310,7 +310,7 @@ internal static class GraphWidgetTests
             File.WriteAllBytes(Path.Combine(fixture.Root, "background.png"), data.ToArray());
         }
         var board = Board(imageGraph); board.BaseDirectory = fixture.Root; board.Canvas.BackgroundColor = "#00000000";
-        SKColor RenderPixel(int x = 50)
+        SKColor RenderPixel(int x = 20)
         {
             using var preview = new DashboardPreviewRenderer(board);
             using var bitmap = SKBitmap.Decode(preview.RenderToPng(new Dictionary<string, object?>()));

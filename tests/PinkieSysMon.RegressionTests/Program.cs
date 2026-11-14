@@ -99,6 +99,7 @@ internal static partial class Program
             ("Widgets / System Fallback", [
                 ("fixed fallback, schema migration and idempotence", Issue126FallbackTests.FixedContractAndMigration),
                 ("missing versus zero and domain-specific state profiles", Issue126FallbackTests.RenderStateSemantics),
+                ("bundled Lucide graphic marker rendering", Issue126FallbackTests.BundledGraphicRendering),
             ]),
             ("Widgets / Bar", [
                 ("Bar image property visibility", BarImagePropertyVisibility),

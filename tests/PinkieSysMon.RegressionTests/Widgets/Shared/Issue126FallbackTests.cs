@@ -90,6 +90,38 @@ internal static class Issue126FallbackTests
             "Power/Media must retain domain-specific Unavailable profiles.");
     }
 
+    public static void BundledGraphicRendering()
+    {
+        var root = ApplicationRootLocator.Find(AppContext.BaseDirectory);
+        using var icons = new IconAssetCache(root);
+        using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(80, 80))
+            ?? throw new InvalidOperationException("Could not create fallback test surface.");
+        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+        SystemFallback.DrawGraphic(surface.Canvas, icons, new SkiaSharp.SKRect(0, 0, 80, 80),
+            "#FFFFFFFF", antialias: true);
+        surface.Canvas.Flush();
+        using var pixels = surface.PeekPixels()
+            ?? throw new InvalidOperationException("Could not inspect Lucide fallback pixels.");
+
+        var active = 0;
+        for (var y = 23; y < 57; y++)
+        for (var x = 23; x < 57; x++)
+            if (pixels.GetPixelColor(x, y).Alpha > 0) active++;
+
+        Check(active > 8, "Bundled Lucide image-off marker must rasterize as visible SVG geometry.");
+        Check(pixels.GetPixelColor(4, 4).Alpha == 0 && pixels.GetPixelColor(75, 75).Alpha == 0,
+            "System fallback icon must stay centered within content bounds.");
+
+        surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
+        SystemFallback.DrawGraphic(surface.Canvas, icons, new SkiaSharp.SKRect(10, 10, 10, 20),
+            "#FFFFFFFF", antialias: true);
+        surface.Canvas.Flush();
+        using var empty = surface.PeekPixels()
+            ?? throw new InvalidOperationException("Could not inspect zero-size fallback.");
+        Check(empty.GetPixelColor(40, 40).Alpha == 0,
+            "Zero-size content must not draw an icon outside widget geometry.");
+    }
+
     private static void Check(bool condition, string message)
     {
         if (!condition) throw new InvalidOperationException(message);

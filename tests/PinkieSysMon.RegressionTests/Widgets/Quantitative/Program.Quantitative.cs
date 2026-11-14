@@ -227,7 +227,7 @@ internal static partial class Program
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(40, 10))
                 ?? throw new InvalidOperationException("Could not create Bar foreground rendering regression surface.");
             using var icons = new IconAssetCache(tempRoot);
-                using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
+            using var renderer = new PinkieSysMon.Widgets.BarWidgetRenderer(images, icons);
 
             surface.Canvas.Clear(SkiaSharp.SKColors.Transparent);
             PinkieSysMon.Widgets.WidgetTransform.Render(surface.Canvas, CurrentWidget(widget), context, renderer);
@@ -501,7 +501,10 @@ internal static partial class Program
 
             using var typefaces = new PinkieSysMon.Widgets.TypefaceCache(tempRoot, new[] { CurrentWidget(widget) });
             using var context = new PinkieSysMon.Widgets.WidgetRenderContext(
-                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
+                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [FixtureOutputFps] = 50d
+                },
                 antialias: false,
                 typefaces);
             using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(80, 80))

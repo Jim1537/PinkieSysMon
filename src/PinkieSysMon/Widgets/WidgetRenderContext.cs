@@ -778,7 +778,8 @@ internal sealed class WidgetRenderContext : IDisposable
             var descriptor = MetricContract.GetDescriptor(metric);
             if (descriptor is null)
             {
-                formatted = prefix + (Convert.ToString(value, CultureInfo.CurrentCulture) ?? SystemFallback.Text) + suffix;
+                var text = Convert.ToString(value, CultureInfo.CurrentCulture);
+                formatted = text is null ? SystemFallback.Text : prefix + text + suffix;
             }
             else
             {
