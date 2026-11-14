@@ -822,6 +822,8 @@ internal static partial class Program
             ("Infrastructure / Launcher", [
                 ("Issue 128 Launcher command routes", Issue128LauncherActivationTests.CommandRouting),
                 ("Issue 128 Launcher lease and activation handoff", Issue128LauncherActivationTests.OwnerContentionAndHandoff),
+                ("Issue 128 Settings JSON preservation and rollback", Issue128SettingsDraftTests.PreservesUnrelatedApplicationFields),
+                ("Issue 128 Settings stale and malformed rejection", Issue128SettingsDraftTests.RejectsConcurrentOrMalformedSourceChanges),
                 ("Launcher and About shared window and shortcut contract", LauncherPackagingContractTests.SharedWindowAndShortcuts),
                 ("launcher exits only after successful start", LauncherPackagingContractTests.ClosesAfterSuccessfulLaunchOnly),
             ]),
