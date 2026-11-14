@@ -26,6 +26,7 @@
     <Compile Include="..\PinkieSysMon\FilesystemScanner.cs" Link="FilesystemScanner.cs" />
     <Compile Include="..\PinkieSysMon.Editor\EditorSettings.cs" Link="EditorSettings.cs" />
     <Compile Include="..\PinkieSysMon.Editor\StartupTaskManager.cs" Link="StartupTaskManager.cs" />
+    <Compile Include="..\PinkieSysMon.Editor\EditorSessionWire.cs" Link="EditorSessionWire.cs" />
     <Compile Include="..\PinkieSysMon.Editor\EditorTheme.cs" Link="EditorTheme.cs" />
     <Compile Include="..\PinkieSysMon.Editor\PinkieEditorForm.cs" Link="PinkieEditorForm.cs" />
     <Compile Include="..\PinkieSysMon.Editor\FilesystemSourcesDialog.cs" Link="FilesystemSourcesDialog.cs" />
