@@ -60,7 +60,7 @@ internal sealed class LauncherSettingsDraft
         Values = initial.Clone();
     }
 
-    internal static LauncherSettingsDraft Open(string root)
+    internal static LauncherSettingsDraft Open(string root, Func<string, bool>? readStartup = null)
     {
         var normalized = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         var appPath = Path.Combine(normalized, "config", "app.json");
@@ -84,7 +84,7 @@ internal sealed class LauncherSettingsDraft
             FilesystemSources = ReadSources(app),
             ToolbarIconSize = preferences.ToolbarIconSize,
             Theme = preferences.Theme,
-            StartRuntimeWithWindows = StartupTaskManager.IsEnabled(
+            StartRuntimeWithWindows = (readStartup ?? StartupTaskManager.IsEnabled)(
                 Path.Combine(normalized, "bin", "PinkieSysMon.exe"))
         };
         Validate(values);

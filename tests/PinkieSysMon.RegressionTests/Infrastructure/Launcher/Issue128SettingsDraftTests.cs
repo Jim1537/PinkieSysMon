@@ -18,7 +18,7 @@ internal static class Issue128SettingsDraftTests
                 "\"Filesystem\":{\"Sources\":[]},\"Outputs\":{\"Targets\":[{\"Id\":\"opaque\",\"CustomValue\":7}]}," +
                 "\"UnknownRoot\":{\"Kept\":\"yes\"}}\n";
             File.WriteAllText(app, original);
-            var draft = LauncherSettingsDraft.Open(root);
+            var draft = LauncherSettingsDraft.Open(root, _ => false);
             if (draft.HasChanges || !draft.PrepareAppBytes().AsSpan().SequenceEqual(draft.OriginalAppBytes))
                 throw new InvalidOperationException("Opening Settings changed app.json without an edit.");
             draft.Values.LogRetentionDays = 7;
@@ -50,7 +50,7 @@ internal static class Issue128SettingsDraftTests
         {
             var path = Path.Combine(root, "config", "app.json");
             File.WriteAllText(path, "{\"Outputs\":{\"Targets\":[]},\"Filesystem\":{\"Sources\":[]}}");
-            var draft = LauncherSettingsDraft.Open(root);
+            var draft = LauncherSettingsDraft.Open(root, _ => false);
             draft.Values.LogRetentionDays = 9;
             File.AppendAllText(path, " ");
             var current = File.ReadAllBytes(path);
@@ -67,7 +67,7 @@ internal static class Issue128SettingsDraftTests
             File.WriteAllText(path, "{broken");
             try
             {
-                LauncherSettingsDraft.Open(root);
+                LauncherSettingsDraft.Open(root, _ => false);
                 throw new InvalidOperationException("Malformed application JSON admitted for Settings.");
             }
             catch (InvalidDataException) { }
