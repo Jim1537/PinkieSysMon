@@ -6,7 +6,6 @@ namespace PinkieSysMon.Widgets;
 internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache icons) : IWidgetRenderer, IDisposable
 {
     private const long MaximumScratchBytes = 32L * 1024 * 1024;
-    private readonly IconAssetCache _fallbackIcons = icons;
     private readonly Dictionary<C.WidgetDefinition, Resources> _resources = new();
     private long _scratchBytes;
     public string Type => WidgetTypeContract.Graph;
@@ -36,7 +35,7 @@ internal sealed class GraphWidgetRenderer(ImageAssetCache images, IconAssetCache
             if (r.SelectedCount == 0)
             {
                 if (!r.HasVisibleObservations)
-                    SystemFallback.DrawGraphic(canvas, _fallbackIcons, r.Bounds, graph.Color, context.Antialias);
+                    SystemFallback.DrawGraphic(canvas, icons, r.Bounds, graph.Color, context.Antialias);
                 return;
             }
             if (graph.Mode == "Line" && graph.FillEnabled) r.DrawFills(canvas, graph);

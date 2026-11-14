@@ -27,7 +27,7 @@ internal static class Issue126FallbackTests
             {
                 Id = "binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
             };
-            StateVisualProfileContract.EnsureProfiles(binary);
+            EnsureCanonicalBinaryProfiles(binary);
             board.Widgets.Add(value);
             board.Widgets.Add(binary);
             var json = DashboardJson.Serialize(board, indented: false);
@@ -71,7 +71,7 @@ internal static class Issue126FallbackTests
         {
             Id = "binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
         };
-        StateVisualProfileContract.EnsureProfiles(binary);
+        EnsureCanonicalBinaryProfiles(binary);
         Check(!missing.TryResolveBinaryVisualProfile(binary, out _),
             "Missing Binary input must not select False.");
         Check(valid.TryResolveBinaryVisualProfile(binary, out _) &&
@@ -149,7 +149,7 @@ internal static class Issue126FallbackTests
         {
             Id = "fallback-binary", Metric = SystemMetricContract.Uptime, Width = 96, Height = 96
         };
-        StateVisualProfileContract.EnsureProfiles(binary);
+        EnsureCanonicalBinaryProfiles(binary);
 
         using var barRenderer = new BarWidgetRenderer(images, icons);
         using var gaugeRenderer = new GaugeWidgetRenderer(icons);
@@ -183,6 +183,30 @@ internal static class Issue126FallbackTests
                 result[y * 96 + x] = pixels.GetPixelColor(x, y);
             return result;
         }
+    }
+
+    private static void EnsureCanonicalBinaryProfiles(C.BinaryWidgetDefinition binary)
+    {
+        // The legacy StateVisualProfileContract.EnsureProfiles overload accepts
+        // PinkieSysMon.WidgetDefinition, not the canonical DashboardModel type.
+        // Create the two canonical fixtures directly from the shared state specs.
+        binary.Profiles = StateVisualProfileContract.GetSpecs(WidgetTypeContract.Binary)
+            .ToDictionary(
+                spec => spec.Key,
+                spec => new C.StateVisualProfileDefinition
+                {
+                    ContentType = C.StateContentType.Image,
+                    Asset = new C.ImageAssetPresentationDefinition
+                    {
+                        SourceType = C.ImageAssetSourceType.Icon,
+                        Source = spec.DefaultSource,
+                        Fit = spec.DefaultFit ?? StateVisualProfileContract.FitContain,
+                        Loop = spec.DefaultLoop ?? true
+                    },
+                    Color = spec.DefaultColor,
+                    IconOpacity = spec.DefaultOpacity
+                },
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private static void Check(bool condition, string message)
