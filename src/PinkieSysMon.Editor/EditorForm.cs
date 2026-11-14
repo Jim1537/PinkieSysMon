@@ -247,7 +247,12 @@ internal sealed partial class EditorForm : PinkieEditorForm
         _runtimeStatusTimer.Start();
 
         FormClosing += OnFormClosing;
-        FormClosed += (_, _) => LaunchRestartedEditor();
+        FormClosed += (_, _) =>
+        {
+            _coordinatedCloseCompletion?.TrySetResult(new EditorSessionCloseResult(true,
+                "Editor window closed after confirmed document and view-settings saves."));
+            LaunchRestartedEditor();
+        };
         Deactivate += (_, _) => EndCanvasPan();
         Resize += (_, _) =>
         {
@@ -2625,7 +2630,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
     }
 
-    private void SaveEditorSettings()
+    private void SaveEditorSettings(bool failOnError = false)
     {
         try
         {
@@ -2649,6 +2654,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             _log.ErrorThrottled("editor.settings.save", TimeSpan.FromSeconds(30),
                 "Editor view settings save failed.", ex);
+            if (failOnError) throw;
         }
     }
 
@@ -2690,7 +2696,27 @@ internal sealed partial class EditorForm : PinkieEditorForm
         {
             if (!ConfirmSaveBeforeDestructiveAction())
             {
-                _restartAfterClose = false; e.Cancel = true; return;
+                _restartAfterClose = false;
+                e.Cancel = true;
+                RejectCoordinatedClose("Editor document Save/Don't Save/Cancel was cancelled or Save failed.");
+                return;
+            }
+            if (_coordinatedCloseCompletion is not null)
+            {
+                try
+                {
+                    // The normal shutdown path logs and tolerates preference write
+                    // failures. A coordinated Settings transaction must not.
+                    SaveEditorSettings(failOnError: true);
+                    _coordinatedSettingsSaved = true;
+                }
+                catch (Exception error)
+                {
+                    e.Cancel = true;
+                    RejectCoordinatedClose("Editor preferences could not be persisted: " + error.Message);
+                    MessageBox.Show(this, error.Message, "Editor Settings", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
             }
             e.Cancel = true; _previewShutdownStarted = true;
             _previewTimer.Stop(); _runtimeStatusTimer.Stop();
@@ -2700,6 +2726,15 @@ internal sealed partial class EditorForm : PinkieEditorForm
             {
                 _log.Error("Editor preview shutdown failed.", error);
                 MessageBox.Show(this, error.Message, "Preview shutdown", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                if (_coordinatedCloseCompletion is not null)
+                {
+                    _previewShutdownStarted = false;
+                    Enabled = true;
+                    _runtimeStatusTimer.Start();
+                    UpdatePreviewTimerState();
+                    RejectCoordinatedClose("Editor preview shutdown failed; no close was confirmed.");
+                    return;
+                }
             }
             _previewShutdownComplete = true;
             Close();
@@ -2707,7 +2742,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
         }
 
         EndCanvasPan();
-        SaveEditorSettings();
+        if (!_coordinatedSettingsSaved) SaveEditorSettings();
         using var cleanup = new CleanupOperation(_log, "editor.ui.cleanup");
         cleanup.Step("message-filter.remove", () =>
         {

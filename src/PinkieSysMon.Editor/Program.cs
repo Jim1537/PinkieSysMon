@@ -38,14 +38,64 @@ internal static class Program
             var editorSettings = EditorSettings.Load(Path.Combine(root, "config", "editor.json"));
             startup.Phase("theme.apply");
             EditorThemeContract.ApplyApplicationTheme(EditorThemeContract.Parse(editorSettings.Theme));
+            startup.Phase("session.startup-gate");
+            using var startupGate = EditorSessionWire.AcquireStartupGate(root);
             startup.Phase("form.construct");
             using (var form = new EditorForm(root, requestedDashboard, log))
             {
+                // Read-only STATUS and fully acknowledged close are served by this
+                // Editor process, not by the separate global Runtime pipe.
+                var startedUtcTicks = System.Diagnostics.Process.GetCurrentProcess()
+                    .StartTime.ToUniversalTime().Ticks;
+                Task<EditorSessionSnapshot> Capture()
+                {
+                    var result = new TaskCompletionSource<EditorSessionSnapshot>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    try
+                    {
+                        form.BeginInvoke((Action)(() =>
+                        {
+                            try { result.TrySetResult(form.GetSessionSnapshot(startedUtcTicks, root)); }
+                            catch (Exception error) { result.TrySetException(error); }
+                        }));
+                    }
+                    catch (Exception error) { result.TrySetException(error); }
+                    return result.Task;
+                }
+
+                Task<EditorSessionCloseResult> CloseEditor(string? expectedDashboard)
+                {
+                    var result = new TaskCompletionSource<EditorSessionCloseResult>(
+                        TaskCreationOptions.RunContinuationsAsynchronously);
+                    try
+                    {
+                        form.BeginInvoke((Action)(async () =>
+                        {
+                            try
+                            {
+                                var closed = await form.RequestCoordinatedClose(expectedDashboard);
+                                result.TrySetResult(closed);
+                            }
+                            catch (Exception error) { result.TrySetException(error); }
+                        }));
+                    }
+                    catch (Exception error) { result.TrySetException(error); }
+                    return result.Task;
+                }
+
+                using var endpoint = new EditorSessionEndpoint(
+                    EditorSessionWire.CurrentPipeName(Environment.ProcessId),
+                    Capture, CloseEditor, error => log.Error("Editor session IPC failure.", error));
+                _ = form.Handle; // Create the UI thread's BeginInvoke marshaling handle.
+                endpoint.Start();
+                startupGate.Dispose(); // Release startup admission before the message loop.
                 session.Ready();
-                startup.Complete("formConstructed=true; readinessBoundaryReached=true");
+                startup.Complete("formConstructed=true; sessionEndpointStarted=true; readinessBoundaryReached=true");
                 startup.Dispose();
                 startup = null;
                 Application.Run(form);
+                if (!endpoint.WaitForFinalCloseAcknowledgement(TimeSpan.FromSeconds(10)))
+                    log.Warn("Editor closed, but coordinated close IPC acknowledgement was not confirmed.");
             }
             completed = true;
         }
