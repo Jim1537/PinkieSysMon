@@ -264,7 +264,7 @@ internal static class CalculatorWidgetTests
         old["schemaVersion"] = DashboardSchemaMigration.WidgetActionRunAsSchemaVersion;
         Check(DashboardSchemaMigration.UpgradeToCurrent(old) &&
               old["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion,
-            "Schema 33 must migrate through Calculator schema 34 to appearance schema 35.");
+            "Schema 33 must migrate through Calculator schema 34, appearance schema 35, and fallback schema 36.");
         Check(old["widgets"]!.ToJsonString() == previousWidget,
             "Migration must preserve every existing widget field exactly.");
         var migrated = old.ToJsonString();
@@ -284,9 +284,9 @@ internal static class CalculatorWidgetTests
             previousCalculator.Remove(field);
         var beforeAppearanceMigration = previousCalculator.ToJsonString();
         Check(DashboardSchemaMigration.UpgradeToCurrent(schema34) &&
-              schema34["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CalculatorAppearanceSchemaVersion &&
+              schema34["schemaVersion"]!.GetValue<int>() == DashboardSchemaMigration.CurrentSchemaVersion &&
               previousCalculator.ToJsonString() == beforeAppearanceMigration,
-            "Schema 34 must migrate to 35 without rewriting existing Calculator appearance.");
+            "Schema 34 must migrate through appearance schema 35 and fallback schema 36 without rewriting Calculator appearance.");
         var upgraded = C.DashboardDefinition.Parse(schema34.ToJsonString(), Path.Combine(Path.GetTempPath(), "old-calculator.json"));
         Check(upgraded.Widgets.Single() is C.CalculatorWidgetDefinition upgradedCalculator &&
               upgradedCalculator.ButtonCornerRadius == 0f &&
@@ -298,10 +298,10 @@ internal static class CalculatorWidgetTests
         var migratedAppearanceJson = schema34.ToJsonString();
         Check(!DashboardSchemaMigration.UpgradeToCurrent(schema34) &&
               schema34.ToJsonString() == migratedAppearanceJson,
-            "Schema-35 repeated migration must be an exact no-op.");
+            "Current-schema repeated migration must be an exact no-op.");
         var stableJson = DashboardJson.Serialize(upgraded, indented: false);
         Check(DashboardJson.Serialize(C.DashboardDefinition.Parse(stableJson, "idempotent.json"), indented: false) == stableJson,
-            "Schema-35 Calculator parse/save must be idempotent.");
+            "Current-schema Calculator parse/save must be idempotent.");
 
         var sections = new EditorPropertyView(calculator, section: EditorPropertySection.Calculator).GetProperties();
         Check(sections.Cast<PropertyDescriptor>().Select(property => property.Name)
