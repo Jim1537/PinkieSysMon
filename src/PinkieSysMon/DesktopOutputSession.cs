@@ -505,6 +505,18 @@ internal interface IDesktopOutputWindow : IDisposable
     void Present(SKBitmap frame);
 }
 
+internal static class DesktopWidgetDragHandoff
+{
+    // Start the native mouse-move loop directly. A synthesized WM_NCLBUTTONDOWN
+    // on the visual HWND can depend on foreground/activation handling even though
+    // the actual press belongs to the non-activating Action input companion.
+    internal const uint Message = 0x0112; // WM_SYSCOMMAND
+    internal const int MoveFromCaption = 0xF010 | 2; // SC_MOVE | HTCAPTION
+
+    internal static IntPtr PackScreenPoint(Point point) =>
+        new(unchecked((int)((ushort)point.X | ((uint)(ushort)point.Y << 16))));
+}
+
 internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
 {
     private const int GwlExStyle = -20;
@@ -663,8 +675,9 @@ internal sealed class DesktopOutputWindow : Form, IDesktopOutputWindow
     private void BeginWidgetActionDrag(Point screen)
     {
         if (_locked || _disposed || !Visible) return;
-        var packed = new IntPtr(unchecked((int)((ushort)screen.X | ((uint)(ushort)screen.Y << 16))));
-        SendMessage(Handle, 0x00a1, new IntPtr(2), packed);
+        SendMessage(Handle, DesktopWidgetDragHandoff.Message,
+            new IntPtr(DesktopWidgetDragHandoff.MoveFromCaption),
+            DesktopWidgetDragHandoff.PackScreenPoint(screen));
     }
 
     [DllImport("user32.dll", EntryPoint = "SendMessageW")]

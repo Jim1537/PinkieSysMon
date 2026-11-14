@@ -84,6 +84,42 @@ internal static class WidgetActionInteractionTests
         finally { release.Set(); }
     }
 
+    public static void NativeDragHandoff()
+    {
+        // Action/Calculator hit windows are deliberately non-activating.
+        // Their drag must enter Windows' own caption move loop, not fake a
+        // non-client mouse-down that is subject to foreground activation.
+        Check(DesktopWidgetDragHandoff.Message == 0x0112 &&
+              DesktopWidgetDragHandoff.MoveFromCaption == 0xF012,
+            "Action handoff must use WM_SYSCOMMAND SC_MOVE|HTCAPTION.");
+
+        foreach (var position in new[]
+        {
+            new Point(0, 0), new Point(-200, -1080),
+            new Point(1920, 400), new Point(32767, -32768)
+        })
+        {
+            var packed = DesktopWidgetDragHandoff.PackScreenPoint(position).ToInt64();
+            var decoded = new Point(unchecked((short)packed), unchecked((short)(packed >> 16)));
+            Check(decoded == position,
+                "Native handoff must retain signed physical desktop coordinates on every monitor.");
+        }
+
+        var gesture = new WidgetActionGesture(500, new Size(6, 6), new Size(8, 8));
+        var origin = new Point(20, 20);
+        gesture.Down("action", 1, origin, 100);
+        Check(!gesture.Move(new Point(22, 22)) && !gesture.Dragged,
+            "Small cursor motion must remain a click candidate.");
+        Check(gesture.Move(new Point(40, 20)) && gesture.Dragged &&
+              !gesture.Move(new Point(50, 20)) &&
+              !gesture.Up("action", 1, origin, true),
+            "Crossing the drag threshold must hand off once and suppress Action activation.");
+        gesture.Cancel();
+        gesture.Down("action", 2, origin, 200);
+        Check(gesture.Up("action", 2, origin, true),
+            "After a cancelled drag, a fresh click must still invoke Action.");
+    }
+
     public static void DesktopHoverCursorRouting()
     {
         // WM_SETCURSOR carries a hit-test code in LOWORD, independent of the triggering mouse message.

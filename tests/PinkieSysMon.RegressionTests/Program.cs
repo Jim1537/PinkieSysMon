@@ -221,6 +221,7 @@ internal static partial class Program
                 ("derived Text/Value native hotspot refresh", WidgetActionTests.DerivedValueGeometryAndRefresh),
                 ("region rasterization, clipping and immutable snapshots", WidgetActionInteractionTests.RasterAndSnapshot),
                 ("native gesture rules and Shell boundary", WidgetActionInteractionTests.GesturesAndShellBoundary),
+                ("native Action drag handoff and signed screen coordinates", WidgetActionInteractionTests.NativeDragHandoff),
                 ("native hand cursor only inside Action regions", WidgetActionInteractionTests.DesktopHoverCursorRouting),
                 ("common geometry migration and history", CommonWidgetGeometryTests.MigrationAndHistory),
                 ("common border masks and padded text baseline", CommonWidgetGeometryTests.RenderBordersAndPadding),
