@@ -36,11 +36,11 @@ Graph's background image is independent of Line/Columns. It uses the normal dash
 ### Interpret the plot
 
 - A constant value remains a valid series. Auto adds a small range around it; it does not invent a zero baseline.
-- Missing or invalid publications create breaks. Silence does not extend the last reading to the newest-time edge, and old observations eventually leave the window.
+- Missing or invalid publications create breaks. Silence does not extend the last reading to the newest-time edge, and old observations eventually leave the window. When that visible window contains no usable observations, the fixed `lucide:image-off` graphic appears centered in the plot without introducing samples. Partial history and transient gaps never trigger that marker.
 - Columns are individual observations, not counts or averages of a time bucket. Line joins only continuous observations; isolated observations are dots.
 - Built-in axes, ticks, grid, labels and legend are absent. Compose captions, values or background artwork with the existing widgets.
 
-Shared [threshold settings](properties.md#threshold-mode) apply in both plot modes. Their historical interpretation is described below. Runtime and Editor collect independent data; illustrative Output performance in Editor is excluded from Graph history, per [preview ownership](../development/architecture.md#editor-versus-runtime-state).
+Shared [threshold settings](properties.md#threshold-mode) apply in both plot modes. Their historical interpretation is described below. Runtime and Editor collect independent live history; Editor uses genuine Runtime-owned current snapshots for supported Output/Filesystem metrics and does not invent Output samples, per [preview ownership](../development/architecture.md#editor-versus-runtime-state).
 
 ## Technical Information
 

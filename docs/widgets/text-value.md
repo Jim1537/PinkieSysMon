@@ -27,7 +27,7 @@ On the `General` tab, locate the `Data Source` group and set `Type` to one of th
 For `Metric`, choose a metric using the `Metric` property. For `Text`, enter the desired content in `Text`.
 
 !!! info
-    If the selected provider is disabled, stops delivering data, or the individual metric is unavailable, the `Metric` source displays the configured `Fallback` text rather than inventing or retaining a stale reading.
+    If the selected provider is disabled, stops delivering data, or the individual metric is unavailable, the `Metric` source displays the fixed system fallback `--` rather than inventing or retaining a stale reading.
 
     `Text` does not require a telemetry provider.
 
@@ -42,7 +42,6 @@ The `Data` tab contains the following settings:
 - `Unit` — the desired display unit, when a supported conversion is available.
 - `Format` — numeric, duration, or date/time formatting.
 - `Prefix` and `Suffix` — text inserted before and after the displayed value.
-- `Fallback` — the text displayed when a metric cannot provide a usable value.
 
 With `Type = Metric`, the source unit comes from the selected metric's contract and is read-only. Available `Unit` and `Format` choices depend on that metric's value type; inapplicable properties are disabled in the Editor.
 
@@ -108,7 +107,7 @@ These examples illustrate useful property combinations. They are not prebuilt da
 | System uptime | `Type = Metric`; `Metric = system.os.uptime`; `Unit = auto` | Displays uptime as automatically formatted duration text. |
 | Manually entered number | `Type = Text`; `Text = 25`; `Source Unit = C`; `Unit = F` | Converts a numeric literal from Celsius to Fahrenheit (`77` before any suffix). |
 | Long label | `Type = Text`; enter a long string; `Width > 0`; `Overflow Mode = Bump` | Moves the text within the configured width, pausing at the edges. |
-| Missing telemetry | `Type = Metric`; `Fallback = --` | Displays `--` instead of an unavailable or stale reading. |
+| Missing telemetry | `Type = Metric`; provider has no usable reading | Displays the fixed `--` marker instead of an unavailable or stale reading. |
 
 !!! info
     For a complete property reference, use [Widget Properties — Tabs](properties-by-tab.md) or [Widget Property Dictionary](properties.md). This page focuses on how Text / Value works rather than repeating the entire property dictionary.
@@ -156,14 +155,13 @@ The widget does not access LHM, iCUE, or Windows telemetry APIs directly. In `Me
 | `format` | `Format` | Presentation format. |
 | `prefix` | `Prefix` | Text preceding the resolved value. |
 | `suffix` | `Suffix` | Text following the resolved value. |
-| `fallback` | `Fallback` | Text used when a value cannot be presented. |
 | `textPresentation` | `TextPresentation` | Font, alignment, outline, overflow, and text layout settings. |
 
 The common `WidgetDefinition` also persists `id`, `name`, `z`, `x`, `y`, `width`, `height`, `rotation`, and shared visual properties such as colors, border, and shadow.
 
 `name` is the element's user-facing label in the Editor; it does not replace its stable `id`. `metric` is the data-source metric ID, not the widget's identity.
 
-Model defaults include `SourceKind = Metric`, `Fallback = --`, empty `Prefix` and `Suffix`, and a `TextPresentation` with `Roboto`, size `32`, weight `400`, and `OverflowMode = None`.
+Model defaults include `SourceKind = Metric`, empty `Prefix` and `Suffix`, and a `TextPresentation` with `Roboto`, size `32`, weight `400`, and `OverflowMode = None`.
 
 The Editor creates a Text / Value widget with `Width = 0`, `Height = 0`, `SourceKind = Metric`, and `Metric = system.runtime.version`. These insertion defaults must not be mistaken for immutable requirements on its subsequent content.
 
@@ -184,16 +182,16 @@ Changing source type does not make previously stored, inactive fields simultaneo
 The Metric-mode resolution sequence is:
 
 - Look up the configured metric in the current frame's metric snapshot.
-- If the metric is missing or its value is `null`, produce `Prefix + Fallback + Suffix`.
+- If the metric is missing or its value is `null`, produce the fixed `--` marker.
 - If a value and its registered `MetricDescriptor` are present, call `MetricValueFormatter` using the selected `Unit` and `Format`.
-- If the expected conversion or formatting exceptions occur, use `Fallback`.
+- If the expected conversion or formatting exceptions occur, display exactly `--` without Prefix or Suffix.
 - If the metric has a value but no registered descriptor, convert the value to a string without semantic unit conversion.
 
-`Fallback` is a presentation result. It does not modify or replace the underlying value in `MetricStore`.
+The system fallback is a presentation result. It does not modify or replace the underlying value in `MetricStore`.
 
-In Text mode, a nonnumeric literal, including an empty string, is displayed directly with `Prefix` and `Suffix`. It does not become unavailable merely because a provider is absent. A recognized numeric literal uses the numeric formatting path; if formatting or conversion fails, that path produces `Prefix + Fallback + Suffix`.
+In Text mode, a nonnumeric literal, including an empty string, is displayed directly with `Prefix` and `Suffix`. It does not become unavailable merely because a provider is absent. A recognized numeric literal uses the numeric formatting path; if formatting or conversion fails, that path produces the fixed `--` marker.
 
-The Editor disables the `Fallback` property in Text mode because it normally applies to Metric mode, although the internal numeric-literal error path can still read its persisted value.
+The Editor exposes no Fallback property. Both metric and recognized numeric-literal failures use the fixed system text.
 
 Metric-backed formatted text is cached per widget in the render context and the cache is cleared when the metric snapshot is updated.
 
@@ -289,7 +287,6 @@ The canonical Properties panel applies settings contextually:
 - `General → Data Source → Text` is inapplicable for `Type = Metric`.
 - `Data → Value → Source Unit` is read-only for a metric and user-selectable for a numeric literal.
 - `Data → Value → Unit / Format` depend on the semantic type of the active source.
-- `Data → Display → Fallback` is inapplicable for `Type = Text`.
 - `Text → Overflow → Scroll Speed` applies to `Scroll` and `Bump`.
 - `Text → Overflow → Bump Pause` applies only to `Bump`.
 - `Panel → Geometry → Height` is derived rather than independently adjustable.
@@ -307,9 +304,9 @@ Canonical validation requires:
 - A consistent Width/Overflow invariant.
 - Finite common geometry values and valid shared appearance properties.
 
-An unavailable metric is represented by a missing or `null` value at the telemetry boundary, not by indefinitely reusing the last numeric value in the renderer. Text / Value must not interpret `null` as zero or silently switch to another metric ID; it presents the configured `Fallback` instead.
+An unavailable metric is represented by a missing or `null` value at the telemetry boundary, not by indefinitely reusing the last numeric value in the renderer. Text / Value must not interpret `null` as zero or silently switch to another metric ID; it presents the fixed system `--` marker instead.
 
-For a nonnumeric Text literal, telemetry unavailability is not an error. Invalid formatting or an unsupported conversion for a recognized numeric literal produces `Fallback`, whereas ordinary arbitrary text remains text.
+For a nonnumeric Text literal, telemetry unavailability is not an error. Invalid formatting or an unsupported conversion for a recognized numeric literal produces the fixed `--` marker, whereas ordinary arbitrary text remains text.
 
 ### Integration with Other Components
 
@@ -330,7 +327,7 @@ The following provider-independent contracts should be preserved unless intentio
 - `Text` must not request telemetry merely because an inactive `metric` value remains stored.
 - A numeric literal must be recognized through invariant numeric parsing, not by searching for digits within arbitrary text.
 - `Source Unit`, `Unit`, and `Format` have distinct roles; presentation conversion must not alter provider-native values.
-- `Fallback` is presentation behavior for missing or unrepresentable values, not a substitute for updating `MetricStore`.
+- The fixed `--` system marker is presentation behavior for missing or unrepresentable values, never a substitute for updating `MetricStore`.
 - Text / Value height remains content-derived; `Width = 0` means automatic width.
 - `OverflowMode = None` is valid only with automatic width; a fixed width requires a constrained overflow mode.
 - `Scroll` and `Bump` maintain animation state independently of provider polling frequency.

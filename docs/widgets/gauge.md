@@ -158,7 +158,7 @@ See [Width](properties.md#width), [Height](properties.md#height), [Rotation](pro
 
 If a metric is missing, `null`, non-numeric, or cannot be converted into a valid numeric value, Gauge does not invent a reading.
 
-When the track is enabled, its configured background and border may remain visible, but the value-dependent active fill is not drawn. An enabled needle is also not drawn until a usable number is available.
+When the track is enabled, its configured background and border may remain visible, but the value-dependent active fill is not drawn. An enabled needle is also not drawn until a usable number is available. In its place the fixed `lucide:image-off` graphic appears centered in the content area.
 
 A zero reading and an unavailable reading are not equivalent: zero is a valid number that maps to the scale; unavailable does not have a position on the scale.
 
@@ -303,11 +303,12 @@ When numeric metric resolution fails:
 - the active fill is not drawn;
 - the needle is not drawn;
 - enabled track background and border can still be drawn;
+- the fixed system `lucide:image-off` marker appears centered in the content area;
 - any common widget-level background/border remains governed by the shared presentation path.
 
 This represents an unavailable metric. It must not be conflated with a valid value equal to Min, which produces a zero-length active fill but is still a valid numeric observation.
 
-Gauge has no separate text fallback or dedicated Unavailable state profile. A standalone text status or numeric value requires another widget.
+Gauge has no configurable Fallback property or dedicated Unavailable state profile. A standalone text status or numeric value still requires another widget.
 
 ### Editor Integration
 

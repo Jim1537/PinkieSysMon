@@ -378,28 +378,20 @@ Every widget uses **Panel → Background → Mode = Color → Color**, with RGBA
 ---
 ## Fallback
 
+Fallback is a **fixed system presentation**, not a user-editable property, additional state, or persisted dashboard setting.
 
-<!-- --8<-- [start:fallback] -->
+- **Text:** always exactly `--`, with no Prefix or Suffix when a reading cannot be represented.
+- **Graphic:** the bundled `lucide:image-off` icon; size follows the available content bounds and inherits the widget's normal content color.
+- **Text / Value:** a missing, null or unformattable metric displays the text fallback. A deliberately empty literal remains valid content. A numeric literal that cannot be formatted also displays `--`.
+- **Binary:** a failed metric evaluation selects neither True nor False. If both profiles display Value/text, show `--`; otherwise show `image-off`. The widget still has exactly two configurable logical states.
+- **Gauge and Bar:** missing or unconvertible numeric input shows `image-off` centered over the configured track, with no active fill or needle.
+- **Graph:** the same icon is centered in the plot content when the visible window has no usable observations. A temporary gap does not cover valid visible history.
 
-!!! info ""
+The fallback is **render-only**. It does not publish metric values, add history samples, retain old readings, introduce Editor-only synthetic inputs, or replace the Panel's Background/Foreground layers. No additional fallback-specific colors, assets, or behavior settings are exposed. The separate configurable **State: Unavailable** profiles in Power, Media System, and Media Player remain part of those widgets' domain state contracts.
 
-    **Editor name:** Fallback  
-    **Semantic key:** `data.display.fallback`  
-    **Canonical model:** `ValueWidgetDefinition.Fallback` / `BinaryWidgetDefinition.Fallback`  
-    **JSON:** `fallback`
-
-
-    **Values:**
-    - Text; default `--`.
+Schema 36 removes the former `fallback` JSON member from Text / Value and Binary. Loading an earlier supported schema migrates the stored field away, including any previously customized string; those dashboards intentionally adopt the universal fixed marker.
 
 
-    Text used when the value is unavailable.
-
-    **Used by:** Text / Value, Binary with Value state
-
-<!-- --8<-- [end:fallback] -->
-
----
 ## Fill Enabled
 
 <!-- --8<-- [start:fill-enabled] -->

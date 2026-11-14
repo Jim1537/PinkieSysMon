@@ -176,11 +176,11 @@ See [Width](properties.md#width), [Height](properties.md#height), [Rotation](pro
 
 ### Step 8. Understand unavailable data
 
-If the current metric is absent, null, non-numeric, or cannot be converted into a usable finite numeric value, Bar does **not** draw its active Fill or Image progress.
+If the current metric is absent, null, non-numeric, or cannot be converted into a usable finite numeric value, Bar draws the fixed `lucide:image-off` system icon centered in its content area rather than active Fill or Image progress.
 
 The widget's background, border, and other common visual effects are handled separately from its active progress content. Bar does not retain the previous fill level as an implicit substitute for missing telemetry.
 
-Unlike [Binary](binary.md), Bar does not select logical True/False state profiles. It also does not display a text `Fallback` value of its own.
+Unlike [Binary](binary.md), Bar does not select logical True/False state profiles. Its visual fallback is system-defined and has no separate settings.
 
 ### Usage Examples
 
@@ -296,11 +296,11 @@ Animation frames are retrieved from the image asset using the stored `loop` pref
 
 ### Unavailable and Empty States
 
-When `metric` is missing from the current metric snapshot, null, or not convertible into a finite numeric reading, the Bar renderer returns without drawing active content.
+When `metric` is missing from the current metric snapshot, null, or not convertible into a finite numeric reading, the Bar renderer displays the fixed `image-off` graphic centered in its content while leaving the configured track visible, without drawing active progress.
 
-A valid reading at or below `Min` also produces no active content, but it is **not** an unavailable metric: these are distinct states that may look similar if only the active fill is visible.
+A valid reading at or below `Min` also produces no active content, but it is **not** an unavailable metric: these are distinct states; the valid reading does not trigger the `image-off` marker.
 
-The common widget background, border, and shadow are rendered by the enclosing widget pipeline. Bar does not expose a dedicated unavailable profile or textual fallback.
+The common widget background, border, and shadow are rendered by the enclosing widget pipeline. Bar uses the shared fixed graphical fallback and has no dedicated unavailable profile, persisted setting, or textual fallback.
 
 At zero drawable interior area, the active renderer likewise has nothing to paint, even if telemetry is available.
 

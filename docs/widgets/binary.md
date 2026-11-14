@@ -151,7 +151,7 @@ For a `Value` state, use the `Text` tab. Each value-backed state has its own:
 
 The `Panel` tab owns widget-level background, foreground layer, border, shadow, geometry and padding. `Appearance → Content → Default Color` provides inherited state text/icon color.
 
-If one or both states use `Value`, the `Data` tab may also expose source unit, display unit, format, prefix, suffix, and fallback controls. The exact property availability depends on the selected metric, the chosen evaluation mode, and the state source types.
+If one or both states use `Value`, the `Data` tab may also expose source unit, display unit, format, prefix, suffix, controls. The system fallback is not user-editable. The exact property availability depends on the selected metric, the chosen evaluation mode, and the state source types.
 
 See [Widget Properties — Tabs](properties-by-tab.md), [State Color](properties.md#state-color), [Opacity](properties.md#opacity), [Image Fit](properties.md#image-fit), and [Overflow Mode](properties.md#overflow-mode).
 
@@ -159,9 +159,9 @@ See [Widget Properties — Tabs](properties-by-tab.md), [State Color](properties
 
 Binary has only two configurable state profiles: True and False.
 
-If the metric is missing, `null`, or cannot be evaluated, Binary does **not** select the False profile and does **not** switch to an imaginary third `Unavailable` profile. No True/False state content is drawn while evaluation is unavailable.
+If the metric is missing, `null`, or cannot be evaluated, Binary does **not** select the False profile and does **not** switch to an imaginary third `Unavailable` profile. No True/False state content is drawn while evaluation is unavailable. Instead, the renderer presents the fixed system fallback: `--` if both state profiles are Value/text, or `lucide:image-off` if either uses an icon or image.
 
-The `Fallback` property is used when an already selected `Value` profile cannot format its text. It does not create a visual state when evaluation itself fails.
+The fixed fallback is a render-only result, not a third logical Boolean state or a configurable profile. Failed Value-state text formatting also displays exactly `--`.
 
 !!! warning
     A missing metric and a genuine False result are different conditions. Do not use the False profile as though it automatically meant that the telemetry provider was offline.
@@ -225,7 +225,6 @@ Binary-specific JSON fields:
 | `format` | `Format` | Value-state text formatting. |
 | `prefix` | `Prefix` | Text before a formatted Value-state reading. |
 | `suffix` | `Suffix` | Text after a formatted Value-state reading. |
-| `fallback` | `Fallback` | Text used by the value-formatting path when a reading cannot be presented. |
 | `evaluationMode` | `EvaluationMode` | `Auto` or `Setpoint`. |
 | `trueIf` | `TrueIf` | Numeric Setpoint comparison operator. |
 | `setpoint` | `Setpoint` | Reference value stored as text. |
@@ -298,11 +297,11 @@ State resolution follows this sequence:
 - On success, select key `true` or `false`.
 - Resolve the matching canonical profile and project it to the rendering representation.
 
-When metric lookup or evaluation fails, `TryResolveBinaryVisualProfile` returns failure. `StateProfileWidgetRenderer` then deactivates state-specific animation playback and does not render a True/False profile.
+When metric lookup or evaluation fails, `TryResolveBinaryVisualProfile` returns failure. `StateProfileWidgetRenderer` deactivates state-specific animation playback and renders the fixed text or graphic fallback without selecting a True/False profile.
 
 Unlike Power or Media System, Binary defines no dedicated unavailable profile. Absence of an evaluation result must not be silently normalized to `false`.
 
-The formatted Value-state text uses `WidgetRenderContext.FormatMetric(BinaryWidgetDefinition)`. In that path, a missing or unformattable value uses `Prefix + Fallback + Suffix`. However, an unavailable evaluation prevents selection of either state profile, so this formatting fallback is **not** a general missing-metric visualization for Binary.
+The formatted Value-state text uses `WidgetRenderContext.FormatMetric(BinaryWidgetDefinition)`. Unformattable values display the fixed `--` without Prefix/Suffix. An unavailable evaluation instead triggers the common fallback presentation, using the Binary profiles' content types solely to choose text versus icon.
 
 ### State Profiles and Content Types
 
@@ -325,7 +324,7 @@ A Value profile displays the selected metric's formatted value, not the logical 
 - optional display-unit conversion;
 - `Format` where supported;
 - `Prefix` and `Suffix`;
-- `Fallback` on missing or unformattable values.
+- the fixed `--` marker on unformattable values.
 
 The formatting pipeline supports the metric kinds recognized by `MetricValueFormatter`, including Number, Percent, Duration, DataSize, DateTime, Boolean, and Text.
 
@@ -335,7 +334,7 @@ In Setpoint mode, numeric `Unit` options are constrained to units suitable for n
 
 `Format` is applicable to Value presentation and may be disabled when neither state uses Value, when the metric has no applicable format, or when another selected unit makes the format inapplicable.
 
-`Prefix`, `Suffix`, and `Fallback` belong to the shared Binary value-display path, and appear in the Editor when at least one state uses Value.
+`Prefix` and `Suffix` belong to the shared Binary value-display path and appear in the Editor when at least one state uses Value. Fallback has no Editor setting.
 
 ### Graphical State Rendering
 
@@ -343,13 +342,13 @@ In Setpoint mode, numeric `Unit` options are constrained to units suitable for n
 
 --8<-- "widgets/profiles.md:profile-rendering"
 
-For Binary, missing or failed evaluation leaves no active True/False profile. No graphical or animated state is displayed; this must not be silently treated as False. The canonical schema-19 state definition is projected into the shared immutable render profile.
+For Binary, missing or failed evaluation leaves no active True/False profile. Instead, the renderer draws the fixed `--` for two Value profiles or `lucide:image-off` for any graphical profile; this must not be silently treated as False. The canonical schema-19 state definition is projected into the shared immutable render profile.
 
 ### Geometry and Overflow
 
 --8<-- "widgets/profiles.md:profile-geometry"
 
-Binary has **two** profiles. Both must use Value for auto-width to be eligible. `WidgetGeometry` retains an appropriate selection/layout extent when Binary evaluation is unavailable. This geometry fallback is not an additional visual or unavailable state.
+Binary has **two** profiles. Both must use Value for auto-width to be eligible. `WidgetGeometry` retains an appropriate selection/layout extent when Binary evaluation is unavailable. The retained geometry supports the system fallback presentation without adding a third logical state.
 
 ### Editor Property Applicability
 

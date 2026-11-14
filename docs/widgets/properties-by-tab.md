@@ -138,9 +138,6 @@ Property groups are **expanded by default**, including nested groups. A group yo
     #### Suffix
     --8<-- "widgets/properties.md:suffix"
 
-    #### Fallback
-    --8<-- "widgets/properties.md:fallback"
-
     ### Evaluation
 
     #### Evaluation Mode
