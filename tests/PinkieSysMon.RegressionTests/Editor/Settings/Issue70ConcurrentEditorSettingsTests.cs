@@ -39,6 +39,17 @@ internal static class Issue70ConcurrentEditorSettingsTests
                 throw new InvalidOperationException("Saving with an open reader must leave no temporary files.");
 
             File.WriteAllText(path, "{ malformed");
+            var malformedBytes = File.ReadAllBytes(path);
+            try
+            {
+                EditorSettings.Load(path).Save(path);
+                throw new InvalidOperationException("Malformed Editor preferences were overwritten.");
+            }
+            catch (InvalidDataException)
+            {
+                if (!File.ReadAllBytes(path).AsSpan().SequenceEqual(malformedBytes))
+                    throw new InvalidOperationException("Rejected preferences write modified the corrupt input.");
+            }
             if (EditorSettings.Load(path).GridStep != 25)
                 throw new InvalidOperationException("Malformed Editor settings must still fall back to defaults.");
             File.Delete(path);

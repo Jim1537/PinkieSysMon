@@ -773,7 +773,7 @@ internal sealed partial class EditorForm : PinkieEditorForm
 
         try
         {
-            startupCurrent = StartupTaskManager.IsEnabled();
+            startupCurrent = StartupTaskManager.IsEnabled(Path.Combine(_root, "bin", "PinkieSysMon.exe"));
             originalConfigBytes = File.Exists(appConfigPath) ? File.ReadAllBytes(appConfigPath) : null;
             runtimeConfig = AppConfig.Load(appConfigPath, _log);
         }

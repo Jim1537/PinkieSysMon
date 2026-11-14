@@ -368,7 +368,11 @@ internal sealed class PinkieApplicationContext : ApplicationContext
             return Task.FromResult(new RuntimeIpcResponse(false, parsed.Error ?? "Invalid IPC command."));
 
         if (parsed.Kind == RuntimeIpcCommandKind.Status)
-            return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus() with { IpcDiagnosticsVersion = RuntimeIpcDiagnostics.Version })));
+            return Task.FromResult(new RuntimeIpcResponse(true, RuntimeIpcProtocol.SerializeStatus(_outputControl.GetStatus() with
+            {
+                IpcDiagnosticsVersion = RuntimeIpcDiagnostics.Version,
+                ApplicationRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_baseDir))
+            })));
 
         if (parsed.Kind == RuntimeIpcCommandKind.ReadMetrics && parsed.MetricIds is { } ids)
             return Task.FromResult(new RuntimeIpcResponse(true, RuntimeMetricSnapshotProtocol.SerializeSnapshot(

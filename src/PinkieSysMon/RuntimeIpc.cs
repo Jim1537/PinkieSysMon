@@ -48,6 +48,11 @@ internal sealed record RuntimeStatusSnapshot(
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public int? IpcDiagnosticsVersion { get; init; }
+
+    // Read-only identity used by Settings to exclude a different installation.
+    // Missing in older Runtime responses means identity is unverified.
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ApplicationRoot { get; init; }
 }
 
 internal sealed record RuntimeIpcStatusResponse(

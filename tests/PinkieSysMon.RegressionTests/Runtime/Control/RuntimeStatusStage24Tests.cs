@@ -53,12 +53,19 @@ internal static class RuntimeStatusStage24Tests
             Kind = OutputTargetContract.DesktopKind, Dashboard = "First", OutputEnabled = true,
             ProviderEnabled = false, BoardEnabled = true, Lock = true, IsVisible = true, RefreshIntervalMs = 250
         };
-        var expected = new RuntimeStatusSnapshot("(per-output dashboards)", [output]);
+        var expected = new RuntimeStatusSnapshot("(per-output dashboards)", [output])
+        {
+            ApplicationRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "pinkie-root"))
+        };
         var actual = RuntimeIpcProtocol.DeserializeStatus(RuntimeIpcProtocol.SerializeStatus(expected));
-        Check(actual.Outputs.Single() == output && actual.Dashboard == expected.Dashboard,
+        Check(actual.Outputs.Single() == output && actual.Dashboard == expected.Dashboard &&
+              actual.ApplicationRoot == expected.ApplicationRoot,
             "Additive output fields and opaque target IDs must survive v1 status serialization exactly.");
         const string legacy = "{\"Dashboard\":\"Legacy\",\"Outputs\":[{\"TargetId\":\"old\",\"TargetName\":\"Old\",\"IsActive\":true,\"IsConnected\":false,\"UsbState\":\"WAITING\"}]}";
-        var old = RuntimeIpcProtocol.DeserializeStatus(legacy).Outputs.Single();
+        var legacyStatus = RuntimeIpcProtocol.DeserializeStatus(legacy);
+        if (legacyStatus.ApplicationRoot is not null)
+            throw new InvalidOperationException("Missing Runtime root identity must remain unknown.");
+        var old = legacyStatus.Outputs.Single();
         Check(old.TargetId == "old" && old.IsActive && !old.IsConnected && old.UsbState == "WAITING" &&
               old.Kind is null && old.Dashboard is null && old.OutputEnabled is null &&
               old.ProviderEnabled is null && old.IsVisible is null,

@@ -269,6 +269,7 @@ internal static partial class Program
             ("Editor / Documents", [
                 ("shared Editor settings concurrent merge", Issue70ConcurrentEditorSettingsTests.MergesDashboardViews),
                 ("Editor save with an open settings snapshot", Issue70ConcurrentEditorSettingsTests.SaveWithOpenSnapshot),
+                ("Issue 128 HKCU Run installation ownership", Issue128StartupOwnershipTests.AccountWideRunEntryOwnership),
                 ("widget clipboard package version and payload", Issue70ClipboardTests.PackageRoundTrip),
                 ("nested widget paste plan and Save/reopen", Issue70PastePlannerTests.TransfersNestedGroups),
                 ("malformed group paste isolation", Issue70PastePlannerTests.RejectsMalformedMappingsWithoutMutation),

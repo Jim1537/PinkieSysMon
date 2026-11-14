@@ -20,24 +20,33 @@ internal sealed class EditorSettings
     public Dictionary<string, Dictionary<string, bool>> PropertyExpansion { get; set; } = new(StringComparer.Ordinal);
     public Dictionary<string, DashboardViewSettings> Dashboards { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    // Ordinary Editor startup remains tolerant. Writers must use a strict read
+    // under the shared mutex so malformed preferences are never replaced by defaults.
     public static EditorSettings Load(string path)
     {
+        try { return LoadForWrite(path); }
+        catch { return new EditorSettings(); }
+    }
+
+    internal static EditorSettings LoadForWrite(string path)
+    {
+        if (!File.Exists(path))
+            return new EditorSettings();
+
         try
         {
-            if (!File.Exists(path))
-                return new EditorSettings();
-
             using var reader = OpenSnapshotReader(path);
             return JsonSerializer.Deserialize<EditorSettings>(reader.ReadToEnd(), new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
                 ReadCommentHandling = JsonCommentHandling.Skip,
                 AllowTrailingCommas = true
-            }) ?? new EditorSettings();
+            }) ?? throw new InvalidDataException("Editor preferences contain a null document.");
         }
-        catch
+        catch (JsonException error)
         {
-            return new EditorSettings();
+            throw new InvalidDataException(
+                "Existing Editor preferences are malformed. Preserve config/editor.json and repair them before saving.", error);
         }
     }
 
@@ -77,7 +86,7 @@ internal sealed class EditorSettings
                 throw new IOException("Timed out waiting for another Editor to save shared settings.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            var latest = Load(fullPath);
+            var latest = LoadForWrite(fullPath);
             if (activeDashboard is null)
             {
                 foreach (var pair in Dashboards)
