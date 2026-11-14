@@ -33,7 +33,8 @@ internal static class Issue128RuntimeClientTests
                 LauncherRuntimeClient.VerifyStatus(root, invalid);
                 throw new InvalidOperationException("Unverified Runtime identity was accepted.");
             }
-            catch (Exception error) when (error is InvalidDataException or InvalidOperationException &&
+            catch (InvalidDataException) { }
+            catch (InvalidOperationException error) when (
                 error.Message.StartsWith("A different", StringComparison.Ordinal)) { }
         }
     }

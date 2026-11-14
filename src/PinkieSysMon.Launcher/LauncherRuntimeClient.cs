@@ -39,8 +39,8 @@ internal static class LauncherRuntimeClient
                 "The responding Runtime lacks the installation/instance/lifetime status contract. No Settings were applied.");
 
         var root = rootNode.GetString() ?? string.Empty;
-        if (!string.Equals(Editor.EditorSessionWire.NormalizeRoot(root),
-            Editor.EditorSessionWire.NormalizeRoot(expectedRoot), StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(global::PinkieSysMon.Editor.EditorSessionWire.NormalizeRoot(root),
+            global::PinkieSysMon.Editor.EditorSessionWire.NormalizeRoot(expectedRoot), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 "A different PinkieSysMon installation owns the Runtime endpoint. No Settings were applied.");
 
