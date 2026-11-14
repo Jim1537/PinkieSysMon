@@ -69,12 +69,20 @@ internal static class Program
                         TaskCreationOptions.RunContinuationsAsynchronously);
                     try
                     {
-                        form.BeginInvoke((Action)(async () =>
+                        form.BeginInvoke((Action)(() =>
                         {
                             try
                             {
-                                var closed = await form.RequestCoordinatedClose(expectedDashboard);
-                                result.TrySetResult(closed);
+                                // FormClosed can terminate the WinForms message loop.
+                                // Complete the IPC task off-thread, not by posting a
+                                // continuation back to the closing UI context.
+                                _ = form.RequestCoordinatedClose(expectedDashboard)
+                                    .ContinueWith(task =>
+                                    {
+                                        if (task.IsCompletedSuccessfully) result.TrySetResult(task.Result);
+                                        else if (task.IsCanceled) result.TrySetCanceled();
+                                        else if (task.Exception is { } error) result.TrySetException(error);
+                                    }, TaskScheduler.Default);
                             }
                             catch (Exception error) { result.TrySetException(error); }
                         }));

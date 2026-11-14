@@ -226,8 +226,8 @@ internal sealed class EditorSessionEndpoint : IDisposable
                 {
                     reply = new(request.RequestId, true, "Editor session verified.", snapshot);
                 }
-                else if (request.Action == "CLOSE" &&
-                    string.Equals(EditorSessionWire.NormalizeRoot(request.Root ?? ""),
+                else if (request.Action == "CLOSE" && request.Root is not null &&
+                    string.Equals(EditorSessionWire.NormalizeRoot(request.Root),
                         EditorSessionWire.NormalizeRoot(snapshot.Root), StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(request.ExpectedDashboard, snapshot.ActiveDashboard, StringComparison.OrdinalIgnoreCase))
                 {
