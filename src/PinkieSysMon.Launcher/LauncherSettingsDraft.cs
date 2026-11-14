@@ -45,17 +45,19 @@ internal sealed class LauncherSettingsDraft
     internal string EditorPath { get; }
     internal byte[] OriginalAppBytes { get; }
     internal byte[]? OriginalEditorBytes { get; }
+    internal string? OriginalStartupCommand { get; }
     internal LauncherSettingsValues Values { get; }
     private readonly LauncherSettingsValues _original;
 
     private LauncherSettingsDraft(string root, byte[] appBytes, byte[]? editorBytes,
-        LauncherSettingsValues initial)
+        string? startupCommand, LauncherSettingsValues initial)
     {
         Root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         AppPath = Path.Combine(Root, "config", "app.json");
         EditorPath = Path.Combine(Root, "config", "editor.json");
         OriginalAppBytes = appBytes;
         OriginalEditorBytes = editorBytes;
+        OriginalStartupCommand = startupCommand;
         _original = initial.Clone();
         Values = initial.Clone();
     }
@@ -72,6 +74,11 @@ internal sealed class LauncherSettingsDraft
         var editorBytes = File.Exists(editorPath) ? File.ReadAllBytes(editorPath) : null;
         var app = ParseApp(appBytes);
         var preferences = EditorSettings.LoadForWrite(editorPath);
+        var startupCommand = readStartup is null ? StartupTaskManager.ReadCurrentCommand() : null;
+        var runtimePath = Path.Combine(normalized, "bin", "PinkieSysMon.exe");
+        if (startupCommand is not null &&
+            !StartupTaskManager.IsOwnedCommand(startupCommand, runtimePath))
+            throw new InvalidOperationException("Windows Runtime autostart belongs to another installation.");
         var values = new LauncherSettingsValues
         {
             RuntimeIdleTimeoutMinutes = ReadInt(app, "Runtime", "IdleTimeoutMinutes", 0),
@@ -84,11 +91,12 @@ internal sealed class LauncherSettingsDraft
             FilesystemSources = ReadSources(app),
             ToolbarIconSize = preferences.ToolbarIconSize,
             Theme = preferences.Theme,
-            StartRuntimeWithWindows = (readStartup ?? StartupTaskManager.IsEnabled)(
-                Path.Combine(normalized, "bin", "PinkieSysMon.exe"))
+            StartRuntimeWithWindows = readStartup is null
+                ? !string.IsNullOrWhiteSpace(startupCommand)
+                : readStartup(runtimePath)
         };
         Validate(values);
-        return new LauncherSettingsDraft(normalized, appBytes, editorBytes, values);
+        return new LauncherSettingsDraft(normalized, appBytes, editorBytes, startupCommand, values);
     }
 
     internal bool AppChanged =>
@@ -157,6 +165,22 @@ internal sealed class LauncherSettingsDraft
         if (!Matches(AppPath, OriginalAppBytes) || !Matches(EditorPath, OriginalEditorBytes))
             throw new InvalidOperationException(
                 "Settings input changed after the draft was opened. No newer configuration was overwritten.");
+    }
+
+    // Closing a verified Editor legitimately saves fresh per-dashboard view
+    // state. Accept only those changes while rejecting external app-wide edits.
+    internal void EnsureSharedPreferencesUnchanged()
+    {
+        if (!Matches(AppPath, OriginalAppBytes))
+            throw new InvalidOperationException("Application configuration changed during Editor close.");
+        var latest = EditorSettings.LoadForWrite(EditorPath);
+        if (latest.ToolbarIconSize != _original.ToolbarIconSize ||
+            !string.Equals(latest.Theme, _original.Theme, StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "Shared Editor interface settings changed while Settings was open.");
+        if (OriginalStartupCommand != StartupTaskManager.ReadCurrentCommand())
+            throw new InvalidOperationException(
+                "Windows Runtime startup entry changed while Settings was open.");
     }
 
     // App files and Editor preferences are persisted separately by their

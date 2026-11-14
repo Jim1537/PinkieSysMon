@@ -47,10 +47,19 @@ internal static class StartupTaskManager
         }
     }
 
+    internal static string? ReadCurrentCommand() => ReadExisting();
+
     private static string? ReadExisting()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
-        return key?.GetValue(ValueName) as string;
+        var raw = key?.GetValue(ValueName);
+        return raw switch
+        {
+            null => null,
+            string text => text,
+            _ => throw new InvalidDataException(
+                "Windows Runtime startup entry uses an unexpected registry value type; it was not changed.")
+        };
     }
 
     private static void RequireOwned(string command, string runtimeExePath)

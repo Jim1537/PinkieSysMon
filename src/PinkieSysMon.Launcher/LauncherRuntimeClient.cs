@@ -13,6 +13,8 @@ internal sealed record LauncherRuntimeState(bool Present, bool OutputLifetimeRun
 
 // An absent Runtime and a present-but-unresponsive Runtime have radically
 // different ownership semantics. Never start or silently retry a foreign owner.
+internal sealed class LauncherRuntimeRejectedException(string message) : InvalidOperationException(message);
+
 internal static class LauncherRuntimeClient
 {
     internal const string PipeName = "PinkieSysMon.Runtime.v1";
@@ -74,7 +76,7 @@ internal static class LauncherRuntimeClient
         var response = await SendAsync(ReloadVerb(fresh.OutputLifetimeRunning), 20000, cancellationToken)
             .ConfigureAwait(false);
         if (!response.Success)
-            throw new InvalidOperationException("Runtime rejected Settings reload: " + response.Message);
+            throw new LauncherRuntimeRejectedException("Runtime rejected Settings reload: " + response.Message);
 
         var after = await GetStatusAsync(root, cancellationToken).ConfigureAwait(false);
         if (!after.Present || after.InstanceId != before.InstanceId)
