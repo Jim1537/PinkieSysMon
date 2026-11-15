@@ -89,8 +89,8 @@ internal static class StartupTaskManager
             return;
         }
 
-        using var existing = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-        existing?.DeleteValue(ValueName, throwOnMissingValue: false);
+        using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+        runKey?.DeleteValue(ValueName, throwOnMissingValue: false);
     }
 
     private static string QuoteCommand(string executablePath) => $"\"{Path.GetFullPath(executablePath)}\"";
