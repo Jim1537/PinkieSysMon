@@ -2,12 +2,10 @@
 
 Notable changes to PinkieSysMon, newest first.
 
-## Unreleased
+## v2.91.558
 
 ### Removed
 - **System integrated GPU metric:** Removed `system.gpu.integrated.load` and its dedicated DXCore / GPU Engine WMI collector. Existing LHM GPU sensors remain available; saved references to the retired metric are not automatically remapped ([Pinkie Pie #17](https://github.com/Jim1537/PinkiePie/issues/17)).
-
-## v2.91.557
 
 ### Added
 - **Desktop Calculator:** Interactive basic arithmetic, clear/backspace controls, and numeric Copy/Paste; Editor and physical Outputs display a noninteractive preview ([#119](https://github.com/Jim1537/PinkieSysMon/issues/119)).
