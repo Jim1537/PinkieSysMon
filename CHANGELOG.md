@@ -7,6 +7,36 @@ Notable changes to PinkieSysMon, newest first.
 ### Removed
 - **System integrated GPU metric:** Removed `system.gpu.integrated.load` and its dedicated DXCore / GPU Engine WMI collector. Existing LHM GPU sensors remain available; saved references to the retired metric are not automatically remapped ([Pinkie Pie #17](https://github.com/Jim1537/PinkiePie/issues/17)).
 
+## v2.91.557
+
+### Added
+- **Desktop Calculator:** Interactive basic arithmetic, clear/backspace controls, and numeric Copy/Paste; Editor and physical Outputs display a noninteractive preview ([#119](https://github.com/Jim1537/PinkieSysMon/issues/119)).
+- **Filesystem telemetry:** Opt-in file and folder metrics, including recursive size and item counts, with bounded background scans and source validation ([#115](https://github.com/Jim1537/PinkieSysMon/issues/115)).
+- **Universal widget Actions:** Single- or double-click Windows Shell activation on Desktop widgets, with targets, arguments, and optional administrator elevation ([#114](https://github.com/Jim1537/PinkieSysMon/issues/114), [#121](https://github.com/Jim1537/PinkieSysMon/issues/121)).
+- **Physical display brightness:** Configurable real TURZX backlight brightness through the existing Output settings and transport; Trofeo brightness remains unsupported without verified hardware evidence ([#74](https://github.com/Jim1537/PinkieSysMon/issues/74)).
+- **DateTime components:** New cyclic 12-hour position for analog clock gauges, without changing existing 12-hour and 24-hour components ([#107](https://github.com/Jim1537/PinkieSysMon/issues/107)).
+- **Persistent diagnostics:** Configurable rolling Runtime, Editor, and shared Errors logs retain cross-session history and correlate errors without duplicating full exception records ([#105](https://github.com/Jim1537/PinkieSysMon/issues/105)).
+
+### Changed
+- **Launcher and application settings:** Settings and About now live in a standalone six-tab Launcher, accessible from Editor and Runtime, with coordinated multi-Editor settings application and a single active draft per installation ([#128](https://github.com/Jim1537/PinkieSysMon/issues/128)).
+- **Widget and Canvas appearance:** Unified Panel layers, content padding, per-side borders, corner radius, and shadows across widgets and root Canvas; Desktop Canvas shadows remain Desktop-only ([#103](https://github.com/Jim1537/PinkieSysMon/issues/103), [#112](https://github.com/Jim1537/PinkieSysMon/issues/112), [#113](https://github.com/Jim1537/PinkieSysMon/issues/113)).
+- **Raster rendering:** Strong image/icon downscaling uses improved sampling, with configurable global sharpness and alpha-aware unsharp masking ([#122](https://github.com/Jim1537/PinkieSysMon/issues/122)).
+- **Editor widget controls:** Add Widget menus separate basic and specialized types under readable names; Image content source selection is now on General rather than its presentation tab ([#120](https://github.com/Jim1537/PinkieSysMon/issues/120), [#117](https://github.com/Jim1537/PinkieSysMon/issues/117)).
+- **Telemetry and unavailable states:** Editor preview reads actual Runtime-owned Output and Filesystem metrics; inactive physical Output USB metrics can report `UNAVAILABLE`, while widgets share fixed `--` / image-off fallback presentation instead of fabricated readings ([#110](https://github.com/Jim1537/PinkieSysMon/issues/110), [#111](https://github.com/Jim1537/PinkieSysMon/issues/111), [#126](https://github.com/Jim1537/PinkieSysMon/issues/126)).
+- **Dashboard compatibility:** Versioned migrations advance saved dashboards from schema 26 through schema 36, including common Panel, Action, Calculator, and fallback contracts. Older application builds cannot open dashboards saved in the newer schema ([#103](https://github.com/Jim1537/PinkieSysMon/issues/103), [#114](https://github.com/Jim1537/PinkieSysMon/issues/114), [#126](https://github.com/Jim1537/PinkieSysMon/issues/126)).
+- **Regression checks:** Reorganized tests by subsystem with clearer progress reporting and stabilized the strict Graph history allocation check against unrelated GC accounting ([#99](https://github.com/Jim1537/PinkieSysMon/issues/99), [#106](https://github.com/Jim1537/PinkieSysMon/issues/106)).
+
+### Removed
+- **Dedicated Shortcut widget:** Replaced by the universal Action capability on existing widget types ([#114](https://github.com/Jim1537/PinkieSysMon/issues/114)).
+- **Per-device USB log controls:** Removed the USB diagnostics settings row and separate device journals in favor of shared application logging ([#104](https://github.com/Jim1537/PinkieSysMon/issues/104)).
+- **Shadow Opacity:** Removed the redundant control; saved shadow transparency migrates into RGBA Color alpha ([#116](https://github.com/Jim1537/PinkieSysMon/issues/116)).
+
+### Fixed
+- **Runtime after reboot:** Transient Desktop Z-order placement failures no longer abort automatic startup; placement recovery is bounded ([#118](https://github.com/Jim1537/PinkieSysMon/issues/118)).
+- **Desktop dragging:** Dragging an unlocked panel from a widget Action region no longer leaves it stationary until mouse release ([#127](https://github.com/Jim1537/PinkieSysMon/issues/127)).
+- **Editor property panel:** Dependent Border and image/icon Source controls refresh after edits without a tab switch, and opening another dashboard no longer leaves the previous document's properties editable ([#123](https://github.com/Jim1537/PinkieSysMon/issues/123), [#124](https://github.com/Jim1537/PinkieSysMon/issues/124), [#125](https://github.com/Jim1537/PinkieSysMon/issues/125)).
+- **Editor artwork recovery:** Missing or damaged dashboard images are repaired or reported without silently losing their source configuration ([#103](https://github.com/Jim1537/PinkieSysMon/issues/103)).
+
 ## v2.65.364
 
 ### Added
