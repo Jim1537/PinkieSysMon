@@ -15,6 +15,11 @@ internal sealed record LauncherRuntimeState(bool Present, bool OutputLifetimeRun
 // different ownership semantics. Never start or silently retry a foreign owner.
 internal sealed class LauncherRuntimeRejectedException(string message) : InvalidOperationException(message);
 
+// A pre-dispatch failure proves no mutating reload request was sent. It is
+// distinct from a timeout/disconnect after a possible command write.
+internal sealed class LauncherRuntimePreDispatchException(string message, Exception? inner = null)
+    : InvalidOperationException(message, inner);
+
 internal static class LauncherRuntimeClient
 {
     internal const string PipeName = "PinkieSysMon.Runtime.v1";
@@ -65,13 +70,23 @@ internal static class LauncherRuntimeClient
         CancellationToken cancellationToken = default)
     {
         if (!before.Present || before.InstanceId is null)
-            throw new InvalidOperationException("Cannot reload an absent or unverified Runtime.");
+            throw new LauncherRuntimePreDispatchException("Cannot reload an absent or unverified Runtime.");
 
-        // Recheck owner immediately before the mutating IPC request. If another
-        // instance replaced it during the Settings transaction, fail closed.
-        var fresh = await GetStatusAsync(root, cancellationToken).ConfigureAwait(false);
+        // Recheck owner before the mutating request. Failure here cannot have
+        // written a reload verb; later transport failures may be ambiguous.
+        LauncherRuntimeState fresh;
+        try
+        {
+            fresh = await GetStatusAsync(root, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is InvalidOperationException or InvalidDataException or JsonException)
+        {
+            throw new LauncherRuntimePreDispatchException(
+                "Runtime could not be verified immediately before reload; no command was sent.", error);
+        }
         if (!fresh.Present || fresh.InstanceId != before.InstanceId)
-            throw new InvalidOperationException("Runtime ownership changed before reload; the command was not sent.");
+            throw new LauncherRuntimePreDispatchException(
+                "Runtime ownership changed before reload; the command was not sent.");
 
         var response = await SendAsync(ReloadVerb(fresh.OutputLifetimeRunning), 20000, cancellationToken)
             .ConfigureAwait(false);

@@ -118,7 +118,8 @@ internal static class LauncherSettingsCoordinator
             // Runtime once to reapply its previous configuration; never retry
             // an UNKNOWN-after-send request (or a changed process identity).
             var knownRejection = error is LauncherRuntimeRejectedException;
-            if (!runtimeCommandStarted || knownRejection)
+            var knownNotSent = error is LauncherRuntimePreDispatchException;
+            if (!runtimeCommandStarted || knownRejection || knownNotSent)
             {
                 if (editorWritten && savedEditorBytes is not null)
                 {
