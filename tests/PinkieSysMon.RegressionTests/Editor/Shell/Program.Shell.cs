@@ -43,7 +43,7 @@ internal static partial class Program
             "Settings and About must be direct right-aligned commands without submenus.");
         editMenu.DropDownItems.Add(new ToolStripMenuItem("Send to Back"));
         Assert(!editMenu.DropDownItems.Cast<ToolStripItem>()
-            .Any(item => item.Text.Contains("settings", StringComparison.OrdinalIgnoreCase)),
+            .Any(item => item.Text?.Contains("settings", StringComparison.OrdinalIgnoreCase) == true),
             "The obsolete Editor settings entry must not remain under Edit.");
         settingsMenu.PerformClick();
         aboutMenu.PerformClick();

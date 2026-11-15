@@ -100,7 +100,7 @@ internal static class Issue71SettingsTests
         var text = string.Join(" ", Descendants(page).OfType<Label>().Select(label => label.Text));
         if (!text.Contains("Physical USB display") || !text.Contains(OutputTargetContract.EncryptedJpegTransport))
             throw new InvalidOperationException("An absent physical record must retain its generic type and independently selected protocol.");
-        using var tray = new RuntimeTrayMenu(() => { }, _ => { }, () => { }, (_, _) => { });
+        using var tray = new RuntimeTrayMenu(() => { }, _ => { }, () => { }, (_, _) => { }, () => { }, () => { });
         var status = new OutputSessionStatus(target.Id, target.Name, false, false, "DISABLED", 0, 0, 0)
         { Kind = "physical", Dashboard = "Default", OutputEnabled = false };
         tray.RefreshOutputs([status], ["Default"], new HashSet<string>(), new Dictionary<string, int>());

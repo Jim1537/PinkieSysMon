@@ -139,18 +139,24 @@ internal static partial class Program
         var desktopMenu = new ToolStripMenuItem(EditorMainMenuContract.DesktopMenuText);
         var devicesMenu = new ToolStripMenuItem(EditorMainMenuContract.DevicesMenuText);
         var toolsMenu = new ToolStripMenuItem(EditorMainMenuContract.ToolsMenuText);
-        var helpMenu = new ToolStripMenuItem(EditorMainMenuContract.HelpMenuText);
-        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu, toolsMenu, helpMenu);
+        var settingsMenu = new ToolStripMenuItem(EditorMainMenuContract.SettingsMenuText);
+        var aboutMenu = new ToolStripMenuItem(EditorMainMenuContract.AboutMenuText);
+        EditorMainMenuContract.Populate(menu, fileMenu, editMenu, desktopMenu, devicesMenu,
+            toolsMenu, settingsMenu, aboutMenu);
 
-        Assert(menu.Items.Cast<ToolStripItem>().All(item => !string.Equals(item.Text, "Group", StringComparison.OrdinalIgnoreCase)),
-            "PASS 8 final audit must keep the redundant top-level Group menu removed.");
+        Assert(menu.Items.Cast<ToolStripItem>().All(item =>
+               !string.Equals(item.Text, "Group", StringComparison.OrdinalIgnoreCase) &&
+               !string.Equals(item.Text, "Help", StringComparison.OrdinalIgnoreCase)),
+            "Final shell audit must keep obsolete Group and Help top-level menus removed.");
         Assert(fileMenu.Alignment == ToolStripItemAlignment.Left &&
                editMenu.Alignment == ToolStripItemAlignment.Left &&
                desktopMenu.Alignment == ToolStripItemAlignment.Left &&
                devicesMenu.Alignment == ToolStripItemAlignment.Left &&
                toolsMenu.Alignment == ToolStripItemAlignment.Left &&
-               helpMenu.Alignment == ToolStripItemAlignment.Right,
-            "Final shell contract must keep File/Edit/Desktop/Devices/Tools left and Help right.");
+               settingsMenu.Alignment == ToolStripItemAlignment.Right &&
+               aboutMenu.Alignment == ToolStripItemAlignment.Right &&
+               settingsMenu.DropDownItems.Count == 0 && aboutMenu.DropDownItems.Count == 0,
+            "Final shell contract must keep File/Edit/Desktop/Devices/Tools left and direct Settings/About right.");
     }
 
     private static void WindowsApplicationIdentityMetadata()
