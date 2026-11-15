@@ -70,6 +70,10 @@ internal static class Issue70ConcurrentEditorSettingsTests
             initial.GetDashboard("First").Zoom = "125%";
             initial.GetDashboard("Second").Zoom = "75%";
             initial.Save(path, "First");
+            if (initial.GetDashboard("Second").Zoom != "75%" ||
+                EditorSettings.LoadForWrite(path).Dashboards.ContainsKey("Second"))
+                throw new InvalidOperationException(
+                    "Saving one dashboard view must retain another unsaved local view without persisting it early.");
             initial.Save(path, "Second");
             var before = File.ReadAllBytes(path);
             EditorSettings.SaveSharedPreferences(path, before, 48, EditorThemeContract.DarkSetting);

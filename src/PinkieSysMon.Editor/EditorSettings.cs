@@ -139,10 +139,13 @@ internal sealed class EditorSettings
                 latest.Dashboards[activeDashboard] = view;
             }
 
-            // Shared preferences follow the last Editor to save; independent
-            // dashboard views are merged under the cross-process file mutex.
-            Dashboards = latest.Dashboards;
-            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
+            // Persist only the intended dashboard view(s), merged with the
+            // latest file. Do not replace this Editor's live Dashboards:
+            // another locally staged view may still need its own later Save.
+            // The shallow copy changes only the serialized view dictionary.
+            var snapshot = (EditorSettings)MemberwiseClone();
+            snapshot.Dashboards = latest.Dashboards;
+            var json = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine;
             var temp = fullPath + ".tmp-" + Guid.NewGuid().ToString("N");
             try
             {
